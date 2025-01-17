@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
         width: "95%",
         backgroundColor: AppColors.secondaryDarkGreen,
         borderRadius: 15,
-        padding: "4%",
+        padding: "5%",
     },
     contentWrapper: {
         width: "100%",

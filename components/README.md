@@ -15,6 +15,8 @@ components/
 
 ### Components list
 1. **PreviousTripsCompressed**: A compressed view card of the previous trips, to show under "your trips" on the home page as of now. Takes a singular Ride as its prop.
+2. **MainNavBar**: The main navigation bar that is present on all screens, around which the app revolves. Takes props to decide the icons, and the state of the navbar.
+3. **RideDetailsSelector**: A component that allows the user to select the details of the ride they want to book. Takes an onSubmit function as it's prop. Will be used in the booking flow.
 
 
 ### Component Writing Guidelines

@@ -2,6 +2,9 @@ import { StatusBar } from "expo-status-bar";
 import { StyleSheet, Text, View } from "react-native";
 import PreviousTripsCompressed from "./components/PreviousTripsCompressed";
 import { rideData } from "./dummy-data/DummyTrips";
+import bottomNavItems from "./design-system/BottomNavigationItems";
+import RideDetailsSelector from "./components/RideDetailsSelector";
+import MainNavBar from "./components/MainNavBar";
 import {
     useFonts,
     NunitoSans_200ExtraLight,
@@ -38,15 +41,41 @@ export default () => {
         NunitoSans_900Black_Italic,
     });
 
-    let fontSize = 24;
-    let paddingVertical = 6;
+    const handleRideSubmit = (details: {
+        from: string;
+        to: string;
+        date: Date;
+    }) => {
+        console.log("Submitted ride details:", details);
+        // Here you would make your API call
+        // Example:
+        // apiClient.submitRideDetails(details);
+    };
 
     if (!fontsLoaded) {
         return <Text>Font loading error</Text>;
     } else {
         return (
             <View style={styles.container}>
-                <PreviousTripsCompressed trip={rideData[0]} />
+                {/* <PreviousTripsCompressed trip={rideData[0]} />
+                <MainNavBar
+                    variant={0}
+                    bottomNavItems={bottomNavItems}
+                    iconPath={require("./assets/wallet.png")}
+                />
+                <MainNavBar
+                    variant={1}
+                    text="Search Rides"
+                    iconPath={require("./assets/cool-emoji.png")}
+                    onPress={() => console.log("Search pressed")}
+                />
+                <MainNavBar
+                    variant={2}
+                    text="View Details"
+                    iconPath={require("./assets/smiling-emoji.png")}
+                    onPress={() => console.log("Details pressed")}
+                /> */}
+                <RideDetailsSelector onSubmit={handleRideSubmit} />
                 <StatusBar style="auto" />
             </View>
         );
