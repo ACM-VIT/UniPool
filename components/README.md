@@ -1,5 +1,5 @@
 ## Components Folder
-The `components` folder contains all reusable components. Follow these guidelines to ensure consistency and maintainability:
+The `components` folder contains all reusable components. Please add all the components made to this readme, right below the folder structure. Follow these guidelines to ensure consistency and maintainability:
 
 ### Folder Structure
 Each component should reside in its own folder named after the component. For example:
@@ -12,6 +12,10 @@ components/
     Button.types.ts
     index.ts
 ```
+
+### Components list
+1. **PreviousTripsCompressed**: A compressed view card of the previous trips, to show under "your trips" on the home page as of now. Takes a singular Ride as its prop.
+
 
 ### Component Writing Guidelines
 1. **File Naming:** Use PascalCase for component names (e.g., `Button.tsx`).
