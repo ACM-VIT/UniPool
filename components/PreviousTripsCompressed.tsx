@@ -33,7 +33,11 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
         <TouchableOpacity style={styles.container}>
             <View style={styles.contentWrapper}>
                 <View style={styles.tripInfo}>
-                    <Text style={styles.tripText}>
+                    <Text
+                        style={styles.tripText}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                    >
                         {`${trip.start_location} to ${trip.end_location}`}
                     </Text>
                     <Text style={styles.start_timeText}>
@@ -66,7 +70,7 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
 
 const styles = StyleSheet.create({
     container: {
-        width: "95%",
+        width: "100%",
         backgroundColor: AppColors.secondaryDarkGreen,
         borderRadius: 15,
         padding: "5%",
@@ -79,6 +83,7 @@ const styles = StyleSheet.create({
     },
     tripInfo: {
         flex: 1,
+        marginRight: 10, // Add some space between the text and price section
     },
     tripText: {
         color: AppColors.basicWhite,
@@ -89,7 +94,7 @@ const styles = StyleSheet.create({
     start_timeText: {
         color: AppColors.primaryLightGreen,
         fontSize: 14,
-        fontFamily: "NunitoSans_600SemiBold"
+        fontFamily: "NunitoSans_600SemiBold",
     },
     priceSection: {
         flexDirection: "row",
@@ -104,12 +109,12 @@ const styles = StyleSheet.create({
     rupeeSymbol: {
         color: "#FFFFFF",
         fontSize: 14,
-        fontFamily: "NunitoSans_400Regular"
+        fontFamily: "NunitoSans_400Regular",
     },
     total_priceText: {
         color: "#FFFFFF",
         fontSize: 14,
-        fontFamily: "NunitoSans_400Regular"
+        fontFamily: "NunitoSans_400Regular",
     },
     walletIcon: {
         height: height * 0.03,

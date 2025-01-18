@@ -5,6 +5,7 @@ import { rideData } from "./dummy-data/DummyTrips";
 import bottomNavItems from "./design-system/BottomNavigationItems";
 import RideDetailsSelector from "./components/RideDetailsSelector";
 import MainNavBar from "./components/MainNavBar";
+import HomeScreen from "./screens/HomeScreen";
 import {
     useFonts,
     NunitoSans_200ExtraLight,
@@ -41,17 +42,6 @@ export default () => {
         NunitoSans_900Black_Italic,
     });
 
-    const handleRideSubmit = (details: {
-        from: string;
-        to: string;
-        date: Date;
-    }) => {
-        console.log("Submitted ride details:", details);
-        // Here you would make your API call
-        // Example:
-        // apiClient.submitRideDetails(details);
-    };
-
     if (!fontsLoaded) {
         return <Text>Font loading error</Text>;
     } else {
@@ -75,8 +65,7 @@ export default () => {
                     iconPath={require("./assets/smiling-emoji.png")}
                     onPress={() => console.log("Details pressed")}
                 /> */}
-                <RideDetailsSelector onSubmit={handleRideSubmit} />
-                <StatusBar style="auto" />
+                <HomeScreen />
             </View>
         );
     }

@@ -215,10 +215,9 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
 const styles = StyleSheet.create({
     container: {
-        width: "95%",
+        width: "100%",
         borderRadius: 15,
         overflow: "hidden",
-        backgroundColor: AppColors.primaryLightGreen,
         borderColor: AppColors.basicBlack,
         borderWidth: 2,
     },

@@ -100,7 +100,7 @@ const MainNavBar: React.FC<MainNavBarProps> = ({
 
 const styles = StyleSheet.create({
     bottomNavContainer: {
-        width: "95%",
+        width: "100%",
         flexDirection: "row",
         justifyContent: "space-around",
         alignItems: "center",
