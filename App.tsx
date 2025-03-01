@@ -6,6 +6,8 @@ import bottomNavItems from "./design-system/BottomNavigationItems";
 import RideDetailsSelector from "./components/RideDetailsSelector";
 import MainNavBar from "./components/MainNavBar";
 import HomeScreen from "./screens/HomeScreen";
+import SignIn from "./screens/SignIn";
+
 import {
   useFonts,
   NunitoSans_200ExtraLight,
