@@ -10,6 +10,8 @@ import {
 } from "react-native";
 import AppColors from "../design-system/colors";
 
+const win = Dimensions.get('window');
+
 const SignIn: React.FC = () => {
    return (
     <SafeAreaView style={styles.container}>
@@ -31,7 +33,7 @@ const SignIn: React.FC = () => {
         </TouchableOpacity>
         </View>
         <View style={styles.beepImage}>
-        <Image source={require('.././assets/beep-beep-ramp.png')} style={{height:200, width:200}}/>
+        <Image style={styles.imageStyle} source={require('.././assets/beep-beep-ramp.png')}/>
 
         </View>
 
@@ -93,13 +95,15 @@ buttonView:{
     padding:'7%'
 },
 beepImage:{
-    flexDirection:'row',
+    flex:1,
     justifyContent:'center',
+    alignItems:'center',
+    padding:'19.8%'
+},
+imageStyle:{
+    width: win.width * 1,
+    height: win.width * 1,
+    resizeMode:'contain',
 }
 });
-
-// Custom Map Style
-// const customMapStyle = [
-// ];
-
 export default SignIn;
