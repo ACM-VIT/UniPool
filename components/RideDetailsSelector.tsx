@@ -22,7 +22,18 @@ const LOCATIONS = [
     "Coimbatore",
     "Salem",
     "Madurai",
+    "Pondicherry"
 ];
+
+export const CommonLocationCoordinates = [
+    { location: "Chennai", latitude: 12.989196, longitude: 80.178799 },
+    { location: "Vellore", latitude: 12.9680, longitude: 77.1559 },
+    { location: "Bangalore", latitude: 13.1985, longitude: 77.6665 },
+    { location: "Coimbatore", latitude: 11.0376, longitude: 77.0363 },
+    { location: "Salem", latitude: 11.6641, longitude: 78.1579 },
+    { location: "Madurai", latitude: 9.9120, longitude: 78.1242 },
+    { location: "Pondicherry", latitude: 11.9352 , longitude: 79.8082 }
+]
 
 interface RideDetails {
     from: string;
@@ -169,7 +180,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                             Select {showFromDropdown ? "From" : "To"} Location
                         </Text>
                         <ScrollView style={styles.locationList}>
-                            {LOCATIONS.map((location) => (
+                            {CommonLocationCoordinates.map(({ location }) => (
                                 <TouchableOpacity
                                     key={location}
                                     style={styles.locationItem}

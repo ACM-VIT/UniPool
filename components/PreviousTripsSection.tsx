@@ -8,6 +8,9 @@ const PreviousTripsSection: React.FC = () => {
     const screenWidth = Dimensions.get("window").width;
     const maxDots = 5;
 
+    // Only show the latest 5 trips
+    const displayedRides = rideData.slice(Math.max(rideData.length - 5, 0));
+
     const handleScroll = (event: any) => {
         const contentOffset = event.nativeEvent.contentOffset.x;
         const index = Math.round(contentOffset / screenWidth);
@@ -15,7 +18,7 @@ const PreviousTripsSection: React.FC = () => {
     };
 
     const renderPaginationDots = () => {
-        const totalItems = rideData.length;
+        const totalItems = displayedRides.length;
 
         if (totalItems <= maxDots) {
             // If we have 5 or fewer items, show all dots
@@ -81,7 +84,7 @@ const PreviousTripsSection: React.FC = () => {
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
             >
-                {rideData.map((trip, index) => (
+                {displayedRides.map((trip, index) => (
                     <View
                         key={index}
                         style={[
@@ -115,7 +118,11 @@ const styles = StyleSheet.create({
         color: "#000000",
     },
     tripContainer: {
-        marginRight: 16,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 8,
+        marginLeft: 8,
     },
     paginationContainer: {
         flexDirection: "row",

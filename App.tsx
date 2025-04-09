@@ -5,7 +5,9 @@ import { rideData } from "./dummy-data/DummyTrips";
 import bottomNavItems from "./design-system/BottomNavigationItems";
 import RideDetailsSelector from "./components/RideDetailsSelector";
 import MainNavBar from "./components/MainNavBar";
+import RideCard from "./components/RideCard";
 import HomeScreen from "./screens/HomeScreen";
+import AvailableRidesScreen from "./screens/AvailableRidesScreen";
 import {
   useFonts,
   NunitoSans_200ExtraLight,
@@ -65,7 +67,9 @@ export default () => {
                     iconPath={require("./assets/smiling-emoji.png")}
                     onPress={() => console.log("Details pressed")}
                 /> */}
-        <HomeScreen />
+        {/* <HomeScreen /> */}
+        {/* <RideCard /> */}
+        <AvailableRidesScreen />
       </View>
     );
   }
