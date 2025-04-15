@@ -100,13 +100,15 @@ const MainNavBar: React.FC<MainNavBarProps> = ({
 
 const styles = StyleSheet.create({
     bottomNavContainer: {
-        width: "100%",
+        width: "95%",
         flexDirection: "row",
         justifyContent: "space-around",
         alignItems: "center",
         backgroundColor: AppColors.secondaryDarkGreen,
         paddingVertical: "4%",
         borderRadius: 15,
+        position: "absolute",
+        bottom: 0,
     },
     navItem: {
         width: "25%",
@@ -122,7 +124,9 @@ const styles = StyleSheet.create({
         backgroundColor: AppColors.secondaryDarkGreen,
         paddingVertical: "4%",
         paddingHorizontal: "5%",
-        borderRadius: 15
+        borderRadius: 15,
+        position: "absolute",
+        bottom: 0,
     },
     singleBarText: {
         color: AppColors.primaryLightGreen,

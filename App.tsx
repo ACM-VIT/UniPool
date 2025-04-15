@@ -5,11 +5,13 @@ import { rideData } from "./dummy-data/DummyTrips";
 import bottomNavItems from "./design-system/BottomNavigationItems";
 import RideDetailsSelector from "./components/RideDetailsSelector";
 import MainNavBar from "./components/MainNavBar";
+import RideCard from "./components/RideCard";
 import HomeScreen from "./screens/HomeScreen";
 import SignIn from "./screens/SignIn";
 import Additional from "./screens/additionalDetails";
 import ErrorScreen from "./screens/ErrorScreen";
 import CreateRide from "./screens/CreateRide";
+import AvailableRidesScreen from "./screens/AvailableRidesScreen";
 
 import {
   useFonts,
