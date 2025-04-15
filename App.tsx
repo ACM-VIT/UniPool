@@ -70,7 +70,7 @@ export default () => {
                     iconPath={require("./assets/smiling-emoji.png")}
                     onPress={() => console.log("Details pressed")}
                 /> */}
-        <HomeScreen />
+        <HomeScreen/>
       </View>
     );
   }
