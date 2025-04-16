@@ -1,6 +1,9 @@
 import React from "react";
-import { View, Text, StyleSheet, Image } from "react-native";
+import { View, Text, StyleSheet, Image, Dimensions } from "react-native";
 import GoogleAuthButton from "../components/GoogleAuthBox";
+import AppColors from "../design-system/colors";
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 const AuthScreen: React.FC = () => {
   return (
@@ -14,37 +17,48 @@ const AuthScreen: React.FC = () => {
       <Text style={styles.label}>New around here?</Text>
       <GoogleAuthButton label="Sign-up with Google" onPress={() => {}} />
 
-      <Image source={require("../assets/barrier.png")} style={styles.image} />
+      <Image source={require("../assets/ramp.png")} style={styles.image} />
     </View>
   );
 };
 
-export default AuthScreen;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#c3e841",
-    padding: 20,
-    justifyContent: "center",
+    backgroundColor: AppColors.primaryLightGreen,
+    paddingLeft: screenWidth * 0.05,
+    paddingRight: screenWidth * 0.05,
+    width: "100%",
+    justifyContent: "flex-start",
+    paddingTop: screenHeight * 0.1,
   },
   greeting: {
-    fontSize: 18,
+    fontSize: 25,
     fontWeight: "bold",
-    color: "green",
-    marginBottom: 5,
+    color: AppColors.basicBlack,
+    marginTop: screenWidth * 0.01,
   },
   subtext: {
-    marginBottom: 20,
+    fontWeight: "medium",
+    fontSize: 20,
+    color: AppColors.secondaryDarkGreen,
+
+    marginBottom: screenWidth * 0.4,
   },
   label: {
-    marginTop: 10,
-    marginBottom: 5,
+    fontWeight: "medium",
+    fontSize: 20,
+    color: AppColors.secondaryDarkGreen,
+    marginTop: screenWidth * 0.025,
+    marginBottom: screenWidth * 0.0125,
   },
   image: {
-    width: 80,
-    height: 80,
+    width: screenWidth * 0.75,
+    height: screenHeight * 0.35,
+    position: "absolute",
+    bottom: 0,
     alignSelf: "center",
-    marginTop: 30,
   },
 });
+
+export default AuthScreen;
