@@ -7,6 +7,7 @@ import {
   View,
   GestureResponderEvent,
 } from "react-native";
+import AppColors from "../design-system/colors";
 
 interface GoogleAuthButtonProps {
   label: string;
@@ -19,10 +20,7 @@ const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
 }) => {
   return (
     <TouchableOpacity style={styles.button} onPress={onPress}>
-      <Image
-        source={require("../assets/google-icon.png")}
-        style={styles.icon}
-      />
+      <Image source={require("../assets/google.png")} style={styles.icon} />
       <Text style={styles.text}>{label}</Text>
     </TouchableOpacity>
   );
@@ -32,9 +30,10 @@ export default GoogleAuthButton;
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: "#1e2d2f",
+    backgroundColor: AppColors.secondaryDarkGreen,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     padding: 10,
     borderRadius: 8,
     marginVertical: 5,
@@ -45,7 +44,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   text: {
-    color: "#fff",
+    alignSelf: "center",
+    color: AppColors.basicWhite,
     fontWeight: "bold",
   },
 });
