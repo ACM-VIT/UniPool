@@ -1,38 +1,7 @@
-import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  Dimensions,
-  Button,
-  TouchableOpacity,
-} from "react-native";
-import GoogleAuthButton from "../components/GoogleAuthBox";
-import AppColors from "../design-system/colors";
+import { StyleSheet, Dimensions } from "react-native";
+import AppColors from "../../design_systems/colors";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
-
-const AuthScreen: React.FC = () => {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.greeting}>Hello!</Text>
-      <Text style={styles.subtext}>Let's get you started with.</Text>
-
-      <Text style={styles.label}>Already been here?</Text>
-      <TouchableOpacity style={styles.button} onPress={() => {}}>
-        <Text style={styles.text}>Login and Pick Up the Pace!</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.label}>New around here?</Text>
-      <TouchableOpacity style={styles.button} onPress={() => {}}>
-        <Text style={styles.text}>Sign Up to Start Your Journey!</Text>
-      </TouchableOpacity>
-
-      <Image source={require("../assets/ramp.png")} style={styles.image} />
-    </View>
-  );
-};
 
 const styles = StyleSheet.create({
   container: {
@@ -52,7 +21,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "500",
     color: AppColors.secondaryDarkGreen,
-    marginBottom: screenHeight * 0.05,
+    marginBottom: screenHeight * 0.15,
   },
   label: {
     fontSize: 18,
@@ -83,4 +52,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default AuthScreen;
+export default styles;

@@ -1,91 +1,30 @@
-import { StatusBar } from "expo-status-bar";
-import { StyleSheet, Text, View } from "react-native";
-import PreviousTripsCompressed from "./components/PreviousTripsCompressed";
-import { rideData } from "./dummy-data/DummyTrips";
-import bottomNavItems from "./design-system/BottomNavigationItems";
-import RideDetailsSelector from "./components/RideDetailsSelector";
-import MainNavBar from "./components/MainNavBar";
-import RideCard from "./components/RideCard";
-import HomeScreen from "./screens/HomeScreen";
-import ErrorScreen from "./screens/ErrorScreen";
-import CreateRide from "./screens/CreateRide";
-import AvailableRidesScreen from "./screens/AvailableRidesScreen";
-
-import {
-  useFonts,
-  NunitoSans_200ExtraLight,
-  NunitoSans_200ExtraLight_Italic,
-  NunitoSans_300Light,
-  NunitoSans_300Light_Italic,
-  NunitoSans_400Regular,
-  NunitoSans_400Regular_Italic,
-  NunitoSans_600SemiBold,
-  NunitoSans_600SemiBold_Italic,
-  NunitoSans_700Bold,
-  NunitoSans_700Bold_Italic,
-  NunitoSans_800ExtraBold,
-  NunitoSans_800ExtraBold_Italic,
-  NunitoSans_900Black,
-  NunitoSans_900Black_Italic,
-} from "@expo-google-fonts/nunito-sans";
-import SignIn from "./screens/AuthScreen";
-import SignUp from "./screens/SignUpScreen";
-import SignInScreen from "./screens/SignInScreen";
-import SignUpScreen from "./screens/SignUpScreen";
+import React from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import AuthScreen from "./screens/AuthScreen";
+import SignUpScreen from "./screens/SignUpScreen";
 
-export default () => {
-  let [fontsLoaded] = useFonts({
-    NunitoSans_200ExtraLight,
-    NunitoSans_200ExtraLight_Italic,
-    NunitoSans_300Light,
-    NunitoSans_300Light_Italic,
-    NunitoSans_400Regular,
-    NunitoSans_400Regular_Italic,
-    NunitoSans_600SemiBold,
-    NunitoSans_600SemiBold_Italic,
-    NunitoSans_700Bold,
-    NunitoSans_700Bold_Italic,
-    NunitoSans_800ExtraBold,
-    NunitoSans_800ExtraBold_Italic,
-    NunitoSans_900Black,
-    NunitoSans_900Black_Italic,
-  });
+import { RootStackParamList } from "./navigation/RootStackParamList";
+import RideCreatedScreen from "./screens/RideCreatedScreen";
+import RideRequestedScreen from "./screens/RideRequestedScreen";
+import BookingScreen from "./screens/BookingScreen";
 
-  if (!fontsLoaded) {
-    return <Text>Font loading error</Text>;
-  } else {
-    return (
-      <View style={styles.container}>
-        {/* <PreviousTripsCompressed trip={rideData[0]} />
-                <MainNavBar
-                    variant={0}
-                    bottomNavItems={bottomNavItems}
-                    iconPath={require("./assets/wallet.png")}
-                />
-                <MainNavBar
-                    variant={1}
-                    text="Search Rides"
-                    iconPath={require("./assets/cool-emoji.png")}
-                    onPress={() => console.log("Search pressed")}
-                />
-                <MainNavBar
-                    variant={2}
-                    text="View Details"
-                    iconPath={require("./assets/smiling-emoji.png")}
-                    onPress={() => console.log("Details pressed")}
-                /> */}
-        <AuthScreen />
-      </View>
-    );
-  }
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const App = () => {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="BookingScreen">
+        <Stack.Screen
+          name="BookingScreen"
+          component={BookingScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
+export default App;
