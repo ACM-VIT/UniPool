@@ -266,15 +266,16 @@ const styles = StyleSheet.create({
         fontFamily: "NunitoSans_600SemiBold",
     },
     dateContainer: {
-        width: "100%",
+        width: "80%",
         padding: "4%",
         flexDirection: "row",
-        justifyContent: "space-between",
+        justifyContent: "space-around",
         alignItems: "center",
+        gap: 20
     },
     dateButtons: {
-        flexDirection: "column",
-        gap: 5,
+        flexDirection: "row",
+        gap: 6,
     },
     dateButton: {
         backgroundColor: AppColors.basicBlack,
