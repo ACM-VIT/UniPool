@@ -1,17 +1,10 @@
 import React from "react";
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  Image,
-  View,
-  GestureResponderEvent,
-} from "react-native";
+import { TouchableOpacity, Image, Text, StyleSheet } from "react-native";
 import AppColors from "../design-system/colors";
 
 interface GoogleAuthButtonProps {
   label: string;
-  onPress: (event: GestureResponderEvent) => void;
+  onPress: () => void;
 }
 
 const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
@@ -26,17 +19,19 @@ const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
   );
 };
 
-export default GoogleAuthButton;
-
 const styles = StyleSheet.create({
   button: {
     backgroundColor: AppColors.secondaryDarkGreen,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    marginTop: 25,
     borderRadius: 8,
     marginVertical: 5,
+    alignSelf: "center",
+    width: "80%",
   },
   icon: {
     width: 20,
@@ -44,8 +39,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   text: {
-    alignSelf: "center",
     color: AppColors.basicWhite,
     fontWeight: "bold",
   },
 });
+
+export default GoogleAuthButton;
