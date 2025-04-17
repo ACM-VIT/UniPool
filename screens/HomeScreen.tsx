@@ -10,11 +10,11 @@ import {
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location"; // Import Expo Location
 
-import AppColors from "../design-system/colors";
+import AppColors from "../design_systems/colors";
 import MainNavBar from "../components/MainNavBar";
 import RideDetailsSelector from "../components/RideDetailsSelector";
 import PreviousTripsSection from "../components/PreviousTripsSection";
-import bottomNavItems from "../design-system/BottomNavigationItems";
+import bottomNavItems from "../data/BottomNavigationItems";
 import { CommonLocationCoordinates } from "../components/RideDetailsSelector";
 
 const { width, height } = Dimensions.get("window");
@@ -59,7 +59,11 @@ const HomeScreen: React.FC = () => {
     requestLocationPermission(); // Request location permissions on component mount
   }, []);
 
-  const handleRideSubmit = (details: { from: string; to: string; date: Date }) => {
+  const handleRideSubmit = (details: {
+    from: string;
+    to: string;
+    date: Date;
+  }) => {
     console.log("Submitted ride details:", details);
   };
 
@@ -145,7 +149,7 @@ const styles = StyleSheet.create({
     height: height * 0.25,
   },
   mainContent: {
-    height: height * 0.80,
+    height: height * 0.8,
     borderTopRightRadius: 20,
     borderTopLeftRadius: 20,
     backgroundColor: AppColors.primaryLightGreen,

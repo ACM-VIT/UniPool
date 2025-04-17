@@ -8,7 +8,7 @@ import {
   Dimensions,
   TouchableOpacity,
 } from "react-native";
-import AppColors from "../design-system/colors";
+import AppColors from "../design_systems/colors";
 import RideDetailsSelector from "../components/RideDetailsSelector";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
@@ -32,7 +32,11 @@ const CreateRide: React.FC = () => {
     setMode("time");
   };
 
-  const handleRideSubmit = (details: { from: string; to: string; date: Date }) => {
+  const handleRideSubmit = (details: {
+    from: string;
+    to: string;
+    date: Date;
+  }) => {
     console.log("Submitted ride details:", details);
   };
 
@@ -49,25 +53,20 @@ const CreateRide: React.FC = () => {
   };
 
   const getPassengerImage = () => {
-    if (passengerCount > 1 && passengerCount< 3) {
-      return require("../assets/Motorcycle.png"); 
+    if (passengerCount > 1 && passengerCount < 3) {
+      return require("../assets/Motorcycle.png");
     } else if (passengerCount == 3) {
-      return require("../assets/Taxi.png"); 
-    }
-    else if (passengerCount == 4) {
-        return require("../assets/Racer.png"); 
-    } 
-    else if (passengerCount > 4 && passengerCount < 8) {
-        return require("../assets/Wagon.png");
-    }
-    else if (passengerCount >=8  && passengerCount<11) {
-        return require("../assets/FoodVan.png");
-    }
-    else if (passengerCount>=11 && passengerCount<20){
-        return require("../assets/Bus.png");
-    }
-    else if (passengerCount==20){
-        return require("../assets/UFO.png");
+      return require("../assets/Taxi.png");
+    } else if (passengerCount == 4) {
+      return require("../assets/Racer.png");
+    } else if (passengerCount > 4 && passengerCount < 8) {
+      return require("../assets/Wagon.png");
+    } else if (passengerCount >= 8 && passengerCount < 11) {
+      return require("../assets/FoodVan.png");
+    } else if (passengerCount >= 11 && passengerCount < 20) {
+      return require("../assets/Bus.png");
+    } else if (passengerCount == 20) {
+      return require("../assets/UFO.png");
     }
   };
 
@@ -82,28 +81,46 @@ const CreateRide: React.FC = () => {
 
         <Text style={styles.label}>When will the voyage begin?</Text>
         <TouchableOpacity onPress={showTimepicker} style={styles.buttonTime}>
-          <Text style={styles.timeText}>{time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+          <Text style={styles.timeText}>
+            {time.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </Text>
         </TouchableOpacity>
-        {show && <DateTimePicker testID="dateTimePicker" value={time} mode={mode} is24Hour={true} onChange={onChange} />}
+        {show && (
+          <DateTimePicker
+            testID="dateTimePicker"
+            value={time}
+            mode={mode}
+            is24Hour={true}
+            onChange={onChange}
+          />
+        )}
 
         <Text style={styles.label}>Number of Passengers</Text>
         <View style={styles.counterContainer}>
-            <TouchableOpacity onPress={decreasePassengers} style={styles.counterButton}>
-                <Text style={styles.counterText}>−</Text>
-            </TouchableOpacity>
-            <View style={styles.counterValueContainer}>
-                <Text style={styles.counterValue}>{passengerCount}</Text>
-            </View>
-            <TouchableOpacity onPress={increasePassengers} style={styles.counterButton}>
-                <Text style={styles.counterText}>+</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            onPress={decreasePassengers}
+            style={styles.counterButton}
+          >
+            <Text style={styles.counterText}>−</Text>
+          </TouchableOpacity>
+          <View style={styles.counterValueContainer}>
+            <Text style={styles.counterValue}>{passengerCount}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={increasePassengers}
+            style={styles.counterButton}
+          >
+            <Text style={styles.counterText}>+</Text>
+          </TouchableOpacity>
         </View>
-
 
         <Image style={styles.passengerImage} source={getPassengerImage()} />
 
         <TouchableOpacity style={styles.slideButton}>
-            <Text style={styles.slideText}>Submit to create ride 😉</Text>
+          <Text style={styles.slideText}>Submit to create ride 😉</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -122,9 +139,9 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     backgroundColor: AppColors.primaryLightGreen,
     marginTop: "5%",
-    marginLeft:'5%',
-    marginRight:"5%",
-    alignSelf:"center",
+    marginLeft: "5%",
+    marginRight: "5%",
+    alignSelf: "center",
   },
   title: {
     fontSize: 20,
@@ -163,7 +180,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    width: '40%', 
+    width: "40%",
     alignSelf: "center",
   },
   counterButton: {
@@ -184,12 +201,12 @@ const styles = StyleSheet.create({
     color: AppColors.basicWhite,
     fontSize: 20,
     fontWeight: "bold",
-  },  
+  },
   passengerImage: {
     width: 150,
     height: 150,
     alignSelf: "center",
-    resizeMode:'contain'
+    resizeMode: "contain",
   },
   slideButton: {
     borderWidth: 2,
@@ -202,7 +219,7 @@ const styles = StyleSheet.create({
   slideText: {
     fontSize: 18,
     fontWeight: "600",
-  }
+  },
 });
 
 export default CreateRide;

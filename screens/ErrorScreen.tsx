@@ -7,7 +7,7 @@ import {
   SafeAreaView,
   Dimensions,
 } from "react-native";
-import AppColors from "../design-system/colors";
+import AppColors from "../design_systems/colors";
 
 const win = Dimensions.get("window");
 
