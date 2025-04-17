@@ -7,7 +7,6 @@ import RideDetailsSelector from "./components/RideDetailsSelector";
 import MainNavBar from "./components/MainNavBar";
 import RideCard from "./components/RideCard";
 import HomeScreen from "./screens/HomeScreen";
-import Additional from "./screens/additionalDetails";
 import ErrorScreen from "./screens/ErrorScreen";
 import CreateRide from "./screens/CreateRide";
 import AvailableRidesScreen from "./screens/AvailableRidesScreen";
@@ -29,6 +28,11 @@ import {
   NunitoSans_900Black,
   NunitoSans_900Black_Italic,
 } from "@expo-google-fonts/nunito-sans";
+import SignIn from "./screens/AuthScreen";
+import SignUp from "./screens/SignUpScreen";
+import SignInScreen from "./screens/SignInScreen";
+import SignUpScreen from "./screens/SignUpScreen";
+import AuthScreen from "./screens/AuthScreen";
 
 export default () => {
   let [fontsLoaded] = useFonts({
@@ -71,7 +75,7 @@ export default () => {
                     iconPath={require("./assets/smiling-emoji.png")}
                     onPress={() => console.log("Details pressed")}
                 /> */}
-        <HomeScreen />
+        <AuthScreen />
       </View>
     );
   }
