@@ -1,64 +1,115 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, Dimensions } from "react-native";
-import GoogleAuthButton from "../components/GoogleAuthBox";
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  Dimensions,
+} from "react-native";
 import AppColors from "../design-system/colors";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const win = Dimensions.get("window");
 
-const AuthScreen: React.FC = () => {
+const SignIn: React.FC = () => {
   return (
-    <View style={styles.container}>
-      <Text style={styles.greeting}>Hello, There!</Text>
-      <Text style={styles.subtext}>Let’s get you started with</Text>
-
-      <Text style={styles.label}>Already been here?</Text>
-      <GoogleAuthButton label="Sign-in with Google" onPress={() => {}} />
-
-      <Text style={styles.label}>New around here?</Text>
-      <GoogleAuthButton label="Sign-up with Google" onPress={() => {}} />
-
-      <Image source={require("../assets/ramp.png")} style={styles.image} />
-    </View>
+    <SafeAreaView style={styles.container}>
+      <View>
+        <Text style={styles.header1}>Hello, There!</Text>
+        <Text style={styles.header2}>Let's get you started with</Text>
+        <Text style={styles.header3}>Already been here?</Text>
+        <View style={styles.buttonView}>
+          <TouchableOpacity activeOpacity={0.95} style={styles.button}>
+            <Image
+              source={require(".././assets/Google-Logo--Streamline-Ultimate.svg.png")}
+              style={{ width: 20, height: 20, margin: "2.5%" }}
+            />
+            <Text style={styles.textButton}>Sign-in with Google</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.header4}>New Around Here?</Text>
+        <View style={styles.buttonView}>
+          <TouchableOpacity activeOpacity={0.95} style={styles.button}>
+            <Image
+              source={require(".././assets/Google-Logo--Streamline-Ultimate.svg.png")}
+              style={{ width: 20, height: 20, margin: "2.5%" }}
+            />
+            <Text style={styles.textButton}>Sign-up with Google</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.beepImage}>
+          <Image
+            style={styles.imageStyle}
+            source={require(".././assets/beep-beep-ramp.png")}
+          />
+        </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: AppColors.primaryLightGreen,
-    paddingLeft: screenWidth * 0.05,
-    paddingRight: screenWidth * 0.05,
     width: "100%",
-    justifyContent: "flex-start",
-    paddingTop: screenHeight * 0.1,
+    height: "100%",
+    backgroundColor: AppColors.primaryLightGreen,
+    color: AppColors.secondaryDarkGreen,
+    paddingTop: "33%",
   },
-  greeting: {
-    fontSize: 25,
-    fontWeight: "bold",
+  header1: {
+    color: AppColors.secondaryDarkGreen,
+    fontWeight: "600",
+    fontSize: 25.31,
+    paddingBottom: "4%",
+    paddingLeft: "6%",
+  },
+  header2: {
     color: AppColors.basicBlack,
-    marginTop: screenWidth * 0.01,
+    fontWeight: "600",
+    fontSize: 20.31,
+    paddingLeft: "6%",
   },
-  subtext: {
-    fontWeight: "medium",
+  header3: {
+    color: AppColors.basicBlack,
+    fontWeight: "600",
+    fontSize: 20.31,
+    paddingTop: "30%",
+    paddingLeft: "6%",
+  },
+  header4: {
+    color: AppColors.basicBlack,
+    fontWeight: "600",
+    fontSize: 20.31,
+    paddingTop: "10%",
+    paddingLeft: "6%",
+  },
+  button: {
+    flexDirection: "row",
+    height: 45,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 3,
+    borderRadius: 8,
+  },
+  textButton: {
+    color: AppColors.primaryLightGreen,
     fontSize: 20,
-    color: AppColors.secondaryDarkGreen,
-
-    marginBottom: screenWidth * 0.4,
   },
-  label: {
-    fontWeight: "medium",
-    fontSize: 20,
-    color: AppColors.secondaryDarkGreen,
-    marginTop: screenWidth * 0.025,
-    marginBottom: screenWidth * 0.0125,
+  buttonView: {
+    padding: "7%",
   },
-  image: {
-    width: screenWidth * 0.75,
-    height: screenHeight * 0.35,
-    position: "absolute",
-    bottom: 0,
-    alignSelf: "center",
+  beepImage: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: "19.8%",
+  },
+  imageStyle: {
+    width: win.width * 1,
+    height: win.width * 1,
+    resizeMode: "contain",
   },
 });
-
-export default AuthScreen;
+export default SignIn;
