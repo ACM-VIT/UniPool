@@ -55,13 +55,13 @@ const RideCard: React.FC<RideCardProps> = ({
   // Get vehicle icon based on seat capacity
   const getVehicleIcon = (): ImageSourcePropType => {
     if (totalSeats <= 2) {
-      return require("../assets/Motorcycle.png");
+      return require("../assets/motorcycle.png");
     } else if (totalSeats <= 4) {
-      return require("../assets/Racer.png");
+      return require("../assets/racer.png");
     } else if (totalSeats <= 6) {
-      return require("../assets/Wagon.png");
+      return require("../assets/wagon.png");
     } else {
-      return require("../assets/FoodVan.png");
+      return require("../assets/foodvan.png");
     }
   };
 
