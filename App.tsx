@@ -14,10 +14,17 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const App = () => {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="BookingScreen">
+      <Stack.Navigator initialRouteName="AuthScreen">
         <Stack.Screen
           name="BookingScreen"
           component={BookingScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="AuthScreen"
+          component={AuthScreen}
           options={{
             headerShown: false,
           }}
