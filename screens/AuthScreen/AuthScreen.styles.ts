@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
   },
   image: {
     width: screenWidth * 0.9,
-    height: screenHeight * 0.4,
+    height: screenHeight * 0.3,
     position: "absolute",
     bottom: 0,
     alignSelf: "center",
