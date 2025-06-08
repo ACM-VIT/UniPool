@@ -37,3 +37,6 @@ yarn-error.*
 
 # vscode
 *.vscode
+
+google-services.json
+GoogleService-Info.plist
