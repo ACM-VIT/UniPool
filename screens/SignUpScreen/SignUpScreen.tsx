@@ -4,6 +4,7 @@ import {
   View,
   Platform,
   KeyboardAvoidingView,
+  Image,
   Alert,
 } from "react-native";
 import { SignUpScreenProps } from "./SignUpScreen.types";
