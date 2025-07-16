@@ -5,6 +5,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Image,
+  Alert,
 } from "react-native";
 import { SignUpScreenProps } from "./SignUpScreen.types";
 
@@ -15,9 +16,34 @@ import GenderSelector from "../../components/GenderSelector";
 import GoogleAuthButton from "../../components/GoogleAuthBox";
 import styles, { spacing } from "./SignUpScreen.styles";
 
-const SignUpScreen: React.FC<SignUpScreenProps> = () => {
-  const handleGoogleSignUp = () => {
-    console.log("Sign up with Google pressed");
+
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import auth from "@react-native-firebase/auth";
+
+const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
+  const handleGoogleSignUp = async () => {
+    try {
+      console.log("Starting Google Sign-Up");
+
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const userInfo = await GoogleSignin.signIn();
+      console.log("Google Sign-Up successful", userInfo);
+      const idToken = userInfo.data?.idToken;
+
+      const googleCredential = auth.GoogleAuthProvider.credential(idToken!);
+      
+      const userCredential = await auth().signInWithCredential(googleCredential);
+      console.log("Signed up:", userCredential.user.email);
+      if (navigation) navigation.navigate("BookingScreen"); // Or your desired screen
+    } catch (error) {
+      console.error("Google Sign-Up error", error);
+      const errorMessage =
+        typeof error === "object" && error !== null && "message" in error
+          ? String((error as { message?: unknown }).message)
+          : "An unknown error occurred";
+      // Optionally show an alert
+      Alert.alert("Sign-Up Failed", errorMessage);
+    }
   };
 
   return (
