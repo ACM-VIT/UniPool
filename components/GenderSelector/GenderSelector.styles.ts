@@ -28,8 +28,9 @@ const styles = StyleSheet.create({
   },
   text: {
     color: AppColors.primaryLightGreen,
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "600",
+    fontFamily: "Nunito Sans",
   },
   selectedText: {
     color: AppColors.basicBlack,

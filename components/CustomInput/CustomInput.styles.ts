@@ -5,10 +5,11 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     padding: 12,
-    borderRadius: 8,
-    fontSize: 16,
+    borderRadius: 16,
+    fontSize: 20,
     backgroundColor: AppColors.secondaryDarkGreen,
     marginHorizontal: "6%",
+    fontFamily: "Nunito Sans",
   },
 });
 
