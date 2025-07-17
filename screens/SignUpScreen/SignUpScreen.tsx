@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Image,
   Alert,
+  ImageBackground,
 } from "react-native";
 import { SignUpScreenProps } from "./SignUpScreen.types";
 
@@ -47,13 +48,18 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <ImageBackground
+      source={require("../../assets/Warning2.png")}
+      style={{ flex: 1 , }}
+      resizeMode="cover"
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <HeaderText size={18}>Just finishing</HeaderText>
+        <HeaderText>Just finishing</HeaderText>
 
-        <HeaderText size={18} paddingTop={spacing.medium}>
+        <HeaderText paddingTop={spacing.medium}>
           To make it easier for us to find you a ride please provide us with the
           following information as well:
         </HeaderText>
@@ -66,15 +72,15 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
           keyboardType="numeric"
         />
 
-        <HeaderText paddingTop={spacing.medium}>Year of Birth</HeaderText>
+        <HeaderText paddingTop={spacing.medium} letterSpacing={2}>Year of Birth</HeaderText>
         <CustomInput
           placeholder="YYYY"
           value={yob}
           onChangeText={setYob}
           keyboardType="numeric"
         />
-
-        <HeaderText paddingTop={spacing.medium}>Gender</HeaderText>
+        
+        <HeaderText paddingTop={spacing.medium} letterSpacing={2}>Gender</HeaderText>
         <View style={styles.genderContainer}>
           <GenderSelector value={gender} onChange={setGender} />
         </View>
@@ -83,7 +89,10 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
           label={loading ? "Signing up..." : "Sign up with Google"}
           onPress={handleGoogleSignUp}
         />
+
+        
       </KeyboardAvoidingView>
+      </ImageBackground>
     </SafeAreaView>
   );
 };
