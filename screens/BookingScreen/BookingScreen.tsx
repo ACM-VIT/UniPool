@@ -15,6 +15,8 @@ import AppColors from "../../design_systems/colors";
 import { MapPin } from "lucide-react-native";
 import { useApi } from "../../utils/ApiUtil";
 import type { RideData } from "../../dummy-data/Bookings";
+import MainNavBar from "../../components/MainNavBar";
+import bottomNavItems from "../../data/BottomNavigationItems";
 
 const window = Dimensions.get("window");
 
@@ -26,7 +28,24 @@ const BookingScreen: React.FC = () => {
   const [inProgressRides, setInProgressRides] = useState<RideData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
   const { apiUtil } = useApi();
+
+  const bookingScreenNavItems = bottomNavItems.map((item, index) => ({
+    ...item,
+    isActive: index === 1,
+  }));
+
+  const formatTime = (timeString: string): string => {
+    try {
+      const date = new Date(timeString);
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${hours}${minutes}hrs`;
+    } catch (error) {
+      return timeString;
+    }
+  };
 
   const handleUpcomingScroll = (
     event: NativeSyntheticEvent<NativeScrollEvent>
@@ -114,7 +133,7 @@ const BookingScreen: React.FC = () => {
                       id={(ride.ride_id || ride.id) ?? ""}
                       origin={ride.start_location}
                       destination={ride.end_location}
-                      time={ride.start_time}
+                      time={formatTime(ride.start_time)}
                       price={ride.total_price}
                       seatsAvailable={`${ride.booked_seats}/${ride.total_seats}`}
                     />
@@ -158,7 +177,7 @@ const BookingScreen: React.FC = () => {
                       id={(ride.ride_id || ride.id) ?? ""}
                       origin={ride.start_location}
                       destination={ride.end_location}
-                      time={ride.start_time}
+                      time={formatTime(ride.start_time)}
                       price={ride.total_price}
                       seatsAvailable={`${ride.booked_seats}/${ride.total_seats}`}
                       isSelected={true}
@@ -190,6 +209,14 @@ const BookingScreen: React.FC = () => {
         style={styles.airplaneIcon}
         resizeMode="contain"
       />
+      <View style={styles.navBarView}>
+        <MainNavBar
+          variant={navBarVariant}
+          bottomNavItems={bookingScreenNavItems}
+          iconPath={require("../../assets/wallet.png")}
+          text="View Details"
+        />
+      </View>
     </View>
   );
 };

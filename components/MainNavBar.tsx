@@ -41,17 +41,36 @@ interface MainNavBarProps {
   onPress?: () => void;
 }
 
-// Bottom Navigation Bar Component
-const BottomNav: React.FC<BottomNavProps> = ({ items }) => (
-  <View style={styles.bottomNavContainer}>
-    {items.map((item, index) => (
-      <TouchableOpacity
-        key={index}
-        style={styles.navItem}
-        onPress={() => {
-          console.log(`Navigating to ${item.route}`);
-        }}
-      >
+const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
+  const navigation = useNavigation();
+
+  const handleNavigation = (route: string) => {
+    switch (route) {
+      case "home":
+        navigation.navigate("HomeScreen" as never);
+        break;
+      case "trips":
+        navigation.navigate("BookingScreen" as never);
+        break;
+      case "chat":
+        console.log("Chat feature coming soon");
+        break;
+      case "profile":
+        console.log("Profile feature coming soon");
+        break;
+      default:
+        console.log(`Navigating to ${route}`);
+    }
+  };
+
+  return (
+    <View style={styles.bottomNavContainer}>
+      {items.map((item, index) => (
+        <TouchableOpacity
+          key={index}
+          style={styles.navItem}
+          onPress={() => handleNavigation(item.route)}
+        >
         <Image
           source={item.iconPath}
           style={[
@@ -68,6 +87,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => (
     ))}
   </View>
 );
+}
 
 // Single Bar Component (Search/Details)
 const SingleBar: React.FC<SingleBarProps> = ({ text, iconPath, onPress }) => (

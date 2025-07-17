@@ -13,29 +13,29 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 1,
   },
-  // header: {
-  //   width: "100%",
-  //   flexDirection: "row",
-  //   justifyContent: "space-between",
-  //   alignItems: "center",
-  //   paddingHorizontal: "2%",
-  // },
-  // headerLeft: {
-  //   flexDirection: "row",
-  //   alignItems: "center",
-  // },
-  // headerText: {
-  //   fontSize: 14,
-  //   fontWeight: "600",
-  //   marginLeft: "2%",
-  //   color: AppColors.secondaryDarkGreen,
-  // },
-  // brandText: {
-  //   fontSize: 18,
-  //   fontWeight: "bold",
-  //   color: AppColors.basicBlack,
-  //   right: "2%",
-  // },
+  header: {
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: "2%",
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerText: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: "2%",
+    color: AppColors.secondaryDarkGreen,
+  },
+  brandText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: AppColors.basicBlack,
+    right: "2%",
+  },
   pageContainer: {
     width: window.width - window.width * 0.018,
     paddingHorizontal: window.width * 0.02,
@@ -44,8 +44,8 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     marginLeft: window.width * 0.03,
-    marginBottom: window.height * 0.018,
-    marginTop: window.height * 0.03,
+    marginBottom: window.height * 0.001,
+    marginTop: window.height * 0.02,
   },
   paginationContainer: {
     flexDirection: "row",
@@ -67,6 +67,13 @@ const styles = StyleSheet.create({
     height: window.width * 0.63,
     left: window.width * 0.23,
     bottom: window.height * 0.02,
+  },
+  navBarView: {
+    width: "100%",
+    backgroundColor: AppColors.primaryLightGreen,
+    justifyContent: "center",
+    alignItems: "center",
+    bottom: window.height * 0.015,
   },
 });
 
