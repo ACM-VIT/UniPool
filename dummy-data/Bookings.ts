@@ -1,5 +1,6 @@
 export interface RideData {
-  id: string;
+  id?: string;
+  ride_id?: string;
   start_location: string;
   end_location: string;
   start_time: string;
@@ -8,7 +9,7 @@ export interface RideData {
   total_price: number;
   is_ongoing: number;
   is_same_gender: number;
-  vehicle_type: "scooter" | "van" | "car" | "suv";
+  vehicle_type?: "scooter" | "van" | "car" | "suv";
 }
 
 export const upcomingRides: RideData[] = [
