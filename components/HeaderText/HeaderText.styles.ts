@@ -6,10 +6,13 @@ const { width } = Dimensions.get("window");
 const styles = StyleSheet.create({
   header: {
     color: AppColors.secondaryDarkGreen,
-    fontWeight: "300",
+    fontWeight: "600",
+    fontFamily: "Nunito Sans",
     paddingLeft: width * 0.06,
     paddingRight: width * 0.06,
-    marginBottom: width * 0.05,
+    marginBottom: width * 0.01,
+    lineHeight: 20,
+    letterSpacing: 2, // Default letter spacing
   },
 });
 
