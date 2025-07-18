@@ -1,6 +1,7 @@
-import { getAuth, getIdTokenResult } from "@react-native-firebase/auth";
+import { getAuth, getIdTokenResult, signOut } from "@react-native-firebase/auth";
 import React, { createContext, useContext, useState } from "react";
 import baseURL from "../config/urlconfig";
+import { CommonActions } from '@react-navigation/native';
 
 type JSON = {
   [key: string]: string | number | boolean | JSON;
@@ -8,9 +9,35 @@ type JSON = {
 
 export default class ApiUtil {
   private baseUrl: string;
+  private navigationRef?: any;
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, navigationRef?: any) {
     this.baseUrl = baseUrl;
+    this.navigationRef = navigationRef;
+  }
+
+  setNavigationRef(navigationRef: any) {
+    this.navigationRef = navigationRef;
+  }
+
+  private async handleAuthenticationFailure(): Promise<void> {
+    try {
+      const authInstance = getAuth();
+      await signOut(authInstance);
+      
+      if (this.navigationRef && this.navigationRef.isReady && this.navigationRef.isReady()) {
+        this.navigationRef.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'AuthScreen' }],
+          })
+        );
+      } else {
+        console.log("Navigation ref not available for automatic redirect");
+      }
+    } catch (error) {
+      console.error("Error during authentication failure handling:", error);
+    }
   }
 
   async get<T>(endpoint: string, headers?: HeadersInit, timeout?: number): Promise<T> {
@@ -37,13 +64,25 @@ export default class ApiUtil {
     timeout: number = 20000
   ): Promise<T> {
     const url = new URL(endpoint, this.baseUrl).toString();
+    console.log(`Making ${method} request to: ${url}`);
 
     const authInstance = getAuth();
     const currentUser = authInstance.currentUser;
-    if (!currentUser) throw new Error("User not authenticated");
+    if (!currentUser) {
+      console.warn("No authenticated user found - redirecting to auth");
+      await this.handleAuthenticationFailure();
+      throw new Error("AUTHENTICATION_REDIRECT");
+    }
     
-    const tokenResult = await getIdTokenResult(currentUser);
-    const token = tokenResult.token;
+    let token: string;
+    try {
+      const tokenResult = await getIdTokenResult(currentUser);
+      token = tokenResult.token;
+    } catch (tokenError) {
+      console.error("Failed to get authentication token:", tokenError);
+      await this.handleAuthenticationFailure();
+      throw new Error("AUTHENTICATION_REDIRECT");
+    }
 
     const options: RequestInit = {
       method,
@@ -65,15 +104,44 @@ export default class ApiUtil {
       });
 
       let responseBody: string | JSON;
+      const responseText = await response.clone().text();
+      
       try {
-        responseBody = await response.clone().json();
-      } catch {
-        responseBody = await response.clone().text();
+        if (!responseText.trim()) {
+          throw new Error("Empty response");
+        }
+        
+        if (responseText.includes('\ufffd') || responseText.includes('�')) {
+          console.error("Response contains invalid characters (encoding issue):", responseText.substring(0, 100));
+          throw new Error("Response contains invalid characters - possible encoding issue");
+        }
+        
+        responseBody = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("JSON Parse Error:", parseError);
+        console.error("Raw response text:", responseText.substring(0, 200));
+        
+        if (parseError instanceof SyntaxError) {
+          throw new Error(`Invalid JSON response: ${parseError.message}`);
+        }
+        
+        responseBody = responseText;
       }
 
       if (!response.ok) {
         console.error(`HTTP ${method} ${url} error ${response.status}:`, responseBody);
-        throw new Error(`HTTP ${response.status}: ${JSON.stringify(responseBody)}`);
+        
+        if (response.status === 401) {
+          console.warn("User authentication failed - signing out and redirecting to auth");
+          await this.handleAuthenticationFailure();
+          throw new Error("AUTHENTICATION_REDIRECT");
+        }
+        
+        const errorMessage = typeof responseBody === 'object' && responseBody.error 
+          ? String(responseBody.error)
+          : `HTTP ${response.status}`;
+          
+        throw new Error(errorMessage);
       }
 
       return responseBody as T;
@@ -102,9 +170,22 @@ export const DataContext = createContext<{
   triggerRevalidation: () => {},
 });
 
-export const ApiProvider = ({ children }: { children: React.ReactNode }) => {
+export const ApiProvider = ({ children, navigationRef }: { children: React.ReactNode, navigationRef?: React.RefObject<any> }) => {
   const [revalidate, setRevalidate] = useState(false);
-  const apiUtil = new ApiUtil(baseURL);
+  const [apiUtil] = useState(() => {
+    const util = new ApiUtil(baseURL);
+    if (navigationRef) {
+      util.setNavigationRef(navigationRef.current);
+    }
+    return util;
+  });
+
+  // Update navigation ref when it changes
+  React.useEffect(() => {
+    if (navigationRef?.current) {
+      apiUtil.setNavigationRef(navigationRef.current);
+    }
+  }, [navigationRef?.current, apiUtil]);
 
   const triggerRevalidation = () => {
     setRevalidate(true);

@@ -41,7 +41,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.greeting}>Hello!</Text>
-      <Text style={styles.subtext}>Let's get you started with.</Text>
+      <Text style={styles.subtext}>Let's get you started with:</Text>
 
 
       <View>

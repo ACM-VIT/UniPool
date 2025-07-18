@@ -56,7 +56,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
         console.log("Chat feature coming soon");
         break;
       case "profile":
-        console.log("Profile feature coming soon");
+        navigation.navigate("ProfileScreen" as never);
         break;
       default:
         console.log(`Navigating to ${route}`);
