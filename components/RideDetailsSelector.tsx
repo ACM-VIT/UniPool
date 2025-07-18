@@ -100,6 +100,16 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     setShowPicker(true);
   };
 
+  // Handle location swap
+  const handleLocationSwap = () => {
+    const tempLocation = fromLocation;
+    setFromLocation(toLocation);
+    setToLocation(tempLocation);
+    if (onLocationSwap) {
+      onLocationSwap();
+    }
+  };
+
   const setToToday = () => {
     setSelectedDate(new Date());
   };
@@ -132,6 +142,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.locationsWrapper}>
+        {/* From Location */}
         <TouchableOpacity
           style={styles.inputContainer}
           onPress={() => setShowFromDropdown(true)}
@@ -143,6 +154,17 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             />
           </View>
           <Text style={styles.selectedText}>{fromLocation || "From"}</Text>
+        </TouchableOpacity>
+
+        {/* Switch Icon */}
+        <TouchableOpacity 
+          style={styles.switchIconContainer}
+          onPress={handleLocationSwap}
+        >
+          <Image
+            source={require("../assets/switch-1.png")}
+            style={styles.switchIcon}
+          />
         </TouchableOpacity>
 
         {/* To Location */}
@@ -283,24 +305,28 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_600SemiBold",
   },
   dateContainer: {
-    width: "80%",
+    width: "100%",
     padding: "4%",
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "space-between",
     alignItems: "center",
     gap: 20,
   },
   dateButtons: {
     flexDirection: "row",
     gap: 6,
+    flex: 1,
+    justifyContent: "flex-end",
   },
   dateButton: {
     backgroundColor: AppColors.basicBlack,
     paddingVertical: "4%",
-    paddingHorizontal: "6%",
+    paddingHorizontal: "8%",
     borderRadius: 8,
     textAlign: "center",
     alignItems: "center",
+    flex: 1,
+    minWidth: 70,
   },
   dateButtonText: {
     color: AppColors.basicWhite,
@@ -353,12 +379,17 @@ const styles = StyleSheet.create({
   },
   switchIconContainer: {
     position: "absolute",
-    right: 16,
-    top: "50%",
+    right: 30,
+    top: 65,
     transform: [{ translateY: -10 }],
     zIndex: 10,
     paddingHorizontal: 4,
     paddingVertical: 2,
+  },
+  switchIcon: {
+    width: 25,
+    height: 25,
+    tintColor: AppColors.basicBlack,
   },
 });
 
