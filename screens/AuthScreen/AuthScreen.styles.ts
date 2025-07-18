@@ -51,7 +51,6 @@ const styles = StyleSheet.create({
     borderRadius: 14.452,
     marginVertical: 12,
     borderWidth: 1.5,
-    borderColor: AppColors.basicWhite,
     width: '90%',
     alignSelf: 'center',
     shadowColor: '#000',
