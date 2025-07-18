@@ -285,7 +285,7 @@ const styles = StyleSheet.create<Styles>({
   },
   locationText: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontFamily: "NunitoSans_400Regular",
   },
   selectedText: {
     color: AppColors.basicWhite,
@@ -302,6 +302,7 @@ const styles = StyleSheet.create<Styles>({
   },
   seatsText: {
     fontSize: 14,
+    fontFamily: "NunitoSans_400Regular",
   },
   detailsContainer: {
     flexDirection: "column",
@@ -325,7 +326,7 @@ const styles = StyleSheet.create<Styles>({
   },
   detailText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontFamily: "NunitoSans_600SemiBold",
   },
   selectedDetailText: {
     color: AppColors.basicWhite,
@@ -337,12 +338,12 @@ const styles = StyleSheet.create<Styles>({
     position: "absolute",
     right: 0,
     bottom: 0,
+    top: 12,
     width: "40%",
     height: "100%",
   },
   vehicleImage: {
     width: "100%",
-    height: "100%",
   },
 });
 

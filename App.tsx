@@ -4,6 +4,13 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { View, ActivityIndicator } from "react-native";
 import auth, { getAuth, onAuthStateChanged } from "@react-native-firebase/auth";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import { useFonts } from "expo-font";
+import {
+  NunitoSans_400Regular,
+  NunitoSans_600SemiBold,
+  NunitoSans_700Bold,
+  NunitoSans_800ExtraBold,
+} from "@expo-google-fonts/nunito-sans";
 
 // Screens
 import AuthScreen from "./screens/AuthScreen";
@@ -32,6 +39,20 @@ const App = () => {
   const [initialRoute, setInitialRoute] = useState<keyof RootStackParamList | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [fontsLoaded] = useFonts({
+    "NunitoSans_400Regular": NunitoSans_400Regular,
+    "NunitoSans_600SemiBold": NunitoSans_600SemiBold,
+    "NunitoSans_700Bold": NunitoSans_700Bold,
+    "NunitoSans_800ExtraBold": NunitoSans_800ExtraBold,
+    "NunitoSans": NunitoSans_600SemiBold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      console.log("Nunito Sans fonts loaded successfully!");
+    }
+  }, [fontsLoaded]);
+
   useEffect(() => {
     const authInstance = getAuth();
     const unsubscribe = onAuthStateChanged(authInstance, (user) => {
@@ -42,7 +63,7 @@ const App = () => {
     return unsubscribe;
   }, []);
 
-  if (loading || !initialRoute) {
+  if (!fontsLoaded || loading || !initialRoute) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" />
