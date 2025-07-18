@@ -8,7 +8,13 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     backgroundColor: AppColors.primaryLightGreen,
-    paddingTop: window.height * 0.1,
+    paddingTop: window.height * 0.062,
+  },
+  backButton: {
+    position: "absolute",
+    top: window.height * 0.04,
+    left: 20,
+    zIndex: 1,
   },
   scrollContent: {
     paddingBottom: 1,
@@ -55,8 +61,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   paginationDot: {
-    width: 8,
-    height: 8,
+    width: 4,
+    height: 4,
     borderRadius: 4,
     backgroundColor: AppColors.basicWhite,
     marginHorizontal: 3,
