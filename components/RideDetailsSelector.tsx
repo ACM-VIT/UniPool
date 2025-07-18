@@ -151,7 +151,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             }}
           >
             <Image
-              source={require("../assets/switch-1.png")}
+              source={require("../assets/switch-1.svg")}
               style={styles.switchIcon}
             />
           </TouchableOpacity>
@@ -238,7 +238,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    borderRadius: 15,
+    borderRadius: 20,
     overflow: "hidden",
     borderColor: AppColors.basicBlack,
     borderWidth: 2,
