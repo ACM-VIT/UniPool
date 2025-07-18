@@ -20,13 +20,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
       await auth().signInWithCredential(googleCredential);
 
       try {
-        await apiUtil.get("/user/details");
+        const response = await apiUtil.get("/user/details");
         navigation.navigate("BookingScreen");
       } catch (err: any) {
-        if (typeof err.message === "string" && err.message.includes("400")) {
-          navigation.navigate("SignUpScreen");
+        // Check for 404 and newUser info
+        if (err.response?.status === 404 && err.response?.data?.newUser) {
+          navigation.navigate("SignUpScreen", { newUser: err.response.data.newUser });
+        } else if (err.response?.status === 400) {
+          Alert.alert("Error", err.response?.data?.message || "Unknown error");
+        } else if (err.response?.status === 404) {
+          // If 404 but no newUser, show error
+          Alert.alert("Sign-Up Required", "User not found. Please sign up.");
         } else {
-          throw err;
+          Alert.alert("Sign-In Failed", err.message || "An unknown error occurred");
         }
       }
     } catch (error) {
