@@ -1,4 +1,4 @@
-import { firebase } from "@react-native-firebase/auth";
+import { getAuth, getIdTokenResult } from "@react-native-firebase/auth";
 import React, { createContext, useContext, useState } from "react";
 import baseURL from "../config/urlconfig";
 
@@ -38,8 +38,12 @@ export default class ApiUtil {
   ): Promise<T> {
     const url = new URL(endpoint, this.baseUrl).toString();
 
-    const token = (await firebase.auth().currentUser?.getIdTokenResult())?.token;
-    if (!token) throw new Error("User not authenticated");
+    const authInstance = getAuth();
+    const currentUser = authInstance.currentUser;
+    if (!currentUser) throw new Error("User not authenticated");
+    
+    const tokenResult = await getIdTokenResult(currentUser);
+    const token = tokenResult.token;
 
     const options: RequestInit = {
       method,
