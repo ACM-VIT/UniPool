@@ -76,6 +76,18 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       setToLocation(location);
       setShowToDropdown(false);
     }
+    
+    // Trigger onSubmit callback if both locations are selected
+    const updatedFrom = isFrom ? location : fromLocation;
+    const updatedTo = isFrom ? toLocation : location;
+    
+    if (updatedFrom && updatedTo && onSubmit) {
+      onSubmit({
+        from: updatedFrom,
+        to: updatedTo,
+        date: selectedDate
+      });
+    }
   };
 
   // Handle date/time selection
@@ -87,6 +99,15 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       } else {
         setShowPicker(false);
         setPickerMode("date");
+        
+        // Trigger onSubmit callback when date is fully selected
+        if (fromLocation && toLocation && onSubmit) {
+          onSubmit({
+            from: fromLocation,
+            to: toLocation,
+            date: selected
+          });
+        }
       }
     } else {
       setShowPicker(false);
@@ -112,12 +133,26 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
   const setToToday = () => {
     setSelectedDate(new Date());
+    if (fromLocation && toLocation && onSubmit) {
+      onSubmit({
+        from: fromLocation,
+        to: toLocation,
+        date: new Date()
+      });
+    }
   };
 
   const setToTomorrow = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     setSelectedDate(tomorrow);
+    if (fromLocation && toLocation && onSubmit) {
+      onSubmit({
+        from: fromLocation,
+        to: toLocation,
+        date: tomorrow
+      });
+    }
   };
 
   // Sync external location props with internal state
