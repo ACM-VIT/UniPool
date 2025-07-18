@@ -256,6 +256,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "600",
     color: AppColors.basicBlack,
+    fontFamily: "NunitoSans_600SemiBold",
   },
   mainContent: {
     flex: 1,
@@ -267,6 +268,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     paddingBottom: 15,
     color: AppColors.basicBlack,
+    fontFamily: "NunitoSans_600SemiBold",
   },
   section: {
     width: "100%",
@@ -280,6 +282,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 18,
     color: AppColors.basicBlack,
+    fontFamily: "NunitoSans_500Medium",
   },
   buttonTime: {
     backgroundColor: AppColors.basicBlack,
@@ -296,10 +299,13 @@ const styles = StyleSheet.create({
   timeText: {
     color: AppColors.basicWhite,
     fontSize: 30,
+    fontWeight: "bold",
+    fontFamily: "NunitoSans_600SemiBold",
   },
   timeColon: {
     color: AppColors.primaryLightGreen,
     fontSize: 30,
+    fontFamily: "NunitoSans_600SemiBold",
   },
   counterContainer: {
     flexDirection: "row",
@@ -320,6 +326,7 @@ const styles = StyleSheet.create({
     color: AppColors.primaryLightGreen,
     fontSize: 22,
     fontWeight: "bold",
+    fontFamily: "NunitoSans_700Bold",
   },
   counterValueContainer: {
     backgroundColor: AppColors.basicBlack,
@@ -330,6 +337,7 @@ const styles = StyleSheet.create({
     color: AppColors.basicWhite,
     fontSize: 20,
     fontWeight: "bold",
+    fontFamily: "NunitoSans_700Bold",
   },
   passengerImage: {
     width: 150,
@@ -392,6 +400,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     flex: 1,
     marginHorizontal: 10,
+    fontFamily: "NunitoSans_600SemiBold",
   },
   emojiIcon: {
     width: 24,
