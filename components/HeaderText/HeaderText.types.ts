@@ -8,4 +8,5 @@ export interface HeaderTextProps {
   size?: number; // Optional font size for the header
   paddingTop?: number; // Optional padding from the top
   letterSpacing?: number; 
+  paddingBottom?: number;
 }
