@@ -8,6 +8,7 @@ import {
   Dimensions,
   TouchableOpacity,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import AppColors from "../design_systems/colors";
 import RideDetailsSelector from "../components/RideDetailsSelector";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -15,10 +16,11 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 const { width, height } = Dimensions.get("window");
 
 const CreateRide: React.FC = () => {
+  const navigation = useNavigation();
   const [time, setTime] = useState(new Date());
   const [mode, setMode] = useState<"time">("time");
   const [show, setShow] = useState(false);
-  const [passengerCount, setPassengerCount] = useState(2);
+  const [passengerCount, setPassengerCount] = useState(3);
 
   const onChange = (event: any, selectedTime?: Date) => {
     if (selectedTime) {
@@ -47,13 +49,13 @@ const CreateRide: React.FC = () => {
   };
 
   const decreasePassengers = () => {
-    if (passengerCount > 2) {
+    if (passengerCount > 1) {
       setPassengerCount((prev) => prev - 1);
     }
   };
 
   const getPassengerImage = () => {
-    if (passengerCount > 1 && passengerCount < 3) {
+    if (passengerCount == 1 || passengerCount == 2) {
       return require("../assets/motorcycle.png");
     } else if (passengerCount == 3) {
       return require("../assets/Taxi.png");
@@ -72,6 +74,19 @@ const CreateRide: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => navigation.goBack()}
+        >
+          <Image 
+            source={require("../assets/arrow-square-left.png")} 
+            style={styles.backIcon} 
+          />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>UniPool</Text>
+      </View>
+      
       <View style={styles.mainContent}>
         <Text style={styles.title}>Create a Ride</Text>
 
@@ -84,12 +99,23 @@ const CreateRide: React.FC = () => {
 
         <Text style={styles.label}>When will the voyage begin?</Text>
         <TouchableOpacity onPress={showTimepicker} style={styles.buttonTime}>
-          <Text style={styles.timeText}>
-            {time.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </Text>
+          <View style={styles.timeContainer}>
+            <Text style={styles.timeText}>
+              {time.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              }).split(':')[0]}
+            </Text>
+            <Text style={styles.timeColon}>:</Text>
+            <Text style={styles.timeText}>
+              {time.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              }).split(':')[1]}
+            </Text>
+          </View>
         </TouchableOpacity>
         {show && (
           <DateTimePicker
@@ -123,7 +149,17 @@ const CreateRide: React.FC = () => {
         <Image style={styles.passengerImage} source={getPassengerImage()} />
 
         <TouchableOpacity style={styles.slideButton}>
-          <Text style={styles.slideText}>Submit to create ride 😉</Text>
+          <View style={styles.slideButtonContent}>
+            <Image 
+              source={require("../assets/arrow-square-left.png")} 
+              style={styles.slideIcon} 
+            />
+            <Text style={styles.slideText}>Slide to create ride</Text>
+            <Image 
+              source={require("../assets/smiling-emoji.png")} 
+              style={styles.emojiIcon} 
+            />
+          </View>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -135,21 +171,39 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     backgroundColor: AppColors.primaryLightGreen,
+  },
+  header: {
     flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 10,
+  },
+  backButton: {
+    padding: 5,
+  },
+  backIcon: {
+    width: 24,
+    height: 24,
+    tintColor: AppColors.basicBlack,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: "right",
+    fontSize: 24,
+    fontWeight: "600",
+    color: AppColors.basicBlack,
   },
   mainContent: {
-    borderTopRightRadius: 20,
-    borderTopLeftRadius: 20,
-    backgroundColor: AppColors.primaryLightGreen,
-    marginTop: "5%",
-    marginLeft: "5%",
-    marginRight: "5%",
-    alignSelf: "center",
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
   },
   title: {
     fontSize: 20,
     fontWeight: "600",
     paddingBottom: 15,
+    color: AppColors.basicBlack,
   },
   section: {
     width: "100%",
@@ -162,6 +216,7 @@ const styles = StyleSheet.create({
     paddingBottom: "3%",
     fontWeight: "500",
     fontSize: 18,
+    color: AppColors.basicBlack,
   },
   buttonTime: {
     backgroundColor: AppColors.basicBlack,
@@ -171,8 +226,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "center",
   },
+  timeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   timeText: {
     color: AppColors.basicWhite,
+    fontSize: 30,
+  },
+  timeColon: {
+    color: AppColors.primaryLightGreen,
     fontSize: 30,
   },
   counterContainer: {
@@ -212,16 +275,33 @@ const styles = StyleSheet.create({
     resizeMode: "contain",
   },
   slideButton: {
-    borderWidth: 2,
-    borderColor: AppColors.basicBlack,
+    backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 15,
     paddingVertical: 15,
     alignItems: "center",
     marginTop: 20,
+    marginBottom: 20,
+  },
+  slideButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  slideIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 10,
+    tintColor: AppColors.basicWhite,
   },
   slideText: {
     fontSize: 18,
     fontWeight: "600",
+    color: AppColors.basicWhite,
+    marginRight: 5,
+  },
+  emojiIcon: {
+    width: 20,
+    height: 20,
   },
 });
 
