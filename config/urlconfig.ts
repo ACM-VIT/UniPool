@@ -1,2 +1,2 @@
-const baseURL = "http://10.0.2.2:3000";
+const baseURL = "https://unipool-backend-e5fd16858bea.herokuapp.com";
 export default baseURL;
