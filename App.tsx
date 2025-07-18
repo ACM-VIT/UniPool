@@ -20,6 +20,7 @@ import RideRequestedScreen from "./screens/RideRequestedScreen";
 import BookingScreen from "./screens/BookingScreen";
 import SignInScreen from "./screens/SignInScreen";
 import HomeScreen from "./screens/HomeScreen";
+import ProfileScreen from "./screens/ProfileScreen";
 
 // Types
 import { RootStackParamList } from "./navigation/RootStackParamList";
@@ -83,6 +84,7 @@ const App = () => {
           <Stack.Screen name="RideRequestedScreen" component={RideRequestedScreen} />
           <Stack.Screen name="BookingScreen" component={BookingScreen} options={{ headerShown: false }} />
           <Stack.Screen name="HomeScreen" component={HomeScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ProfileScreen" component={ProfileScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>
     </ApiProvider>
