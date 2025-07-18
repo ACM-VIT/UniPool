@@ -44,15 +44,21 @@ interface RideDetails {
 interface RideDetailsSelectorProps {
   onSubmit: (details: RideDetails) => void;
   onLocationSelectionChange?: (hasFromAndTo: boolean) => void;
+  onLocationSwap?: () => void;
+  fromLocation?: string;
+  toLocation?: string;
 }
 
 const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   onSubmit,
   onLocationSelectionChange,
+  onLocationSwap,
+  fromLocation: externalFromLocation,
+  toLocation: externalToLocation,
 }) => {
   // Form state
-  const [fromLocation, setFromLocation] = useState("");
-  const [toLocation, setToLocation] = useState("");
+  const [fromLocation, setFromLocation] = useState(externalFromLocation || "");
+  const [toLocation, setToLocation] = useState(externalToLocation || "");
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   // UI state
@@ -104,6 +110,19 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     setSelectedDate(tomorrow);
   };
 
+  // Sync external location props with internal state
+  useEffect(() => {
+    if (externalFromLocation !== undefined) {
+      setFromLocation(externalFromLocation);
+    }
+  }, [externalFromLocation]);
+
+  useEffect(() => {
+    if (externalToLocation !== undefined) {
+      setToLocation(externalToLocation);
+    }
+  }, [externalToLocation]);
+
   useEffect(() => {
     if (onLocationSelectionChange) {
       onLocationSelectionChange(fromLocation !== "" && toLocation !== "");
@@ -139,23 +158,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           </View>
           <Text style={styles.selectedText}>{toLocation || "To"}</Text>
         </TouchableOpacity>
-
-        {/* Switch Icon - appears when both locations are selected */}
-        {fromLocation && toLocation && (
-          <TouchableOpacity 
-            style={styles.switchIconContainer}
-            onPress={() => {
-              const temp = fromLocation;
-              setFromLocation(toLocation);
-              setToLocation(temp);
-            }}
-          >
-            <Image
-              source={require("../assets/switch-1.svg")}
-              style={styles.switchIcon}
-            />
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Date Selection */}
@@ -357,11 +359,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
     paddingHorizontal: 4,
     paddingVertical: 2,
-  },
-  switchIcon: {
-    width: 20,
-    height: 20,
-    tintColor: AppColors.basicBlack,
   },
 });
 
