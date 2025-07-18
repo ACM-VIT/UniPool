@@ -85,7 +85,9 @@ const BookingScreen: React.FC = () => {
         setUpcomingRides(upcoming);
         setInProgressRides(inProgress);
       } catch (err: any) {
-        setError(err.message || "Failed to fetch rides");
+        if (err.message !== "AUTHENTICATION_REDIRECT") {
+          setError(err.message || "Failed to fetch rides");
+        }
       } finally {
         setLoading(false);
       }
