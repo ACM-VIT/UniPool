@@ -54,15 +54,15 @@ const CreateRide: React.FC = () => {
 
   const getPassengerImage = () => {
     if (passengerCount > 1 && passengerCount < 3) {
-      return require("../assets/Motorcycle.png");
+      return require("../assets/motorcycle.png");
     } else if (passengerCount == 3) {
       return require("../assets/Taxi.png");
     } else if (passengerCount == 4) {
-      return require("../assets/Racer.png");
+      return require("../assets/racer.png");
     } else if (passengerCount > 4 && passengerCount < 8) {
-      return require("../assets/Wagon.png");
+      return require("../assets/wagon.png");
     } else if (passengerCount >= 8 && passengerCount < 11) {
-      return require("../assets/FoodVan.png");
+      return require("../assets/foodvan.png");
     } else if (passengerCount >= 11 && passengerCount < 20) {
       return require("../assets/Bus.png");
     } else if (passengerCount == 20) {

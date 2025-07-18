@@ -141,9 +141,9 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               style={styles.icon}
             />
             <View>
-              <Text style={styles.label}>Date and Time of Journey</Text>
+              <Text style={styles.label}>Date of Journey</Text>
               <Text style={styles.selectedDateText}>
-                {format(selectedDate, "EEE d MMM yyyy, h:mm a")}
+                {format(selectedDate, "EEE d MMM yyyy")}
               </Text>
             </View>
           </View>
@@ -240,12 +240,13 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_600SemiBold",
   },
   selectedText: {
-    fontSize: 16,
+    fontSize: 20,
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_600SemiBold",
     marginLeft: "2%",
   },
   selectedDateText: {
+    marginLeft: "2%",
     fontSize: 12,
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_600SemiBold",
@@ -303,7 +304,7 @@ const styles = StyleSheet.create({
     color: AppColors.basicWhite,
   },
   locationText: {
-    fontSize: 16,
+    fontSize: 20,
     fontFamily: "NunitoSans_400Regular",
     color: AppColors.basicWhite,
   },

@@ -8,7 +8,9 @@ import {
   Dimensions,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
-import * as Location from "expo-location"; // Import Expo Location
+import * as Location from "expo-location";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import AppColors from "../design_systems/colors";
 import MainNavBar from "../components/MainNavBar";
@@ -16,13 +18,17 @@ import RideDetailsSelector from "../components/RideDetailsSelector";
 import PreviousTripsSection from "../components/PreviousTripsSection";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { CommonLocationCoordinates } from "../components/RideDetailsSelector";
+import { RootStackParamList } from "../navigation/RootStackParamList";
+
+type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'HomeScreen'>;
 
 const { width, height } = Dimensions.get("window");
 
 const HomeScreen: React.FC = () => {
-  const [location, setLocation] = useState<any>(null); // State for storing location
-  const [initialRegion, setInitialRegion] = useState<any>(null); // State for initial region
-  const [hasPermission, setHasPermission] = useState(false); // State for permission status
+  const navigation = useNavigation<HomeScreenNavigationProp>();
+  const [location, setLocation] = useState<any>(null);
+  const [initialRegion, setInitialRegion] = useState<any>(null);
+  const [hasPermission, setHasPermission] = useState(false);
 
   // Request location permissions
   const requestLocationPermission = async () => {
@@ -107,7 +113,10 @@ const HomeScreen: React.FC = () => {
           <View style={styles.section}>
             <View style={styles.createRideText}>
               <Text style={styles.sectionTitle}>Where'd you like to go?</Text>
-              <TouchableOpacity style={styles.destinationButton}>
+              <TouchableOpacity 
+                style={styles.destinationButton}
+                onPress={() => navigation.navigate('CreateRide')}
+              >
                 <Text style={styles.destinationButtonText}>Create Ride</Text>
               </TouchableOpacity>
             </View>
