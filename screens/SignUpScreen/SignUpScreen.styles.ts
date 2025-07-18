@@ -3,20 +3,28 @@ import AppColors from "../../design_systems/colors";
 
 const { width, height } = Dimensions.get("window");
 
-export const spacing = {
-  small: width * 0.03,
-  medium: height * 0.035,
-};
-
 const styles = StyleSheet.create({
   container: {
     width: "100%",
     height: "100%",
     backgroundColor: AppColors.primaryLightGreen,
-    paddingTop: height * 0.05,
+    paddingTop: height * 0.06,
+  },
+  contentContainer: {
+    flex: 1,
+    paddingHorizontal: width * 0.02,
   },
   genderContainer: {
-    marginBottom: height * 0.08,
+    marginBottom: height * 0.04,
+    marginTop: height * 0.02,
+    zIndex: 1,
+  },
+  bottomIcon: {
+    position: 'absolute',
+    bottom: -23,
+    right: -35,
+    width: 350,
+    height: 560,
   },
 });
 
