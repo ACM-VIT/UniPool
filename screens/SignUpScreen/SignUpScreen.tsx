@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   SafeAreaView,
   View,
@@ -14,8 +14,7 @@ import HeaderText from "../../components/HeaderText";
 import CustomInput from "../../components/CustomInput";
 import GenderSelector from "../../components/GenderSelector";
 import { useApi } from "../../utils/ApiUtil";
-import GoogleAuthButton from "../../components/GoogleAuthBox";
-import styles, { spacing } from "./SignUpScreen.styles";
+import styles from "./SignUpScreen.styles";
 
 
 const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
@@ -24,10 +23,14 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const [yob, setYob] = useState("");
   const [gender, setGender] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
-  const handleGoogleSignUp = async () => {
+  const handleProfileCompletion = async () => {
+    if (hasSubmitted || loading) return;
+    
     try {
       setLoading(true);
+      setHasSubmitted(true);
       const yobNum = parseInt(yob, 10);
       await apiUtil.post("/user", {
         contact_number: contactNumber,
@@ -36,63 +39,73 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
       });
       navigation.navigate("BookingScreen");
     } catch (error) {
+      setHasSubmitted(false);
       const errorMessage =
         typeof error === "object" && error !== null && "message" in error
           ? String((error as { message?: unknown }).message)
           : "An unknown error occurred";
-      Alert.alert("Sign-Up Failed", errorMessage);
+      Alert.alert("Profile Completion Failed", errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (contactNumber.trim() && yob.trim() && gender && !hasSubmitted && !loading) {
+      const timer = setTimeout(() => {
+        handleProfileCompletion();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [contactNumber, yob, gender, hasSubmitted, loading]);
+
   return (
     <SafeAreaView style={styles.container}>
-      <ImageBackground
-      source={require("../../assets/Warning2.png")}
-      style={{ flex: 1 , }}
-      resizeMode="cover"
-    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <HeaderText>Just finishing</HeaderText>
+        <View style={styles.contentContainer}>
+          <HeaderText>Just finishing</HeaderText>
 
-        <HeaderText paddingTop={spacing.medium}>
-          To make it easier for us to find you a ride please provide us with the
-          following information as well:
-        </HeaderText>
+          <HeaderText>
+            To make it easier for us to find you a ride please provide us with the
+            following information as well:
+          </HeaderText>
 
-        <HeaderText paddingTop={spacing.medium}>Contact Number</HeaderText>
-        <CustomInput
-          placeholder="Do not prefix with 0"
-          value={contactNumber}
-          onChangeText={setContactNumber}
-          keyboardType="numeric"
-        />
+          <HeaderText>Contact Number</HeaderText>
+          <CustomInput
+            placeholder="Do not prefix with 0"
+            value={contactNumber}
+            onChangeText={setContactNumber}
+            keyboardType="numeric"
+          />
 
-        <HeaderText paddingTop={spacing.medium} letterSpacing={2}>Year of Birth</HeaderText>
-        <CustomInput
-          placeholder="YYYY"
-          value={yob}
-          onChangeText={setYob}
-          keyboardType="numeric"
-        />
-        
-        <HeaderText paddingTop={spacing.medium} letterSpacing={2}>Gender</HeaderText>
-        <View style={styles.genderContainer}>
-          <GenderSelector value={gender} onChange={setGender} />
+          <HeaderText>Year of Birth</HeaderText>
+          <CustomInput
+            placeholder="YYYY"
+            value={yob}
+            onChangeText={setYob}
+            keyboardType="numeric"
+          />
+
+          <HeaderText>Gender</HeaderText>
+          <View style={styles.genderContainer}>
+            <GenderSelector value={gender} onChange={setGender} />
+          </View>
+          
+          {loading && (
+            <HeaderText>Completing your profile...</HeaderText>
+          )}
         </View>
-
-        <GoogleAuthButton
-          label={loading ? "Signing up..." : "Sign up with Google"}
-          onPress={handleGoogleSignUp}
-        />
-
-        
       </KeyboardAvoidingView>
-      </ImageBackground>
+      
+      <Image 
+        source={require("../../assets/Warning2.png")} 
+        style={styles.bottomIcon}
+        resizeMode="contain"
+      />
     </SafeAreaView>
   );
 };
