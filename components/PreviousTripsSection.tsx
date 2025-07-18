@@ -1,15 +1,68 @@
-import React, { useState } from "react";
-import { View, Text, ScrollView, StyleSheet, Dimensions } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, ScrollView, StyleSheet, Dimensions, ActivityIndicator } from "react-native";
 import PreviousTripsCompressed from "../components/PreviousTripsCompressed";
-import { rideData } from "../dummy-data/DummyTrips";
+import { useApi } from "../utils/ApiUtil";
+import AppColors from "../design_systems/colors";
+
+interface UserRideData {
+    ride_id: string;
+    host_user_id: string;
+    start_location: string;
+    end_location: string;
+    start_time: string;
+    total_seats: number;
+    booked_seats: number;
+    total_price: number;
+    is_ongoing: number;
+    is_same_gender: number;
+    passenger_id?: string;
+}
 
 const PreviousTripsSection: React.FC = () => {
     const [currentIndex, setCurrentIndex] = useState(0);
+    const [rideData, setRideData] = useState<UserRideData[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const { apiUtil } = useApi();
     const screenWidth = Dimensions.get("window").width;
     const maxDots = 5;
 
-    // Only show the latest 5 trips
     const displayedRides = rideData.slice(Math.max(rideData.length - 5, 0));
+
+    const fetchUserRides = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const response = await apiUtil.get<UserRideData[]>("/user/rides");
+            console.log("Raw API Response:", response);
+            
+            if (!Array.isArray(response)) {
+                throw new Error("API response is not an array");
+            }
+            
+            setRideData(response);
+            console.log("User rides fetched successfully:", response.length, "rides");
+        } catch (error) {
+            console.error("Error fetching user rides:", error);
+            
+            let errorMessage = "Failed to load ride data";
+            
+            if (error instanceof SyntaxError) {
+                errorMessage = "Invalid response format from server";
+                console.error("JSON Parse Error - possible encoding issue");
+            } else if (typeof error === "object" && error !== null && "message" in error) {
+                errorMessage = String((error as { message?: unknown }).message);
+            }
+            
+            setError(errorMessage);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchUserRides();
+    }, [apiUtil]);
 
     const handleScroll = (event: any) => {
         const contentOffset = event.nativeEvent.contentOffset.x;
@@ -77,30 +130,47 @@ const PreviousTripsSection: React.FC = () => {
                 <Text style={styles.sectionTitle}>Your Trips</Text>
             </View>
 
-            <ScrollView
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onScroll={handleScroll}
-                scrollEventThrottle={16}
-            >
-                {displayedRides.map((trip, index) => (
-                    <View
-                        key={index}
-                        style={[
-                            styles.tripContainer,
-                            { width: screenWidth - 32 },
-                        ]}
+            {loading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={AppColors.secondaryDarkGreen} />
+                    <Text style={styles.loadingText}>Loading your trips...</Text>
+                </View>
+            ) : error ? (
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{error}</Text>
+                </View>
+            ) : displayedRides.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>No trips found</Text>
+                </View>
+            ) : (
+                <>
+                    <ScrollView
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        onScroll={handleScroll}
+                        scrollEventThrottle={16}
                     >
-                        <PreviousTripsCompressed trip={trip} />
-                    </View>
-                ))}
-            </ScrollView>
+                        {displayedRides.map((trip: UserRideData, index: number) => (
+                            <View
+                                key={trip.ride_id}
+                                style={[
+                                    styles.tripContainer,
+                                    { width: screenWidth - 32 },
+                                ]}
+                            >
+                                <PreviousTripsCompressed trip={trip} />
+                            </View>
+                        ))}
+                    </ScrollView>
 
-            {/* Pagination Indicators */}
-            <View style={styles.paginationContainer}>
-                {renderPaginationDots()}
-            </View>
+                    {/* Pagination Indicators */}
+                    <View style={styles.paginationContainer}>
+                        {renderPaginationDots()}
+                    </View>
+                </>
+            )}
         </View>
     );
 };
@@ -113,9 +183,10 @@ const styles = StyleSheet.create({
     },
     sectionTitle: {
         paddingHorizontal:"2.5%",
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: "600",
-        color: "#000000",
+        color: "#000",
+        fontFamily: "NunitoSans_600SemiBold",
     },
     tripContainer: {
         display: "flex",
@@ -140,6 +211,54 @@ const styles = StyleSheet.create({
     paginationDotActive: {
         opacity: 1,
         backgroundColor: "#FFFFFF",
+    },
+    loadingContainer: {
+        width: "100%",
+        backgroundColor: AppColors.secondaryDarkGreen,
+        borderRadius: 15,
+        padding: "5%",
+        justifyContent: "center",
+        alignItems: "center",
+        marginHorizontal: 8,
+        minHeight: 100,
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 16,
+        color: AppColors.primaryLightGreen,
+        fontFamily: "NunitoSans_400Regular",
+    },
+    errorContainer: {
+        width: "100%",
+        backgroundColor: AppColors.secondaryDarkGreen,
+        borderRadius: 15,
+        padding: "5%",
+        justifyContent: "center",
+        alignItems: "center",
+        marginHorizontal: 8,
+        minHeight: 100,
+    },
+    errorText: {
+        fontSize: 16,
+        color: AppColors.primaryLightGreen,
+        textAlign: "center",
+        fontFamily: "NunitoSans_400Regular",
+    },
+    emptyContainer: {
+        width: "100%",
+        backgroundColor: AppColors.secondaryDarkGreen,
+        borderRadius: 15,
+        padding: "5%",
+        justifyContent: "center",
+        alignItems: "center",
+        marginHorizontal: 8,
+        minHeight: 100,
+    },
+    emptyText: {
+        fontSize: 16,
+        color: AppColors.primaryLightGreen,
+        textAlign: "center",
+        fontFamily: "NunitoSans_400Regular",
     },
 });
 

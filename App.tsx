@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { View, ActivityIndicator } from "react-native";
@@ -22,6 +22,8 @@ import SignInScreen from "./screens/SignInScreen";
 import ErrorScreen from "./screens/ErrorScreen";
 import SplashScreen from "./screens/SplashScreen";
 import HomeScreen from "./screens/HomeScreen";
+import ProfileScreen from "./screens/ProfileScreen";
+import CreateRide from "./screens/CreateRide";
 
 // Types
 import { RootStackParamList } from "./navigation/RootStackParamList";
@@ -40,6 +42,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const App = () => {
   const [initialRoute, setInitialRoute] = useState<keyof RootStackParamList | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigationRef = useRef<any>(null);
 
   const [fontsLoaded] = useFonts({
     "NunitoSans_400Regular": NunitoSans_400Regular,
@@ -74,8 +77,8 @@ const App = () => {
   }
 
   return (
-    <ApiProvider>
-      <NavigationContainer>
+    <ApiProvider navigationRef={navigationRef}>
+      <NavigationContainer ref={navigationRef}>
         <Stack.Navigator initialRouteName={initialRoute}>
           <Stack.Screen name="AuthScreen" component={AuthScreen} options={{ headerShown: false }} />
           <Stack.Screen name="SignInScreen" component={SignInScreen} options={{ headerShown: false }} />
@@ -86,6 +89,8 @@ const App = () => {
           <Stack.Screen name="RideRequestedScreen" component={RideRequestedScreen} />
           <Stack.Screen name="BookingScreen" component={BookingScreen} options={{ headerShown: false }} />
           <Stack.Screen name="HomeScreen" component={HomeScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ProfileScreen" component={ProfileScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="CreateRide" component={CreateRide} options={{ headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>
     </ApiProvider>

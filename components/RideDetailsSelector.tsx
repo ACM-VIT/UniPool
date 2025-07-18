@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -43,10 +43,12 @@ interface RideDetails {
 
 interface RideDetailsSelectorProps {
   onSubmit: (details: RideDetails) => void;
+  onLocationSelectionChange?: (hasFromAndTo: boolean) => void;
 }
 
 const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   onSubmit,
+  onLocationSelectionChange,
 }) => {
   // Form state
   const [fromLocation, setFromLocation] = useState("");
@@ -102,35 +104,59 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     setSelectedDate(tomorrow);
   };
 
+  useEffect(() => {
+    if (onLocationSelectionChange) {
+      onLocationSelectionChange(fromLocation !== "" && toLocation !== "");
+    }
+  }, [fromLocation, toLocation, onLocationSelectionChange]);
+
   return (
     <View style={styles.container}>
-      {/* From Location */}
-      <TouchableOpacity
-        style={styles.inputContainer}
-        onPress={() => setShowFromDropdown(true)}
-      >
-        <View style={styles.inputContent}>
-          <Image
-            source={require("../assets/location-pin.png")}
-            style={styles.icon}
-          />
-        </View>
-        <Text style={styles.selectedText}>{fromLocation || "From"}</Text>
-      </TouchableOpacity>
+      <View style={styles.locationsWrapper}>
+        <TouchableOpacity
+          style={styles.inputContainer}
+          onPress={() => setShowFromDropdown(true)}
+        >
+          <View style={styles.inputContent}>
+            <Image
+              source={require("../assets/location-pin.png")}
+              style={styles.icon}
+            />
+          </View>
+          <Text style={styles.selectedText}>{fromLocation || "From"}</Text>
+        </TouchableOpacity>
 
-      {/* To Location */}
-      <TouchableOpacity
-        style={styles.inputContainer}
-        onPress={() => setShowToDropdown(true)}
-      >
-        <View style={styles.inputContent}>
-          <Image
-            source={require("../assets/arrow-icon.png")}
-            style={styles.icon}
-          />
-        </View>
-        <Text style={styles.selectedText}>{toLocation || "To"}</Text>
-      </TouchableOpacity>
+        {/* To Location */}
+        <TouchableOpacity
+          style={styles.inputContainer}
+          onPress={() => setShowToDropdown(true)}
+        >
+          <View style={styles.inputContent}>
+            <Image
+              source={require("../assets/arrow-icon.png")}
+              style={styles.icon}
+            />
+          </View>
+          <Text style={styles.selectedText}>{toLocation || "To"}</Text>
+        </TouchableOpacity>
+
+        {/* Switch Icon - appears when both locations are selected */}
+        {fromLocation && toLocation && (
+          <TouchableOpacity 
+            style={styles.switchIconContainer}
+            onPress={() => {
+              const temp = fromLocation;
+              setFromLocation(toLocation);
+              setToLocation(temp);
+            }}
+          >
+            <Image
+              source={require("../assets/switch-1.png")}
+              style={styles.switchIcon}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* Date Selection */}
       <View style={styles.dateContainer}>
@@ -141,9 +167,9 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               style={styles.icon}
             />
             <View>
-              <Text style={styles.label}>Date and Time of Journey</Text>
+              <Text style={styles.label}>Date of Journey</Text>
               <Text style={styles.selectedDateText}>
-                {format(selectedDate, "EEE d MMM yyyy, h:mm a")}
+                {format(selectedDate, "EEE d MMM yyyy")}
               </Text>
             </View>
           </View>
@@ -217,6 +243,9 @@ const styles = StyleSheet.create({
     borderColor: AppColors.basicBlack,
     borderWidth: 2,
   },
+  locationsWrapper: {
+    position: "relative",
+  },
   inputContainer: {
     width: "100%",
     padding: "4%",
@@ -240,12 +269,13 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_600SemiBold",
   },
   selectedText: {
-    fontSize: 16,
+    fontSize: 20,
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_600SemiBold",
     marginLeft: "2%",
   },
   selectedDateText: {
+    marginLeft: "2%",
     fontSize: 12,
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_600SemiBold",
@@ -303,7 +333,7 @@ const styles = StyleSheet.create({
     color: AppColors.basicWhite,
   },
   locationText: {
-    fontSize: 16,
+    fontSize: 20,
     fontFamily: "NunitoSans_400Regular",
     color: AppColors.basicWhite,
   },
@@ -318,6 +348,20 @@ const styles = StyleSheet.create({
     color: AppColors.basicWhite,
     fontSize: 16,
     fontFamily: "NunitoSans_600SemiBold",
+  },
+  switchIconContainer: {
+    position: "absolute",
+    right: 16,
+    top: "50%",
+    transform: [{ translateY: -10 }],
+    zIndex: 10,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  switchIcon: {
+    width: 20,
+    height: 20,
+    tintColor: AppColors.basicBlack,
   },
 });
 
