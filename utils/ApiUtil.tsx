@@ -64,6 +64,7 @@ export default class ApiUtil {
     timeout: number = 20000
   ): Promise<T> {
     const url = new URL(endpoint, this.baseUrl).toString();
+    console.log(`Making ${method} request to: ${url}`);
 
     const authInstance = getAuth();
     const currentUser = authInstance.currentUser;
@@ -103,10 +104,28 @@ export default class ApiUtil {
       });
 
       let responseBody: string | JSON;
+      const responseText = await response.clone().text();
+      
       try {
-        responseBody = await response.clone().json();
-      } catch {
-        responseBody = await response.clone().text();
+        if (!responseText.trim()) {
+          throw new Error("Empty response");
+        }
+        
+        if (responseText.includes('\ufffd') || responseText.includes('�')) {
+          console.error("Response contains invalid characters (encoding issue):", responseText.substring(0, 100));
+          throw new Error("Response contains invalid characters - possible encoding issue");
+        }
+        
+        responseBody = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("JSON Parse Error:", parseError);
+        console.error("Raw response text:", responseText.substring(0, 200));
+        
+        if (parseError instanceof SyntaxError) {
+          throw new Error(`Invalid JSON response: ${parseError.message}`);
+        }
+        
+        responseBody = responseText;
       }
 
       if (!response.ok) {

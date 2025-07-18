@@ -32,15 +32,29 @@ const PreviousTripsSection: React.FC = () => {
     const fetchUserRides = async () => {
         try {
             setLoading(true);
+            setError(null);
             const response = await apiUtil.get<UserRideData[]>("/user/rides");
+            console.log("Raw API Response:", response);
+            
+            if (!Array.isArray(response)) {
+                throw new Error("API response is not an array");
+            }
+            
             setRideData(response);
+            console.log("User rides fetched successfully:", response.length, "rides");
         } catch (error) {
-            const errorMessage = 
-                typeof error === "object" && error !== null && "message" in error
-                    ? String((error as { message?: unknown }).message)
-                    : "Failed to load ride data";
-            setError(errorMessage);
             console.error("Error fetching user rides:", error);
+            
+            let errorMessage = "Failed to load ride data";
+            
+            if (error instanceof SyntaxError) {
+                errorMessage = "Invalid response format from server";
+                console.error("JSON Parse Error - possible encoding issue");
+            } else if (typeof error === "object" && error !== null && "message" in error) {
+                errorMessage = String((error as { message?: unknown }).message);
+            }
+            
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
