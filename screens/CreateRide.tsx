@@ -76,7 +76,10 @@ const CreateRide: React.FC = () => {
         <Text style={styles.title}>Create a Ride</Text>
 
         <View style={styles.section}>
-          <RideDetailsSelector onSubmit={handleRideSubmit} />
+          <RideDetailsSelector 
+            onSubmit={handleRideSubmit} 
+            onLocationSelectionChange={() => {}}
+          />
         </View>
 
         <Text style={styles.label}>When will the voyage begin?</Text>
