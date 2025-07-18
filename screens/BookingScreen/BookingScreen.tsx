@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import RideCard from "../../components/RideCard";
+import ChevronBack from "../../components/ChevronBack";
 import styles from "./BookingScreen.styles";
 import AppColors from "../../design_systems/colors";
 import { MapPin } from "lucide-react-native";
@@ -97,6 +98,8 @@ const BookingScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <ChevronBack style={styles.backButton} />
+      
       {/* <View style={styles.header}>
         <View style={styles.headerLeft}>
           <MapPin size={20} color={AppColors.basicBlack} />
