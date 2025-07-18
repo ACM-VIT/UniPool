@@ -61,7 +61,7 @@ const App = () => {
   useEffect(() => {
     const authInstance = getAuth();
     const unsubscribe = onAuthStateChanged(authInstance, (user) => {
-      setInitialRoute(user ? "HomeScreen" : "SplashScreen");
+      setInitialRoute(user ? "HomeScreen" : "AuthScreen");
       setLoading(false);
     });
 
