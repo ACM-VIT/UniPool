@@ -19,11 +19,11 @@ const ErrorScreen: React.FC = () => {
           style={styles.imageStyle}
           source={require("../assets/Traffic-Cone.png")}
         />
-        <Text style={styles.textStyle}>
-          Yikes! Traffic's a bit tangled here.{" "}
+        <Text style={styles.headerText}>
+          Yikes! Traffic's a bit tangled here.
         </Text>
-        <Text style={styles.textStyle}>
-          Redirect yourself to the{"\n"}main route and keep moving forward!
+        <Text style={styles.subText}>
+          Redirect yourself to the main route and keep moving forward!
         </Text>
       </View>
     </SafeAreaView>
@@ -41,19 +41,32 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     flex: 1,
+    paddingTop: 50, // Increased padding
+    paddingBottom: 5, // Increased padding
   },
   imageStyle: {
-    width: win.width * 0.6,
-    height: win.width * 0.6,
+    width: win.width * 0.70, // Slightly increased size
+    height: win.width * 0.70, // Slightly increased size
     resizeMode: "contain",
   },
-  textStyle: {
-    paddingTop: "4%",
-    paddingLeft: "15%",
-    paddingRight: "15%",
-    lineHeight: 31,
-    fontSize: 22,
+  headerText: {
+    color: "#263B33",
     textAlign: "center",
+    fontFamily: "Nunito Sans",
+    fontSize: 27, // Updated font size
+    fontWeight: "600",
+    maxWidth: win.width * 0.9,
+    marginTop: 50, // Increased gap
+    marginBottom: 24,
+  },
+  subText: {
+    color: "#263B33",
+    textAlign: "center",
+    fontFamily: "Nunito Sans",
+    fontSize: 27, // Updated font size
+    fontWeight: "600",
+    maxWidth: win.width * 0.9,
+    paddingHorizontal: 30,
   },
 });
 
