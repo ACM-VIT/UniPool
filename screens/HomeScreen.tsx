@@ -82,7 +82,7 @@ const HomeScreen: React.FC = () => {
               <Marker coordinate={location} />
             </MapView>
           ) : (
-            <Text>Loading location...</Text>
+            <Text style={styles.loadingText}>Loading location...</Text>
           )}
         </View>
 
@@ -149,18 +149,18 @@ const styles = StyleSheet.create({
     height: height * 0.25,
   },
   mainContent: {
-    height: height * 0.8,
-    borderTopRightRadius: 20,
-    borderTopLeftRadius: 20,
+    flex: 1,
+    borderTopRightRadius: 25,
+    borderTopLeftRadius: 25,
     backgroundColor: AppColors.primaryLightGreen,
     padding: "2.5%",
-    justifyContent: "space-evenly",
+    paddingBottom: height * 0.12,
   },
   section: {
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
-    paddingBottom: "2.5%",
+    marginBottom: height * 0.03,
   },
   InDemandSection: {
     width: "100%",
@@ -175,8 +175,10 @@ const styles = StyleSheet.create({
     padding: "2.5%",
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
+    color: "#000",
+    fontFamily: "NunitoSans_600SemiBold",
   },
   destinationsContainer: {
     paddingVertical: "2.5%",
@@ -193,6 +195,7 @@ const styles = StyleSheet.create({
   destinationButtonText: {
     color: AppColors.basicWhite,
     fontSize: 12,
+    fontFamily: "NunitoSans_400Regular",
   },
   createRideButton: {
     backgroundColor: "#000000",
@@ -205,12 +208,14 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "500",
     fontSize: 16,
+    fontFamily: "NunitoSans_600SemiBold",
   },
   navBarView: {
     width: "100%",
     backgroundColor: AppColors.primaryLightGreen,
     justifyContent: "center",
     alignItems: "center",
+    top: 95,
   },
   createRideText: {
     width: "100%",
@@ -218,6 +223,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     padding: "2.5%",
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#000",
+    fontFamily: "NunitoSans_400Regular",
+    textAlign: "center",
   },
 });
 
