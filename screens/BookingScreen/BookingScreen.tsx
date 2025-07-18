@@ -121,6 +121,9 @@ const BookingScreen: React.FC = () => {
               showsHorizontalScrollIndicator={false}
               onScroll={handleUpcomingScroll}
               scrollEventThrottle={16}
+              snapToInterval={window.width}
+              decelerationRate="fast"
+              snapToAlignment="center"
             >
               {upcomingRides.length === 0 ? (
                 <View style={{ justifyContent: "center", alignItems: "center", width: window.width }}>
@@ -165,6 +168,9 @@ const BookingScreen: React.FC = () => {
               showsHorizontalScrollIndicator={false}
               onScroll={handleInProgressScroll}
               scrollEventThrottle={16}
+              snapToInterval={window.width}
+              decelerationRate="fast"
+              snapToAlignment="center"
             >
               {inProgressRides.length === 0 ? (
                 <View style={{ justifyContent: "center", alignItems: "center", width: window.width }}>
