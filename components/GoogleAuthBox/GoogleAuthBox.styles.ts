@@ -23,6 +23,7 @@ const styles = StyleSheet.create({
   text: {
     color: AppColors.basicWhite,
     fontWeight: "bold",
+    fontSize: 20,
   },
 });
 

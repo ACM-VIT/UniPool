@@ -7,4 +7,5 @@ export type RootStackParamList = {
   RideCreatedScreen: undefined;
   RideRequestedScreen: undefined;
   BookingScreen: undefined;
+  HomeScreen: undefined;
 };
