@@ -30,6 +30,7 @@ interface SingleBarProps {
   text: string;
   iconPath: ImageSourcePropType;
   onPress: () => void;
+  showSwitchIcon?: boolean;
 }
 
 // Main component props
@@ -39,6 +40,7 @@ interface MainNavBarProps {
   text?: string;
   iconPath: ImageSourcePropType;
   onPress?: () => void;
+  showSwitchIcon?: boolean;
 }
 
 const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
@@ -90,14 +92,25 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
 }
 
 // Single Bar Component (Search/Details)
-const SingleBar: React.FC<SingleBarProps> = ({ text, iconPath, onPress }) => (
+const SingleBar: React.FC<SingleBarProps> = ({ text, iconPath, onPress, showSwitchIcon = false }) => (
   <TouchableOpacity style={styles.singleBarContainer} onPress={onPress}>
-    <Text style={styles.singleBarText}>{text}</Text>
-    <Image
-      source={iconPath}
-      style={[styles.icon, { tintColor: AppColors.primaryLightGreen }]}
-      resizeMode="contain"
-    />
+    <View style={styles.singleBarContent}>
+      <Text style={styles.singleBarText}>{text}</Text>
+      <View style={styles.iconsContainer}>
+        <Image
+          source={iconPath}
+          style={[styles.icon, { tintColor: AppColors.primaryLightGreen }]}
+          resizeMode="contain"
+        />
+        {showSwitchIcon && (
+          <Image
+            source={require("../assets/switch-1.png")}
+            style={[styles.switchIcon, { tintColor: AppColors.primaryLightGreen }]}
+            resizeMode="contain"
+          />
+        )}
+      </View>
+    </View>
   </TouchableOpacity>
 );
 
@@ -108,13 +121,14 @@ const MainNavBar: React.FC<MainNavBarProps> = ({
   text = "",
   iconPath,
   onPress = () => {},
+  showSwitchIcon = false,
 }) => {
   switch (variant) {
     case 0:
       return <BottomNav items={bottomNavItems} />;
     case 1:
     case 2:
-      return <SingleBar text={text} iconPath={iconPath} onPress={onPress} />;
+      return <SingleBar text={text} iconPath={iconPath} onPress={onPress} showSwitchIcon={showSwitchIcon} />;
     default:
       return null;
   }
@@ -150,6 +164,18 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 0,
   },
+  singleBarContent: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+  },
+  iconsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   singleBarText: {
     color: AppColors.primaryLightGreen,
     fontSize: 18,
@@ -158,6 +184,10 @@ const styles = StyleSheet.create({
   icon: {
     width: width * 0.06,
     height: height * 0.05,
+  },
+  switchIcon: {
+    width: width * 0.05,
+    height: height * 0.04,
   },
 });
 

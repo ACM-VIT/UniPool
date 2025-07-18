@@ -29,6 +29,7 @@ const HomeScreen: React.FC = () => {
   const [location, setLocation] = useState<any>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
+  const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
 
   // Request location permissions
   const requestLocationPermission = async () => {
@@ -71,6 +72,10 @@ const HomeScreen: React.FC = () => {
     date: Date;
   }) => {
     console.log("Submitted ride details:", details);
+  };
+
+  const handleLocationSelectionChange = (hasFromAndTo: boolean) => {
+    setBothLocationsSelected(hasFromAndTo);
   };
 
   return (
@@ -120,16 +125,28 @@ const HomeScreen: React.FC = () => {
                 <Text style={styles.destinationButtonText}>Create Ride</Text>
               </TouchableOpacity>
             </View>
-            <RideDetailsSelector onSubmit={handleRideSubmit} />
+            <RideDetailsSelector 
+              onSubmit={handleRideSubmit} 
+              onLocationSelectionChange={handleLocationSelectionChange}
+            />
           </View>
 
           {/* Navigation Bar */}
           <View style={styles.navBarView}>
-            <MainNavBar
-              variant={0}
-              bottomNavItems={bottomNavItems}
-              iconPath={require("../assets/wallet.png")}
-            />
+            {bothLocationsSelected ? (
+              <MainNavBar
+                variant={1}
+                text="Search Rides"
+                iconPath={require("../assets/cool-emoji.png")}
+                onPress={() => console.log("Search rides pressed")}
+              />
+            ) : (
+              <MainNavBar
+                variant={0}
+                bottomNavItems={bottomNavItems}
+                iconPath={require("../assets/wallet.png")}
+              />
+            )}
           </View>
         </View>
       </View>
