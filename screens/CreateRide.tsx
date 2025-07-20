@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -7,15 +7,13 @@ import {
   SafeAreaView,
   Dimensions,
   TouchableOpacity,
-  Animated,
-  PanResponder,
   Alert,
-  ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AppColors from "../design_systems/colors";
 import RideDetailsSelector from "../components/RideDetailsSelector";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import SlideToCreate from "../components/SlideToCreate";
 import { useApi } from "../utils/ApiUtil";
 
 const { width, height } = Dimensions.get("window");
@@ -45,46 +43,6 @@ const CreateRide: React.FC = () => {
   const [toLocation, setToLocation] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isCreating, setIsCreating] = useState(false);
-  
-  // Slide to unlock functionality
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  const [slideCompleted, setSlideCompleted] = useState(false);
-  const slideWidth = width - 80; // Total slide width
-  const sliderWidth = 60; // Width of the slider circle
-  const maxSlideDistance = slideWidth - sliderWidth;
-
-  const panResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => {
-      slideAnim.setOffset((slideAnim as any)._value);
-    },
-    onPanResponderMove: (evt, gestureState) => {
-      const newValue = Math.max(0, Math.min(maxSlideDistance, gestureState.dx));
-      slideAnim.setValue(newValue);
-    },
-    onPanResponderRelease: (evt, gestureState) => {
-      slideAnim.flattenOffset();
-      
-      if (gestureState.dx > maxSlideDistance * 0.7) {
-        // Slide completed
-        Animated.timing(slideAnim, {
-          toValue: maxSlideDistance,
-          duration: 200,
-          useNativeDriver: false,
-        }).start(() => {
-          setSlideCompleted(true);
-          handleCreateRide();
-        });
-      } else {
-        // Slide back to start
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: false,
-        }).start();
-      }
-    },
-  });
 
   const handleCreateRide = async () => {
     if (!fromLocation || !toLocation) {
@@ -136,14 +94,6 @@ const CreateRide: React.FC = () => {
       }
       
       Alert.alert("Error", errorMessage);
-      
-      // Reset slide animation on error
-      setSlideCompleted(false);
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: false,
-      }).start();
     } finally {
       setIsCreating(false);
     }
@@ -280,41 +230,12 @@ const CreateRide: React.FC = () => {
 
         <Image style={styles.passengerImage} source={getPassengerImage()} />
 
-        <View style={styles.slideContainer}>
-          <Animated.View 
-            style={[
-              styles.slideTrack,
-              {
-                transform: [{ translateX: slideCompleted ? maxSlideDistance : slideAnim }],
-              }
-            ]}
-          >
-            <View style={styles.slideIconContainer}>
-              <Image 
-                source={require("../assets/arrow-square-left.png")} 
-                style={styles.slideIcon} 
-              />
-            </View>
-            <Text style={styles.slideText}>
-              {isCreating ? "Creating ride..." : "Slide to create ride"}
-            </Text>
-            {isCreating ? (
-              <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} />
-            ) : (
-              <Image 
-                source={require("../assets/smiling-emoji.png")} 
-                style={styles.emojiIcon} 
-              />
-            )}
-          </Animated.View>
-          <View 
-            style={[
-              styles.slideButtonArea,
-              isCreating && styles.slideButtonDisabled
-            ]}
-            {...(isCreating ? {} : panResponder.panHandlers)}
-          />
-        </View>
+        <SlideToCreate
+          onSlideComplete={handleCreateRide}
+          isLoading={isCreating}
+          text="Slide to create ride"
+          loadingText="Creating ride..."
+        />
       </View>
     </SafeAreaView>
   );
@@ -435,70 +356,6 @@ const styles = StyleSheet.create({
     height: 150,
     alignSelf: "center",
     resizeMode: "contain",
-  },
-  slideContainer: {
-    backgroundColor: AppColors.primaryLightGreen,
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: AppColors.secondaryDarkGreen,
-    marginTop: 20,
-    marginBottom: 20,
-    height: 60,
-    position: "relative",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  slideTrack: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
-    height: "100%",
-    position: "absolute",
-    left: 0,
-    right: 0,
-  },
-  slideIconContainer: {
-    backgroundColor: AppColors.secondaryDarkGreen,
-    borderRadius: 22,
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  slideButtonArea: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    width: "100%",
-    height: "100%",
-    zIndex: 10,
-  },
-  slideButtonDisabled: {
-    opacity: 0.5,
-  },
-  slideIcon: {
-    width: 24,
-    height: 24,
-    tintColor: AppColors.primaryLightGreen,
-  },
-  slideText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: AppColors.secondaryDarkGreen,
-    textAlign: "center",
-    flex: 1,
-    marginHorizontal: 10,
-    fontFamily: "NunitoSans_600SemiBold",
-  },
-  emojiIcon: {
-    width: 24,
-    height: 24,
   },
 });
 
