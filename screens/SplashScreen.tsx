@@ -49,7 +49,7 @@ const SplashScreen: React.FC = () => {
         {/* First Line: Uni - moved up */}
         <Text style={[styles.logoTextLine, { 
           fontSize: 210.74 * scale,
-          marginTop: -30 * scale, // Move Uni up more
+          marginTop: -50 * scale, // Move Uni up more
         }]}>
           <Text style={styles.logoTextDark}>Uni</Text>
         </Text>
