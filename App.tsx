@@ -19,6 +19,8 @@ import RideCreatedScreen from "./screens/RideCreatedScreen";
 import RideRequestedScreen from "./screens/RideRequestedScreen";
 import BookingScreen from "./screens/BookingScreen";
 import SignInScreen from "./screens/SignInScreen";
+import ErrorScreen from "./screens/ErrorScreen";
+import SplashScreen from "./screens/SplashScreen";
 import HomeScreen from "./screens/HomeScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import CreateRide from "./screens/CreateRide";
@@ -59,7 +61,7 @@ const App = () => {
   useEffect(() => {
     const authInstance = getAuth();
     const unsubscribe = onAuthStateChanged(authInstance, (user) => {
-      setInitialRoute(user ? "BookingScreen" : "AuthScreen");
+      setInitialRoute(user ? "HomeScreen" : "AuthScreen");
       setLoading(false);
     });
 
@@ -81,6 +83,8 @@ const App = () => {
           <Stack.Screen name="AuthScreen" component={AuthScreen} options={{ headerShown: false }} />
           <Stack.Screen name="SignInScreen" component={SignInScreen} options={{ headerShown: false }} />
           <Stack.Screen name="SignUpScreen" component={SignUpScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="SplashScreen" component={SplashScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="ErrorScreen" component={ErrorScreen} options={{ headerShown: false }} />
           <Stack.Screen name="RideCreatedScreen" component={RideCreatedScreen} />
           <Stack.Screen name="RideRequestedScreen" component={RideRequestedScreen} />
           <Stack.Screen name="BookingScreen" component={BookingScreen} options={{ headerShown: false }} />

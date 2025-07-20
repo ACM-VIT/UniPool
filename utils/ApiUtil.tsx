@@ -130,18 +130,16 @@ export default class ApiUtil {
 
       if (!response.ok) {
         console.error(`HTTP ${method} ${url} error ${response.status}:`, responseBody);
-        
         if (response.status === 401) {
           console.warn("User authentication failed - signing out and redirecting to auth");
           await this.handleAuthenticationFailure();
           throw new Error("AUTHENTICATION_REDIRECT");
         }
-        
-        const errorMessage = typeof responseBody === 'object' && responseBody.error 
-          ? String(responseBody.error)
-          : `HTTP ${response.status}`;
-          
-        throw new Error(errorMessage);
+        // Throw a custom error object with status and responseBody
+        const error: any = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        error.response = { status: response.status, data: responseBody };
+        throw error;
       }
 
       return responseBody as T;

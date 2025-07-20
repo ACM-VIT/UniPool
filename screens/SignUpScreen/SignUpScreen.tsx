@@ -17,8 +17,10 @@ import { useApi } from "../../utils/ApiUtil";
 import styles from "./SignUpScreen.styles";
 
 
-const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
+const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
   const { apiUtil } = useApi();
+  const newUser = route?.params?.newUser;
+
   const [contactNumber, setContactNumber] = useState("");
   const [yob, setYob] = useState("");
   const [gender, setGender] = useState<string | null>(null);
