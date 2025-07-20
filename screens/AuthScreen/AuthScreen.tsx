@@ -21,7 +21,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
 
       try {
         const response = await apiUtil.get("/user/details");
-        navigation.navigate("BookingScreen");
+        navigation.navigate("HomeScreen");
       } catch (err: any) {
         // Check for 404 and newUser info
         if (err.response?.status === 404 && err.response?.data?.newUser) {

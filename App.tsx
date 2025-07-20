@@ -85,8 +85,8 @@ const App = () => {
           <Stack.Screen name="SignUpScreen" component={SignUpScreen} options={{ headerShown: false }} />
           <Stack.Screen name="SplashScreen" component={SplashScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ErrorScreen" component={ErrorScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="RideCreatedScreen" component={RideCreatedScreen} />
-          <Stack.Screen name="RideRequestedScreen" component={RideRequestedScreen} />
+          <Stack.Screen name="RideCreatedScreen" component={RideCreatedScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="RideRequestedScreen" component={RideRequestedScreen} options={{ headerShown: false }} />
           <Stack.Screen name="BookingScreen" component={BookingScreen} options={{ headerShown: false }} />
           <Stack.Screen name="HomeScreen" component={HomeScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ProfileScreen" component={ProfileScreen} options={{ headerShown: false }} />
