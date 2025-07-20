@@ -44,15 +44,21 @@ interface RideDetails {
 interface RideDetailsSelectorProps {
   onSubmit: (details: RideDetails) => void;
   onLocationSelectionChange?: (hasFromAndTo: boolean) => void;
+  onLocationSwap?: () => void;
+  fromLocation?: string;
+  toLocation?: string;
 }
 
 const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   onSubmit,
   onLocationSelectionChange,
+  onLocationSwap,
+  fromLocation: externalFromLocation,
+  toLocation: externalToLocation,
 }) => {
   // Form state
-  const [fromLocation, setFromLocation] = useState("");
-  const [toLocation, setToLocation] = useState("");
+  const [fromLocation, setFromLocation] = useState(externalFromLocation || "");
+  const [toLocation, setToLocation] = useState(externalToLocation || "");
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   // UI state
@@ -70,6 +76,18 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       setToLocation(location);
       setShowToDropdown(false);
     }
+    
+    // Trigger onSubmit callback if both locations are selected
+    const updatedFrom = isFrom ? location : fromLocation;
+    const updatedTo = isFrom ? toLocation : location;
+    
+    if (updatedFrom && updatedTo && onSubmit) {
+      onSubmit({
+        from: updatedFrom,
+        to: updatedTo,
+        date: selectedDate
+      });
+    }
   };
 
   // Handle date/time selection
@@ -81,6 +99,15 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       } else {
         setShowPicker(false);
         setPickerMode("date");
+        
+        // Trigger onSubmit callback when date is fully selected
+        if (fromLocation && toLocation && onSubmit) {
+          onSubmit({
+            from: fromLocation,
+            to: toLocation,
+            date: selected
+          });
+        }
       }
     } else {
       setShowPicker(false);
@@ -94,15 +121,52 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     setShowPicker(true);
   };
 
+  // Handle location swap
+  const handleLocationSwap = () => {
+    const tempLocation = fromLocation;
+    setFromLocation(toLocation);
+    setToLocation(tempLocation);
+    if (onLocationSwap) {
+      onLocationSwap();
+    }
+  };
+
   const setToToday = () => {
     setSelectedDate(new Date());
+    if (fromLocation && toLocation && onSubmit) {
+      onSubmit({
+        from: fromLocation,
+        to: toLocation,
+        date: new Date()
+      });
+    }
   };
 
   const setToTomorrow = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     setSelectedDate(tomorrow);
+    if (fromLocation && toLocation && onSubmit) {
+      onSubmit({
+        from: fromLocation,
+        to: toLocation,
+        date: tomorrow
+      });
+    }
   };
+
+  // Sync external location props with internal state
+  useEffect(() => {
+    if (externalFromLocation !== undefined) {
+      setFromLocation(externalFromLocation);
+    }
+  }, [externalFromLocation]);
+
+  useEffect(() => {
+    if (externalToLocation !== undefined) {
+      setToLocation(externalToLocation);
+    }
+  }, [externalToLocation]);
 
   useEffect(() => {
     if (onLocationSelectionChange) {
@@ -113,6 +177,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.locationsWrapper}>
+        {/* From Location */}
         <TouchableOpacity
           style={styles.inputContainer}
           onPress={() => setShowFromDropdown(true)}
@@ -124,6 +189,17 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             />
           </View>
           <Text style={styles.selectedText}>{fromLocation || "From"}</Text>
+        </TouchableOpacity>
+
+        {/* Switch Icon */}
+        <TouchableOpacity 
+          style={styles.switchIconContainer}
+          onPress={handleLocationSwap}
+        >
+          <Image
+            source={require("../assets/switch-1.png")}
+            style={styles.switchIcon}
+          />
         </TouchableOpacity>
 
         {/* To Location */}
@@ -139,23 +215,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           </View>
           <Text style={styles.selectedText}>{toLocation || "To"}</Text>
         </TouchableOpacity>
-
-        {/* Switch Icon - appears when both locations are selected */}
-        {fromLocation && toLocation && (
-          <TouchableOpacity 
-            style={styles.switchIconContainer}
-            onPress={() => {
-              const temp = fromLocation;
-              setFromLocation(toLocation);
-              setToLocation(temp);
-            }}
-          >
-            <Image
-              source={require("../assets/switch-1.png")}
-              style={styles.switchIcon}
-            />
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Date Selection */}
@@ -238,7 +297,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    borderRadius: 15,
+    borderRadius: 20,
     overflow: "hidden",
     borderColor: AppColors.basicBlack,
     borderWidth: 2,
@@ -281,24 +340,28 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_600SemiBold",
   },
   dateContainer: {
-    width: "80%",
+    width: "100%",
     padding: "4%",
     flexDirection: "row",
-    justifyContent: "space-around",
+    justifyContent: "space-between",
     alignItems: "center",
     gap: 20,
   },
   dateButtons: {
     flexDirection: "row",
     gap: 6,
+    flex: 1,
+    justifyContent: "flex-end",
   },
   dateButton: {
     backgroundColor: AppColors.basicBlack,
     paddingVertical: "4%",
-    paddingHorizontal: "6%",
+    paddingHorizontal: "8%",
     borderRadius: 8,
     textAlign: "center",
     alignItems: "center",
+    flex: 1,
+    minWidth: 70,
   },
   dateButtonText: {
     color: AppColors.basicWhite,
@@ -351,16 +414,16 @@ const styles = StyleSheet.create({
   },
   switchIconContainer: {
     position: "absolute",
-    right: 16,
-    top: "50%",
+    right: 30,
+    top: 65,
     transform: [{ translateY: -10 }],
     zIndex: 10,
     paddingHorizontal: 4,
     paddingVertical: 2,
   },
   switchIcon: {
-    width: 20,
-    height: 20,
+    width: 25,
+    height: 25,
     tintColor: AppColors.basicBlack,
   },
 });
