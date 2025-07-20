@@ -98,15 +98,15 @@ const BookingScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ChevronBack style={styles.backButton} />
+      {/* <ChevronBack style={styles.backButton} /> */}
       
-      {/* <View style={styles.header}>
+      <View style={styles.header}>
         <View style={styles.headerLeft}>
           <MapPin size={20} color={AppColors.basicBlack} />
           <Text style={styles.headerText}>Vellore Institute of Technology</Text>
         </View>
         <Text style={styles.brandText}>UniPool</Text>
-      </View> */}
+      </View>
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
