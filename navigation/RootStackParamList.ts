@@ -1,7 +1,9 @@
 export type RootStackParamList = {
   AuthScreen: undefined;
-  SignUpScreen: undefined;
+  SignUpScreen: { newUser: any };
   SignInScreen: undefined;
+  SplashScreen: undefined;
+  ErrorScreen: undefined;
   RideCreatedScreen: undefined;
   RideRequestedScreen: undefined;
   BookingScreen: undefined;
