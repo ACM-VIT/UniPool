@@ -5,6 +5,7 @@ import { View, ActivityIndicator } from "react-native";
 import auth, { getAuth, onAuthStateChanged } from "@react-native-firebase/auth";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { useFonts } from "expo-font";
+import * as SplashScreen from "expo-splash-screen";
 import {
   NunitoSans_400Regular,
   NunitoSans_600SemiBold,
@@ -20,7 +21,7 @@ import RideRequestedScreen from "./screens/RideRequestedScreen";
 import BookingScreen from "./screens/BookingScreen";
 import SignInScreen from "./screens/SignInScreen";
 import ErrorScreen from "./screens/ErrorScreen";
-import SplashScreen from "./screens/SplashScreen";
+import SplashScreenComponent from "./screens/SplashScreen";
 import HomeScreen from "./screens/HomeScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import CreateRide from "./screens/CreateRide";
@@ -42,6 +43,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const App = () => {
   const [initialRoute, setInitialRoute] = useState<keyof RootStackParamList | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showCustomSplash, setShowCustomSplash] = useState(true);
   const navigationRef = useRef<any>(null);
 
   const [fontsLoaded] = useFonts({
@@ -51,6 +53,10 @@ const App = () => {
     "NunitoSans_800ExtraBold": NunitoSans_800ExtraBold,
     "NunitoSans": NunitoSans_600SemiBold,
   });
+
+  useEffect(() => {
+    SplashScreen.preventAutoHideAsync();
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -68,12 +74,19 @@ const App = () => {
     return unsubscribe;
   }, []);
 
-  if (!fontsLoaded || loading || !initialRoute) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+  useEffect(() => {
+    if (fontsLoaded && !loading && initialRoute) {
+      const timer = setTimeout(() => {
+        setShowCustomSplash(false);
+        SplashScreen.hideAsync();
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [fontsLoaded, loading, initialRoute]);
+
+  if (showCustomSplash || !fontsLoaded || loading || !initialRoute) {
+    return <SplashScreenComponent />;
   }
 
   return (
@@ -83,7 +96,7 @@ const App = () => {
           <Stack.Screen name="AuthScreen" component={AuthScreen} options={{ headerShown: false }} />
           <Stack.Screen name="SignInScreen" component={SignInScreen} options={{ headerShown: false }} />
           <Stack.Screen name="SignUpScreen" component={SignUpScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="SplashScreen" component={SplashScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="SplashScreen" component={SplashScreenComponent} options={{ headerShown: false }} />
           <Stack.Screen name="ErrorScreen" component={ErrorScreen} options={{ headerShown: false }} />
           <Stack.Screen name="RideCreatedScreen" component={RideCreatedScreen} options={{ headerShown: false }} />
           <Stack.Screen name="RideRequestedScreen" component={RideRequestedScreen} options={{ headerShown: false }} />
