@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
+  SafeAreaView,
   ScrollView,
   View,
   Text,
@@ -8,6 +9,8 @@ import {
   NativeScrollEvent,
   Dimensions,
   ActivityIndicator,
+  Platform,
+  StatusBar,
 } from "react-native";
 import RideCard from "../../components/RideCard";
 import ChevronBack from "../../components/ChevronBack";
@@ -18,11 +21,11 @@ import { useApi } from "../../utils/ApiUtil";
 import type { RideData } from "../../dummy-data/Bookings";
 import MainNavBar from "../../components/MainNavBar";
 import bottomNavItems from "../../data/BottomNavigationItems";
+import BrandInfo from "../../components/BrandInfo";
 
 const window = Dimensions.get("window");
 
 const BookingScreen: React.FC = () => {
-
   const [activeUpcomingPage, setActiveUpcomingPage] = useState(0);
   const [activeInProgressPage, setActiveInProgressPage] = useState(0);
   const [upcomingRides, setUpcomingRides] = useState<RideData[]>([]);
@@ -98,15 +101,18 @@ const BookingScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* <ChevronBack style={styles.backButton} /> */}
-      
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <MapPin size={20} color={AppColors.basicBlack} />
-          <Text style={styles.headerText}>Vellore Institute of Technology</Text>
-        </View>
-        <Text style={styles.brandText}>UniPool</Text>
-      </View>
+      <SafeAreaView
+        style={{
+          position: "absolute",
+          top: -40,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+        }}
+      >
+        <BrandInfo />
+      </SafeAreaView>
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>

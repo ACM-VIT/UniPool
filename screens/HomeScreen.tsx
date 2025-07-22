@@ -6,9 +6,11 @@ import {
   SafeAreaView,
   StyleSheet,
   Dimensions,
+  Platform,
+  StatusBar,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
-import * as Location from "expo-location";
+  import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
@@ -19,6 +21,8 @@ import PreviousTripsSection from "../components/PreviousTripsSection";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { CommonLocationCoordinates } from "../components/RideDetailsSelector";
 import { RootStackParamList } from "../navigation/RootStackParamList";
+import BrandInfo from "../components/BrandInfo";
+
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'HomeScreen'>;
 
@@ -80,6 +84,18 @@ const HomeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <SafeAreaView
+        style={{
+          position: "absolute",
+          top: -40,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+        }}
+      >
+        <BrandInfo />
+      </SafeAreaView>
       <View style={styles.scrollView}>
         {/* Map Section */}
         <View style={styles.mapContainer}>
