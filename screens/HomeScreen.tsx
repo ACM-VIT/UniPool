@@ -144,6 +144,7 @@ const HomeScreen: React.FC = () => {
             <RideDetailsSelector 
               onSubmit={handleRideSubmit} 
               onLocationSelectionChange={handleLocationSelectionChange}
+              userLocation={location}
             />
           </View>
 

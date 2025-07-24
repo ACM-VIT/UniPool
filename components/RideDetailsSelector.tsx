@@ -8,22 +8,24 @@ import {
   Modal,
   ScrollView,
   Dimensions,
+  TextInput,
+  ActivityIndicator,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { format } from "date-fns";
 import AppColors from "../design_systems/colors";
+import { 
+  searchLocationsWithFallback,
+  getPopularLocations, 
+  getPopularLocationsFallback,
+  LocationResult,
+  formatLocationName,
+  POPULAR_LOCATIONS,
+  UserLocation,
+  NearbyPlace
+} from "../utils/LocationService";
 
 const { width, height } = Dimensions.get("window");
-
-const LOCATIONS = [
-  "Chennai",
-  "Vellore",
-  "Bangalore",
-  "Coimbatore",
-  "Salem",
-  "Madurai",
-  "Pondicherry",
-];
 
 export const CommonLocationCoordinates = [
   { location: "Chennai", latitude: 12.989196, longitude: 80.178799 },
@@ -47,6 +49,7 @@ interface RideDetailsSelectorProps {
   onLocationSwap?: () => void;
   fromLocation?: string;
   toLocation?: string;
+  userLocation?: UserLocation;
 }
 
 const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
@@ -55,6 +58,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   onLocationSwap,
   fromLocation: externalFromLocation,
   toLocation: externalToLocation,
+  userLocation, // Add user location prop
 }) => {
   // Form state
   const [fromLocation, setFromLocation] = useState(externalFromLocation || "");
@@ -67,6 +71,58 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const [showPicker, setShowPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<"date" | "time">("date");
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<LocationResult[]>([]);
+  const [popularLocations, setPopularLocations] = useState<string[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingPopular, setIsLoadingPopular] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+
+  const handleSearchInput = async (text: string) => {
+    setSearchQuery(text);
+    
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    try {
+      const popular = await getPopularLocations(text, userLocation);
+      setPopularLocations(popular);
+    } catch (error) {
+      const fallbackPopular = getPopularLocationsFallback(text);
+      setPopularLocations(fallbackPopular);
+    }
+    
+    if (text.length >= 2) {
+      setIsSearching(true);
+      const timeout = setTimeout(async () => {
+        try {
+          console.log('Starting search for:', text);
+          const results = await searchLocationsWithFallback(text);
+          console.log('Search completed, results:', results.length);
+          setSearchResults(results);
+        } catch (error) {
+          console.error('Search failed:', error);
+          const fallbackResults = getPopularLocationsFallback(text).slice(0, 4).map((location, index) => ({
+            display_name: `${location}, India`,
+            lat: "13.0827",
+            lon: "80.2707", 
+            place_id: `fallback_${index}`,
+            name: location
+          }));
+          setSearchResults(fallbackResults);
+        } finally {
+          setIsSearching(false);
+        }
+      }, 500);
+      setSearchTimeout(timeout);
+    } else {
+      setSearchResults([]);
+      setIsSearching(false);
+    }
+  };
+
   // Handle location selection
   const handleLocationSelect = (location: string, isFrom: boolean) => {
     if (isFrom) {
@@ -77,7 +133,10 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       setShowToDropdown(false);
     }
     
-    // Trigger onSubmit callback if both locations are selected
+    setSearchQuery("");
+    setSearchResults([]);
+    setPopularLocations([]);
+    
     const updatedFrom = isFrom ? location : fromLocation;
     const updatedTo = isFrom ? toLocation : location;
     
@@ -90,7 +149,35 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
   };
 
-  // Handle date/time selection
+  const handleLocationSelectorOpen = async (isFrom: boolean) => {
+    console.log('Opening location selector, isFrom:', isFrom, 'userLocation:', userLocation);
+    
+    if (isFrom) {
+      setShowFromDropdown(true);
+    } else {
+      setShowToDropdown(true);
+    }
+    
+    setIsLoadingPopular(true);
+    setPopularLocations([]);
+    
+    try {
+      console.log('Getting popular locations...');
+      const popular = await getPopularLocations("", userLocation);
+      console.log('Got popular locations:', popular);
+      setPopularLocations(popular);
+    } catch (error) {
+      console.error('Error getting popular locations:', error);
+      console.log('Using default fallback locations');
+      setPopularLocations(POPULAR_LOCATIONS.default);
+    } finally {
+      setIsLoadingPopular(false);
+    }
+    
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
   const handleDateTimeChange = (event: any, selected?: Date) => {
     if (selected) {
       setSelectedDate(selected);
@@ -174,13 +261,21 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
   }, [fromLocation, toLocation, onLocationSelectionChange]);
 
+  useEffect(() => {
+    return () => {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+    };
+  }, [searchTimeout]);
+
   return (
     <View style={styles.container}>
       <View style={styles.locationsWrapper}>
         {/* From Location */}
         <TouchableOpacity
           style={styles.inputContainer}
-          onPress={() => setShowFromDropdown(true)}
+          onPress={() => handleLocationSelectorOpen(true)}
         >
           <View style={styles.inputContent}>
             <Image
@@ -205,7 +300,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         {/* To Location */}
         <TouchableOpacity
           style={styles.inputContainer}
-          onPress={() => setShowToDropdown(true)}
+          onPress={() => handleLocationSelectorOpen(false)}
         >
           <View style={styles.inputContent}>
             <Image
@@ -254,24 +349,98 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             <Text style={styles.modalTitle}>
               Select {showFromDropdown ? "From" : "To"} Location
             </Text>
+            
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search for a location..."
+                placeholderTextColor={AppColors.basicWhite + "80"}
+                value={searchQuery}
+                onChangeText={handleSearchInput}
+                autoFocus={true}
+              />
+              {isSearching && (
+                <ActivityIndicator 
+                  size="small" 
+                  color={AppColors.basicWhite} 
+                  style={styles.searchLoader}
+                />
+              )}
+            </View>
+
             <ScrollView style={styles.locationList}>
-              {CommonLocationCoordinates.map(({ location }) => (
-                <TouchableOpacity
-                  key={location}
-                  style={styles.locationItem}
-                  onPress={() =>
-                    handleLocationSelect(location, showFromDropdown)
-                  }
-                >
-                  <Text style={styles.locationText}>{location}</Text>
-                </TouchableOpacity>
-              ))}
+              {/* Popular Locations Section */}
+              {isLoadingPopular ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={AppColors.basicWhite} />
+                  <Text style={styles.loadingText}>Loading nearby places...</Text>
+                </View>
+              ) : popularLocations.length > 0 ? (
+                <>
+                  <Text style={styles.sectionHeader}>Popular Locations</Text>
+                  {popularLocations.map((location, index) => (
+                    <TouchableOpacity
+                      key={`popular-${index}`}
+                      style={styles.locationItem}
+                      onPress={() =>
+                        handleLocationSelect(location, showFromDropdown)
+                      }
+                    >
+                      <Image
+                        source={require("../assets/location-pin.png")}
+                        style={styles.locationIcon}
+                      />
+                      <Text style={styles.locationText}>{location}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </>
+              ) : null}
+
+              {/* Search Results Section */}
+              {searchResults.length > 0 && (
+                <>
+                  <Text style={styles.sectionHeader}>Search Results</Text>
+                  {searchResults.map((result) => (
+                    <TouchableOpacity
+                      key={result.place_id}
+                      style={styles.locationItem}
+                      onPress={() =>
+                        handleLocationSelect(formatLocationName(result), showFromDropdown)
+                      }
+                    >
+                      <Image
+                        source={require("../assets/location-pin.png")}
+                        style={styles.locationIcon}
+                      />
+                      <View style={styles.searchResultContent}>
+                        <Text style={styles.locationText} numberOfLines={1}>
+                          {result.name || result.display_name.split(',')[0]}
+                        </Text>
+                        <Text style={styles.locationSubtext} numberOfLines={2}>
+                          {result.display_name}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
+
+              {/* No results message */}
+              {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
+                <Text style={styles.noResultsText}>
+                  No locations found. Try a different search term.
+                </Text>
+              )}
             </ScrollView>
+
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => {
                 setShowFromDropdown(false);
                 setShowToDropdown(false);
+                setSearchQuery("");
+                setSearchResults([]);
+                setPopularLocations([]);
               }}
             >
               <Text style={styles.closeButtonText}>Close</Text>
@@ -378,7 +547,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     padding: "5%",
-    maxHeight: "60%",
+    maxHeight: "80%",
   },
   modalTitle: {
     fontSize: 18,
@@ -386,19 +555,82 @@ const styles = StyleSheet.create({
     marginBottom: "4%",
     color: AppColors.primaryLightGreen,
   },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: AppColors.basicBlack,
+    borderRadius: 8,
+    marginBottom: "4%",
+    paddingHorizontal: "3%",
+  },
+  searchInput: {
+    flex: 1,
+    color: AppColors.basicWhite,
+    fontSize: 16,
+    fontFamily: "NunitoSans_400Regular",
+    paddingVertical: "3%",
+  },
+  searchLoader: {
+    marginLeft: "2%",
+  },
   locationList: {
-    maxHeight: "80%",
+    maxHeight: "70%",
+  },
+  sectionHeader: {
+    fontSize: 14,
+    fontFamily: "NunitoSans_600SemiBold",
+    color: AppColors.primaryLightGreen,
+    marginTop: "3%",
+    marginBottom: "2%",
   },
   locationItem: {
-    paddingVertical: "4%",
+    paddingVertical: "3%",
+    paddingHorizontal: "2%",
     borderBottomWidth: 1,
-    borderBottomColor: AppColors.basicWhite,
-    color: AppColors.basicWhite,
+    borderBottomColor: AppColors.basicWhite + "20",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  locationIcon: {
+    width: 16,
+    height: 16,
+    tintColor: AppColors.basicWhite,
+    marginRight: "3%",
   },
   locationText: {
-    fontSize: 20,
+    fontSize: 16,
     fontFamily: "NunitoSans_400Regular",
     color: AppColors.basicWhite,
+    flex: 1,
+  },
+  searchResultContent: {
+    flex: 1,
+  },
+  locationSubtext: {
+    fontSize: 12,
+    fontFamily: "NunitoSans_300Light",
+    color: AppColors.basicWhite + "80",
+    marginTop: 2,
+  },
+  noResultsText: {
+    fontSize: 14,
+    fontFamily: "NunitoSans_400Regular",
+    color: AppColors.basicWhite + "80",
+    textAlign: "center",
+    marginTop: "5%",
+    fontStyle: "italic",
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: "5%",
+  },
+  loadingText: {
+    fontSize: 14,
+    fontFamily: "NunitoSans_400Regular",
+    color: AppColors.basicWhite,
+    marginLeft: "3%",
   },
   closeButton: {
     marginTop: "4%",
