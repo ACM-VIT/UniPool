@@ -155,7 +155,7 @@ const HomeScreen: React.FC = () => {
                 variant={1}
                 text="Search Rides"
                 iconPath={require("../assets/cool-emoji.png")}
-                onPress={() => console.log("Search rides pressed")}
+                onPress={() => navigation.navigate('AvailableRidesScreen' as never)}
               />
             ) : (
               <MainNavBar

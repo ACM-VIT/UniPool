@@ -10,4 +10,6 @@ export type RootStackParamList = {
   HomeScreen: undefined;
   ProfileScreen: undefined;
   CreateRide: undefined;
+  AvailableRidesScreen: undefined;
+  AvailableRidesSelectedScreen: undefined;
 };

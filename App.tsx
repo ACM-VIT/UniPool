@@ -104,6 +104,8 @@ const App = () => {
           <Stack.Screen name="HomeScreen" component={HomeScreen} options={{ headerShown: false }} />
           <Stack.Screen name="ProfileScreen" component={ProfileScreen} options={{ headerShown: false }} />
           <Stack.Screen name="CreateRide" component={CreateRide} options={{ headerShown: false }} />
+          <Stack.Screen name="AvailableRidesScreen" component={require('./screens/AvailableRideScreens/AvailableRideScreen').default} options={{ headerShown: false }} />
+          <Stack.Screen name="AvailableRidesSelectedScreen" component={require('./screens/AvailableRideScreens/AvailableRideScreenSelected').default} options={{ headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>
     </ApiProvider>
