@@ -84,18 +84,18 @@ const HomeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <SafeAreaView
-        style={{
-          position: "absolute",
-          top: -40,
-          left: 0,
-          right: 0,
-          zIndex: 10,
-          paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-        }}
-      >
-        <BrandInfo />
-      </SafeAreaView>
+    <View
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+      }}
+    >
+      <BrandInfo />
+    </View>
       <View style={styles.scrollView}>
         {/* Map Section */}
         <View style={styles.mapContainer}>
