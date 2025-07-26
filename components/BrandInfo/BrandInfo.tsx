@@ -19,9 +19,8 @@ const BrandInfo: React.FC<BrandInfoProps> = ({ style }) => {
       const geocode = await Location.reverseGeocodeAsync(loc.coords);
       if (geocode && geocode.length > 0) {
         const first = geocode[0];
-        const locStr = `${first.city ? first.city + ", " : ""}${
-          first.region ? first.region + ", " : ""
-        }${first.country || ""}`;
+        let locRaw = first.city || first.region || first.country || "";
+        let locStr = locRaw.split(",")[0].trim();
         setLocationText(locStr);
         setPincode(first.postalCode || "");
       }

@@ -101,18 +101,19 @@ const BookingScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView
+      <View
         style={{
           position: "absolute",
-          top: -40,
+          top: 0,
           left: 0,
           right: 0,
           zIndex: 10,
           paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+          backgroundColor: AppColors.primaryLightGreen,
         }}
       >
         <BrandInfo />
-      </SafeAreaView>
+      </View>
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -226,14 +227,7 @@ const BookingScreen: React.FC = () => {
         style={styles.airplaneIcon}
         resizeMode="contain"
       />
-      <View style={styles.navBarView}>
-        <MainNavBar
-          variant={navBarVariant}
-          bottomNavItems={bookingScreenNavItems}
-          iconPath={require("../../assets/wallet.png")}
-          text="View Details"
-        />
-      </View>
+      {/* MainNavBar is now rendered globally in App.tsx */}
     </View>
   );
 };
