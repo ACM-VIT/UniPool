@@ -66,12 +66,21 @@ const App = () => {
   const navigationRef = useRef<any>(null);
 
   const [fontsLoaded] = useFonts({
-    "NunitoSans_400Regular": NunitoSans_400Regular,
-    "NunitoSans_600SemiBold": NunitoSans_600SemiBold,
-    "NunitoSans_700Bold": NunitoSans_700Bold,
-    "NunitoSans_800ExtraBold": NunitoSans_800ExtraBold,
-    "NunitoSans": NunitoSans_600SemiBold,
+    NunitoSans_400Regular,
+    NunitoSans_600SemiBold,
+    NunitoSans_700Bold,
+    NunitoSans_800ExtraBold,
+    NunitoSans: NunitoSans_600SemiBold,
   });
+
+  const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
+  const [navBarText, setNavBarText] = useState<string>("");
+  const [navBarIcon, setNavBarIcon] = useState<any>(
+    require("./assets/wallet.png")
+  );
+  const [navBarItems, setNavBarItems] = useState(bottomNavItems);
+
+  const [navStateVersion, setNavStateVersion] = useState(0);
 
   useEffect(() => {
     SplashScreen.preventAutoHideAsync();
@@ -96,25 +105,37 @@ const App = () => {
     }
   }, [fontsLoaded, loading, initialRoute]);
 
-  const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
-  const [navBarText, setNavBarText] = useState<string>("");
-  const [navBarIcon, setNavBarIcon] = useState<any>(
-    require("./assets/wallet.png")
-  );
-  const [navBarItems, setNavBarItems] = useState(bottomNavItems);
+  const getCurrentRouteName = () => {
+    if (navigationRef.current && navigationRef.current.getCurrentRoute) {
+      const route = navigationRef.current.getCurrentRoute();
+      return route?.name;
+    }
+    return initialRoute;
+  };
 
   if (showCustomSplash || !fontsLoaded || loading || !initialRoute) {
     return <SplashScreenComponent />;
   }
 
+  const currentRouteName = getCurrentRouteName();
+  const showNavBar =
+    currentRouteName !== "AuthScreen" && currentRouteName !== "SignUpScreen";
+
   return (
     <ApiProvider navigationRef={navigationRef}>
-      {/* ⬇️ Wrap once here to cache location for the whole app */}
       <LocationProvider>
         <View style={{ flex: 1 }}>
-          <NavigationContainer ref={navigationRef}>
+          <NavigationContainer
+            ref={navigationRef}
+            onStateChange={() => setNavStateVersion((v) => v + 1)}
+          >
             <View style={{ flex: 1 }}>
               <Stack.Navigator initialRouteName={initialRoute}>
+                <Stack.Screen
+                  name="DefaultAddressScreen"
+                  component={require("./screens/DefaultAddressScreen").default}
+                  options={{ headerShown: false }}
+                />
                 <Stack.Screen
                   name="AuthScreen"
                   component={AuthScreen}
@@ -197,9 +218,10 @@ const App = () => {
                 </Stack.Screen>
                 <Stack.Screen
                   name="AvailableRidesSelectedScreen"
-                  component={require(
-                    "./screens/AvailableRideScreens/AvailableRideScreenSelected"
-                  ).default}
+                  component={
+                    require("./screens/AvailableRideScreens/AvailableRideScreenSelected")
+                      .default
+                  }
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen
@@ -219,39 +241,41 @@ const App = () => {
                 />
               </Stack.Navigator>
 
-              <View style={globalStyles.navBarWrapper}>
-                {navBarVariant === 1 ? (
-                  <MainNavBar
-                    variant={1}
-                    text={navBarText}
-                    iconPath={navBarIcon}
-                    onPress={() => {
-                      navigationRef.current?.navigate("AvailableRidesScreen");
-                      setNavBarVariant(0);
-                      setNavBarText("");
-                      setNavBarIcon(require("./assets/wallet.png"));
-                      setNavBarItems(bottomNavItems);
-                    }}
-                  />
-                ) : navBarVariant === 2 ? (
-                  <MainNavBar
-                    variant={2}
-                    text={navBarText}
-                    iconPath={navBarIcon}
-                    onPress={() => {
-                      navigationRef.current?.navigate(
-                        "AvailableRidesSelectedScreen"
-                      );
-                    }}
-                  />
-                ) : (
-                  <MainNavBar
-                    variant={0}
-                    bottomNavItems={navBarItems}
-                    iconPath={navBarIcon}
-                  />
-                )}
-              </View>
+              {showNavBar && (
+                <View style={globalStyles.navBarWrapper}>
+                  {navBarVariant === 1 ? (
+                    <MainNavBar
+                      variant={1}
+                      text={navBarText}
+                      iconPath={navBarIcon}
+                      onPress={() => {
+                        navigationRef.current?.navigate("AvailableRidesScreen");
+                        setNavBarVariant(0);
+                        setNavBarText("");
+                        setNavBarIcon(require("./assets/wallet.png"));
+                        setNavBarItems(bottomNavItems);
+                      }}
+                    />
+                  ) : navBarVariant === 2 ? (
+                    <MainNavBar
+                      variant={2}
+                      text={navBarText}
+                      iconPath={navBarIcon}
+                      onPress={() => {
+                        navigationRef.current?.navigate(
+                          "AvailableRidesSelectedScreen"
+                        );
+                      }}
+                    />
+                  ) : (
+                    <MainNavBar
+                      variant={0}
+                      bottomNavItems={navBarItems}
+                      iconPath={navBarIcon}
+                    />
+                  )}
+                </View>
+              )}
             </View>
           </NavigationContainer>
         </View>

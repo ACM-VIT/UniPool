@@ -15,4 +15,5 @@ export type RootStackParamList = {
   CreateRide: undefined;
   AvailableRidesScreen: undefined;
   AvailableRidesSelectedScreen: undefined;
+  DefaultAddressScreen: undefined;
 };
