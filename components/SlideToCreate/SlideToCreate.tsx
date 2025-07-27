@@ -1,11 +1,12 @@
-import React from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
   Image,
   ActivityIndicator,
+  Animated,
 } from "react-native";
-import Slider from "react-native-slide-to-unlock";
+import { PanGestureHandler, State } from "react-native-gesture-handler";
 import { UniversalSliderProps } from "./SlideToCreate.types";
 import styles from "./SlideToCreate.styles";
 import AppColors from "../../design_systems/colors";
@@ -19,6 +20,7 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
   sliderIcon,
   endIcon,
   showEndIcon = true,
+  emojiIcon, // <-- new prop
   containerStyle,
   sliderStyle,
   textStyle,
@@ -29,7 +31,10 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
   textColor = AppColors.basicBlack,
   iconTintColor = AppColors.primaryLightGreen,
 }) => {
-  console.log('SlideToCreate text prop:', text);
+  const [sliderWidth, setSliderWidth] = useState(0);
+  const translateX = useRef(new Animated.Value(0)).current;
+  const [isSliding, setIsSliding] = useState(false);
+
   const dynamicStyles = {
     container: {
       backgroundColor,
@@ -45,6 +50,61 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
       backgroundColor,
       borderColor,
     },
+  };
+
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: translateX } }],
+    { 
+      useNativeDriver: false,
+      listener: (event: any) => {
+        const { translationX } = event.nativeEvent;
+        // Prevent sliding beyond boundaries
+        if (translationX < 0) {
+          translateX.setValue(0);
+        } else if (translationX > sliderWidth - 60) {
+          translateX.setValue(sliderWidth - 60);
+        }
+      }
+    }
+  );
+
+  const onHandlerStateChange = (event: any) => {
+    const { state, translationX } = event.nativeEvent;
+    
+    if (state === State.END) {
+      const threshold = sliderWidth * 0.8; // 80% of the way
+      
+      if (translationX >= threshold && !disabled) {
+        // Slide completed
+        Animated.spring(translateX, {
+          toValue: sliderWidth - 60,
+          useNativeDriver: false,
+        }).start(() => {
+          onSlideComplete();
+          // Reset after completion
+          setTimeout(() => {
+            Animated.spring(translateX, {
+              toValue: 0,
+              useNativeDriver: false,
+            }).start();
+          }, 100);
+        });
+      } else {
+        // Slide back to start
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: false,
+        }).start();
+      }
+      setIsSliding(false);
+    } else if (state === State.BEGAN) {
+      setIsSliding(true);
+    }
+  };
+
+  const onLayout = (event: any) => {
+    const { width } = event.nativeEvent.layout;
+    setSliderWidth(width);
   };
 
   if (isLoading) {
@@ -68,43 +128,29 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
 
   return (
     <View style={[styles.slideContainer, containerStyle]}>
-      <Slider
-        childrenContainer={{
-          backgroundColor: AppColors.primaryLightGreen,
-          borderRadius: 15,
-          height: 60,
-        }}
-        onSlideStart={() => {
-          // Optional: Handle slide start
-        }}
-        onSlideEnd={() => {
-          // Optional: Handle slide end
-        }}
-        onEndReached={() => {
-          if (!disabled) {
-            onSlideComplete();
-          }
-        }}
-        containerStyle={[
-          styles.sliderContainer,
+      <View 
+        style={[
+          styles.customSliderContainer,
           dynamicStyles.container,
           sliderStyle
         ]}
-        sliderElement={
-          <Image
-            source={sliderIcon}
-            style={styles.sliderButtonImage}
-          />
-        }
+        onLayout={onLayout}
       >
-        <View style={styles.slideTextContainer}>
+        {/* Background Text */}
+        <View style={styles.customSlideTextContainer}>
           <Text style={[
-            styles.slideText,
-            { color: '#222', textShadowColor: '#fff', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+            styles.customSlideText,
+            dynamicStyles.text,
             textStyle
           ]}>
             {text}
           </Text>
+          {emojiIcon && (
+            <Image
+              source={emojiIcon}
+              style={styles.emojiIcon}
+            />
+          )}
           {showEndIcon && endIcon && (
             <Image
               source={endIcon}
@@ -112,7 +158,28 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
             />
           )}
         </View>
-      </Slider>
+        <PanGestureHandler
+          onGestureEvent={onGestureEvent}
+          onHandlerStateChange={onHandlerStateChange}
+          enabled={!disabled}
+        >
+          <Animated.View
+            style={[
+              styles.customSliderButton,
+              dynamicStyles.sliderButton,
+              sliderButtonStyle,
+              {
+                transform: [{ translateX }],
+              }
+            ]}
+          >
+            <Image
+              source={sliderIcon}
+              style={styles.customSliderButtonImage}
+            />
+          </Animated.View>
+        </PanGestureHandler>
+      </View>
     </View>
   );
 };
