@@ -19,6 +19,7 @@ import CreateRide from "./screens/CreateRide";
 import BookingsScreen from "./screens/BookingsScreen";
 import PersonalInformationScreen from "./screens/PersonalInformationScreen";
 import PassengersHistoryScreen from "./screens/PassengersHistoryScreen";
+import AccountSettingsScreen from "./screens/AccountSettingsScreen";
 
 import MainNavBar from "./components/MainNavBar";
 import bottomNavItems from "./data/BottomNavigationItems";
@@ -119,7 +120,7 @@ const App = () => {
 
   const currentRouteName = getCurrentRouteName();
   const showNavBar =
-    currentRouteName !== "AuthScreen" && currentRouteName !== "SignUpScreen";
+    currentRouteName !== "AuthScreen" && currentRouteName !== "SignUpScreen" && currentRouteName !== "CreateRide";
 
   return (
     <ApiProvider navigationRef={navigationRef}>
@@ -134,6 +135,11 @@ const App = () => {
                 <Stack.Screen
                   name="DefaultAddressScreen"
                   component={require("./screens/DefaultAddressScreen").default}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="AccountSettingsScreen"
+                  component={AccountSettingsScreen}
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen
