@@ -4,6 +4,67 @@ import AppColors from "../../design_systems/colors";
 const { width, height } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
+  customHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: AppColors.primaryLightGreen,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
+    borderRadius: 12,
+    marginHorizontal: 8,
+    marginTop: 8,
+  },
+  customHeaderLeft: {
+    flex: 1,
+    flexDirection: "column",
+    justifyContent: "flex-start",
+    alignItems: "flex-start",
+  },
+  headerBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  ridesCountText: {
+    fontSize: 16,
+    color: AppColors.basicBlack,
+    marginLeft: 8,
+    fontFamily: "NunitoSans_400Regular",
+  },
+  headerDivider: {
+    width: 2,
+    height: 56,
+    backgroundColor: "#b3d233",
+    marginHorizontal: 12,
+    borderRadius: 1,
+    alignSelf: "center",
+  },
+  customHeaderRight: {
+    flex: 1,
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  brandText: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: AppColors.basicBlack,
+    marginBottom: 8,
+  },
+  createRideButton: {
+    backgroundColor: AppColors.basicBlack,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 0,
+  },
+  createRideButtonText: {
+    color: AppColors.basicWhite,
+    fontSize: 16,
+    fontFamily: "NunitoSans_400Regular",
+  },
   container: {
     flex: 1,
     backgroundColor: AppColors.primaryLightGreen,
@@ -20,17 +81,43 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     backgroundColor: AppColors.primaryLightGreen,
   },
+  brandInfoHeaderRow: {
+    width: "100%",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+    backgroundColor: AppColors.primaryLightGreen,
+  },
+  ridesHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    backgroundColor: AppColors.primaryLightGreen,
+  },
+  ridesHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  ridesHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flex: 0,
+  },
   backButton: {
     padding: 8,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: "600",
     color: AppColors.basicBlack,
-    fontFamily: "NunitoSans_600SemiBold",
+    fontFamily: "NunitoSans_400Regular",
     flex: 1,
     textAlign: "center",
-    marginRight: 40, // Compensate for back button
+    marginRight: 40,
   },
   content: {
     flex: 1,
@@ -42,7 +129,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
   },
-  // Additional styles for AvailableRideScreen
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
@@ -50,16 +136,9 @@ const styles = StyleSheet.create({
   },
   headerText: {
     fontSize: 16,
-    fontWeight: "500",
     color: AppColors.basicBlack,
-    fontFamily: "NunitoSans_600SemiBold",
+    fontFamily: "NunitoSans_400Regular",
     marginLeft: 8,
-  },
-  brandText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: AppColors.secondaryDarkGreen,
-    fontFamily: "NunitoSans_700Bold",
   },
   contentContainer: {
     paddingHorizontal: 20,

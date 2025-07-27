@@ -8,32 +8,29 @@ import {
   ImageSourcePropType,
   Dimensions,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import {
+  useNavigation,
+  useNavigationState,
+  NavigationState,
+} from "@react-navigation/native";
 import AppColors from "../design_systems/colors";
 
 const { width, height } = Dimensions.get("window");
 
-// Types for the navigation items
 interface NavItem {
   iconPath: ImageSourcePropType;
   route: string;
   isActive?: boolean;
 }
-
-// Props for the bottom navigation bar
 interface BottomNavProps {
   items: NavItem[];
 }
-
-// Props for the search/details bar
 interface SingleBarProps {
   text: string;
   iconPath: ImageSourcePropType;
   onPress: () => void;
   showSwitchIcon?: boolean;
 }
-
-// Main component props
 interface MainNavBarProps {
   variant: 0 | 1 | 2;
   bottomNavItems?: NavItem[];
@@ -43,56 +40,75 @@ interface MainNavBarProps {
   showSwitchIcon?: boolean;
 }
 
+const ROUTE_MAP: Record<string, string> = {
+  home: "HomeScreen",
+  trips: "BookingScreen",
+  chat: "", // not implemented yet
+  profile: "ProfileScreen",
+};
+
+const DEFAULT_ACTIVE_SCREEN = "HomeScreen";
+
+function getActiveRouteName(state?: NavigationState): string | undefined {
+  if (!state) return undefined;
+  const route = state.routes[state.index ?? 0] as any;
+  if (route?.state) return getActiveRouteName(route.state);
+  return route?.name;
+}
+
 const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
   const navigation = useNavigation();
+  const navState = useNavigationState((s) => s);
+  const fromState = getActiveRouteName(navState);
 
-  const handleNavigation = (route: string) => {
-    switch (route) {
-      case "home":
-        navigation.navigate("HomeScreen" as never);
-        break;
-      case "trips":
-        navigation.navigate("BookingScreen" as never);
-        break;
-      case "chat":
-        console.log("Chat feature coming soon");
-        break;
-      case "profile":
-        navigation.navigate("ProfileScreen" as never);
-        break;
-      default:
-        console.log(`Navigating to ${route}`);
-    }
+  const activeRouteName = (fromState || DEFAULT_ACTIVE_SCREEN).toLowerCase();
+
+  const handleNavigation = (routeKey: string) => {
+    const screenName = ROUTE_MAP[routeKey] ?? routeKey;
+    if (!screenName) return;
+    navigation.navigate(screenName as never);
   };
 
   return (
     <View style={styles.bottomNavContainer}>
-      {items.map((item, index) => (
-        <TouchableOpacity
-          key={index}
-          style={styles.navItem}
-          onPress={() => handleNavigation(item.route)}
-        >
-        <Image
-          source={item.iconPath}
-          style={[
-            styles.icon,
-            {
-              tintColor: item.isActive
-                ? AppColors.basicWhite
-                : AppColors.primaryLightGreen,
-            },
-          ]}
-          resizeMode="contain"
-        />
-      </TouchableOpacity>
-    ))}
-  </View>
-);
-}
+      {items.map((item, index) => {
+        const screenName = (ROUTE_MAP[item.route] ?? item.route) || "";
+        const isActive =
+          screenName &&
+          activeRouteName === screenName.toLowerCase();
 
-// Single Bar Component (Search/Details)
-const SingleBar: React.FC<SingleBarProps> = ({ text, iconPath, onPress, showSwitchIcon = false }) => (
+        return (
+          <TouchableOpacity
+            key={index}
+            style={styles.navItem}
+            onPress={() => handleNavigation(item.route)}
+          >
+            <Image
+              source={item.iconPath}
+              style={[
+                styles.icon,
+                {
+                  tintColor: isActive
+                    ? AppColors.basicWhite
+                    : AppColors.primaryLightGreen,
+                  opacity: isActive ? 1 : 0.8,
+                },
+              ]}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+};
+
+const SingleBar: React.FC<SingleBarProps> = ({
+  text,
+  iconPath,
+  onPress,
+  showSwitchIcon = false,
+}) => (
   <TouchableOpacity style={styles.singleBarContainer} onPress={onPress}>
     <View style={styles.singleBarContent}>
       <Text style={styles.singleBarText}>{text}</Text>
@@ -114,7 +130,6 @@ const SingleBar: React.FC<SingleBarProps> = ({ text, iconPath, onPress, showSwit
   </TouchableOpacity>
 );
 
-// Main NavBar Component
 const MainNavBar: React.FC<MainNavBarProps> = ({
   variant,
   bottomNavItems = [],
@@ -128,7 +143,14 @@ const MainNavBar: React.FC<MainNavBarProps> = ({
       return <BottomNav items={bottomNavItems} />;
     case 1:
     case 2:
-      return <SingleBar text={text} iconPath={iconPath} onPress={onPress} showSwitchIcon={showSwitchIcon} />;
+      return (
+        <SingleBar
+          text={text}
+          iconPath={iconPath}
+          onPress={onPress}
+          showSwitchIcon={showSwitchIcon}
+        />
+      );
     default:
       return null;
   }
@@ -142,7 +164,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: AppColors.secondaryDarkGreen,
     paddingVertical: "4%",
-    borderRadius: 15,
+    borderRadius: 23,
     position: "absolute",
     bottom: 0,
   },
@@ -160,7 +182,7 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.secondaryDarkGreen,
     paddingVertical: "4%",
     paddingHorizontal: "5%",
-    borderRadius: 15,
+    borderRadius: 23,
     position: "absolute",
     bottom: 0,
   },
