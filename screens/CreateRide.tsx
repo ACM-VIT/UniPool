@@ -43,6 +43,7 @@ const CreateRide: React.FC = () => {
   const [toLocation, setToLocation] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isCreating, setIsCreating] = useState(false);
+  const [costPerPerson, setCostPerPerson] = useState(100);
 
   const handleCreateRide = async () => {
     if (!fromLocation || !toLocation) {
@@ -70,7 +71,7 @@ const CreateRide: React.FC = () => {
         start_time: rideDateTime.toISOString(),
         total_seats: passengerCount,
         booked_seats: 0, // New ride starts with 0 booked seats
-        total_price: Math.max(25, Math.min(10000, passengerCount * 100)), // Simple price calculation
+        total_price: costPerPerson, // Use the selected cost per person
         is_ongoing: 0, // New ride is not ongoing initially
         is_same_gender: 0, // Default to any gender
       };
@@ -139,6 +140,18 @@ const CreateRide: React.FC = () => {
     }
   };
 
+  const increaseCost = () => {
+    if (costPerPerson < 10000) {
+      setCostPerPerson((prev) => prev + 25);
+    }
+  };
+
+  const decreaseCost = () => {
+    if (costPerPerson > 25) {
+      setCostPerPerson((prev) => prev - 25);
+    }
+  };
+
   const getPassengerImage = () => {
     if (passengerCount == 1 || passengerCount == 2) {
       return require("../assets/motorcycle.png");
@@ -184,35 +197,25 @@ const CreateRide: React.FC = () => {
           />
         </View>
 
-        <Text style={styles.label}>When will the voyage begin?</Text>
-        <TouchableOpacity onPress={showTimepicker} style={styles.buttonTime}>
-          <View style={styles.timeContainer}>
-            <Text style={styles.timeText}>
-              {selectedDate.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              }).split(':')[0]}
-            </Text>
-            <Text style={styles.timeColon}>:</Text>
-            <Text style={styles.timeText}>
-              {selectedDate.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              }).split(':')[1]}
-            </Text>
+        <Text style={styles.label}>Pick the cost per person</Text>
+        <View style={styles.costContainer}>
+          <TouchableOpacity
+            onPress={decreaseCost}
+            style={styles.costButton}
+          >
+            <Text style={styles.costButtonText}>−</Text>
+          </TouchableOpacity>
+          <View style={styles.costValueContainer}>
+            <Text style={styles.currencySymbol}>₹</Text>
+            <Text style={styles.costValue}>{costPerPerson}</Text>
           </View>
-        </TouchableOpacity>
-        {show && (
-          <DateTimePicker
-            testID="dateTimePicker"
-            value={time}
-            mode={mode}
-            is24Hour={true}
-            onChange={onChange}
-          />
-        )}
+          <TouchableOpacity
+            onPress={increaseCost}
+            style={styles.costButton}
+          >
+            <Text style={styles.costButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.label}>Number of Passengers</Text>
         <View style={styles.counterContainer}>
@@ -301,6 +304,49 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_500Medium",
+  },
+  costContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: AppColors.basicBlack,
+    borderRadius: 15,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    width: "100%",
+    alignSelf: "center",
+  },
+  costButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  costButtonText: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 30,
+    fontWeight: "bold",
+    fontFamily: "NunitoSans_700Bold",
+  },
+  costValueContainer: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: AppColors.basicBlack,
+    paddingVertical: 5,
+    paddingHorizontal: 15,
+  },
+  currencySymbol: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 35,
+    fontWeight: "bold",
+    fontFamily: "NunitoSans_700Bold",
+    marginRight: 5,
+  },
+  costValue: {
+    color: AppColors.basicWhite,
+    fontSize: 35,
+    fontWeight: "bold",
+    fontFamily: "NunitoSans_700Bold",
   },
   buttonTime: {
     backgroundColor: AppColors.basicBlack,
