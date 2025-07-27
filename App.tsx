@@ -16,6 +16,10 @@ import HomeScreen from "./screens/HomeScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import CreateRide from "./screens/CreateRide";
 
+import BookingsScreen from "./screens/BookingsScreen";
+import PersonalInformationScreen from "./screens/PersonalInformationScreen";
+import PassengersHistoryScreen from "./screens/PassengersHistoryScreen";
+
 import MainNavBar from "./components/MainNavBar";
 import bottomNavItems from "./data/BottomNavigationItems";
 import { ApiProvider } from "./utils/ApiUtil";
@@ -196,6 +200,21 @@ const App = () => {
                   component={require(
                     "./screens/AvailableRideScreens/AvailableRideScreenSelected"
                   ).default}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="BookingsScreen"
+                  component={BookingsScreen}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="PersonalInformationScreen"
+                  component={PersonalInformationScreen}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="PassengersHistoryScreen"
+                  component={PassengersHistoryScreen}
                   options={{ headerShown: false }}
                 />
               </Stack.Navigator>

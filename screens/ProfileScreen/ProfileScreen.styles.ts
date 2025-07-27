@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   },
   statsCard: {
     backgroundColor: AppColors.secondaryDarkGreen,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     alignItems: "center",
     justifyContent: "center",
@@ -91,6 +91,11 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: height * 0.025,
+  },
+  newSection: {
+    marginBottom: height * 0.025,
+    marginLeft: 25,
+    marginRight: 25,
   },
   sectionTitle: {
     fontSize: 18,
