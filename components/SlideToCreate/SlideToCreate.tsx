@@ -29,6 +29,7 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
   textColor = AppColors.basicBlack,
   iconTintColor = AppColors.primaryLightGreen,
 }) => {
+  console.log('SlideToCreate text prop:', text);
   const dynamicStyles = {
     container: {
       backgroundColor,
@@ -69,7 +70,7 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
     <View style={[styles.slideContainer, containerStyle]}>
       <Slider
         childrenContainer={{
-          backgroundColor: AppColors.basicBlack,
+          backgroundColor: AppColors.primaryLightGreen,
           borderRadius: 15,
           height: 60,
         }}
@@ -90,33 +91,24 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
           sliderStyle
         ]}
         sliderElement={
-          <View style={[
-            styles.sliderButton,
-            dynamicStyles.sliderButton,
-            sliderButtonStyle
-          ]}>
-            <Image 
-              source={sliderIcon}
-              style={[
-                styles.slideIcon,
-                { tintColor: iconTintColor }
-              ]} 
-            />
-          </View>
+          <Image
+            source={sliderIcon}
+            style={styles.sliderButtonImage}
+          />
         }
       >
         <View style={styles.slideTextContainer}>
           <Text style={[
             styles.slideText,
-            dynamicStyles.text,
+            { color: '#222', textShadowColor: '#fff', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
             textStyle
           ]}>
             {text}
           </Text>
           {showEndIcon && endIcon && (
-            <Image 
+            <Image
               source={endIcon}
-              style={styles.endIcon} 
+              style={styles.endIcon}
             />
           )}
         </View>

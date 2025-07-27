@@ -102,6 +102,11 @@ const CreateRide: React.FC = () => {
   const onChange = (event: any, selectedTime?: Date) => {
     if (selectedTime) {
       setTime(selectedTime);
+      const updatedDate = new Date(selectedDate);
+      updatedDate.setHours(selectedTime.getHours());
+      updatedDate.setMinutes(selectedTime.getMinutes());
+      updatedDate.setSeconds(selectedTime.getSeconds());
+      setSelectedDate(updatedDate);
     }
     setShow(false);
   };
@@ -183,7 +188,7 @@ const CreateRide: React.FC = () => {
         <TouchableOpacity onPress={showTimepicker} style={styles.buttonTime}>
           <View style={styles.timeContainer}>
             <Text style={styles.timeText}>
-              {time.toLocaleTimeString([], {
+              {selectedDate.toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
                 hour12: false,
@@ -191,7 +196,7 @@ const CreateRide: React.FC = () => {
             </Text>
             <Text style={styles.timeColon}>:</Text>
             <Text style={styles.timeText}>
-              {time.toLocaleTimeString([], {
+              {selectedDate.toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
                 hour12: false,
@@ -230,12 +235,13 @@ const CreateRide: React.FC = () => {
 
         <Image style={styles.passengerImage} source={getPassengerImage()} />
 
-        <SlideToCreate
-          onSlideComplete={handleCreateRide}
-          isLoading={isCreating}
-          text="Slide to create ride"
-          loadingText="Creating ride..."
-        />
+            <SlideToCreate
+              onSlideComplete={handleCreateRide}
+              isLoading={isCreating}
+              text="Slide to create ride"
+              loadingText="Creating ride..."
+              sliderIcon={require("../assets/slide.png")}
+            />
       </View>
     </SafeAreaView>
   );
@@ -299,7 +305,7 @@ const styles = StyleSheet.create({
   buttonTime: {
     backgroundColor: AppColors.basicBlack,
     width: "100%",
-    paddingVertical: 12,
+    paddingVertical: 6,
     borderRadius: 15,
     alignItems: "center",
     alignSelf: "center",
@@ -310,13 +316,13 @@ const styles = StyleSheet.create({
   },
   timeText: {
     color: AppColors.basicWhite,
-    fontSize: 30,
+    fontSize: 40,
     fontWeight: "bold",
-    fontFamily: "NunitoSans_600SemiBold",
+    fontFamily: "NunitoSans_500Regular",
   },
   timeColon: {
     color: AppColors.primaryLightGreen,
-    fontSize: 30,
+    fontSize: 40,
     fontFamily: "NunitoSans_600SemiBold",
   },
   counterContainer: {
@@ -327,7 +333,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    width: "40%",
+    width: "50%",
     alignSelf: "center",
   },
   counterButton: {
@@ -352,8 +358,8 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_700Bold",
   },
   passengerImage: {
-    width: 150,
-    height: 150,
+    width: 170,
+    height: 170,
     alignSelf: "center",
     resizeMode: "contain",
   },
