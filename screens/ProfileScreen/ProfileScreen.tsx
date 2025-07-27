@@ -107,12 +107,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       title: "Default Start Address",
       onPress: () => navigation.navigate("DefaultAddressScreen"),
     },
-    {
-      id: "currency",
-      title: "Currency - INR",
-      hasCheckmark: true,
-      onPress: () => navigation.navigate("CurrencySettings"),
-    },
+    // {
+    //   id: "currency",
+    //   title: "Currency - INR",
+    //   hasCheckmark: true,
+    //   onPress: () => navigation.navigate("CurrencySettings"),
+    // },
     {
       id: "notifications",
       title: "Notifications",
@@ -121,35 +121,65 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     },
   ];
 
+  const openACMVITSite = () => {
+    import('react-native').then(({ Linking }) => {
+      Linking.openURL('https://acmvit.in');
+    });
+  };
+
+  const openHelpEmail = () => {
+    import('react-native').then(({ Linking }) => {
+      Linking.openURL('mailto:outreach.acmvit@gmail.com');
+    });
+  };
+
+  const openShareDialog = async () => {
+    const { Share } = await import('react-native');
+    Share.share({
+      message: 'Check out UniPool by ACM-VIT: https://acmvit.in',
+      url: 'https://acmvit.in',
+      title: 'ACM-VIT',
+    });
+  };
+
+  const openRateApp = () => {
+    import('react-native').then(({ Linking, Platform }) => {
+      const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.carpoolitapp';
+      const appStoreUrl = 'https://apps.apple.com/app/idYOUR_APP_ID';
+      const url = Platform.OS === 'ios' ? appStoreUrl : playStoreUrl;
+      Linking.openURL(url);
+    });
+  };
+
   const moreItems: MenuItem[] = [
     {
-      id: "referrals",
-      title: "Referrals",
-      onPress: () => navigation.navigate("Referrals"),
+      id: "share",
+      title: "Share",
+      onPress: openShareDialog,
     },
     {
       id: "rate_app",
       title: "Rate App",
       hasCheckmark: true,
-      onPress: () => navigation.navigate("RateApp"),
+      onPress: openRateApp,
     },
     {
       id: "know_about",
       title: "Know about ACM-VIT",
       hasCheckmark: true,
-      onPress: () => navigation.navigate("AboutACMVIT"),
+      onPress: openACMVITSite,
     },
     {
       id: "help",
       title: "Help",
       hasCheckmark: true,
-      onPress: () => navigation.navigate("Help"),
+      onPress: openHelpEmail,
     },
     {
       id: "account_settings",
       title: "Account Settings",
       hasCheckmark: true,
-      onPress: () => navigation.navigate("AccountSettings"),
+      onPress: () => navigation.navigate("AccountSettingsScreen"),
     },
   ];
 
