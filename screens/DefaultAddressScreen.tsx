@@ -180,8 +180,7 @@ const DefaultAddressScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Current Status Card */}
-        {defaultAddress && (
+        {/* {defaultAddress && (
           <View style={styles.statusCard}>
             <View style={styles.statusHeader}>
               <Image
@@ -192,10 +191,9 @@ const DefaultAddressScreen: React.FC = () => {
             </View>
             <Text style={styles.statusAddress}>{defaultAddress}</Text>
           </View>
-        )}
+        )} */}
       </ScrollView>
 
-      {/* Location Selection Modal */}
       <Modal
         visible={showDropdown}
         transparent

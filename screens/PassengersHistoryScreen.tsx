@@ -88,14 +88,21 @@ const PassengersHistoryScreen: React.FC = () => {
           <Text style={styles.headerTitle}>Passengers History</Text>
         </View>
       </View>
-      <View style={styles.section}>
+      <View style={styles.newSection}>
         <View style={styles.menuContainer}>
           {passengers.length === 0 ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-              <Text style={{ fontSize: 18, color: '#888', textAlign: 'center', marginBottom: 12 }}>
+            <View style={{
+              minHeight: 120,
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: 32,
+              backgroundColor: styles.menuContainer.backgroundColor,
+              borderRadius: styles.menuContainer.borderRadius,
+            }}>
+              <Text style={{ fontSize: 18, color: styles.headerTitle.color, textAlign: 'center', marginBottom: 12, fontWeight: '600', fontFamily: 'NunitoSans_600SemiBold' }}>
                 You haven't travelled with any passengers yet.
               </Text>
-              <Text style={{ fontSize: 14, color: '#aaa', textAlign: 'center' }}>
+              <Text style={{ fontSize: 14, color: '#555', textAlign: 'center', fontFamily: 'NunitoSans_400Regular' }}>
                 Book a ride or join one to see passengers here!
               </Text>
             </View>
