@@ -6,16 +6,15 @@ import {
   SafeAreaView,
   ScrollView,
 } from "react-native";
-import { useNavigation, useIsFocused } from "@react-navigation/native";
+import { useNavigation, useIsFocused, useRoute } from "@react-navigation/native";
 
 import BrandInfo from "../../components/BrandInfo";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import RideCard from "../../components/RideCard";
 
 import {
-  dummy_upcoming_rides,
-  RideData,
 } from "../../dummy-data/DummyUpcomingRides";
+import { useApi } from "../../utils/ApiUtil";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import styles from "./AvailableRideScreens.styles";
 
@@ -33,11 +32,52 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   setNavBarItems,
 }) => {
   const navigation = useNavigation();
+  const route = useRoute();
   const isFocused = useIsFocused();
+  const { apiUtil } = useApi();
 
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
+  const [rides, setRides] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  //donot mess around with this code, state mgmt is crucial here
+let fromLocation = "";
+let toLocation = "";
+if (route.params && typeof route.params === "object") {
+  if ("fromLocation" in route.params && typeof (route.params as any).fromLocation === "string") {
+    fromLocation = (route.params as any).fromLocation;
+  }
+  if ("toLocation" in route.params && typeof (route.params as any).toLocation === "string") {
+    toLocation = (route.params as any).toLocation;
+  }
+  if ((route.params as any).params) {
+    const nested = (route.params as any).params;
+    if (typeof nested.fromLocation === "string") {
+      fromLocation = nested.fromLocation;
+    }
+    if (typeof nested.toLocation === "string") {
+      toLocation = nested.toLocation;
+    }
+  }
+}
+if (!fromLocation || !toLocation) {
+  try {
+    const navState = (navigation as any).getState?.();
+    if (navState && navState.routes) {
+      const currentRoute = navState.routes[navState.index ?? 0];
+      if (currentRoute && currentRoute.params) {
+        if (typeof currentRoute.params.fromLocation === "string") {
+          fromLocation = currentRoute.params.fromLocation;
+        }
+        if (typeof currentRoute.params.toLocation === "string") {
+          toLocation = currentRoute.params.toLocation;
+        }
+      }
+    }
+  } catch (e) {
+  }
+}
+console.log("AvailableRideScreen params:", { fromLocation, toLocation });
+
   useEffect(() => {
     if (!isFocused) return;
     setSelectedRideId(null); 
@@ -45,13 +85,31 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     setNavBarText("");
     setNavBarIcon(require("../../assets/wallet.png"));
     setNavBarItems(bottomNavItems);
+    if (fromLocation && toLocation) {
+      setLoading(true);
+      console.log("Fetching rides for:", { fromLocation, toLocation });
+      apiUtil
+        .get<any[]>(`/ride/search?start_location=${encodeURIComponent(fromLocation)}&end_location=${encodeURIComponent(toLocation)}`)
+        .then((data) => {
+          console.log("API response:", data);
+          setRides(Array.isArray(data) ? data : []);
+        })
+        .catch((err) => {
+          console.error("API error:", err);
+          setRides([]);
+        })
+        .finally(() => setLoading(false));
+    } else {
+      console.log("No locations provided, not fetching rides.");
+      setRides([]);
+    }
     return () => {
       setNavBarVariant(0);
       setNavBarText("");
       setNavBarIcon(require("../../assets/wallet.png"));
       setNavBarItems(bottomNavItems);
     };
-  }, [isFocused]);
+  }, [isFocused, fromLocation, toLocation]);
 
   useEffect(() => {
     if (!isFocused) return;
@@ -94,7 +152,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
             <ChevronBack />
           </TouchableOpacity>
           <Text style={styles.ridesCountText}>
-            {dummy_upcoming_rides.length} rides available
+            {loading ? "Loading..." : `${rides.length} rides available`}
           </Text>
         </View>
         <View style={styles.ridesHeaderRight}>
@@ -112,23 +170,27 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.contentContainer}>
-          {dummy_upcoming_rides.map((ride: RideData) => (
-            <RideCard
-              key={ride.id}
-              id={ride.id}
-              origin={ride.start_location}
-              destination={ride.end_location}
-              time={new Date(ride.start_time).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-              price={ride.total_price}
-              isSelected={selectedRideId === ride.id}
-              seatsAvailable={`${ride.total_seats - ride.booked_seats}/${ride.total_seats}`}
-              onSelect={handleRideSelection}
-              pricePerPerson={false}
-            />
-          ))}
+          {rides.length === 0 && !loading ? (
+            <Text style={{ textAlign: "center", marginTop: 40 }}>No rides found for selected locations.</Text>
+          ) : (
+            rides.map((ride: any) => (
+              <RideCard
+                key={ride.id}
+                id={ride.id}
+                origin={ride.start_location}
+                destination={ride.end_location}
+                time={new Date(ride.start_time).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+                price={ride.total_price}
+                isSelected={selectedRideId === ride.id}
+                seatsAvailable={`${ride.total_seats - ride.booked_seats}/${ride.total_seats}`}
+                onSelect={handleRideSelection}
+                pricePerPerson={false}
+              />
+            ))
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

@@ -48,6 +48,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [initialRegion, setInitialRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
+  const [rideDetails, setRideDetails] = useState<{ from: string; to: string; date: Date } | null>(null);
 
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -83,7 +84,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   }, []);
 
   const handleRideSubmit = (details: { from: string; to: string; date: Date }) => {
-    console.log("Submitted ride details:", details);
+    setRideDetails(details);
   };
 
   //donot change this code, state mgmt is crucial here
@@ -94,11 +95,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       setNavBarText("Search Rides");
       setNavBarIcon(require("../assets/cool-emoji.png"));
       setNavBarItems(bottomNavItems);
+      (window as any).mainNavBarOnPress = () => {
+        if (rideDetails) {
+          navigation.navigate("AvailableRidesScreen", {
+            fromLocation: rideDetails.from,
+            toLocation: rideDetails.to,
+          });
+        }
+      };
     } else {
       setNavBarVariant(0);
       setNavBarText("");
       setNavBarIcon(require("../assets/wallet.png"));
       setNavBarItems(bottomNavItems);
+      (window as any).mainNavBarOnPress = undefined;
     }
   }, [
     isFocused,
@@ -107,6 +117,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     setNavBarText,
     setNavBarIcon,
     setNavBarItems,
+    rideDetails,
+    navigation,
   ]);
 
   const handleLocationSelectionChange = (hasFromAndTo: boolean) => {
