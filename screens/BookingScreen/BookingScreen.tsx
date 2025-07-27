@@ -30,6 +30,7 @@ const BookingScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
   const { apiUtil } = useApi();
+  const navigation = require("@react-navigation/native").useNavigation();
 
   const bookingScreenNavItems = bottomNavItems.map((item, index) => ({
     ...item,
@@ -148,6 +149,7 @@ const BookingScreen: React.FC = () => {
                       price={ride.total_price}
                       variant="upcoming"
                       date={ride.start_time ? new Date(ride.start_time).toLocaleDateString("en-GB") : ""}
+                      onSelect={() => navigation.navigate("RideDetailsScreen", { ride })}
                     />
                   </View>
                 ))
@@ -214,6 +216,7 @@ const BookingScreen: React.FC = () => {
                       seatsAvailable={`${ride.booked_seats}/${ride.total_seats}`}
                       isSelected={true}
                       variant="inprogress"
+                      onSelect={() => navigation.navigate("RideDetailsScreen", { ride })}
                     />
                   </View>
                 ))

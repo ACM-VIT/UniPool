@@ -15,6 +15,7 @@ import BookingScreen from "./screens/BookingScreen";
 import HomeScreen from "./screens/HomeScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import CreateRide from "./screens/CreateRide";
+import RideDetailsScreen from "./screens/RideDetailsScreen";
 
 import BookingsScreen from "./screens/BookingsScreen";
 import PersonalInformationScreen from "./screens/PersonalInformationScreen";
@@ -182,6 +183,11 @@ const App = () => {
                   <Stack.Screen
                     name="BookingScreen"
                     component={BookingScreen}
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="RideDetailsScreen"
+                    component={RideDetailsScreen}
                     options={{ headerShown: false }}
                   />
                   <Stack.Screen name="HomeScreen" options={{ headerShown: false }}>
