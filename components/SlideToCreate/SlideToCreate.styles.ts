@@ -5,15 +5,12 @@ const { width } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
   slideContainer: {
-    marginTop: 20,
-    marginBottom: 20,
+    marginVertical: 20,
     width: "100%",
   },
   sliderContainer: {
-    backgroundColor: AppColors.primaryLightGreen,
     borderRadius: 25,
     borderWidth: 2,
-    borderColor: AppColors.secondaryDarkGreen,
     height: 60,
     width: "100%",
     overflow: "hidden",
@@ -21,13 +18,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sliderButton: {
-    backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 22,
     width: 44,
     height: 44,
     justifyContent: "center",
     alignItems: "center",
     margin: 8,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   slideTextContainer: {
     flexDirection: "row",
@@ -39,28 +43,25 @@ const styles = StyleSheet.create({
   slideIcon: {
     width: 24,
     height: 24,
-    tintColor: AppColors.primaryLightGreen,
+    resizeMode: "contain",
   },
   slideText: {
     fontSize: 16,
     fontWeight: "600",
-    color: AppColors.basicBlack,
     textAlign: "center",
     flex: 1,
-    marginRight: 10,
     fontFamily: "NunitoSans_600SemiBold",
   },
-  emojiIcon: {
+  endIcon: {
     width: 24,
     height: 24,
+    marginLeft: 10,
+    resizeMode: "contain",
   },
   loadingContainer: {
-    backgroundColor: AppColors.primaryLightGreen,
     borderRadius: 25,
     borderWidth: 2,
-    borderColor: AppColors.secondaryDarkGreen,
-    marginTop: 20,
-    marginBottom: 20,
+    marginVertical: 20,
     height: 60,
     justifyContent: "center",
     alignItems: "center",
@@ -70,7 +71,6 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     fontWeight: "600",
-    color: AppColors.basicBlack,
     marginLeft: 10,
     fontFamily: "NunitoSans_600SemiBold",
   },

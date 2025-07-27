@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   },
   createRideButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 20,
     fontFamily: "NunitoSans_400Regular",
   },
   navBarView: {

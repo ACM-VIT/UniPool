@@ -6,9 +6,11 @@ import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
+  ScrollView,
+  TouchableOpacity,
 } from "react-native";
 import { ProfileScreenProps } from "./ProfileScreen.types";
-import ChevronBack from "../../components/ChevronBack";
+import BrandInfo from "../../components/BrandInfo";
 import MainNavBar from "../../components/MainNavBar";
 import styles from "./ProfileScreen.styles";
 import AppColors from "../../design_systems/colors";
@@ -25,10 +27,20 @@ interface UserData {
   created_at: string;
   updated_at: string;
   profile_picture_url?: string;
+  total_bookings?: number;
+  distance_travelled?: number;
+  weight_saved?: number;
 }
 
 interface ApiResponse {
   user: UserData;
+}
+
+interface MenuItem {
+  id: string;
+  title: string;
+  hasCheckmark?: boolean;
+  onPress?: () => void;
 }
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
@@ -69,10 +81,107 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     return currentYear - yob;
   };
 
+  const myDetailsItems: MenuItem[] = [
+    {
+      id: "bookings",
+      title: "Bookings",
+      onPress: () => navigation.navigate("Bookings"),
+    },
+    {
+      id: "personal_info",
+      title: "Personal Information",
+      hasCheckmark: true,
+      onPress: () => navigation.navigate("PersonalInformation"),
+    },
+    {
+      id: "passengers",
+      title: "Passengers travelled with",
+      hasCheckmark: true,
+      onPress: () => navigation.navigate("PassengersHistory"),
+    },
+  ];
+
+  const preferencesItems: MenuItem[] = [
+    {
+      id: "default_address",
+      title: "Default Start Address",
+      onPress: () => navigation.navigate("DefaultAddress"),
+    },
+    {
+      id: "currency",
+      title: "Currency - INR",
+      hasCheckmark: true,
+      onPress: () => navigation.navigate("CurrencySettings"),
+    },
+    {
+      id: "notifications",
+      title: "Notifications",
+      hasCheckmark: true,
+      onPress: () => navigation.navigate("NotificationSettings"),
+    },
+  ];
+
+  const moreItems: MenuItem[] = [
+    {
+      id: "referrals",
+      title: "Referrals",
+      onPress: () => navigation.navigate("Referrals"),
+    },
+    {
+      id: "rate_app",
+      title: "Rate App",
+      hasCheckmark: true,
+      onPress: () => navigation.navigate("RateApp"),
+    },
+    {
+      id: "know_about",
+      title: "Know about ACM-VIT",
+      hasCheckmark: true,
+      onPress: () => navigation.navigate("AboutACMVIT"),
+    },
+    {
+      id: "help",
+      title: "Help",
+      hasCheckmark: true,
+      onPress: () => navigation.navigate("Help"),
+    },
+    {
+      id: "account_settings",
+      title: "Account Settings",
+      hasCheckmark: true,
+      onPress: () => navigation.navigate("AccountSettings"),
+    },
+  ];
+
+  const renderMenuItem = (item: MenuItem) => (
+    <TouchableOpacity
+      key={item.id}
+      style={styles.menuItem}
+      onPress={item.onPress}
+      activeOpacity={0.7}
+    >
+      <Text style={styles.menuItemText}>{item.title}</Text>
+      {item.hasCheckmark && (
+        <Image
+          source={require("../../assets/favicon.png")}
+          style={styles.checkmarkIcon}
+          resizeMode="contain"
+        />
+      )}
+    </TouchableOpacity>
+  );
+
+  const renderStatsCard = (value: string, label: string, unit?: string) => (
+    <View style={styles.statsCard}>
+      <Text style={styles.statsValue}>{value}</Text>
+      <Text style={styles.statsLabel}>{label}</Text>
+      {unit && <Text style={styles.statsUnit}>{unit}</Text>}
+    </View>
+  );
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <ChevronBack style={styles.backButton} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={AppColors.secondaryDarkGreen} />
           <Text style={styles.loadingText}>Loading profile...</Text>
@@ -84,7 +193,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   if (error || !userData) {
     return (
       <SafeAreaView style={styles.container}>
-        <ChevronBack style={styles.backButton} />
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>
             {error || "Unable to load profile data"}
@@ -96,59 +204,89 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ChevronBack style={styles.backButton} />
+      <View style={styles.brandInfoHeaderRow}>
+        <BrandInfo />
+      </View>
       
-      <View style={styles.header}>
+      <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>Profile</Text>
       </View>
 
-      <View style={styles.profileContent}>
-        <View style={styles.profileImageContainer}>
-          <Image 
-            source={
-              userData.profile_picture_url 
-                ? { uri: userData.profile_picture_url }
-                : require("../../assets/user-male.png")
-            } 
-            style={styles.profileImage}
-            resizeMode="contain"
-          />
+      <ScrollView 
+        style={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.profileSection}>
+          <View style={styles.profileImageContainer}>
+            <Image 
+              source={
+                userData.profile_picture_url 
+                  ? { uri: userData.profile_picture_url }
+                  : require("../../assets/user-male.png")
+              } 
+              style={styles.profileImage}
+              resizeMode="cover"
+            />
+          </View>
+          <Text style={styles.userName}>{userData.name}</Text>
         </View>
 
-        <View style={styles.userInfoContainer}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Name:</Text>
-            <Text style={styles.infoValue}>{userData.name}</Text>
-          </View>
+        <View style={styles.statsContainer}>
+          {renderStatsCard(
+            userData.total_bookings?.toString() || "32", 
+            "trips"
+          )}
+          {renderStatsCard(
+            userData.distance_travelled?.toString() || "9876", 
+            "km", 
+            "travelled"
+          )}
+          {renderStatsCard(
+            userData.weight_saved?.toString() || "900", 
+            "kg", 
+            "CO₂ saved"
+          )}
+        </View>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Email:</Text>
-            <Text style={styles.infoValue}>{userData.email}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Contact:</Text>
-            <Text style={styles.infoValue}>{userData.contact_number}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Gender:</Text>
-            <Text style={styles.infoValue}>{userData.gender}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Age:</Text>
-            <Text style={styles.infoValue}>{calculateAge(userData.yob)} years</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Member since:</Text>
-            <Text style={styles.infoValue}>
-              {new Date(userData.created_at).toLocaleDateString()}
-            </Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>My Details</Text>
+          <View style={styles.menuContainer}>
+            {myDetailsItems.map(renderMenuItem)}
           </View>
         </View>
-      </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Preferences</Text>
+          <View style={styles.menuContainer}>
+            {preferencesItems.map(renderMenuItem)}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>More</Text>
+          <View style={styles.menuContainer}>
+            {moreItems.map(renderMenuItem)}
+          </View>
+        </View>
+
+        <View style={styles.footerBranding}>
+          <View style={styles.footerTextContainer}>
+            <Text style={styles.footerTitle}>Viva</Text>
+            <Text style={styles.footerSubtitle}>la Vida!</Text>
+            <Text style={styles.footerCredits}>Crafted with ♡ by ACM-VIT</Text>
+          </View>
+          <View style={styles.footerImageContainer}>
+            <Image
+              source={require("../../assets/trees-footer.png")}
+              style={styles.footerImage}
+              resizeMode="contain"
+            />
+          </View>
+        </View>
+
+        <View style={styles.bottomPadding} />
+      </ScrollView>
 
       <View style={styles.navBarView}>
         <MainNavBar
