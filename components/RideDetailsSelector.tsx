@@ -332,21 +332,21 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               style={styles.icon}
             />
             <View>
-              <Text style={styles.label}>Date of Journey</Text>
+              <Text style={styles.label}>When</Text>
               <Text style={styles.selectedDateText}>
-                {format(selectedDate, "EEE d MMM yyyy")}
-              </Text>
+                {format(selectedDate, "EEE d MMM yyyy, h:mm a")}
+              </Text> 
             </View>
           </View>
         </TouchableOpacity>
-        <View style={styles.dateButtons}>
+        {/* <View style={styles.dateButtons}>
           <TouchableOpacity style={styles.dateButton} onPress={setToToday}>
             <Text style={styles.dateButtonText}>Today</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.dateButton} onPress={setToTomorrow}>
             <Text style={styles.dateButtonText}>Tomorrow</Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
       </View>
 
       <Modal
@@ -498,7 +498,8 @@ const styles = StyleSheet.create({
     objectFit: "contain",
   },
   label: {
-    fontSize: 8,
+    marginLeft: "2%",
+    fontSize: 20,
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_600SemiBold",
   },
