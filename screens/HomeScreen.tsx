@@ -155,7 +155,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             <TouchableOpacity
               style={styles.createRideButton}
               onPress={() => {
-                navigation.navigate("AvailableRidesScreen");
+                navigation.navigate("CreateRide");
               }}
             >
               <Text style={styles.createRideButtonText}>Create Ride</Text>
