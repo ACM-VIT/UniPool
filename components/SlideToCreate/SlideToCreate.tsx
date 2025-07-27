@@ -6,28 +6,67 @@ import {
   ActivityIndicator,
 } from "react-native";
 import Slider from "react-native-slide-to-unlock";
-import { SlideToCreateProps } from "./SlideToCreate.types";
+import { UniversalSliderProps } from "./SlideToCreate.types";
 import styles from "./SlideToCreate.styles";
 import AppColors from "../../design_systems/colors";
 
-const SlideToCreate: React.FC<SlideToCreateProps> = ({
+const UniversalSlider: React.FC<UniversalSliderProps> = ({
   onSlideComplete,
+  text,
   isLoading = false,
-  text = "Slide to create ride",
-  loadingText = "Creating ride...",
+  loadingText = "Processing...",
   disabled = false,
+  sliderIcon,
+  endIcon,
+  showEndIcon = true,
+  containerStyle,
+  sliderStyle,
+  textStyle,
+  sliderButtonStyle,
+  backgroundColor = AppColors.primaryLightGreen,
+  borderColor = AppColors.secondaryDarkGreen,
+  sliderButtonColor = AppColors.secondaryDarkGreen,
+  textColor = AppColors.basicBlack,
+  iconTintColor = AppColors.primaryLightGreen,
 }) => {
+  const dynamicStyles = {
+    container: {
+      backgroundColor,
+      borderColor,
+    },
+    sliderButton: {
+      backgroundColor: sliderButtonColor,
+    },
+    text: {
+      color: textColor,
+    },
+    loadingContainer: {
+      backgroundColor,
+      borderColor,
+    },
+  };
+
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={AppColors.secondaryDarkGreen} />
-        <Text style={styles.loadingText}>{loadingText}</Text>
+      <View style={[
+        styles.loadingContainer, 
+        dynamicStyles.loadingContainer,
+        containerStyle
+      ]}>
+        <ActivityIndicator size="large" color={sliderButtonColor} />
+        <Text style={[
+          styles.loadingText, 
+          dynamicStyles.text,
+          textStyle
+        ]}>
+          {loadingText}
+        </Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.slideContainer}>
+    <View style={[styles.slideContainer, containerStyle]}>
       <Slider
         childrenContainer={{
           backgroundColor: AppColors.basicBlack,
@@ -45,26 +84,45 @@ const SlideToCreate: React.FC<SlideToCreateProps> = ({
             onSlideComplete();
           }
         }}
-        containerStyle={styles.sliderContainer}
+        containerStyle={[
+          styles.sliderContainer,
+          dynamicStyles.container,
+          sliderStyle
+        ]}
         sliderElement={
-          <View style={styles.sliderButton}>
+          <View style={[
+            styles.sliderButton,
+            dynamicStyles.sliderButton,
+            sliderButtonStyle
+          ]}>
             <Image 
-              source={require("../../assets/arrow-square-left.png")} 
-              style={styles.slideIcon} 
+              source={sliderIcon}
+              style={[
+                styles.slideIcon,
+                { tintColor: iconTintColor }
+              ]} 
             />
           </View>
         }
       >
         <View style={styles.slideTextContainer}>
-          <Text style={styles.slideText}>{text}</Text>
-          <Image 
-            source={require("../../assets/smiling-emoji.png")} 
-            style={styles.emojiIcon} 
-          />
+          <Text style={[
+            styles.slideText,
+            dynamicStyles.text,
+            textStyle
+          ]}>
+            {text}
+          </Text>
+          {showEndIcon && endIcon && (
+            <Image 
+              source={endIcon}
+              style={styles.endIcon} 
+            />
+          )}
         </View>
       </Slider>
     </View>
   );
 };
 
-export default SlideToCreate;
+export default UniversalSlider;
