@@ -85,19 +85,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       id: "bookings",
       title: "Bookings",
-      onPress: () => navigation.navigate("Bookings"),
+      onPress: () => navigation.navigate("BookingsScreen"),
     },
     {
       id: "personal_info",
       title: "Personal Information",
       hasCheckmark: true,
-      onPress: () => navigation.navigate("PersonalInformation"),
+      onPress: () => navigation.navigate("PersonalInformationScreen"),
     },
     {
       id: "passengers",
       title: "Passengers travelled with",
       hasCheckmark: true,
-      onPress: () => navigation.navigate("PassengersHistory"),
+      onPress: () => navigation.navigate("PassengersHistoryScreen"),
     },
   ];
 
