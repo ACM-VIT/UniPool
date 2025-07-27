@@ -8,7 +8,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     backgroundColor: AppColors.primaryLightGreen,
-    paddingTop: window.height * 0.062,
+    paddingTop: window.height * 0.040,
   },
   backButton: {
     position: "absolute",

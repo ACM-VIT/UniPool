@@ -32,6 +32,8 @@ interface RideCardProps {
   seatsAvailable?: string;
   onSelect?: (id: string) => void;
   pricePerPerson?: boolean;
+  variant?: "upcoming" | "inprogress";
+  date?: string;
 }
 
 const RideCard: React.FC<RideCardProps> = ({
@@ -44,6 +46,8 @@ const RideCard: React.FC<RideCardProps> = ({
   seatsAvailable = "1/2",
   onSelect = () => {},
   pricePerPerson = false,
+  variant = "upcoming",
+  date = "",
 }) => {
   const handleSelect = () => {
     onSelect(id);
@@ -67,14 +71,7 @@ const RideCard: React.FC<RideCardProps> = ({
 
   return (
     <TouchableOpacity
-      style={[
-        styles.card,
-        {
-          backgroundColor: isSelected
-            ? AppColors.secondaryDarkGreen
-            : AppColors.basicWhite,
-        },
-      ]}
+      style={[styles.card, { backgroundColor: isSelected ? AppColors.secondaryDarkGreen : AppColors.basicWhite }]}
       onPress={handleSelect}
     >
       <View style={styles.topContainer}>
@@ -82,136 +79,77 @@ const RideCard: React.FC<RideCardProps> = ({
           <View style={styles.locationContainer}>
             <MapPin
               size={20}
-              color={
-                isSelected
-                  ? AppColors.primaryLightGreen
-                  : AppColors.secondaryDarkGreen
-              }
+              color={isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen}
               style={styles.icon}
             />
-            <Text
-              style={[
-                styles.locationText,
-                isSelected ? styles.selectedText : styles.unselectedText,
-              ]}
-            >
+            <Text style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}>
               {origin}
             </Text>
           </View>
-
           {isSelected ? (
-            <Image
-              source={require("../assets/dotted_line_green.png")}
-              style={styles.verticalLine}
-            />
+            <Image source={require("../assets/dotted_line_green.png")} style={styles.verticalLine} />
           ) : (
-            <Image
-              source={require("../assets/dotted_line.png")}
-              style={styles.verticalLine}
-            />
+            <Image source={require("../assets/dotted_line.png")} style={styles.verticalLine} />
           )}
-
           <View style={styles.locationContainer}>
             <Navigation
               size={20}
-              color={
-                isSelected
-                  ? AppColors.primaryLightGreen
-                  : AppColors.secondaryDarkGreen
-              }
+              color={isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen}
               style={styles.icon}
             />
-            <Text
-              style={[
-                styles.locationText,
-                isSelected ? styles.selectedText : styles.unselectedText,
-              ]}
-            >
+            <Text style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}>
               {destination}
             </Text>
           </View>
         </View>
-
         <View style={styles.detailsContainer}>
           <View style={styles.timeContainer}>
             <Clock
               size={16}
-              color={
-                isSelected
-                  ? AppColors.primaryLightGreen
-                  : AppColors.secondaryDarkGreen
-              }
+              color={isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen}
               style={styles.timeIcon}
             />
-            <Text
-              style={[
-                styles.detailText,
-                isSelected
-                  ? styles.selectedDetailText
-                  : styles.unselectedDetailText,
-              ]}
-            >
+            <Text style={[styles.detailText, isSelected ? styles.selectedDetailText : styles.unselectedDetailText]}>
               {time}
             </Text>
           </View>
-
           <View style={styles.priceContainer}>
             <CreditCard
               size={16}
-              color={
-                isSelected
-                  ? AppColors.primaryLightGreen
-                  : AppColors.secondaryDarkGreen
-              }
+              color={isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen}
               style={styles.priceIcon}
             />
-            <Text
-              style={[
-                styles.detailText,
-                isSelected
-                  ? styles.selectedDetailText
-                  : styles.unselectedDetailText,
-              ]}
-            >
+            <Text style={[styles.detailText, isSelected ? styles.selectedDetailText : styles.unselectedDetailText]}>
               {price} pp
             </Text>
           </View>
         </View>
       </View>
-
-      <View style={styles.seatsContainer}>
-        <Users
-          size={18}
-          color={
-            isSelected
-              ? AppColors.primaryLightGreen
-              : AppColors.secondaryDarkGreen
-          }
-          style={styles.smallIcon}
-        />
-        <Text
-          style={[
-            styles.seatsText,
-            isSelected ? styles.selectedText : styles.unselectedText,
-          ]}
-        >
-          {seatsAvailable} seat
-          {parseInt(seatsAvailable.split("/")[0]) !== 1 ? "s" : ""} available
-        </Text>
-      </View>
-
+      {variant === "upcoming" ? (
+        <View style={styles.seatsContainer}>
+          <Text style={[styles.seatsText, isSelected ? styles.selectedText : styles.unselectedText]}>
+            {date}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.seatsContainer}>
+          <Users
+            size={18}
+            color={isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen}
+            style={styles.smallIcon}
+          />
+          <Text style={[styles.seatsText, isSelected ? styles.selectedText : styles.unselectedText]}>
+            {seatsAvailable} seat{parseInt(seatsAvailable.split("/")[0]) !== 1 ? "s" : ""} available
+          </Text>
+        </View>
+      )}
       <View style={styles.vehicleImageContainer}>
-        <Image
-          source={getVehicleIcon()}
-          style={styles.vehicleImage}
-          resizeMode="contain"
-        />
+        <Image source={getVehicleIcon()} style={styles.vehicleImage} resizeMode="contain" />
       </View>
     </TouchableOpacity>
   );
 };
 
-// Define TypeScript types for styles
 interface Styles {
   card: ViewStyle;
   topContainer: ViewStyle;
@@ -338,7 +276,7 @@ const styles = StyleSheet.create<Styles>({
     position: "absolute",
     right: 0,
     bottom: 0,
-    top: 12,
+    top: -1,
     width: "40%",
     height: "100%",
   },
