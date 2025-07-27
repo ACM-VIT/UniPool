@@ -105,7 +105,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       id: "default_address",
       title: "Default Start Address",
-      onPress: () => navigation.navigate("DefaultAddress"),
+      onPress: () => navigation.navigate("DefaultAddressScreen"),
     },
     {
       id: "currency",
