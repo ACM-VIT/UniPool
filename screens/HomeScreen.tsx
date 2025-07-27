@@ -10,32 +10,45 @@ import {
   StatusBar,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
-  import * as Location from "expo-location";
-import { useNavigation } from "@react-navigation/native";
+import * as Location from "expo-location";
+import { useNavigation, useIsFocused } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import AppColors from "../design_systems/colors";
-import MainNavBar from "../components/MainNavBar";
 import RideDetailsSelector from "../components/RideDetailsSelector";
 import PreviousTripsSection from "../components/PreviousTripsSection";
 import bottomNavItems from "../data/BottomNavigationItems";
-import { CommonLocationCoordinates } from "../components/RideDetailsSelector";
 import { RootStackParamList } from "../navigation/RootStackParamList";
 import BrandInfo from "../components/BrandInfo";
 
-
-type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'HomeScreen'>;
+type HomeScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "HomeScreen"
+>;
 
 const { width, height } = Dimensions.get("window");
 
-const HomeScreen: React.FC = () => {
+interface HomeScreenProps {
+  setNavBarVariant: (variant: 0 | 1 | 2) => void;
+  setNavBarText: (text: string) => void;
+  setNavBarIcon: (icon: any) => void;
+  setNavBarItems: (items: any[]) => void;
+}
+
+const HomeScreen: React.FC<HomeScreenProps> = ({
+  setNavBarVariant,
+  setNavBarText,
+  setNavBarIcon,
+  setNavBarItems,
+}) => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
+  const isFocused = useIsFocused();
+
   const [location, setLocation] = useState<any>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
 
-  // Request location permissions
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status === "granted") {
@@ -47,7 +60,6 @@ const HomeScreen: React.FC = () => {
     }
   };
 
-  // Get user location
   const getUserLocation = async () => {
     try {
       const { coords } = await Location.getCurrentPositionAsync({
@@ -67,16 +79,35 @@ const HomeScreen: React.FC = () => {
   };
 
   useEffect(() => {
-    requestLocationPermission(); // Request location permissions on component mount
+    requestLocationPermission();
   }, []);
 
-  const handleRideSubmit = (details: {
-    from: string;
-    to: string;
-    date: Date;
-  }) => {
+  const handleRideSubmit = (details: { from: string; to: string; date: Date }) => {
     console.log("Submitted ride details:", details);
   };
+
+  //donot change this code, state mgmt is crucial here
+  useEffect(() => {
+    if (!isFocused) return;
+    if (bothLocationsSelected) {
+      setNavBarVariant(1);
+      setNavBarText("Search Rides");
+      setNavBarIcon(require("../assets/cool-emoji.png"));
+      setNavBarItems(bottomNavItems);
+    } else {
+      setNavBarVariant(0);
+      setNavBarText("");
+      setNavBarIcon(require("../assets/wallet.png"));
+      setNavBarItems(bottomNavItems);
+    }
+  }, [
+    isFocused,
+    bothLocationsSelected,
+    setNavBarVariant,
+    setNavBarText,
+    setNavBarIcon,
+    setNavBarItems,
+  ]);
 
   const handleLocationSelectionChange = (hasFromAndTo: boolean) => {
     setBothLocationsSelected(hasFromAndTo);
@@ -84,86 +115,56 @@ const HomeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-    <View
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 10,
-        paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-      }}
-    >
-      <BrandInfo />
-    </View>
+      <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+        }}
+      >
+        <BrandInfo />
+      </View>
       <View style={styles.scrollView}>
-        {/* Map Section */}
         <View style={styles.mapContainer}>
           {hasPermission && initialRegion && location ? (
             <MapView
               style={styles.map}
               initialRegion={initialRegion}
+              region={initialRegion}
               showsUserLocation={true}
+              showsMyLocationButton={true}
+              toolbarEnabled={false}
+              onMapReady={() => console.log("Map ready")}
             >
-              {/* Place marker on user's current location */}
               <Marker coordinate={location} />
             </MapView>
           ) : (
-            <Text style={styles.loadingText}>Loading location...</Text>
+            <Text style={styles.loadingText}></Text>
           )}
         </View>
 
-        {/* Main Content */}
         <View style={styles.mainContent}>
-          {/* Popular Destinations */}
-          <View style={styles.InDemandSection}>
-            <Text style={styles.sectionTitle}>In-Demand Destinations</Text>
-            <View style={styles.destinationsContainer}>
-              {["Chennai", "Hyderabad", "Vellore", "Bengaluru"].map((city) => (
-                <TouchableOpacity key={city} style={styles.destinationButton}>
-                  <Text style={styles.destinationButtonText}>{city}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Previous Trips Section */}
           <PreviousTripsSection />
-
-          {/* New Ride Section */}
           <View style={styles.section}>
             <View style={styles.createRideText}>
               <Text style={styles.sectionTitle}>Where'd you like to go?</Text>
-              <TouchableOpacity 
-                style={styles.destinationButton}
-                onPress={() => navigation.navigate('CreateRide')}
-              >
-                <Text style={styles.destinationButtonText}>Create Ride</Text>
-              </TouchableOpacity>
             </View>
-            <RideDetailsSelector 
-              onSubmit={handleRideSubmit} 
+            <TouchableOpacity
+              style={styles.createRideButton}
+              onPress={() => {
+                navigation.navigate("AvailableRidesScreen");
+              }}
+            >
+              <Text style={styles.createRideButtonText}>Create Ride</Text>
+            </TouchableOpacity>
+            <RideDetailsSelector
+              onSubmit={handleRideSubmit}
               onLocationSelectionChange={handleLocationSelectionChange}
               userLocation={location}
             />
-          </View>
-
-          {/* Navigation Bar */}
-          <View style={styles.navBarView}>
-            {bothLocationsSelected ? (
-              <MainNavBar
-                variant={1}
-                text="Search Rides"
-                iconPath={require("../assets/cool-emoji.png")}
-                onPress={() => navigation.navigate('AvailableRidesScreen' as never)}
-              />
-            ) : (
-              <MainNavBar
-                variant={0}
-                bottomNavItems={bottomNavItems}
-                iconPath={require("../assets/wallet.png")}
-              />
-            )}
           </View>
         </View>
       </View>
@@ -183,13 +184,13 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     width: "100%",
-    height: height * 0.25,
+    height: height * 0.28,
     zIndex: 1,
   },
   map: {
     flex: 1,
     width: Dimensions.get("window").width,
-    height: height * 0.25,
+    height: height * 0.23,
   },
   mainContent: {
     flex: 1,
@@ -197,7 +198,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 25,
     backgroundColor: AppColors.primaryLightGreen,
     padding: "2.5%",
-    paddingBottom: height * 0.12,
+    paddingBottom: height * 0.09,
   },
   section: {
     width: "100%",
@@ -241,17 +242,21 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_400Regular",
   },
   createRideButton: {
-    backgroundColor: "#000000",
-    paddingVertical: "2%",
-    paddingHorizontal: "4%",
-    borderRadius: 8,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    paddingVertical: 16,
+    paddingHorizontal: "2.5%",
+    borderRadius: 12,
     alignItems: "center",
+    width: "100%",
+    marginTop: 8,
+    marginBottom: 16,
+    alignSelf: "center",
+    elevation: 2,
   },
   createRideButtonText: {
     color: "#FFFFFF",
-    fontWeight: "500",
     fontSize: 16,
-    fontFamily: "NunitoSans_600SemiBold",
+    fontFamily: "NunitoSans_400Regular",
   },
   navBarView: {
     width: "100%",
@@ -274,9 +279,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
-
-// Custom Map Style
-// const customMapStyle = [
-// ];
 
 export default HomeScreen;

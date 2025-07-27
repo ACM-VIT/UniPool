@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { X } from "lucide-react-native";
 import {
   View,
   Text,
@@ -58,20 +59,17 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   onLocationSwap,
   fromLocation: externalFromLocation,
   toLocation: externalToLocation,
-  userLocation, // Add user location prop
+  userLocation,
 }) => {
-  // Form state
   const [fromLocation, setFromLocation] = useState(externalFromLocation || "");
   const [toLocation, setToLocation] = useState(externalToLocation || "");
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // UI state
   const [showFromDropdown, setShowFromDropdown] = useState(false);
   const [showToDropdown, setShowToDropdown] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<"date" | "time">("date");
 
-  // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<LocationResult[]>([]);
   const [popularLocations, setPopularLocations] = useState<string[]>([]);
@@ -123,7 +121,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
   };
 
-  // Handle location selection
   const handleLocationSelect = (location: string, isFrom: boolean) => {
     if (isFrom) {
       setFromLocation(location);
@@ -187,7 +184,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         setShowPicker(false);
         setPickerMode("date");
         
-        // Trigger onSubmit callback when date is fully selected
         if (fromLocation && toLocation && onSubmit) {
           onSubmit({
             from: fromLocation,
@@ -202,13 +198,11 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
   };
 
-  // Handle date field click
   const handleDateFieldClick = () => {
     setPickerMode("date");
     setShowPicker(true);
   };
 
-  // Handle location swap
   const handleLocationSwap = () => {
     const tempLocation = fromLocation;
     setFromLocation(toLocation);
@@ -242,7 +236,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
   };
 
-  // Sync external location props with internal state
   useEffect(() => {
     if (externalFromLocation !== undefined) {
       setFromLocation(externalFromLocation);
@@ -272,7 +265,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.locationsWrapper}>
-        {/* From Location */}
         <TouchableOpacity
           style={styles.inputContainer}
           onPress={() => handleLocationSelectorOpen(true)}
@@ -282,11 +274,21 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               source={require("../assets/location-pin.png")}
               style={styles.icon}
             />
+            <Text style={styles.selectedText}>{fromLocation || "From"}</Text>
+            {fromLocation !== "" && (
+              <TouchableOpacity
+                style={styles.clearIconContainer}
+                onPress={e => {
+                  e.stopPropagation && e.stopPropagation();
+                  setFromLocation("");
+                }}
+              >
+                <X size={16} color={AppColors.basicBlack} />
+              </TouchableOpacity>
+            )}
           </View>
-          <Text style={styles.selectedText}>{fromLocation || "From"}</Text>
         </TouchableOpacity>
 
-        {/* Switch Icon */}
         <TouchableOpacity 
           style={styles.switchIconContainer}
           onPress={handleLocationSwap}
@@ -297,7 +299,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           />
         </TouchableOpacity>
 
-        {/* To Location */}
         <TouchableOpacity
           style={styles.inputContainer}
           onPress={() => handleLocationSelectorOpen(false)}
@@ -307,12 +308,22 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               source={require("../assets/arrow-icon.png")}
               style={styles.icon}
             />
+            <Text style={styles.selectedText}>{toLocation || "To"}</Text>
+            {toLocation !== "" && (
+              <TouchableOpacity
+                style={styles.clearIconContainer}
+                onPress={e => {
+                  e.stopPropagation && e.stopPropagation();
+                  setToLocation("");
+                }}
+              >
+                <X size={16} color={AppColors.basicBlack} />
+              </TouchableOpacity>
+            )}
           </View>
-          <Text style={styles.selectedText}>{toLocation || "To"}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Date Selection */}
       <View style={styles.dateContainer}>
         <TouchableOpacity onPress={handleDateFieldClick}>
           <View style={styles.inputContent}>
@@ -338,7 +349,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         </View>
       </View>
 
-      {/* Location Dropdowns */}
       <Modal
         visible={showFromDropdown || showToDropdown}
         transparent
@@ -369,7 +379,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             </View>
 
             <ScrollView style={styles.locationList}>
-              {/* Popular Locations Section */}
               {isLoadingPopular ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="small" color={AppColors.basicWhite} />
@@ -396,7 +405,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                 </>
               ) : null}
 
-              {/* Search Results Section */}
               {searchResults.length > 0 && (
                 <>
                   <Text style={styles.sectionHeader}>Search Results</Text>
@@ -425,7 +433,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                 </>
               )}
 
-              {/* No results message */}
               {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
                 <Text style={styles.noResultsText}>
                   No locations found. Try a different search term.
@@ -449,7 +456,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         </View>
       </Modal>
 
-      {/* Date/Time Picker */}
       {showPicker && (
         <DateTimePicker
           value={selectedDate}
@@ -647,7 +653,7 @@ const styles = StyleSheet.create({
   switchIconContainer: {
     position: "absolute",
     right: 30,
-    top: 65,
+    top: 70,
     transform: [{ translateY: -10 }],
     zIndex: 10,
     paddingHorizontal: 4,
@@ -656,6 +662,18 @@ const styles = StyleSheet.create({
   switchIcon: {
     width: 25,
     height: 25,
+    tintColor: AppColors.basicBlack,
+  },
+  clearIconContainer: {
+    marginLeft: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    height: 24,
+    width: 24,
+  },
+  clearIcon: {
+    width: 16,
+    height: 16,
     tintColor: AppColors.basicBlack,
   },
 });
