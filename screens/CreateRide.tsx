@@ -244,6 +244,7 @@ const CreateRide: React.FC = () => {
               text="Slide to create ride"
               loadingText="Creating ride..."
               sliderIcon={require("../assets/slide.png")}
+              emojiIcon={require("../assets/happy-emoji.png")}
             />
       </View>
     </SafeAreaView>

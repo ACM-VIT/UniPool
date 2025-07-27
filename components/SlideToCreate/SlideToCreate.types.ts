@@ -10,6 +10,7 @@ export interface UniversalSliderProps {
   sliderIcon: ImageSourcePropType;
   endIcon?: ImageSourcePropType;
   showEndIcon?: boolean;
+  emojiIcon?: ImageSourcePropType;
   
   containerStyle?: ViewStyle;
   sliderStyle?: ViewStyle;
