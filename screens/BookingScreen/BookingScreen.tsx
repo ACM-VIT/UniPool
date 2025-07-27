@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import {
-  SafeAreaView,
   ScrollView,
   View,
   Text,
@@ -13,13 +12,10 @@ import {
   StatusBar,
 } from "react-native";
 import RideCard from "../../components/RideCard";
-import ChevronBack from "../../components/ChevronBack";
 import styles from "./BookingScreen.styles";
 import AppColors from "../../design_systems/colors";
-import { MapPin } from "lucide-react-native";
 import { useApi } from "../../utils/ApiUtil";
 import type { RideData } from "../../dummy-data/Bookings";
-import MainNavBar from "../../components/MainNavBar";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import BrandInfo from "../../components/BrandInfo";
 
@@ -150,7 +146,8 @@ const BookingScreen: React.FC = () => {
                       destination={ride.end_location}
                       time={formatTime(ride.start_time)}
                       price={ride.total_price}
-                      seatsAvailable={`${ride.booked_seats}/${ride.total_seats}`}
+                      variant="upcoming"
+                      date={ride.start_time ? new Date(ride.start_time).toLocaleDateString("en-GB") : ""}
                     />
                   </View>
                 ))
@@ -191,6 +188,23 @@ const BookingScreen: React.FC = () => {
               ) : (
                 inProgressRides.map((ride) => (
                   <View key={ride.ride_id || ride.id || "unknown-ride"} style={styles.pageContainer}>
+                    <Text style={{
+                      textAlign: "left",
+                      fontSize: 18,
+                      marginBottom: 12,
+                      marginLeft: 4,
+                      fontFamily: "NunitoSans_400Regular",
+                      color: AppColors.basicBlack
+                    }}>
+                      {(() => {
+                        if (!ride.start_time) return "";
+                        const dateObj = new Date(ride.start_time);
+                        const day = dateObj.getDate();
+                        const month = dateObj.toLocaleString("en-US", { month: "long" });
+                        const year = dateObj.getFullYear();
+                        return `${day} ${month}, ${year}`;
+                      })()}
+                    </Text>
                     <RideCard
                       id={(ride.ride_id || ride.id) ?? ""}
                       origin={ride.start_location}
@@ -199,6 +213,7 @@ const BookingScreen: React.FC = () => {
                       price={ride.total_price}
                       seatsAvailable={`${ride.booked_seats}/${ride.total_seats}`}
                       isSelected={true}
+                      variant="inprogress"
                     />
                   </View>
                 ))
@@ -227,7 +242,6 @@ const BookingScreen: React.FC = () => {
         style={styles.airplaneIcon}
         resizeMode="contain"
       />
-      {/* MainNavBar is now rendered globally in App.tsx */}
     </View>
   );
 };
