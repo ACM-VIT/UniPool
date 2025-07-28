@@ -150,13 +150,13 @@ const styles = StyleSheet.create({
   tagline: {
     position: 'absolute',
     color: '#263B33',
-    fontFamily: 'System', // Fallback for Nunito Sans
+    fontFamily: 'NunitoSans_700Bold',
     fontWeight: '700',
   },
   footerText: {
     position: 'absolute',
     color: '#263B33',
-    fontFamily: 'System', // Fallback for Nunito Sans
+    fontFamily: 'NunitoSans_700Bold',
     fontWeight: '700',
   },
   heartContainer: {

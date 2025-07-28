@@ -9,14 +9,6 @@ const RideCreatedScreen: React.FC<RideCreateScreenProps> = () => {
   return (
     <View style={styles.container}>
       <Image source={require("../../assets/create.png")} style={styles.create} />
-      <View style={styles.navBarView}>
-        <MainNavBar
-          variant={navBarVariant}
-          bottomNavItems={bottomNavItems}
-          iconPath={require("../../assets/wallet.png")}
-          text="View Details"
-        />
-      </View>
     </View>
   );
 };

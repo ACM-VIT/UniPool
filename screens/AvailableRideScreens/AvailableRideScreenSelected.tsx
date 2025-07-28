@@ -191,6 +191,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
           onSlideComplete={handleRequestRide}
           text="Slide to request ride"
           disabled={false}
+          sliderIcon={require("../../assets/slide.png")}
         />
       </View>
     </SafeAreaView>

@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   button: {
-    backgroundColor: AppColors.basicBlack,
+    backgroundColor: AppColors.secondaryDarkGreen,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-start",
