@@ -9,9 +9,35 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 
 const RideDetailsScreen: React.FC = () => {
   const [showSlide, setShowSlide] = React.useState<null | 'accept' | 'reject'>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [requests, setRequests] = React.useState<any[]>([]);
+  const [requestsLoading, setRequestsLoading] = React.useState(true);
+  const [requestsError, setRequestsError] = React.useState<string | null>(null);
+  const { apiUtil } = require('../utils/ApiUtil').useApi();
   const navigation = useNavigation();
   const route = useRoute();
   const ride = (route.params && (route.params as any).ride) || {};
+
+  React.useEffect(() => {
+    async function fetchRequests() {
+      setRequestsLoading(true);
+      setRequestsError(null);
+      try {
+        // Replace with correct endpoint and params as needed
+        const res = await apiUtil.get(`/ride/fetch/${ride?.id || ride?.ride_id || ride?.booking_id}`);
+        // Assume res.requests is an array of requests/passengers
+        setRequests(res.requests || []);
+      } catch (err) {
+        setRequestsError("Failed to fetch requests");
+      } finally {
+        setRequestsLoading(false);
+      }
+    }
+    fetchRequests();
+  }, [ride?.id, ride?.ride_id, ride?.booking_id]);
+  // Dummy bookingId for demo, replace with actual booking id from props/data
+  const bookingId = ride?.booking_id || ride?.id || ride?.ride_id || "demo-booking-id";
 
   function formatTime(timeStr: string) {
     if (!timeStr) return "";
@@ -38,21 +64,21 @@ const RideDetailsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      {/* Move BrandInfo absolutely to the very top, above all content */}
       <View
         style={{
           position: "absolute",
           top: 0,
           left: 0,
           right: 0,
-          zIndex: 10,
+          zIndex: 100,
           paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
           backgroundColor: AppColors.primaryLightGreen,
         }}
       >
         <BrandInfo />
-        </View>
       </View>
+      <View style={styles.header} />
       <View style={styles.chevronRow}>
         <ChevronBack onPress={() => navigation.goBack()} style={{ marginRight: 8 }} />
         <Text style={styles.rideDetailsSubHeader}>Ride Details</Text>
@@ -73,47 +99,81 @@ const RideDetailsScreen: React.FC = () => {
         />
       </View>
       <Text style={styles.requestsHeader}>Requests</Text>
-      <View style={styles.requestCard}>
-        {showSlide === null ? (
-          <View style={styles.requestCardBlack}>
-            <Text style={styles.requestNameLargeBlack}>Pranav Singh</Text>
-            <View style={styles.requestActionsRowBlack}>
-              <TouchableOpacity style={styles.rejectButtonBlack} onPress={() => setShowSlide('reject')}>
-                <Image source={require('../assets/cross.png')} style={styles.actionIconBlack} />
-                <Text style={styles.actionLabelBlack}>Reject</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.acceptButtonBlack} onPress={() => setShowSlide('accept')}>
-                <Image source={require('../assets/check.png')} style={styles.actionIconAccept} />
-                <Text style={styles.acceptLabelBlack}>Accept</Text>
-              </TouchableOpacity>
-            </View>
+      {requestsLoading ? (
+        <Text style={{ color: AppColors.basicBlack, marginLeft: 16 }}>Loading requests...</Text>
+      ) : requestsError ? (
+        <Text style={{ color: 'red', marginLeft: 16 }}>{requestsError}</Text>
+      ) : requests.length === 0 ? (
+        <Text style={{ color: AppColors.basicBlack, marginLeft: 16 }}>No requests found.</Text>
+      ) : (
+        requests.map((req, idx) => (
+          <View style={styles.requestCard} key={req.id || idx}>
+            {showSlide === null ? (
+              <View style={styles.requestCardBlack}>
+                <Text style={styles.requestNameLargeBlack}>{req.name || req.passenger_name || "User"}</Text>
+                <View style={styles.requestActionsRowBlack}>
+                  <TouchableOpacity style={styles.rejectButtonBlack} onPress={() => setShowSlide('reject')}>
+                    <Image source={require('../assets/cross.png')} style={styles.actionIconBlack} />
+                    <Text style={styles.actionLabelBlack}>Reject</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.acceptButtonBlack} onPress={() => setShowSlide('accept')}>
+                    <Image source={require('../assets/check.png')} style={styles.actionIconAccept} />
+                    <Text style={styles.acceptLabelBlack}>Accept</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : showSlide === 'accept' ? (
+              <View style={styles.slideContainer}>
+                <SlideToCreate
+                  text={loading ? "Accepting..." : "Slide to accept user"}
+                  onSlideComplete={async () => {
+                    setLoading(true);
+                    setError(null);
+                    try {
+                      await apiUtil.put(`/bookings/accept/${req.booking_id || req.id}`, {});
+                      setShowSlide(null);
+                    } catch (err) {
+                      setError("Failed to accept request");
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  sliderIcon={require('../assets/slide.png')}
+                  backgroundColor="#fff"
+                  sliderButtonColor={AppColors.secondaryDarkGreen}
+                  textColor={AppColors.secondaryDarkGreen}
+                  borderColor="#fff"
+                />
+                {error && <Text style={{ color: 'red', marginTop: 8 }}>{error}</Text>}
+              </View>
+            ) : (
+              <View style={styles.slideContainer}>
+                <SlideToCreate
+                  text={loading ? "Rejecting..." : "Slide to reject user"}
+                  onSlideComplete={async () => {
+                    setLoading(true);
+                    setError(null);
+                    try {
+                      await apiUtil.put(`/booking/update/${req.booking_id || req.id}`, { request_status: "rejected" });
+                      setShowSlide(null);
+                    } catch (err) {
+                      setError("Failed to reject request");
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  sliderIcon={require('../assets/slide.png')}
+                  backgroundColor="#fff"
+                  sliderButtonColor="#FF3B30"
+                  textColor="#FF3B30"
+                  borderColor="#fff"
+                />
+                {error && <Text style={{ color: 'red', marginTop: 8 }}>{error}</Text>}
+              </View>
+            )}
           </View>
-        ) : showSlide === 'accept' ? (
-          <View style={styles.slideContainer}>
-            <SlideToCreate
-              text="Slide to accept user"
-              onSlideComplete={() => { setShowSlide(null); /* handle accept logic here */ }}
-              sliderIcon={require('../assets/slide.png')}
-              backgroundColor="#fff"
-              sliderButtonColor={AppColors.secondaryDarkGreen}
-              textColor={AppColors.secondaryDarkGreen}
-              borderColor="#fff"
-            />
-          </View>
-        ) : (
-          <View style={styles.slideContainer}>
-            <SlideToCreate
-              text="Slide to reject user"
-              onSlideComplete={() => { setShowSlide(null); /* handle reject logic here */ }}
-              sliderIcon={require('../assets/slide.png')}
-              backgroundColor="#fff"
-              sliderButtonColor="#FF3B30"
-              textColor="#FF3B30"
-              borderColor="#fff"
-            />
-          </View>
-        )}
-      </View>
+        ))
+      )}
     </View>
   );
 };
