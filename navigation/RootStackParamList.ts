@@ -9,7 +9,12 @@ export type RootStackParamList = {
   BookingScreen: undefined;
   HomeScreen: undefined;
   ProfileScreen: undefined;
+  BookingsScreen: undefined;
+  PersonalInformationScreen: undefined;
+  PassengersHistoryScreen: undefined;
   CreateRide: undefined;
-  AvailableRidesScreen: undefined;
+  AvailableRidesScreen: { fromLocation: string; toLocation: string };
   AvailableRidesSelectedScreen: undefined;
+  DefaultAddressScreen: undefined;
+  AccountSettingsScreen: undefined;
 };

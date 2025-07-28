@@ -138,6 +138,9 @@ const MainNavBar: React.FC<MainNavBarProps> = ({
   onPress = () => {},
   showSwitchIcon = false,
 }) => {
+  const effectiveOnPress = (variant === 1 && typeof (window as any).mainNavBarOnPress === "function")
+    ? (window as any).mainNavBarOnPress
+    : onPress;
   switch (variant) {
     case 0:
       return <BottomNav items={bottomNavItems} />;
@@ -147,7 +150,7 @@ const MainNavBar: React.FC<MainNavBarProps> = ({
         <SingleBar
           text={text}
           iconPath={iconPath}
-          onPress={onPress}
+          onPress={effectiveOnPress}
           showSwitchIcon={showSwitchIcon}
         />
       );
