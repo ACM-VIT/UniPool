@@ -317,14 +317,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
-
-      <View style={styles.navBarView}>
-        <MainNavBar
-          variant={0}
-          bottomNavItems={profileScreenNavItems}
-          iconPath={require("../../assets/wallet.png")}
-        />
-      </View>
     </SafeAreaView>
   );
 };
