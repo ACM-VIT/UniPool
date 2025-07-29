@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+
 import {
   View,
   Text,
@@ -8,6 +9,7 @@ import {
   Dimensions,
   TouchableOpacity,
   Alert,
+  TextInput,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AppColors from "../design_systems/colors";
@@ -44,6 +46,9 @@ const CreateRide: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isCreating, setIsCreating] = useState(false);
   const [costPerPerson, setCostPerPerson] = useState(100);
+  const [isEditingCost, setIsEditingCost] = useState(false);
+  const [customCost, setCustomCost] = useState("");
+  const costInputRef = useRef<TextInput>(null);
 
   const handleCreateRide = async () => {
     if (!fromLocation || !toLocation) {
@@ -59,21 +64,19 @@ const CreateRide: React.FC = () => {
     setIsCreating(true);
     
     try {
-      // Combine selected date with selected time
       const rideDateTime = new Date(selectedDate);
       rideDateTime.setHours(time.getHours());
       rideDateTime.setMinutes(time.getMinutes());
 
-      // Create the ride data payload
       const rideData = {
         start_location: fromLocation,
         end_location: toLocation,
         start_time: rideDateTime.toISOString(),
         total_seats: passengerCount,
-        booked_seats: 0, // New ride starts with 0 booked seats
-        total_price: costPerPerson, // Use the selected cost per person
-        is_ongoing: 0, // New ride is not ongoing initially
-        is_same_gender: 0, // Default to any gender
+        booked_seats: 0,
+        total_price: costPerPerson,
+        is_ongoing: 0,
+        is_same_gender: 0,
       };
 
       console.log("Creating ride with data:", rideData);
@@ -140,6 +143,7 @@ const CreateRide: React.FC = () => {
     }
   };
 
+
   const increaseCost = () => {
     if (costPerPerson < 10000) {
       setCostPerPerson((prev) => prev + 25);
@@ -150,6 +154,29 @@ const CreateRide: React.FC = () => {
     if (costPerPerson > 25) {
       setCostPerPerson((prev) => prev - 25);
     }
+  };
+
+  const handleCostPress = () => {
+    setCustomCost(costPerPerson.toString());
+    setIsEditingCost(true);
+    setTimeout(() => {
+      costInputRef.current?.focus();
+    }, 100);
+  };
+
+  const handleCostChange = (text: string) => {
+    if (/^\d*$/.test(text)) {
+      setCustomCost(text);
+    }
+  };
+
+  const handleCostSubmit = () => {
+    let value = parseInt(customCost, 10);
+    if (isNaN(value)) value = costPerPerson;
+    if (value < 25) value = 25;
+    if (value > 10000) value = 10000;
+    setCostPerPerson(value);
+    setIsEditingCost(false);
   };
 
   const getPassengerImage = () => {
@@ -202,16 +229,39 @@ const CreateRide: React.FC = () => {
           <TouchableOpacity
             onPress={decreaseCost}
             style={styles.costButton}
+            disabled={isEditingCost}
           >
             <Text style={styles.costButtonText}>−</Text>
           </TouchableOpacity>
-          <View style={styles.costValueContainer}>
+          <TouchableOpacity
+            style={styles.costValueContainer}
+            onPress={handleCostPress}
+            activeOpacity={0.7}
+            disabled={isEditingCost}
+          >
             <Text style={styles.currencySymbol}>₹</Text>
-            <Text style={styles.costValue}>{costPerPerson}</Text>
-          </View>
+            {isEditingCost ? (
+              <TextInput
+                ref={costInputRef}
+                style={styles.costValueInput}
+                value={customCost}
+                onChangeText={handleCostChange}
+                onBlur={handleCostSubmit}
+                onSubmitEditing={handleCostSubmit}
+                keyboardType="numeric"
+                maxLength={5}
+                selectTextOnFocus
+                returnKeyType="done"
+                autoFocus
+              />
+            ) : (
+              <Text style={styles.costValue}>{costPerPerson}</Text>
+            )}
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={increaseCost}
             style={styles.costButton}
+            disabled={isEditingCost}
           >
             <Text style={styles.costButtonText}>+</Text>
           </TouchableOpacity>
@@ -348,6 +398,17 @@ const styles = StyleSheet.create({
     fontSize: 35,
     fontWeight: "bold",
     fontFamily: "NunitoSans_700Bold",
+  },
+  costValueInput: {
+    color: AppColors.basicWhite,
+    fontSize: 35,
+    fontWeight: "bold",
+    fontFamily: "NunitoSans_700Bold",
+    backgroundColor: 'transparent',
+    padding: 0,
+    margin: 0,
+    width: 80,
+    textAlign: 'center',
   },
   buttonTime: {
     backgroundColor: AppColors.basicBlack,
