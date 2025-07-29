@@ -17,6 +17,7 @@ export type RootStackParamList = {
   AvailableRidesSelectedScreen: undefined;
   DefaultAddressScreen: undefined;
   AccountSettingsScreen: undefined;
+
   // Chat Screens
   PassengerInfoScreen: undefined;
   ChatConversationScreen: {
@@ -30,4 +31,7 @@ export type RootStackParamList = {
     }>;
   };
   TripsListScreen: undefined;
+
+  RideDetailsScreen: { ride: any };
+
 };
