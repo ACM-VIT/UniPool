@@ -11,9 +11,8 @@ export default class ChatService {
     apiUtil: ApiUtil,
     rideId: string,
     content: string,
-    userId: string,
   ): Promise<void> {
-    await apiUtil.post(`/chat/${rideId}/message`, { content, sender_id: userId });
+    await apiUtil.post(`/chat/${rideId}/message`, { content });
   }
 
   static openSocket(

@@ -18,7 +18,7 @@ export type RootStackParamList = {
   DefaultAddressScreen: undefined;
   AccountSettingsScreen: undefined;
 
-  PassengerInfo: undefined;
+  PassengerInfoScreen: undefined;
   ChatMessages: {
     chatId: string;
     chatTitle: string;

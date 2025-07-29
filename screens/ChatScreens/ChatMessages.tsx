@@ -82,12 +82,9 @@ const chatParams = (route?.params as ChatRouteParams) ?? {};
 
   const sendMessage = () => {
     const rideId = chatParams.chatRoom?.id || chatParams.chatId;
-    const userId = chatParams.userId || 'me';
     if (!newMessage.trim() || !rideId) return;
 
-    ChatService.sendMessage(apiUtil, rideId, newMessage, userId).catch(
-      console.error
-    );
+    ChatService.sendMessage(apiUtil, rideId, newMessage).catch(console.error);
 
     setNewMessage('');
   };
@@ -193,10 +190,20 @@ const chatParams = (route?.params as ChatRouteParams) ?? {};
                   : chatMessagesStyles.messageTime
               }
             >
-              {msg.timestamp.toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
+              {msg.timestamp
+                ? (() => {
+                    try {
+                      const d = new Date(msg.timestamp);
+                      if (isNaN(d.getTime())) return '';
+                      return d.toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      });
+                    } catch {
+                      return '';
+                    }
+                  })()
+                : ''}
             </Text>
           </View>
         ))}

@@ -260,7 +260,7 @@ const App = () => {
                     options={{ headerShown: false }}
                   />
                   <Stack.Screen
-                    name="PassengerInfo"
+                    name="PassengerInfoScreen"
                     component={PassengerInfoScreen}
                     options={{ headerShown: false, animation: 'none' }}
                   />
