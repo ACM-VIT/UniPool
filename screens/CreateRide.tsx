@@ -89,14 +89,29 @@ const CreateRide: React.FC = () => {
       // Navigate to RideCreatedScreen
       navigation.navigate("RideCreatedScreen" as never);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating ride:", error);
-      
       let errorMessage = "Failed to create ride. Please try again.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
+
+      if (error && typeof error === "object") {
+        if (error.response && typeof error.response === "object") {
+          if (typeof error.response.data === "string") {
+            try {
+              const parsed = JSON.parse(error.response.data);
+              if (parsed && parsed.error) {
+                errorMessage = parsed.error;
+              }
+            } catch {}
+          } else if (error.response.data && error.response.data.error) {
+            errorMessage = error.response.data.error;
+          }
+        } else if (error.error && typeof error.error === "string") {
+          errorMessage = error.error;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
       }
-      
+
       Alert.alert("Error", errorMessage);
     } finally {
       setIsCreating(false);
