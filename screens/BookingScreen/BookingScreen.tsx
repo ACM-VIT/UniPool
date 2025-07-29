@@ -72,8 +72,12 @@ const BookingScreen: React.FC = () => {
         const bookings = await apiUtil.get<any>("/user/rides");
         const upcoming: RideData[] = [];
         const inProgress: RideData[] = [];
+        const seenIds = new Set<string>();
         if (Array.isArray(bookings)) {
           bookings.forEach((ride: RideData) => {
+            const rideId = ride.ride_id || ride.id;
+            if (!rideId || seenIds.has(rideId)) return;
+            seenIds.add(rideId);
             if (ride.is_ongoing) {
               inProgress.push(ride);
             } else {
