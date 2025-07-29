@@ -61,9 +61,40 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   toLocation: externalToLocation,
   userLocation,
 }) => {
-  const [fromLocation, setFromLocation] = useState(externalFromLocation || "");
-  const [toLocation, setToLocation] = useState(externalToLocation || "");
+  const { apiUtil } = require('../utils/ApiUtil').useApi();
+  const [defaultStartAddress, setDefaultStartAddress] = useState<string>("");
+  React.useEffect(() => {
+    async function fetchDefaultAddress() {
+      let cached = "";
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        cached = window.sessionStorage.getItem('unipool_start_address') || "";
+      }
+      if (cached) {
+        setDefaultStartAddress(cached);
+        return;
+      }
+      try {
+        const res = await apiUtil.get("/user/default-address");
+        if (typeof res === "object" && res !== null && "address" in res && typeof (res as any).address === "string") {
+          setDefaultStartAddress((res as any).address);
+          if (typeof window !== 'undefined' && window.sessionStorage) {
+            window.sessionStorage.setItem('unipool_start_address', (res as any).address);
+          }
+        }
+      } catch (err) {}
+    }
+    fetchDefaultAddress();
+  }, [apiUtil]);
+
+  const [fromLocation, setFromLocation] = useState<string>(externalFromLocation || "");
+  const [toLocation, setToLocation] = useState<string>(externalToLocation || "");
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  React.useEffect(() => {
+    if (!externalFromLocation && !fromLocation && defaultStartAddress) {
+      setFromLocation(defaultStartAddress);
+    }
+  }, [defaultStartAddress, externalFromLocation, fromLocation]);
 
   const [showFromDropdown, setShowFromDropdown] = useState(false);
   const [showToDropdown, setShowToDropdown] = useState(false);
