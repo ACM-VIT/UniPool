@@ -18,17 +18,12 @@ export type RootStackParamList = {
   DefaultAddressScreen: undefined;
   AccountSettingsScreen: undefined;
 
-  // Chat Screens
-  PassengerInfoScreen: undefined;
-  ChatConversationScreen: {
+  PassengerInfo: undefined;
+  ChatMessages: {
     chatId: string;
     chatTitle: string;
     chatSubtitle: string;
-    messages: Array<{
-      id: string;
-      text: string;
-      sender: 'me' | 'other';
-    }>;
+    isGroupChat: boolean;
   };
   TripsListScreen: undefined;
 
