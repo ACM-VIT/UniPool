@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CheckCircle } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+
 import ChevronBack from '../../components/ChevronBack/ChevronBack';
 import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
 
@@ -104,10 +103,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
               </View>
             </View>
 
-            <View style={styles.routeTo}>
-              <CheckCircle size={16} color="#4ade80" />
-              <Text style={styles.routeText}>{ride.to}</Text>
-            </View>
+            
 
             {/* Vehicle Illustration */}
             <View style={styles.vehicleContainer}>
