@@ -27,6 +27,7 @@ interface UserData {
   updated_at: string;
   profile_picture_url?: string;
   total_bookings?: number;
+  total_hosted_rides?: number;
   distance_travelled?: number;
   weight_saved?: number;
 }
@@ -263,7 +264,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
         <View style={styles.statsContainer}>
           {renderStatsCard(
-            userData.total_bookings?.toString() || "32", 
+            (() => {
+              const bookings = userData.total_bookings ?? 0;
+              const hosted = userData.total_hosted_rides ?? 0;
+              return (bookings + hosted).toString();
+            })(),
             "trips"
           )}
           {renderStatsCard(
