@@ -26,17 +26,18 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
   const [newMessage, setNewMessage] = useState('');
   const [userUuid, setUserUuid] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [userProfiles, setUserProfiles] = useState<{[userId: string]: {name: string, avatar?: string}}>({});
   const wsRef = useRef<WebSocket | null>(null);
 
   type ChatRouteParams = {
-  chatId?: string;
-  chatRoom?: { id: string; title?: string; subtitle?: string };
-  chatTitle?: string;
-  chatSubtitle?: string;
-  userId?: string;
-};
+    chatId?: string;
+    chatRoom?: { id: string; title?: string; subtitle?: string };
+    chatTitle?: string;
+    chatSubtitle?: string;
+    userId?: string;
+  };
 
-const chatParams = (route?.params as ChatRouteParams) ?? {};
+  const chatParams = (route?.params as ChatRouteParams) ?? {};
   const chatTitle = chatParams.chatTitle ?? 'Vellore to Chennai';
   const chatSubtitle =
     chatParams.chatSubtitle ?? 'You, Bhallaldeva, Kattappa and 3 more';
@@ -51,6 +52,25 @@ const chatParams = (route?.params as ChatRouteParams) ?? {};
       .catch((e) => console.warn('[Chat] failed to fetch user uuid', e));
   }, [apiUtil, setNavBarVariant]);
 
+  const fetchUserProfile = async (userId: string) => {
+    if (userProfiles[userId]) return userProfiles[userId];
+    
+    try {
+      const response = await apiUtil.get<{user: {id: string, name: string, avatar?: string}}>(`/user/${userId}`);
+      const profile = {
+        name: response.user.name || 'Unknown User',
+        avatar: response.user.avatar
+      };
+      setUserProfiles(prev => ({...prev, [userId]: profile}));
+      return profile;
+    } catch (error) {
+      console.warn('[Chat] Failed to fetch user profile for', userId, error);
+      const fallbackProfile = { name: 'Unknown User' };
+      setUserProfiles(prev => ({...prev, [userId]: fallbackProfile}));
+      return fallbackProfile;
+    }
+  };
+
   useEffect(() => {
     if (!userUuid) return;
     setNavBarVariant?.(0);
@@ -61,21 +81,41 @@ const chatParams = (route?.params as ChatRouteParams) ?? {};
     ChatService.fetchMessages(apiUtil, rideId)
       .then((msgs) => {
         console.log('[Chat] fetched messages', msgs);
-        const transformed = msgs.map((m: any): ChatMessage => ({
-          id: m.id,
-          text: m.content || m.text || '',
-          sender: m.sender_id === userUuid ? 'user' : 'other',
-          timestamp: new Date(m.created_at || m.timestamp || Date.now()),
-        }));
+        const transformed = msgs.map((m: any): ChatMessage => {
+          let senderName = 'Unknown User';
+          let senderAvatar = undefined;
+          if (m.sender && typeof m.sender === 'object') {
+            senderName = m.sender.name || m.sender_name || 'Unknown User';
+            senderAvatar = m.sender.profile_picture_url;
+          } else if (m.sender_name) {
+            senderName = m.sender_name;
+          }
+          return {
+            id: m.id,
+            text: m.content || m.text || '',
+            sender: m.sender_id === userUuid ? 'user' : 'other',
+            senderId: m.sender_id,
+            senderName,
+            timestamp: new Date(m.created_at || m.timestamp || Date.now()),
+          };
+        });
         setMessages(transformed);
       })
       .catch(console.error);
 
-        const ws = ChatService.openSocket(userId, rideId, (e) => {
+    const ws = ChatService.openSocket(userId, rideId, (e) => {
       console.log('[WebSocket] message received raw', e.data);
       try {
         const data = JSON.parse(e.data);
         if (data.type === 'message') {
+          let senderName = 'Unknown User';
+          let senderAvatar = undefined;
+          if (data.sender && typeof data.sender === 'object') {
+            senderName = data.sender.name || data.sender_name || 'Unknown User';
+            senderAvatar = data.sender.profile_picture_url;
+          } else if (data.sender_name) {
+            senderName = data.sender_name;
+          }
           setMessages(prev => {
             if (prev.some(m => m.id === data.message_id)) return prev;
             return [
@@ -84,6 +124,9 @@ const chatParams = (route?.params as ChatRouteParams) ?? {};
                 id: data.message_id,
                 text: data.content,
                 sender: data.sender_id === userId ? 'user' : 'other',
+                senderId: data.sender_id,
+                senderName,
+                senderAvatar,
                 timestamp: new Date(data.timestamp),
               },
             ];
@@ -124,6 +167,61 @@ const chatParams = (route?.params as ChatRouteParams) ?? {};
     } else {
       console.warn('[WebSocket] Not connected, cannot send message');
     }
+  };
+
+  const renderMessage = (msg: ChatMessage) => {
+    const isUserMessage = msg.sender === 'user';
+    
+    return (
+      <View
+        key={msg.id}
+        style={[
+          isUserMessage
+            ? chatMessagesStyles.messageSent
+            : chatMessagesStyles.messageReceived,
+          { marginVertical: 6 }
+        ]}
+      >
+        {!isUserMessage && (
+          <Text style={chatMessagesStyles.senderName}>
+            {msg.senderName || 'Unknown User'}
+          </Text>
+        )}
+        
+        <Text
+          style={
+            isUserMessage
+              ? chatMessagesStyles.messageTextSent
+              : chatMessagesStyles.messageText
+          }
+        >
+          {msg.text}
+        </Text>
+        
+        <Text
+          style={
+            isUserMessage
+              ? chatMessagesStyles.messageTimeSent
+              : chatMessagesStyles.messageTime
+          }
+        >
+          {msg.timestamp
+            ? (() => {
+                try {
+                  const d = new Date(msg.timestamp);
+                  if (isNaN(d.getTime())) return '';
+                  return d.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
+                } catch {
+                  return '';
+                }
+              })()
+            : ''}
+        </Text>
+      </View>
+    );
   };
 
   return (
@@ -202,48 +300,7 @@ const chatParams = (route?.params as ChatRouteParams) ?? {};
       </View>
 
       <ScrollView style={chatMessagesStyles.messagesContainer}>
-        {messages.map((msg: ChatMessage) => (
-          <View
-            key={msg.id}
-            style={
-              msg.sender === 'user'
-                ? chatMessagesStyles.messageSent
-                : chatMessagesStyles.messageReceived
-            }
-          >
-            <Text
-              style={
-                msg.sender === 'user'
-                  ? chatMessagesStyles.messageTextSent
-                  : chatMessagesStyles.messageText
-              }
-            >
-              {msg.text}
-            </Text>
-            <Text
-              style={
-                msg.sender === 'user'
-                  ? chatMessagesStyles.messageTimeSent
-                  : chatMessagesStyles.messageTime
-              }
-            >
-              {msg.timestamp
-                ? (() => {
-                    try {
-                      const d = new Date(msg.timestamp);
-                      if (isNaN(d.getTime())) return '';
-                      return d.toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      });
-                    } catch {
-                      return '';
-                    }
-                  })()
-                : ''}
-            </Text>
-          </View>
-        ))}
+        {messages.map(renderMessage)}
       </ScrollView>
 
       <View style={chatMessagesStyles.typingBarContainer}>

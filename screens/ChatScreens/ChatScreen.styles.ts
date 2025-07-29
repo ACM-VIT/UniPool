@@ -256,6 +256,14 @@ export const chatMessagesStyles = StyleSheet.create({
     padding: 8,
     borderRadius: 20,
   },
+    senderName: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
+    fontFamily: 'NunitoSans-SemiBold',
+    opacity: 0.9,
+  },
   infoMessage: {
     backgroundColor: AppColors.basicWhite,
     marginHorizontal: 16,
