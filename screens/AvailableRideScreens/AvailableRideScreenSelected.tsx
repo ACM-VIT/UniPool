@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import ChevronBack from '../../components/ChevronBack/ChevronBack';
 import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
 import BrandInfo from '../../components/BrandInfo/BrandInfo';
+import AppColors from '../../design_systems/colors';
 
 type RootStackParamList = {
   AvailableRideScreen: undefined;
@@ -94,7 +95,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
               <View style={styles.routeFrom}>
                 <Image 
                   source={require('../../assets/location-pin.png')} 
-                  style={[styles.locationIcon, { tintColor: '#ffffff' }]}
+                  style={[styles.locationIcon, { tintColor: AppColors.primaryLightGreen }]}
                   resizeMode="contain"
                 />
                 <Text style={styles.routeText}>{ride.from}</Text>
@@ -121,7 +122,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
               <View style={styles.seatsInfo}>
                 <Image 
                   source={require('../../assets/user-icon.png')} 
-                  style={[styles.locationIcon, { tintColor: '#ffffff' }]}
+                  style={[styles.locationIcon, { tintColor: AppColors.primaryLightGreen }]}
                   resizeMode="contain"
                 />
                 <Text style={styles.routeText}>{ride.seats}/2 seat available</Text>
@@ -200,15 +201,15 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: AppColors.primaryLightGreen,
   },
   header: {
-    backgroundColor: '#84cc16',
+    backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
   navigationRow: {
-    backgroundColor: '#84cc16',
+    backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 16,
     paddingBottom: 16,
     flexDirection: 'row',
@@ -229,15 +230,16 @@ const styles = StyleSheet.create({
     marginRight: 0,
   },
   createRideBtn: {
-    backgroundColor: '#111827',
+    backgroundColor: AppColors.basicBlack,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
   },
   createRideBtnText: {
-    color: '#ffffff',
+    color: AppColors.primaryLightGreen,
     fontSize: 14,
     fontWeight: '600',
+    fontFamily: 'NunitoSans_600SemiBold',
   },
   scrollContainer: {
     flex: 1,
@@ -245,26 +247,26 @@ const styles = StyleSheet.create({
   rideCard: {
     margin: 20,
     borderWidth: 2,
-    borderColor: '#e5e7eb',
+    borderColor: AppColors.secondaryDarkGreen,
     borderStyle: 'dashed',
     borderRadius: 16,
     padding: 20,
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
+    backgroundColor: AppColors.secondaryDarkGreen,
+    shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
   routeSection: {
-    backgroundColor: '#0f766e',
+    backgroundColor: AppColors.secondaryDarkGreen,
     padding: 20,
     borderRadius: 16,
     marginBottom: 16,
     position: 'relative',
     overflow: 'hidden',
     minHeight: 140,
-    shadowColor: '#000',
+    shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -288,9 +290,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   routeText: {
-    color: '#ffffff',
+    color: AppColors.primaryLightGreen,
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: 'NunitoSans_600SemiBold',
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
@@ -305,10 +308,10 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   dotOrange: {
-    backgroundColor: '#fb923c',
+    backgroundColor: AppColors.primaryLightGreen,
   },
   dotWhite: {
-    backgroundColor: '#ffffff',
+    backgroundColor: AppColors.basicWhite,
   },
   vehicleContainer: {
     position: 'absolute',
@@ -319,7 +322,7 @@ const styles = StyleSheet.create({
   vehicleImage: {
     width: 80,
     height: 60,
-    tintColor: '#fb923c', // Orange tint to match design
+    tintColor: AppColors.primaryLightGreen,
   },
   rideInfo: {
     flexDirection: 'row',
@@ -332,9 +335,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   priceText: {
-    color: '#ffffff',
+    color: AppColors.primaryLightGreen,
     fontSize: 18,
     fontWeight: 'bold',
+    fontFamily: 'NunitoSans_700Bold',
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
@@ -344,11 +348,13 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: 'NunitoSans_400Regular',
     marginBottom: 4,
   },
   boldText: {
     fontWeight: '600',
+    fontFamily: 'NunitoSans_600SemiBold',
   },
   dateTimeContainer: {
     flexDirection: 'row',
@@ -356,28 +362,28 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   dateBox: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    shadowColor: '#000',
+    shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
   },
   timeBox: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    shadowColor: '#000',
+    shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -386,7 +392,8 @@ const styles = StyleSheet.create({
   dateTimeText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
+    fontFamily: 'NunitoSans_600SemiBold',
+    color: AppColors.secondaryDarkGreen,
   },
   dateTimeIcon: {
     width: 16,
@@ -400,16 +407,17 @@ const styles = StyleSheet.create({
   tripLengthText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    fontFamily: 'NunitoSans_600SemiBold',
+    color: AppColors.secondaryDarkGreen,
     marginBottom: 16,
   },
   mapContainer: {
     height: 240,
-    backgroundColor: '#f8fafc',
+    backgroundColor: AppColors.basicWhite,
     borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#000',
+    shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -417,7 +425,7 @@ const styles = StyleSheet.create({
   },
   mapPlaceholder: {
     flex: 1,
-    backgroundColor: '#e0f2fe',
+    backgroundColor: AppColors.primaryLightGreen,
     position: 'relative',
   },
   mapMarker: {
@@ -429,20 +437,20 @@ const styles = StyleSheet.create({
   startMarker: {
     top: 16,
     left: 16,
-    backgroundColor: '#ef4444',
+    backgroundColor: AppColors.basicBlack,
   },
   endMarker: {
     bottom: 16,
     right: 16,
-    backgroundColor: '#3b82f6',
+    backgroundColor: AppColors.secondaryDarkGreen,
   },
   mapLabel: {
     position: 'absolute',
-    backgroundColor: '#ffffff',
+    backgroundColor: AppColors.basicWhite,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
-    shadowColor: '#000',
+    shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -458,13 +466,14 @@ const styles = StyleSheet.create({
   },
   mapLabelText: {
     fontSize: 10,
-    color: '#374151',
+    fontFamily: 'NunitoSans_400Regular',
+    color: AppColors.secondaryDarkGreen,
   },
   routeMarker: {
     position: 'absolute',
     width: 8,
     height: 8,
-    backgroundColor: '#2563eb',
+    backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 4,
   },
   routeMarker1: {
@@ -476,7 +485,7 @@ const styles = StyleSheet.create({
     right: '33%',
   },
   bottomContainer: {
-    backgroundColor: '#84cc16',
+    backgroundColor: AppColors.primaryLightGreen,
     padding: 20,
     paddingBottom: 32,
   },
