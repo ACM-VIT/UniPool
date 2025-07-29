@@ -194,12 +194,12 @@ export const tripInfoStyles = StyleSheet.create({
   },
   tripDestination: {
     color: AppColors.basicWhite,
-    fontSize: 16,
+    fontSize: 18,
     marginBottom: 4,
     fontFamily: 'NunitoSans-Regular',
   },
   tripDate: {
-    color: AppColors.basicWhite,
+    color: AppColors.primaryLightGreen,
     fontSize: 12,
     opacity: 0.7,
     fontFamily: 'NunitoSans-Regular',
@@ -352,10 +352,8 @@ export const chatMessagesStyles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   typingBarText: {
-    opacity: 0.5,
     color: AppColors.basicBlack,
     fontSize: 16,
-    fontWeight: '300',
     flex: 1,
     fontFamily: 'NunitoSans-Regular',
   },
