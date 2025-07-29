@@ -129,10 +129,7 @@ const App = () => {
     currentRouteName !== "AuthScreen" && 
     currentRouteName !== "SignUpScreen" && 
     currentRouteName !== "CreateRide" && 
-    currentRouteName !== "ChatConversationScreen" && 
-    currentRouteName !== "PassengerInfoScreen" && 
-    currentRouteName !== "TripsListScreen";
-
+    currentRouteName !== "ChatConversationScreen"
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ApiProvider navigationRef={navigationRef}>
@@ -265,7 +262,7 @@ const App = () => {
                   {/* Chat Screens */}
                   <Stack.Screen
                     name="PassengerInfoScreen"
-                    options={{ headerShown: false }}
+                    options={{ headerShown: false, animation: 'none' }}
                   >
                     {(props) => (
                       <PassengerInfoScreen
@@ -276,7 +273,7 @@ const App = () => {
                   </Stack.Screen>
                   <Stack.Screen
                     name="ChatConversationScreen"
-                    options={{ headerShown: false }}
+                    options={{ headerShown: false, animation: 'none' }}
                   >
                     {(props) => (
                       <ChatConversationScreen
@@ -287,7 +284,7 @@ const App = () => {
                   </Stack.Screen>
                   <Stack.Screen
                     name="TripsListScreen"  
-                    options={{ headerShown: false }}
+                    options={{ headerShown: false, animation: 'none' }}
                   >
                     {(props) => (
                       <TripsListScreen

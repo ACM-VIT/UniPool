@@ -2,7 +2,6 @@ import { StyleSheet } from 'react-native';
 import AppColors from '../../design_systems/colors';
 
 export const chatScreenStyles = StyleSheet.create({
-  // Common styles used across all chat screens
   container: {
     flex: 1,
     backgroundColor: AppColors.primaryLightGreen,
@@ -22,12 +21,14 @@ export const chatScreenStyles = StyleSheet.create({
     fontSize: 12,
     color: AppColors.basicBlack,
     marginLeft: 4,
+    fontFamily: 'NunitoSans-Regular',
   },
   instituteNumber: {
     fontSize: 10,
     color: AppColors.basicBlack,
     marginLeft: 4,
     marginTop: 1,
+    fontFamily: 'NunitoSans-Regular',
   },
   appName: {
     fontSize: 18,
@@ -40,18 +41,20 @@ export const chatScreenStyles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
+    marginTop: 48,
   },
   chatTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
     color: AppColors.basicBlack,
     marginLeft: 8,
+    fontFamily: 'NunitoSans-Regular',
   },
   chatSubtitleNumber: {
     fontSize: 14,
     color: AppColors.basicBlack,
     marginLeft: 8,
     marginTop: 2,
+    fontFamily: 'NunitoSans-Regular',
   },
   chatSubtitle: {
     fontSize: 12,
@@ -59,6 +62,7 @@ export const chatScreenStyles = StyleSheet.create({
     opacity: 0.7,
     marginLeft: 8,
     marginTop: 2,
+    fontFamily: 'NunitoSans-Regular',
   },
   bottomNav: {
     flexDirection: 'row',
@@ -78,30 +82,37 @@ export const passengerInfoStyles = StyleSheet.create({
   ...chatScreenStyles,
   toggleContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginVertical: 16,
+    paddingHorizontal: 0,
+    gap: 12,
   },
   toggleButtonActive: {
     backgroundColor: AppColors.secondaryDarkGreen,
     paddingHorizontal: 24,
     paddingVertical: 8,
     borderRadius: 20,
-    marginRight: 12,
+    borderWidth: 2,
+    borderColor: AppColors.secondaryDarkGreen,
   },
   toggleButtonInactive: {
-    backgroundColor: AppColors.basicWhite,
+    backgroundColor: 'transparent',
     paddingHorizontal: 24,
     paddingVertical: 8,
     borderRadius: 20,
-    opacity: 0.8,
+    borderWidth: 2,
+    borderColor: AppColors.secondaryDarkGreen,
   },
   toggleTextActive: {
-    color: AppColors.basicWhite,
+    color: AppColors.primaryLightGreen,
     fontWeight: '500',
+    fontFamily: 'NunitoSans-Regular',
   },
   toggleTextInactive: {
-    color: AppColors.basicBlack,
+    color: AppColors.secondaryDarkGreen,
     fontWeight: '500',
+    fontFamily: 'NunitoSans-Regular',
   },
   destinationsList: {
     flex: 1,
@@ -111,37 +122,14 @@ export const passengerInfoStyles = StyleSheet.create({
     backgroundColor: AppColors.secondaryDarkGreen,
     paddingVertical: 16,
     paddingHorizontal: 20,
-    borderRadius: 25,
+    borderRadius: 15,
     marginBottom: 12,
   },
   destinationText: {
     color: AppColors.basicWhite,
     fontSize: 16,
     fontWeight: '500',
-  },
-  // Custom Arrow Styles
-  arrowSquareLeft: {
-    width: 24,
-    height: 24,
-    position: 'relative',
-  },
-  arrowVector1: {
-    width: 18.6,
-    height: 17.2,
-    position: 'absolute',
-    left: 17.2,
-    top: 0,
-    backgroundColor: '#273B33',
-    transform: [{ rotate: '90deg' }],
-  },
-  arrowVector2: {
-    width: 9.3,
-    height: 7.0,
-    position: 'absolute',
-    left: 12.1,
-    top: 3.9,
-    backgroundColor: '#273B33',
-    transform: [{ rotate: '90deg' }],
+    fontFamily: 'NunitoSans-Regular',
   },
 });
 
@@ -149,34 +137,41 @@ export const tripInfoStyles = StyleSheet.create({
   ...chatScreenStyles,
   chatHeader: {
     ...chatScreenStyles.chatHeader,
-    paddingVertical: 8,
+    marginTop: 48,
   },
   toggleContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginVertical: 16,
+    paddingHorizontal: 0,
+    gap: 12,
   },
   toggleButtonActive: {
     backgroundColor: AppColors.secondaryDarkGreen,
     paddingHorizontal: 24,
     paddingVertical: 8,
     borderRadius: 20,
-    marginRight: 12,
+    borderWidth: 2,
+    borderColor: AppColors.secondaryDarkGreen,
   },
   toggleButtonInactive: {
-    backgroundColor: AppColors.basicWhite,
+    backgroundColor: 'transparent',
     paddingHorizontal: 24,
     paddingVertical: 8,
     borderRadius: 20,
-    opacity: 0.8,
+    borderWidth: 2,
+    borderColor: AppColors.secondaryDarkGreen,
   },
   toggleTextActive: {
-    color: AppColors.basicWhite,
+    color: AppColors.primaryLightGreen,
     fontWeight: '500',
+    fontFamily: 'NunitoSans-Regular',
   },
   toggleTextInactive: {
-    color: AppColors.basicBlack,
+    color: AppColors.secondaryDarkGreen,
     fontWeight: '500',
+    fontFamily: 'NunitoSans-Regular',
   },
   tripsList: {
     flex: 1,
@@ -184,9 +179,10 @@ export const tripInfoStyles = StyleSheet.create({
   },
   tripItem: {
     backgroundColor: AppColors.secondaryDarkGreen,
-    borderRadius: 15,
+    borderRadius: 20,
     marginBottom: 12,
     padding: 16,
+    marginTop: 5  ,
   },
   tripContent: {
     flexDirection: 'row',
@@ -199,13 +195,14 @@ export const tripInfoStyles = StyleSheet.create({
   tripDestination: {
     color: AppColors.basicWhite,
     fontSize: 16,
-    fontWeight: 'bold',
     marginBottom: 4,
+    fontFamily: 'NunitoSans-Regular',
   },
   tripDate: {
     color: AppColors.basicWhite,
     fontSize: 12,
     opacity: 0.7,
+    fontFamily: 'NunitoSans-Regular',
   },
   tripDetails: {
     alignItems: 'flex-end',
@@ -213,46 +210,22 @@ export const tripInfoStyles = StyleSheet.create({
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
     marginBottom: 4,
   },
   tripPrice: {
-    color: AppColors.basicBlack,
+    color: AppColors.basicWhite,
     fontSize: 12,
-    fontWeight: 'bold',
     marginLeft: 4,
+    fontFamily: 'NunitoSans-Regular',
   },
   tripParticipants: {
     color: AppColors.basicWhite,
     fontSize: 10,
     opacity: 0.7,
-  },
-  // Custom Arrow Styles
-  arrowSquareLeft: {
-    width: 24,
-    height: 24,
-    position: 'relative',
-  },
-  arrowVector1: {
-    width: 18.6,
-    height: 17.2,
-    position: 'absolute',
-    left: 17.2,
-    top: 0,
-    backgroundColor: '#273B33',
-    transform: [{ rotate: '90deg' }],
-  },
-  arrowVector2: {
-    width: 9.3,
-    height: 7.0,
-    position: 'absolute',
-    left: 12.1,
-    top: 3.9,
-    backgroundColor: '#273B33',
-    transform: [{ rotate: '90deg' }],
+    fontFamily: 'NunitoSans-Regular',
   },
 });
 
@@ -268,14 +241,15 @@ export const chatMessagesStyles = StyleSheet.create({
   },
   chatTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
     color: AppColors.basicBlack,
+    fontFamily: 'NunitoSans-Regular',
   },
   chatSubtitle: {
     fontSize: 12,
     color: AppColors.basicBlack,
     opacity: 0.7,
     marginTop: 2,
+    fontFamily: 'NunitoSans-Regular',
   },
   carIcon: {
     backgroundColor: AppColors.basicWhite,
@@ -294,6 +268,7 @@ export const chatMessagesStyles = StyleSheet.create({
     fontSize: 12,
     color: AppColors.basicBlack,
     textAlign: 'center',
+    fontFamily: 'NunitoSans-Regular',
   },
   messagesContainer: {
     flex: 1,
@@ -319,11 +294,13 @@ export const chatMessagesStyles = StyleSheet.create({
     color: AppColors.basicWhite,
     fontSize: 14,
     lineHeight: 18,
+    fontFamily: 'NunitoSans-Regular',
   },
   messageTextSent: {
     color: AppColors.basicBlack,
     fontSize: 14,
     lineHeight: 18,
+    fontFamily: 'NunitoSans-Regular',
   },
   messageTime: {
     color: AppColors.basicWhite,
@@ -331,6 +308,7 @@ export const chatMessagesStyles = StyleSheet.create({
     marginTop: 4,
     alignSelf: 'flex-end',
     opacity: 0.7,
+    fontFamily: 'NunitoSans-Regular',
   },
   messageTimeSent: {
     color: AppColors.basicBlack,
@@ -338,6 +316,7 @@ export const chatMessagesStyles = StyleSheet.create({
     marginTop: 4,
     alignSelf: 'flex-end',
     opacity: 0.7,
+    fontFamily: 'NunitoSans-Regular',
   },
   inputContainer: {
     flexDirection: 'row',
@@ -363,7 +342,7 @@ export const chatMessagesStyles = StyleSheet.create({
     paddingHorizontal: 26,
     paddingVertical: 10,
     marginHorizontal: 16,
-    marginBottom: 16, // Remove extra space since no main nav bar
+    marginBottom: 16,
     borderRadius: 44,
     borderWidth: 2.28,
     borderColor: AppColors.secondaryDarkGreen,
@@ -378,6 +357,7 @@ export const chatMessagesStyles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '300',
     flex: 1,
+    fontFamily: 'NunitoSans-Regular',
   },
   typingBarIconContainer: {
     width: 35,

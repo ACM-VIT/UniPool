@@ -6,19 +6,21 @@ import {
   SafeAreaView,
   StatusBar,
   ScrollView,
+  Image,
+  Platform,
 } from 'react-native';
-import { MapPin, MessageCircle, Home, Calendar, Folder, User, Wallet } from 'lucide-react-native';
 import { tripInfoStyles } from './ChatScreen.styles';
 import { TripInfoScreenProps, Trip } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
+import BrandInfo from '../../components/BrandInfo';
 
 const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, setNavBarVariant }) => {
-  // Hide navbar when this screen mounts
   useEffect(() => {
     if (setNavBarVariant) {
       setNavBarVariant(0);
     }
   }, [setNavBarVariant]);
+  
   const trips: Trip[] = [
     {
       id: 1,
@@ -60,23 +62,22 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
   return (
     <SafeAreaView style={tripInfoStyles.container}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
-      
-      {/* Header */}
-      <View style={tripInfoStyles.header}>
-        <View style={tripInfoStyles.headerLeft}>
-          <MapPin size={20} color="#FF5722" />
-          <Text style={tripInfoStyles.instituteName}>Vellore Institute of Technology</Text>
-        </View>
-        <Text style={tripInfoStyles.appName}>UniPool</Text>
+                  <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+        }}
+      >
+        <BrandInfo />
       </View>
 
-      {/* Chat Title */}
       <View style={tripInfoStyles.chatHeader}>
-        <MessageCircle size={24} color="#333" />
         <Text style={tripInfoStyles.chatTitle}>Chat</Text>
       </View>
 
-      {/* Toggle Buttons */}
       <View style={tripInfoStyles.toggleContainer}>
         <TouchableOpacity style={tripInfoStyles.toggleButtonActive}>
           <Text style={tripInfoStyles.toggleTextActive}>Trips</Text>
@@ -89,7 +90,6 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
         </TouchableOpacity>
       </View>
 
-      {/* Trips List */}
       <ScrollView style={tripInfoStyles.tripsList}>
         {trips.map((trip) => (
           <TouchableOpacity 
@@ -110,7 +110,10 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
               </View>
               <View style={tripInfoStyles.tripDetails}>
                 <View style={tripInfoStyles.priceContainer}>
-                  <Wallet size={16} color={AppColors.basicBlack} />
+                  <Image
+                    source={require('../../assets/wallet.png')}
+                    style={{ width: 16, height: 16, marginRight: 4, resizeMode: 'contain' }}
+                  />
                   <Text style={tripInfoStyles.tripPrice}>{trip.price}</Text>
                 </View>
                 <Text style={tripInfoStyles.tripParticipants}>{trip.participants}</Text>
@@ -119,22 +122,6 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
           </TouchableOpacity>
         ))}
       </ScrollView>
-
-      {/* Bottom Navigation */}
-      <View style={tripInfoStyles.bottomNav}>
-        <TouchableOpacity style={tripInfoStyles.navItem}>
-          <Home size={24} color="#8BC34A" />
-        </TouchableOpacity>
-        <TouchableOpacity style={tripInfoStyles.navItem}>
-          <Calendar size={24} color="#8BC34A" />
-        </TouchableOpacity>
-        <TouchableOpacity style={tripInfoStyles.navItem}>
-          <Folder size={24} color="#8BC34A" />
-        </TouchableOpacity>
-        <TouchableOpacity style={tripInfoStyles.navItem}>
-          <User size={24} color="#8BC34A" />
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 };
