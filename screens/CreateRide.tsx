@@ -1,5 +1,4 @@
-import { useState, useRef } from "react";
-
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -14,7 +13,6 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import AppColors from "../design_systems/colors";
 import RideDetailsSelector from "../components/RideDetailsSelector";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import SlideToCreate from "../components/SlideToCreate";
 import { useApi } from "../utils/ApiUtil";
 
@@ -37,37 +35,41 @@ interface CreateRideResponse {
 const CreateRide: React.FC = () => {
   const navigation = useNavigation();
   const { apiUtil } = useApi();
-  const [time, setTime] = useState(new Date());
-  const [mode, setMode] = useState<"time">("time");
-  const [show, setShow] = useState(false);
-  const [passengerCount, setPassengerCount] = useState(3);
-  const [fromLocation, setFromLocation] = useState("");
-  const [toLocation, setToLocation] = useState("");
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [isCreating, setIsCreating] = useState(false);
-  const [costPerPerson, setCostPerPerson] = useState(100);
-  const [isEditingCost, setIsEditingCost] = useState(false);
-  const [customCost, setCustomCost] = useState("");
+
+  // This now holds the full Date+Time from your selector
+  const [rideDateTime, setRideDateTime] = useState<Date>(new Date());
+  const [passengerCount, setPassengerCount] = useState<number>(3);
+  const [fromLocation, setFromLocation] = useState<string>("");
+  const [toLocation, setToLocation] = useState<string>("");
+  const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [costPerPerson, setCostPerPerson] = useState<number>(100);
+  const [isEditingCost, setIsEditingCost] = useState<boolean>(false);
+  const [customCost, setCustomCost] = useState<string>("");
   const costInputRef = useRef<TextInput>(null);
+
+  const handleRideSubmit = (details: {
+    from: string;
+    to: string;
+    date: Date;
+  }) => {
+    console.log("Submitted ride details:", details);
+    setFromLocation(details.from);
+    setToLocation(details.to);
+    setRideDateTime(details.date);
+  };
 
   const handleCreateRide = async () => {
     if (!fromLocation || !toLocation) {
       Alert.alert("Missing Information", "Please select both from and to locations");
       return;
     }
-
     if (fromLocation === toLocation) {
       Alert.alert("Invalid Route", "From and To locations cannot be the same");
       return;
     }
 
     setIsCreating(true);
-    
     try {
-      const rideDateTime = new Date(selectedDate);
-      rideDateTime.setHours(time.getHours());
-      rideDateTime.setMinutes(time.getMinutes());
-
       const rideData = {
         start_location: fromLocation,
         end_location: toLocation,
@@ -78,161 +80,89 @@ const CreateRide: React.FC = () => {
         is_ongoing: 0,
         is_same_gender: 0,
       };
-
       console.log("Creating ride with data:", rideData);
 
-      // Send POST request to backend
-      const response = await apiUtil.post<CreateRideResponse, typeof rideData>("/ride/create", rideData);
-      
+      const response = await apiUtil.post<CreateRideResponse, typeof rideData>(
+        "/ride/create",
+        rideData
+      );
       console.log("Ride created successfully:", response);
-      
-      // Navigate to RideCreatedScreen
       navigation.navigate("RideCreatedScreen" as never);
-      
     } catch (error: any) {
       console.error("Error creating ride:", error);
       let errorMessage = "Failed to create ride. Please try again.";
-
-      if (error && typeof error === "object") {
-        if (error.response && typeof error.response === "object") {
-          if (typeof error.response.data === "string") {
-            try {
-              const parsed = JSON.parse(error.response.data);
-              if (parsed && parsed.error) {
-                errorMessage = parsed.error;
-              }
-            } catch {}
-          } else if (error.response.data && error.response.data.error) {
-            errorMessage = error.response.data.error;
-          }
-        } else if (error.error && typeof error.error === "string") {
-          errorMessage = error.error;
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
+      if (error.response?.data) {
+        const d = error.response.data;
+        errorMessage =
+          typeof d === "string"
+            ? JSON.parse(d).error ?? d
+            : d.error ?? errorMessage;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
-
       Alert.alert("Error", errorMessage);
     } finally {
       setIsCreating(false);
     }
   };
 
-  const onChange = (event: any, selectedTime?: Date) => {
-    if (selectedTime) {
-      setTime(selectedTime);
-      const updatedDate = new Date(selectedDate);
-      updatedDate.setHours(selectedTime.getHours());
-      updatedDate.setMinutes(selectedTime.getMinutes());
-      updatedDate.setSeconds(selectedTime.getSeconds());
-      setSelectedDate(updatedDate);
-    }
-    setShow(false);
-  };
+  const increasePassengers = () =>
+    passengerCount < 20 && setPassengerCount((p) => p + 1);
+  const decreasePassengers = () =>
+    passengerCount > 1 && setPassengerCount((p) => p - 1);
 
-  const showTimepicker = () => {
-    setShow(true);
-    setMode("time");
-  };
-
-  const handleRideSubmit = (details: {
-    from: string;
-    to: string;
-    date: Date;
-  }) => {
-    console.log("Submitted ride details:", details);
-    setFromLocation(details.from);
-    setToLocation(details.to);
-    setSelectedDate(details.date);
-  };
-
-  const increasePassengers = () => {
-    if (passengerCount < 20) {
-      setPassengerCount((prev) => prev + 1);
-    }
-  };
-
-  const decreasePassengers = () => {
-    if (passengerCount > 1) {
-      setPassengerCount((prev) => prev - 1);
-    }
-  };
-
-
-  const increaseCost = () => {
-    if (costPerPerson < 10000) {
-      setCostPerPerson((prev) => prev + 25);
-    }
-  };
-
-  const decreaseCost = () => {
-    if (costPerPerson > 25) {
-      setCostPerPerson((prev) => prev - 25);
-    }
-  };
+  const increaseCost = () =>
+    costPerPerson < 10000 && setCostPerPerson((c) => c + 25);
+  const decreaseCost = () =>
+    costPerPerson > 25 && setCostPerPerson((c) => c - 25);
 
   const handleCostPress = () => {
     setCustomCost(costPerPerson.toString());
     setIsEditingCost(true);
-    setTimeout(() => {
-      costInputRef.current?.focus();
-    }, 100);
+    setTimeout(() => costInputRef.current?.focus(), 100);
   };
-
-  const handleCostChange = (text: string) => {
-    if (/^\d*$/.test(text)) {
-      setCustomCost(text);
-    }
-  };
-
+  const handleCostChange = (text: string) =>
+    /^\d*$/.test(text) && setCustomCost(text);
   const handleCostSubmit = () => {
-    let value = parseInt(customCost, 10);
-    if (isNaN(value)) value = costPerPerson;
-    if (value < 25) value = 25;
-    if (value > 10000) value = 10000;
-    setCostPerPerson(value);
+    let v = parseInt(customCost, 10);
+    if (isNaN(v)) v = costPerPerson;
+    v = Math.min(10000, Math.max(25, v));
+    setCostPerPerson(v);
     setIsEditingCost(false);
   };
 
+  // Vehicle image chooser
   const getPassengerImage = () => {
-    if (passengerCount == 1 || passengerCount == 2) {
-      return require("../assets/motorcycle.png");
-    } else if (passengerCount == 3) {
-      return require("../assets/Taxi.png");
-    } else if (passengerCount == 4) {
-      return require("../assets/racer.png");
-    } else if (passengerCount > 4 && passengerCount < 8) {
-      return require("../assets/wagon.png");
-    } else if (passengerCount >= 8 && passengerCount < 11) {
-      return require("../assets/foodvan.png");
-    } else if (passengerCount >= 11 && passengerCount < 20) {
-      return require("../assets/Bus.png");
-    } else if (passengerCount == 20) {
-      return require("../assets/UFO.png");
-    }
+    if (passengerCount < 3) return require("../assets/motorcycle.png");
+    if (passengerCount === 3) return require("../assets/Taxi.png");
+    if (passengerCount === 4) return require("../assets/racer.png");
+    if (passengerCount < 8) return require("../assets/wagon.png");
+    if (passengerCount < 11) return require("../assets/foodvan.png");
+    if (passengerCount < 20) return require("../assets/Bus.png");
+    return require("../assets/UFO.png");
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
+        <TouchableOpacity
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Image 
-            source={require("../assets/arrow-square-left.png")} 
-            style={styles.backIcon} 
+          <Image
+            source={require("../assets/arrow-square-left.png")}
+            style={styles.backIcon}
           />
         </TouchableOpacity>
-        
       </View>
-      
+
       <View style={styles.mainContent}>
         <Text style={styles.title}>Create a Ride</Text>
 
+        {/* ← Your built‑in selector handles both date & time */}
         <View style={styles.section}>
-          <RideDetailsSelector 
-            onSubmit={handleRideSubmit} 
+          <RideDetailsSelector
+            onSubmit={handleRideSubmit}
             onLocationSelectionChange={() => {}}
             fromLocation={fromLocation}
             toLocation={toLocation}
@@ -301,16 +231,19 @@ const CreateRide: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        <Image style={styles.passengerImage} source={getPassengerImage()} />
+        <Image
+          style={styles.passengerImage}
+          source={getPassengerImage()}
+        />
 
-            <SlideToCreate
-              onSlideComplete={handleCreateRide}
-              isLoading={isCreating}
-              text="Slide to create ride"
-              loadingText="Creating ride..."
-              sliderIcon={require("../assets/slide.png")}
-              emojiIcon={require("../assets/happy-emoji.png")}
-            />
+        <SlideToCreate
+          onSlideComplete={handleCreateRide}
+          isLoading={isCreating}
+          text="Slide to create ride"
+          loadingText="Creating ride..."
+          sliderIcon={require("../assets/slide.png")}
+          emojiIcon={require("../assets/happy-emoji.png")}
+        />
       </View>
     </SafeAreaView>
   );
@@ -336,14 +269,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     tintColor: AppColors.basicBlack,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "right",
-    fontSize: 24,
-    fontWeight: "600",
-    color: AppColors.basicBlack,
-    fontFamily: "NunitoSans_600SemiBold",
   },
   mainContent: {
     flex: 1,
@@ -419,34 +344,11 @@ const styles = StyleSheet.create({
     fontSize: 35,
     fontWeight: "bold",
     fontFamily: "NunitoSans_700Bold",
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     padding: 0,
     margin: 0,
     width: 80,
-    textAlign: 'center',
-  },
-  buttonTime: {
-    backgroundColor: AppColors.basicBlack,
-    width: "100%",
-    paddingVertical: 6,
-    borderRadius: 15,
-    alignItems: "center",
-    alignSelf: "center",
-  },
-  timeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  timeText: {
-    color: AppColors.basicWhite,
-    fontSize: 40,
-    fontWeight: "bold",
-    fontFamily: "NunitoSans_500Regular",
-  },
-  timeColon: {
-    color: AppColors.primaryLightGreen,
-    fontSize: 40,
-    fontFamily: "NunitoSans_600SemiBold",
+    textAlign: "center",
   },
   counterContainer: {
     flexDirection: "row",
