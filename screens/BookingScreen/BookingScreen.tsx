@@ -85,8 +85,8 @@ const BookingScreen: React.FC = () => {
             }
           });
         }
-        console.log("Upcoming Rides:", upcoming);
-        console.log("In-Progress Rides:", inProgress);
+        // console.log("Upcoming Rides:", upcoming);
+        // console.log("In-Progress Rides:", inProgress);
         setUpcomingRides(upcoming);
         setInProgressRides(inProgress);
       } catch (err: any) {
@@ -109,7 +109,6 @@ const BookingScreen: React.FC = () => {
           left: 0,
           right: 0,
           zIndex: 10,
-          paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
           backgroundColor: AppColors.primaryLightGreen,
         }}
       >
