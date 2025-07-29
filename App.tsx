@@ -22,6 +22,7 @@ import BookingsScreen from "./screens/BookingsScreen";
 import PersonalInformationScreen from "./screens/PersonalInformationScreen";
 import PassengersHistoryScreen from "./screens/PassengersHistoryScreen";
 import AccountSettingsScreen from "./screens/AccountSettingsScreen";
+import AvailableRideScreenSelected from "./screens/AvailableRideScreens/AvailableRideScreenSelected";
 
 // Chat Screens
 import { PassengerInfoScreen, ChatConversationScreen, TripsListScreen } from "./screens/ChatScreens";
@@ -129,6 +130,7 @@ const App = () => {
     currentRouteName !== "AuthScreen" && 
     currentRouteName !== "SignUpScreen" && 
     currentRouteName !== "CreateRide" && 
+    currentRouteName !== "AvailableRidesSelectedScreen" &&
     currentRouteName !== "ChatConversationScreen"
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
