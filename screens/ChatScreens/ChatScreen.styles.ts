@@ -352,10 +352,8 @@ export const chatMessagesStyles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   typingBarText: {
-    opacity: 0.5,
     color: AppColors.basicBlack,
     fontSize: 16,
-    fontWeight: '300',
     flex: 1,
     fontFamily: 'NunitoSans-Regular',
   },

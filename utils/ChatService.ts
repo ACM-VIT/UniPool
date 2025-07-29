@@ -1,5 +1,6 @@
 import { ChatMessage } from "../screens/ChatScreens/ChatScreen.types";
 import ApiUtil from "./ApiUtil";
+import baseURL from "../config/urlconfig";
 
 export default class ChatService {
   static async fetchMessages(apiUtil: ApiUtil, rideId: string): Promise<ChatMessage[]> {
@@ -20,9 +21,17 @@ export default class ChatService {
     roomId: string,
     onMessage: (evt: MessageEvent) => void,
   ): WebSocket {
-    const wsUrl = `${process.env.EXPO_PUBLIC_WS_URL || "ws://localhost:3000"}/ws?user_id=${userId}&room_id=${roomId}`;
-    const ws = new WebSocket(wsUrl);
+    const httpBase = baseURL.replace(/\/$/, "");
+    const derivedWsBase = httpBase.replace(/^http/,'ws');
+    const wsUrl = `${process.env.EXPO_PUBLIC_WS_URL || derivedWsBase}/ws?user_id=${userId}&room_id=${roomId}`;
+        const ws = new WebSocket(wsUrl);
     ws.onmessage = onMessage;
+    ws.onerror = (e) => {
+        console.error('[WebSocket] error', e);
+    };
+    ws.onclose = (e) => {
+        console.warn('[WebSocket] closed', e.code, e.reason);
+    };
     return ws;
   }
 }
