@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, StyleSheet, Dimensions, ActivityIndicator } from "react-native";
 import PreviousTripsCompressed from "../components/PreviousTripsCompressed";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/RootStackParamList';
 import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
 
@@ -18,7 +21,9 @@ interface UserRideData {
     passenger_id?: string;
 }
 
+type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'HomeScreen'>;
 const PreviousTripsSection: React.FC = () => {
+    const navigation = useNavigation<NavigationProp>();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [rideData, setRideData] = useState<UserRideData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -167,7 +172,10 @@ const PreviousTripsSection: React.FC = () => {
                                     { width: screenWidth - 32 },
                                 ]}
                             >
-                                <PreviousTripsCompressed trip={trip} />
+                                <PreviousTripsCompressed
+                                    trip={trip}
+                                    onPress={() => navigation.navigate('RideDetailsScreen', { ride: trip })}
+                                />
                             </View>
                         ))}
                     </ScrollView>
