@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
+  Animated,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AppColors from "../design_systems/colors";
@@ -46,6 +47,12 @@ const CreateRide: React.FC = () => {
   const [isEditingCost, setIsEditingCost] = useState<boolean>(false);
   const [customCost, setCustomCost] = useState<string>("");
   const costInputRef = useRef<TextInput>(null);
+
+  // Animation states
+  const [currentVehicleImage, setCurrentVehicleImage] = useState(require("../assets/Taxi.png"));
+  const slideAnimation = useRef(new Animated.Value(0)).current;
+  const counterAnimation = useRef(new Animated.Value(0)).current;
+  const [isAnimating, setIsAnimating] = useState(false);
 
   const handleRideSubmit = (details: {
     from: string;
@@ -106,10 +113,80 @@ const CreateRide: React.FC = () => {
     }
   };
 
-  const increasePassengers = () =>
-    passengerCount < 20 && setPassengerCount((p) => p + 1);
-  const decreasePassengers = () =>
-    passengerCount > 1 && setPassengerCount((p) => p - 1);
+  // Vehicle image chooser
+  const getPassengerImage = (count?: number) => {
+    const currentCount = count !== undefined ? count : passengerCount;
+    if (currentCount < 3) return require("../assets/motorcycle.png");
+    if (currentCount === 3) return require("../assets/Taxi.png");
+    if (currentCount === 4) return require("../assets/racer.png");
+    if (currentCount < 8) return require("../assets/wagon.png");
+    if (currentCount < 11) return require("../assets/foodvan.png");
+    if (currentCount < 20) return require("../assets/Bus.png");
+    return require("../assets/UFO.png");
+  };
+
+  const animateVehicleChange = (newCount: number) => {
+    if (isAnimating) return;
+    
+    const newVehicleImage = getPassengerImage(newCount);
+
+    if (newVehicleImage !== currentVehicleImage) {
+      setIsAnimating(true);
+
+      Animated.timing(slideAnimation, {
+        toValue: -width,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+
+        setCurrentVehicleImage(newVehicleImage);
+
+        slideAnimation.setValue(width);
+
+        Animated.timing(slideAnimation, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          setIsAnimating(false);
+        });
+      });
+    }
+
+    counterAnimation.setValue(0);
+    Animated.sequence([
+      Animated.timing(counterAnimation, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(counterAnimation, {
+        toValue: 0,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  useEffect(() => {
+    setCurrentVehicleImage(getPassengerImage(3));
+  }, []);
+
+  const increasePassengers = () => {
+    if (passengerCount < 20) {
+      const newCount = passengerCount + 1;
+      setPassengerCount(newCount);
+      animateVehicleChange(newCount);
+    }
+  };
+
+  const decreasePassengers = () => {
+    if (passengerCount > 1) {
+      const newCount = passengerCount - 1;
+      setPassengerCount(newCount);
+      animateVehicleChange(newCount);
+    }
+  };
 
   const increaseCost = () =>
     costPerPerson < 10000 && setCostPerPerson((c) => c + 25);
@@ -129,17 +206,6 @@ const CreateRide: React.FC = () => {
     v = Math.min(10000, Math.max(25, v));
     setCostPerPerson(v);
     setIsEditingCost(false);
-  };
-
-  // Vehicle image chooser
-  const getPassengerImage = () => {
-    if (passengerCount < 3) return require("../assets/motorcycle.png");
-    if (passengerCount === 3) return require("../assets/Taxi.png");
-    if (passengerCount === 4) return require("../assets/racer.png");
-    if (passengerCount < 8) return require("../assets/wagon.png");
-    if (passengerCount < 11) return require("../assets/foodvan.png");
-    if (passengerCount < 20) return require("../assets/Bus.png");
-    return require("../assets/UFO.png");
   };
 
   return (
@@ -231,10 +297,25 @@ const CreateRide: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        <Image
-          style={styles.passengerImage}
-          source={getPassengerImage()}
-        />
+        <Animated.View
+          style={[
+            styles.vehicleImageContainer,
+            {
+              transform: [
+                { translateX: slideAnimation },
+                { scale: counterAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.1]
+                })}
+              ]
+            }
+          ]}
+        >
+          <Image
+            style={styles.passengerImage}
+            source={currentVehicleImage}
+          />
+        </Animated.View>
 
         <SlideToCreate
           onSlideComplete={handleCreateRide}
@@ -387,6 +468,10 @@ const styles = StyleSheet.create({
     height: 170,
     alignSelf: "center",
     resizeMode: "contain",
+  },
+  vehicleImageContainer: {
+    alignSelf: "center",
+    overflow: "hidden",
   },
 });
 
