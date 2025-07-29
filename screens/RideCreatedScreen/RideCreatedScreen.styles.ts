@@ -9,14 +9,12 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.primaryLightGreen,
     justifyContent: "center",
     alignItems: "center",
-    width: "100%",
   },
   create: {
-    width: screenWidth * 0.4,
-    height: screenHeight * 0.3,
-    position: "absolute",
-    top: screenHeight * 0.37,
-    left: screenWidth * 0.315,
+    width: screenWidth * 0.5,
+    height: screenHeight * 0.35,
+    justifyContent: "center", 
+    alignItems: "center",
   },
   navBarView: {
     width: "100%",

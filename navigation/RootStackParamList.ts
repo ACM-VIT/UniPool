@@ -17,4 +17,5 @@ export type RootStackParamList = {
   AvailableRidesSelectedScreen: undefined;
   DefaultAddressScreen: undefined;
   AccountSettingsScreen: undefined;
+  RideDetailsScreen: { ride: any };
 };
