@@ -41,10 +41,12 @@ interface MainNavBarProps {
   showSwitchIcon?: boolean;
 }
 
-const ROUTE_MAP: Record<string, string> = {
+type RouteMapValue = string | string[];
+
+const ROUTE_MAP: Record<string, RouteMapValue> = {
   home: "HomeScreen",
   trips: "BookingScreen",
-  chat: "PassengerInfoScreen",
+  chat: ["PassengerInfoScreen", "TripsListScreen"],
   profile: "ProfileScreen",
 };
 
@@ -61,22 +63,27 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
   const navigation = useNavigation();
   const navState = useNavigationState((s) => s);
   const fromState = getActiveRouteName(navState);
-
   const activeRouteName = (fromState || DEFAULT_ACTIVE_SCREEN).toLowerCase();
 
   const handleNavigation = (routeKey: string) => {
-    const screenName = ROUTE_MAP[routeKey] ?? routeKey;
-    if (!screenName) return;
-    navigation.navigate(screenName as never);
+    const mapping = ROUTE_MAP[routeKey] ?? routeKey;
+    if (Array.isArray(mapping)) {
+      mapping.forEach((screen) => {
+        navigation.navigate(screen as never);
+      });
+    } else {
+      navigation.navigate(mapping as never);
+    }
   };
 
   return (
     <View style={styles.bottomNavContainer}>
       {items.map((item, index) => {
-        const screenName = (ROUTE_MAP[item.route] ?? item.route) || "";
-        const isActive =
-          screenName &&
-          activeRouteName === screenName.toLowerCase();
+        const mapping = ROUTE_MAP[item.route] ?? item.route;
+        const screenNames = Array.isArray(mapping) ? mapping : [mapping];
+        const isActive = screenNames.some(
+          (name) => activeRouteName === name.toLowerCase()
+        );
 
         return (
           <TouchableOpacity
@@ -152,9 +159,11 @@ const MainNavBar: React.FC<MainNavBarProps> = ({
   onPress = () => {},
   showSwitchIcon = false,
 }) => {
-  const effectiveOnPress = (variant === 1 && typeof (window as any).mainNavBarOnPress === "function")
-    ? (window as any).mainNavBarOnPress
-    : onPress;
+  const effectiveOnPress =
+    variant === 1 && typeof (window as any).mainNavBarOnPress === "function"
+      ? (window as any).mainNavBarOnPress
+      : onPress;
+
   switch (variant) {
     case 0:
       return <BottomNav items={bottomNavItems} />;
