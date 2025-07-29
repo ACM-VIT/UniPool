@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -6,33 +6,45 @@ import {
   SafeAreaView,
   StatusBar,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { passengerInfoStyles } from './ChatScreen.styles';
-import { PassengerInfoScreenProps, PassengerDestination } from './ChatScreen.types';
+import { PassengerInfoScreenProps, User } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
 import BrandInfo from '../../components/BrandInfo';
+import { useApi } from '../../utils/ApiUtil';
+import RideService from '../../utils/RideService';
 
 const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, route, setNavBarVariant }) => {
+  const [passengers, setPassengers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { apiUtil } = useApi();
+
   useEffect(() => {
     if (setNavBarVariant) {
       setNavBarVariant(0);
     }
   }, [setNavBarVariant]);
 
-  const destinations: PassengerDestination[] = [
-    { id: '1', name: 'Bhallaldeva' },
-    { id: '2', name: 'Kattapa' },
-    { id: '3', name: 'Sivagami' },
-    { id: '4', name: 'Bijjaladeva' },
-    { id: '5', name: 'Devasena' },
-    { id: '6', name: 'Devasena' },
-    { id: '7', name: 'Devasena' },
-  ];
+  useEffect(() => {
+    const fetchPassengers = async () => {
+      try {
+        const fetchedPassengers = await RideService.getAllPassengers(apiUtil);
+        setPassengers(fetchedPassengers);
+      } catch (error) {
+        console.error("Failed to fetch passengers:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPassengers();
+  }, [apiUtil]);
 
   return (
     <SafeAreaView style={passengerInfoStyles.container}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
-            <View
+      <View
         style={{
           position: "absolute",
           top: 0,
@@ -60,22 +72,26 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
         </TouchableOpacity>
       </View>
 
-      <View style={passengerInfoStyles.destinationsList}>
-        {destinations.map((destination) => (
-          <TouchableOpacity 
-            key={destination.id} 
-            style={passengerInfoStyles.destinationItem}
-            onPress={() => navigation?.navigate('ChatConversationScreen' as never, {
-              chatId: destination.id,
-              chatTitle: `Chat with ${destination.name}`,
-              chatSubtitle: `Destination: ${destination.name}`,
-              messages: []
-            })}
-          >
-            <Text style={passengerInfoStyles.destinationText}>{destination.name}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {loading ? (
+        <ActivityIndicator size="large" color={AppColors.primaryLightGreen} />
+      ) : (
+        <View style={passengerInfoStyles.destinationsList}>
+          {passengers.map((passenger) => (
+            <TouchableOpacity 
+              key={passenger.id} 
+              style={passengerInfoStyles.destinationItem}
+              onPress={() => navigation?.navigate('ChatMessages' as never, {
+                chatId: passenger.id,
+                chatTitle: `Chat with ${passenger.name}`,
+                chatSubtitle: ``,
+                isGroupChat: false,
+              })}
+            >
+              <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </SafeAreaView>
   );
 };
