@@ -11,13 +11,11 @@ import {
   TextStyle,
   ViewStyle,
 } from "react-native";
-import {
-  MapPin,
-  Navigation,
-  Clock,
-  CreditCard,
-  Users,
-} from "lucide-react-native";
+const locationPinIcon = require("../assets/location-pin.png");
+const navigationIcon = require("../assets/navigation-2.png");
+const clockIcon = require("../assets/clock.png");
+const walletIcon = require("../assets/wallet.png");
+const sofaIcon = require("../assets/sofa.png");
 import AppColors from "../design_systems/colors";
 
 const { width, height } = Dimensions.get("window");
@@ -77,11 +75,11 @@ const RideCard: React.FC<RideCardProps> = ({
       <View style={styles.topContainer}>
         <View style={styles.routeContainer}>
           <View style={styles.locationContainer}>
-            <MapPin
-              size={20}
-              color={isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen}
-              style={styles.icon}
-            />
+          <Image
+            source={locationPinIcon}
+            style={[styles.icon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 20, height: 20 }]}
+            resizeMode="contain"
+          />
             <Text style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}>
               {origin}
             </Text>
@@ -92,10 +90,10 @@ const RideCard: React.FC<RideCardProps> = ({
             <Image source={require("../assets/dotted_line.png")} style={styles.verticalLine} />
           )}
           <View style={styles.locationContainer}>
-            <Navigation
-              size={20}
-              color={isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen}
-              style={styles.icon}
+            <Image
+              source={navigationIcon}
+              style={[styles.icon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 20, height: 20 }]}
+              resizeMode="contain"
             />
             <Text style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}>
               {destination}
@@ -104,20 +102,20 @@ const RideCard: React.FC<RideCardProps> = ({
         </View>
         <View style={styles.detailsContainer}>
           <View style={styles.timeContainer}>
-            <Clock
-              size={16}
-              color={isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen}
-              style={styles.timeIcon}
+            <Image
+              source={clockIcon}
+              style={[styles.timeIcon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 16, height: 16 }]}
+              resizeMode="contain"
             />
             <Text style={[styles.detailText, isSelected ? styles.selectedDetailText : styles.unselectedDetailText]}>
               {time}
             </Text>
           </View>
           <View style={styles.priceContainer}>
-            <CreditCard
-              size={16}
-              color={isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen}
-              style={styles.priceIcon}
+            <Image
+              source={walletIcon}
+              style={[styles.priceIcon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 16, height: 16 }]}
+              resizeMode="contain"
             />
             <Text style={[styles.detailText, isSelected ? styles.selectedDetailText : styles.unselectedDetailText]}>
               {price} pp
@@ -133,10 +131,10 @@ const RideCard: React.FC<RideCardProps> = ({
         </View>
       ) : (
         <View style={styles.seatsContainer}>
-          <Users
-            size={18}
-            color={isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen}
-            style={styles.smallIcon}
+          <Image
+            source={sofaIcon}
+            style={[styles.smallIcon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 18, height: 18 }]}
+            resizeMode="contain"
           />
           <Text style={[styles.seatsText, isSelected ? styles.selectedText : styles.unselectedText]}>
             {seatsAvailable} seat{parseInt(seatsAvailable.split("/")[0]) !== 1 ? "s" : ""} available
@@ -158,18 +156,18 @@ interface Styles {
   routeContainer: ViewStyle;
   locationContainer: ViewStyle;
   verticalLine: ImageStyle;
-  icon: ViewStyle;
+  icon: ImageStyle;
   locationText: TextStyle;
   selectedText: TextStyle;
   unselectedText: TextStyle;
   seatsContainer: ViewStyle;
-  smallIcon: ViewStyle;
+  smallIcon: ImageStyle;
   seatsText: TextStyle;
   detailsContainer: ViewStyle;
   timeContainer: ViewStyle;
   priceContainer: ViewStyle;
-  timeIcon: ViewStyle;
-  priceIcon: ViewStyle;
+  timeIcon: ImageStyle;
+  priceIcon: ImageStyle;
   detailText: TextStyle;
   selectedDetailText: TextStyle;
   unselectedDetailText: TextStyle;
@@ -215,8 +213,8 @@ const styles = StyleSheet.create<Styles>({
   verticalLine: {
     width: 2,
     height: "25%",
-    left: "6.5%",
-    marginTop: 8,
+    left: 9.5,
+    marginTop: 3.75,
   },
   icon: {
     marginRight: 8,
