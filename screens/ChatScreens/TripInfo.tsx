@@ -69,7 +69,7 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
         </TouchableOpacity>
         <TouchableOpacity 
           style={tripInfoStyles.toggleButtonInactive}
-          onPress={() => navigation?.navigate('PassengerInfo' as never)}
+          onPress={() => navigation?.navigate('PassengerInfoScreen' as never)}
         >
           <Text style={tripInfoStyles.toggleTextInactive}>Passenger</Text>
         </TouchableOpacity>

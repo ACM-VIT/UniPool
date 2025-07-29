@@ -12,6 +12,7 @@ import {
 import { chatMessagesStyles } from './ChatScreen.styles';
 import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
+
 import { useApi } from '../../utils/ApiUtil';
 import ChatService from '../../utils/ChatService';
 import BrandInfo from '../../components/BrandInfo';
@@ -23,6 +24,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
 }) => {
   const { apiUtil } = useApi();
   const [newMessage, setNewMessage] = useState('');
+  const [userUuid, setUserUuid] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -41,52 +43,87 @@ const chatParams = (route?.params as ChatRouteParams) ?? {};
 
   useEffect(() => {
     setNavBarVariant?.(0);
-  }, [setNavBarVariant]);
+    apiUtil.get<{user: {id: string}}>("/user/details")
+      .then((resp) => {
+        setUserUuid(resp.user.id);
+        console.log('[Chat] fetched user uuid', resp.user.id);
+      })
+      .catch((e) => console.warn('[Chat] failed to fetch user uuid', e));
+  }, [apiUtil, setNavBarVariant]);
 
   useEffect(() => {
+    if (!userUuid) return;
     setNavBarVariant?.(0);
     const rideId = chatParams.chatRoom?.id || chatParams.chatId;
-    const userId = chatParams.userId || 'me';
+    const userId: string = chatParams.userId || userUuid;
     if (!rideId) return;
 
     ChatService.fetchMessages(apiUtil, rideId)
-      .then(setMessages)
+      .then((msgs) => {
+        console.log('[Chat] fetched messages', msgs);
+        const transformed = msgs.map((m: any): ChatMessage => ({
+          id: m.id,
+          text: m.content || m.text || '',
+          sender: m.sender_id === userUuid ? 'user' : 'other',
+          timestamp: new Date(m.created_at || m.timestamp || Date.now()),
+        }));
+        setMessages(transformed);
+      })
       .catch(console.error);
 
-    const ws = new WebSocket(
-      `${process.env.EXPO_PUBLIC_WS_URL ?? 'ws://localhost:3000'}/ws?user_id=${userId}&room_id=${rideId}`
-    );
-    ws.onmessage = (e) => {
+        const ws = ChatService.openSocket(userId, rideId, (e) => {
+      console.log('[WebSocket] message received raw', e.data);
       try {
         const data = JSON.parse(e.data);
         if (data.type === 'message') {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: data.message_id,
-              text: data.content,
-              sender: data.sender_id === userId ? 'user' : 'other',
-              timestamp: new Date(data.timestamp),
-            },
-          ]);
+          setMessages(prev => {
+            if (prev.some(m => m.id === data.message_id)) return prev;
+            return [
+              ...prev,
+              {
+                id: data.message_id,
+                text: data.content,
+                sender: data.sender_id === userId ? 'user' : 'other',
+                timestamp: new Date(data.timestamp),
+              },
+            ];
+          });
         }
       } catch (err) {
         console.warn(err);
       }
+    });
+    console.log('[WebSocket] Initializing connection to:', ws.url);
+    ws.onopen = () => {
+      console.log('[WebSocket] Connection opened');
     };
+    
     wsRef.current = ws;
     return () => {
       ws.close();
     };
-  }, [route?.params, setNavBarVariant]);
+  }, [route?.params, setNavBarVariant, userUuid]);
 
   const sendMessage = () => {
     const rideId = chatParams.chatRoom?.id || chatParams.chatId;
+    if (!userUuid) { console.warn('[Chat] userUuid not ready'); return; }
+    const userId: string = chatParams.userId || userUuid;
     if (!newMessage.trim() || !rideId) return;
 
-    ChatService.sendMessage(apiUtil, rideId, newMessage).catch(console.error);
-
-    setNewMessage('');
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const payload = {
+        type: 'message',
+        room_id: rideId,
+        sender_id: userId,
+        content: newMessage,
+        timestamp: new Date().toISOString(),
+      };
+      console.log('[WebSocket] sending', payload);
+      wsRef.current.send(JSON.stringify(payload));
+      setNewMessage('');
+    } else {
+      console.warn('[WebSocket] Not connected, cannot send message');
+    }
   };
 
   return (
