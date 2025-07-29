@@ -44,7 +44,7 @@ interface MainNavBarProps {
 const ROUTE_MAP: Record<string, string> = {
   home: "HomeScreen",
   trips: "BookingScreen",
-  chat: "", // not implemented yet
+  chat: "PassengerInfoScreen",
   profile: "ProfileScreen",
 };
 
