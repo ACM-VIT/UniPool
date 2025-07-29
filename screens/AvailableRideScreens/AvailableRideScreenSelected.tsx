@@ -2,8 +2,10 @@ import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useNavigation } from '@react-navigation/native';
 import ChevronBack from '../../components/ChevronBack/ChevronBack';
 import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
+import BrandInfo from '../../components/BrandInfo/BrandInfo';
 
 type RootStackParamList = {
   AvailableRideScreen: undefined;
@@ -68,14 +70,15 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Header with BrandInfo */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
+        <BrandInfo />
+      </View>
+
+      {/* Navigation Row */}
+      <View style={styles.navigationRow}>
+        <View style={styles.navigationLeft}>
           <ChevronBack style={styles.backButton} />
-          <View>
-            <Text style={styles.headerSubtext}>Vellore Institute of Technology</Text>
-            <Text style={styles.headerTitle}>UniPool</Text>
-          </View>
         </View>
         <TouchableOpacity style={styles.createRideBtn}>
           <Text style={styles.createRideBtnText}>Create Ride</Text>
@@ -203,27 +206,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#84cc16',
     paddingHorizontal: 16,
     paddingVertical: 16,
+  },
+  navigationRow: {
+    backgroundColor: '#84cc16',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  navigationLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    gap: 12,
   },
   backButton: {
-    marginRight: 12,
-  },
-  headerSubtext: {
-    fontSize: 10,
-    color: '#166534',
-    marginBottom: 2,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#166534',
+    marginRight: 0,
   },
   createRideBtn: {
     backgroundColor: '#111827',
