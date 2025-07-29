@@ -129,7 +129,7 @@ const App = () => {
     currentRouteName !== "AuthScreen" && 
     currentRouteName !== "SignUpScreen" && 
     currentRouteName !== "CreateRide" && 
-    currentRouteName !== "ChatConversationScreen"
+    currentRouteName !== "ChatMessages"
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ApiProvider navigationRef={navigationRef}>
@@ -259,40 +259,21 @@ const App = () => {
                     component={PassengersHistoryScreen}
                     options={{ headerShown: false }}
                   />
-                  {/* Chat Screens */}
                   <Stack.Screen
                     name="PassengerInfoScreen"
+                    component={PassengerInfoScreen}
                     options={{ headerShown: false, animation: 'none' }}
-                  >
-                    {(props) => (
-                      <PassengerInfoScreen
-                        {...props}
-                        setNavBarVariant={setNavBarVariant}
-                      />
-                    )}
-                  </Stack.Screen>
+                  />
                   <Stack.Screen
-                    name="ChatConversationScreen"
+                    name="ChatMessages"
+                    component={ChatConversationScreen}
                     options={{ headerShown: false, animation: 'none' }}
-                  >
-                    {(props) => (
-                      <ChatConversationScreen
-                        {...props}
-                        setNavBarVariant={setNavBarVariant}
-                      />
-                    )}
-                  </Stack.Screen>
+                  />
                   <Stack.Screen
-                    name="TripsListScreen"  
+                    name="TripsListScreen"
+                    component={TripsListScreen}
                     options={{ headerShown: false, animation: 'none' }}
-                  >
-                    {(props) => (
-                      <TripsListScreen
-                        {...props}
-                        setNavBarVariant={setNavBarVariant}
-                      />
-                    )}
-                  </Stack.Screen>
+                  />
                 </Stack.Navigator>
 
                 {showNavBar && (

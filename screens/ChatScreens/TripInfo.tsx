@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,62 +7,47 @@ import {
   StatusBar,
   ScrollView,
   Image,
-  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { tripInfoStyles } from './ChatScreen.styles';
-import { TripInfoScreenProps, Trip } from './ChatScreen.types';
+import { TripInfoScreenProps, Ride } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
 import BrandInfo from '../../components/BrandInfo';
+import { useApi } from '../../utils/ApiUtil';
+import RideService from '../../utils/RideService';
+
 
 const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, setNavBarVariant }) => {
+  const [rides, setRides] = useState<Ride[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { apiUtil } = useApi();
+
+
   useEffect(() => {
     if (setNavBarVariant) {
       setNavBarVariant(0);
     }
   }, [setNavBarVariant]);
-  
-  const trips: Trip[] = [
-    {
-      id: 1,
-      destination: 'Vellore to Chennai',
-      date: 'Fri 3 Jun 2024',
-      price: '₹500',
-      participants: 'You and 3 more',
-    },
-    {
-      id: 2,
-      destination: 'Vellore to Chennai',
-      date: 'Fri 3 Jun 2024',
-      price: '₹500',
-      participants: 'You and 3 more',
-    },
-    {
-      id: 3,
-      destination: 'Vellore to Chennai',
-      date: 'Fri 3 Jun 2024',
-      price: '₹500',
-      participants: 'You and 3 more',
-    },
-    {
-      id: 4,
-      destination: 'Vellore to Chennai',
-      date: 'Fri 3 Jun 2024',
-      price: '₹500',
-      participants: 'You and 3 more',
-    },
-    {
-      id: 5,
-      destination: 'Vellore to Chennai',
-      date: 'Fri 3 Jun 2024',
-      price: '₹500',
-      participants: 'You and 3 more',
-    },
-  ];
+
+  useEffect(() => {
+    const fetchRides = async () => {
+      try {
+        const fetchedRides = await RideService.getInvolvedRides(apiUtil);
+        setRides(fetchedRides);
+      } catch (error) {
+        console.error("Failed to fetch rides:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRides();
+  }, [apiUtil]);
 
   return (
     <SafeAreaView style={tripInfoStyles.container}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
-                  <View
+      <View
         style={{
           position: "absolute",
           top: 0,
@@ -90,38 +75,41 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={tripInfoStyles.tripsList}>
-        {trips.map((trip) => (
-          <TouchableOpacity 
-            key={trip.id} 
-            style={tripInfoStyles.tripItem}
-            onPress={() => navigation?.navigate('ChatConversationScreen' as never, {
-              chatRoom: {
-                id: trip.id.toString(),
-                title: trip.destination,
-                subtitle: `${trip.participants} - ${trip.date}`,
-              }
-            })}
-          >
-            <View style={tripInfoStyles.tripContent}>
-              <View style={tripInfoStyles.tripInfo}>
-                <Text style={tripInfoStyles.tripDestination}>{trip.destination}</Text>
-                <Text style={tripInfoStyles.tripDate}>{trip.date}</Text>
-              </View>
-              <View style={tripInfoStyles.tripDetails}>
-                <View style={tripInfoStyles.priceContainer}>
-                  <Image
-                    source={require('../../assets/wallet.png')}
-                    style={{ width: 16, height: 16, marginRight: 4, resizeMode: 'contain' }}
-                  />
-                  <Text style={tripInfoStyles.tripPrice}>{trip.price}</Text>
+      {loading ? (
+        <ActivityIndicator size="large" color={AppColors.primaryLightGreen} />
+      ) : (
+        <ScrollView style={tripInfoStyles.tripsList}>
+          {rides.map((ride) => (
+            <TouchableOpacity 
+              key={ride.id} 
+              style={tripInfoStyles.tripItem}
+              onPress={() => navigation?.navigate('ChatMessages' as never, {
+                chatId: ride.id,
+                chatTitle: `${ride.start_location} to ${ride.end_location}`,
+                chatSubtitle: new Date(ride.start_time).toDateString(),
+                isGroupChat: true,
+              })}
+            >
+              <View style={tripInfoStyles.tripContent}>
+                <View style={tripInfoStyles.tripInfo}>
+                  <Text style={tripInfoStyles.tripDestination}>{`${ride.start_location} to ${ride.end_location}`}</Text>
+                  <Text style={tripInfoStyles.tripDate}>{new Date(ride.start_time).toDateString()}</Text>
                 </View>
-                <Text style={tripInfoStyles.tripParticipants}>{trip.participants}</Text>
+                <View style={tripInfoStyles.tripDetails}>
+                  <View style={tripInfoStyles.priceContainer}>
+                    <Image
+                      source={require('../../assets/wallet.png')}
+                      style={{ width: 16, height: 16, marginRight: 4, resizeMode: 'contain' }}
+                    />
+                    <Text style={tripInfoStyles.tripPrice}>{`₹${ride.total_price}`}</Text>
+                  </View>
+                  <Text style={tripInfoStyles.tripParticipants}>{`${ride.booked_seats} of ${ride.total_seats} seats`}</Text>
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
