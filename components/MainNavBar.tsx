@@ -20,6 +20,7 @@ const { width, height } = Dimensions.get("window");
 interface NavItem {
   iconPath: ImageSourcePropType;
   route: string;
+  label: string;
   isActive?: boolean;
 }
 interface BottomNavProps {
@@ -96,6 +97,19 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
               ]}
               resizeMode="contain"
             />
+            <Text
+              style={[
+                styles.navLabel,
+                {
+                  color: isActive
+                    ? AppColors.basicWhite
+                    : AppColors.primaryLightGreen,
+                  opacity: isActive ? 1 : 0.8,
+                },
+              ]}
+            >
+              {item.label}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -176,6 +190,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  navLabel: {
+    fontSize: 10,
+    fontFamily: "NunitoSans_600SemiBold",
+    marginTop: 2,
+    textAlign: "center",
+  },
   singleBarContainer: {
     width: "95%",
     flexDirection: "row",
@@ -207,8 +227,8 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_600SemiBold",
   },
   icon: {
-    width: width * 0.06,
-    height: height * 0.05,
+    width: width * 0.05,
+    height: height * 0.035,
   },
   switchIcon: {
     width: width * 0.05,

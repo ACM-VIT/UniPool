@@ -2,8 +2,6 @@ import React, { useState } from "react";
 import { View, Image } from "react-native";
 import { RideCreateScreenProps } from "./RideCreatedScreen.types";
 import styles from "./RideCreatedScreen.styles";
-import MainNavBar from "../../components/MainNavBar";
-import bottomNavItems from "../../data/BottomNavigationItems";
 const RideCreatedScreen: React.FC<RideCreateScreenProps> = () => {
   const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
   return (

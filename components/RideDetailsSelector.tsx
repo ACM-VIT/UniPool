@@ -271,7 +271,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         >
           <View style={styles.inputContent}>
             <Image
-              source={require("../assets/location-pin.png")}
+              source={require("../assets/location-pin-2.png")}
               style={styles.icon}
             />
             <Text style={styles.selectedText}>{fromLocation || "From"}</Text>
