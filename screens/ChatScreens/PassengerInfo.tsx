@@ -5,14 +5,14 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Platform,
 } from 'react-native';
-import { MapPin, MessageCircle, Home, Calendar, Folder, User } from 'lucide-react-native';
 import { passengerInfoStyles } from './ChatScreen.styles';
 import { PassengerInfoScreenProps, PassengerDestination } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
+import BrandInfo from '../../components/BrandInfo';
 
 const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, route, setNavBarVariant }) => {
-  // Hide navbar when this screen mounts
   useEffect(() => {
     if (setNavBarVariant) {
       setNavBarVariant(0);
@@ -32,23 +32,22 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
   return (
     <SafeAreaView style={passengerInfoStyles.container}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
-      
-      {/* Header */}
-      <View style={passengerInfoStyles.header}>
-        <View style={passengerInfoStyles.headerLeft}>
-          <MapPin size={20} color="#FF5722" />
-          <Text style={passengerInfoStyles.instituteName}>Vellore Institute of Technology</Text>
-        </View>
-        <Text style={passengerInfoStyles.appName}>UniPool</Text>
+            <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+        }}
+      >
+        <BrandInfo />
       </View>
 
-      {/* Chat Title */}
       <View style={passengerInfoStyles.chatHeader}>
-        <MessageCircle size={24} color="#333" />
         <Text style={passengerInfoStyles.chatTitle}>Chat</Text>
       </View>
 
-      {/* Toggle Buttons */}
       <View style={passengerInfoStyles.toggleContainer}>
         <TouchableOpacity 
           style={passengerInfoStyles.toggleButtonInactive}
@@ -61,7 +60,6 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
         </TouchableOpacity>
       </View>
 
-      {/* Destinations List */}
       <View style={passengerInfoStyles.destinationsList}>
         {destinations.map((destination) => (
           <TouchableOpacity 
@@ -78,8 +76,6 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
           </TouchableOpacity>
         ))}
       </View>
-
-      {/* Bottom Navigation */}
     </SafeAreaView>
   );
 };

@@ -15,14 +15,12 @@ import AppColors from '../../design_systems/colors';
 const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({ navigation, route, setNavBarVariant }) => {
   const [message, setMessage] = useState('');
   
-  // Hide navbar when this screen mounts
   useEffect(() => {
     if (setNavBarVariant) {
       setNavBarVariant(0);
     }
   }, [setNavBarVariant]);
   
-  // Get chat data from navigation parameters
   const chatParams = route?.params;
   const chatTitle = chatParams?.chatTitle || 'Vellore to Chennai';
   const chatSubtitle = chatParams?.chatSubtitle || 'You, Bhallaldeva, Kattappa and 3 more';
@@ -47,7 +45,6 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({ navigation,
     <SafeAreaView style={chatMessagesStyles.container}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
       
-      {/* Header */}
       <View style={chatMessagesStyles.header}>
         <View style={chatMessagesStyles.headerLeft}>
           <Image 
@@ -63,9 +60,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({ navigation,
         <Text style={chatMessagesStyles.appName}>UniPool</Text>
       </View>
 
-      {/* Chat Header */}
       <View style={[chatMessagesStyles.chatHeader, { flexDirection: 'row', alignItems: 'center' }]}> 
-        {/* Back arrow vertically centered with text block */}
         <TouchableOpacity style={{ alignSelf: 'flex-start', marginTop: 4 }} onPress={() => navigation?.goBack()}>
           <Image 
             source={require('../../assets/arrow-square-left.png')} 
@@ -73,7 +68,6 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({ navigation,
             resizeMode="contain"
           />
         </TouchableOpacity>
-        {/* Title and car in a single row, subtitle below */}
         <View style={{ flex: 1, flexDirection: 'column', justifyContent: 'center' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
             <Text
@@ -115,9 +109,6 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({ navigation,
         </View>
       </View>
 
-      {/* Info Message removed as per user request */}
-
-      {/* Messages */}
       <ScrollView style={chatMessagesStyles.messagesContainer}>
         {sampleMessages.map((msg) => (
           <View 
@@ -134,11 +125,9 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({ navigation,
         ))}
       </ScrollView>
 
-      {/* Custom Typing Bar */}
       <View style={chatMessagesStyles.typingBarContainer}>
         <Text style={chatMessagesStyles.typingBarText}>Start Typing...</Text>
         <View style={{ flexDirection: 'row' }}>
-          {/* Arrow square left icon */}
           <View style={chatMessagesStyles.typingBarIconContainer}>
             <Image 
               source={require('../../assets/arrow-square-left.png')} 

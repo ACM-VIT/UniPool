@@ -43,7 +43,6 @@ export type ChatStackParamList = {
   };
 };
 
-// Component Props
 export interface PassengerInfoScreenProps {
   navigation?: any;
   route?: any;
