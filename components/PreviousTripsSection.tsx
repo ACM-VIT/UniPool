@@ -27,7 +27,14 @@ const PreviousTripsSection: React.FC = () => {
     const screenWidth = Dimensions.get("window").width;
     const maxDots = 5;
 
-    const displayedRides = rideData.slice(Math.max(rideData.length - 5, 0));
+    const uniqueRidesMap = new Map<string, UserRideData>();
+    rideData.forEach((ride) => {
+        if (ride.ride_id && !uniqueRidesMap.has(ride.ride_id)) {
+            uniqueRidesMap.set(ride.ride_id, ride);
+        }
+    });
+    const uniqueRides = Array.from(uniqueRidesMap.values());
+    const displayedRides = uniqueRides.slice(Math.max(uniqueRides.length - 5, 0));
 
     const fetchUserRides = async () => {
         try {
