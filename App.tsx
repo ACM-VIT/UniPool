@@ -1,3 +1,4 @@
+import 'react-native-gesture-handler';
 import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
@@ -21,6 +22,9 @@ import BookingsScreen from "./screens/BookingsScreen";
 import PersonalInformationScreen from "./screens/PersonalInformationScreen";
 import PassengersHistoryScreen from "./screens/PassengersHistoryScreen";
 import AccountSettingsScreen from "./screens/AccountSettingsScreen";
+
+// Chat Screens
+import { PassengerInfoScreen, ChatConversationScreen, TripsListScreen } from "./screens/ChatScreens";
 
 import MainNavBar from "./components/MainNavBar";
 import bottomNavItems from "./data/BottomNavigationItems";
@@ -122,7 +126,12 @@ const App = () => {
 
   const currentRouteName = getCurrentRouteName();
   const showNavBar =
-    currentRouteName !== "AuthScreen" && currentRouteName !== "SignUpScreen" && currentRouteName !== "CreateRide";
+    currentRouteName !== "AuthScreen" && 
+    currentRouteName !== "SignUpScreen" && 
+    currentRouteName !== "CreateRide" && 
+    currentRouteName !== "ChatConversationScreen" && 
+    currentRouteName !== "PassengerInfoScreen" && 
+    currentRouteName !== "TripsListScreen";
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -253,6 +262,40 @@ const App = () => {
                     component={PassengersHistoryScreen}
                     options={{ headerShown: false }}
                   />
+                  {/* Chat Screens */}
+                  <Stack.Screen
+                    name="PassengerInfoScreen"
+                    options={{ headerShown: false }}
+                  >
+                    {(props) => (
+                      <PassengerInfoScreen
+                        {...props}
+                        setNavBarVariant={setNavBarVariant}
+                      />
+                    )}
+                  </Stack.Screen>
+                  <Stack.Screen
+                    name="ChatConversationScreen"
+                    options={{ headerShown: false }}
+                  >
+                    {(props) => (
+                      <ChatConversationScreen
+                        {...props}
+                        setNavBarVariant={setNavBarVariant}
+                      />
+                    )}
+                  </Stack.Screen>
+                  <Stack.Screen
+                    name="TripsListScreen"  
+                    options={{ headerShown: false }}
+                  >
+                    {(props) => (
+                      <TripsListScreen
+                        {...props}
+                        setNavBarVariant={setNavBarVariant}
+                      />
+                    )}
+                  </Stack.Screen>
                 </Stack.Navigator>
 
                 {showNavBar && (
