@@ -1,13 +1,19 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Image, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CheckCircle } from 'lucide-react-native';
+import MapView, { Marker, Polyline } from 'react-native-maps';
+import * as Location from 'expo-location';
+
+const { width, height } = Dimensions.get("window");
+
 import { useNavigation } from '@react-navigation/native';
 import ChevronBack from '../../components/ChevronBack/ChevronBack';
 import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
+import BrandInfo from '../../components/BrandInfo/BrandInfo';
+import AppColors from '../../design_systems/colors';
 
 type RootStackParamList = {
-  AvailableRideScreen: undefined;
+  AvailableRidesScreen: undefined;
   AvailableRidesSelectedScreen: {
     ride?: {
       id: string;
@@ -38,45 +44,130 @@ type AvailableRideScreenSelectedProps = {
 };
 
 const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = ({ navigation, route }) => {
-  // Default ride data
-  const defaultRide = {
+  const nav = useNavigation();
+  const [location, setLocation] = useState<any>(null);
+  const [initialRegion, setInitialRegion] = useState<any>(null);
+  const [hasPermission, setHasPermission] = useState(false);
+
+  // Get ride data from route params
+  const rideData = route?.params?.ride;
+  console.log("Received ride data:", rideData);
+
+  // Use backend data if available, otherwise fallback to default
+  const ride = rideData || {
     id: '1',
-    from: 'VIT Vellore',
-    to: 'Chennai Airport',
-    time: '1700 hrs',
-    date: '03 January, 2025',
-    price: '₹500 pp',
-    seats: 1,
-    driver: {
-      name: 'Yash Raj Singh',
-      rating: 4.5,
-      phone: '+91 9876543210',
-    },
-    vehicle: {
-      make: 'Scooter',
-      model: 'Honda',
-      color: 'Orange',
-      plate: 'TN-01-AB-1234',
-    },
+    start_location: 'VIT Vellore',
+    end_location: 'Chennai Airport',
+    start_time: '2025-01-03T17:00:00Z',
+    total_price: 500,
+    total_seats: 2,
+    booked_seats: 1,
+    host_user_name: 'Yash Raj Singh',
+    is_same_gender: 0,
   };
 
-  const ride = route?.params?.ride || defaultRide;
+  // Helper functions to format backend data
+  const formatTime = (timeString: string): string => {
+    try {
+      const date = new Date(timeString);
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${hours}${minutes} hrs`;
+    } catch (error) {
+      return '1700 hrs';
+    }
+  };
+
+  const formatDate = (timeString: string): string => {
+    try {
+      const date = new Date(timeString);
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = date.toLocaleString('en-US', { month: 'long' });
+      const year = date.getFullYear();
+      return `${day} ${month}, ${year}`;
+    } catch (error) {
+      return '03 January, 2025';
+    }
+  };
+
+  const getSeatsText = (totalSeats: number, bookedSeats: number): string => {
+    const availableSeats = totalSeats - bookedSeats;
+    return `${availableSeats}/${totalSeats} seat${availableSeats !== 1 ? 's' : ''} available`;
+  };
+
+  const getPriceText = (price: number): string => {
+    return `₹ ${price} pp`;
+  };
+
+  const requestLocationPermission = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status === "granted") {
+      getUserLocation();
+      setHasPermission(true);
+    } else {
+      setHasPermission(false);
+      console.log("Location permission denied");
+    }
+  };
+
+  const getUserLocation = async () => {
+    try {
+      const { coords } = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const { latitude, longitude } = coords;
+      setLocation({ latitude, longitude });
+      setInitialRegion({
+        latitude,
+        longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      });
+    } catch (error) {
+      console.error("Error fetching location:", error);
+    }
+  };
+
+  useEffect(() => {
+    requestLocationPermission();
+  }, []);
+
+  // Sample coordinates for route (VIT Vellore to Chennai Airport as default)
+  const routeCoordinates = [
+    { latitude: 12.9698, longitude: 79.1559 }, // Start location
+    { latitude: 12.9716, longitude: 79.1644 },
+    { latitude: 13.0827, longitude: 80.2707 }, // End location
+  ];
 
   const handleRequestRide = () => {
     console.log('Requesting ride:', ride.id);
+    console.log('Ride details:', {
+      id: ride.id,
+      from: ride.start_location,
+      to: ride.end_location,
+      time: formatTime(ride.start_time),
+      price: ride.total_price,
+      availableSeats: ride.total_seats - ride.booked_seats
+    });
     // Navigate to booking or request confirmation
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Header with BrandInfo */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <ChevronBack style={styles.backButton} />
-          <View>
-            <Text style={styles.headerSubtext}>Vellore Institute of Technology</Text>
-            <Text style={styles.headerTitle}>UniPool</Text>
-          </View>
+        <BrandInfo />
+      </View>
+
+      {/* Navigation Row */}
+      <View style={styles.navigationRow}>
+        <View style={styles.navigationLeft}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => (nav as any).navigate('AvailableRidesScreen')}
+          >
+            <ChevronBack />
+          </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.createRideBtn}>
           <Text style={styles.createRideBtnText}>Create Ride</Text>
@@ -86,100 +177,116 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
       <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* Ride Card */}
         <View style={styles.rideCard}>
-          {/* Route Section */}
-          <View style={styles.routeSection}>
-            <View style={styles.routeHeader}>
-              <View style={styles.routeFrom}>
-                <Image 
-                  source={require('../../assets/location-pin.png')} 
-                  style={[styles.locationIcon, { tintColor: '#ffffff' }]}
-                  resizeMode="contain"
-                />
-                <Text style={styles.routeText}>{ride.from}</Text>
+          {/* Main Content */}
+          <View style={styles.cardContent}>
+            {/* Left Side - Route */}
+            <View style={styles.leftSection}>
+              {/* Start Location */}
+              <View style={styles.locationRow}>
+                <Image source={require('../../assets/location-pin.png')} style={styles.startLocationIcon} />
+                <Text style={styles.locationText}>{ride.start_location}</Text>
               </View>
-              <View style={styles.dotIndicators}>
-                <View style={[styles.dot, styles.dotOrange]} />
-                <View style={[styles.dot, styles.dotWhite]} />
-                <View style={[styles.dot, styles.dotOrange]} />
-              </View>
-            </View>
-
-            <View style={styles.routeTo}>
-              <CheckCircle size={16} color="#4ade80" />
-              <Text style={styles.routeText}>{ride.to}</Text>
-            </View>
-
-            {/* Vehicle Illustration */}
-            <View style={styles.vehicleContainer}>
-              <Image 
-                source={require('../../assets/motorcycle.png')} 
-                style={styles.vehicleImage}
-                resizeMode="contain"
-              />
-            </View>
-
-            <View style={styles.rideInfo}>
-              <View style={styles.seatsInfo}>
-                <Image 
-                  source={require('../../assets/user-icon.png')} 
-                  style={[styles.locationIcon, { tintColor: '#ffffff' }]}
-                  resizeMode="contain"
-                />
-                <Text style={styles.routeText}>{ride.seats}/2 seat available</Text>
-              </View>
-              <Text style={styles.priceText}>{ride.price}</Text>
-            </View>
-          </View>
-
-          {/* Ride Details */}
-          <View style={styles.rideDetails}>
-            <Text style={styles.detailText}>
-              <Text style={styles.boldText}>Ride Created by</Text> {ride.driver.name} on 01 January, 2025
-            </Text>
-            <Text style={styles.detailText}>
-              <Text style={styles.boldText}>YOB:</Text> 2004
-            </Text>
-
-            <View style={styles.dateTimeContainer}>
-              <View style={styles.dateBox}>
-                <Image 
-                  source={require('../../assets/calendar.png')} 
-                  style={styles.dateTimeIcon}
-                  resizeMode="contain"
-                />
-                <Text style={styles.dateTimeText}>{ride.date}</Text>
-              </View>
-              <View style={styles.timeBox}>
-                <Image 
-                  source={require('../../assets/clock.png')} 
-                  style={styles.dateTimeIcon}
-                  resizeMode="contain"
-                />
-                <Text style={styles.dateTimeText}>{ride.time}</Text>
-              </View>
-            </View>
-          </View>
-
-          <Text style={styles.tripLengthText}>Estimated Trip Length: 2 hours 45 minutes</Text>
-
-          {/* Map Section */}
-          <View style={styles.mapContainer}>
-            <View style={styles.mapPlaceholder}>
-              {/* Map markers */}
-              <View style={[styles.mapMarker, styles.startMarker]} />
-              <View style={[styles.mapMarker, styles.endMarker]} />
               
-              {/* Location labels */}
-              <View style={[styles.mapLabel, styles.startLabel]}>
-                <Text style={styles.mapLabelText}>New Delhi</Text>
+              {/* Dotted Line */}
+              <View style={styles.dottedLineVertical}>
+                <Image source={require('../../assets/dotted_line_green.png')} style={styles.verticalDottedLine} resizeMode="repeat" />
               </View>
-              <View style={[styles.mapLabel, styles.endLabel]}>
-                <Text style={styles.mapLabelText}>Chennai</Text>
+              
+              {/* End Location */}
+              <View style={styles.locationRow}>
+                <Image source={require('../../assets/navigation-2.png')} style={styles.endLocationIcon} />
+                <Text style={styles.locationText}>{ride.end_location}</Text>
               </View>
-
-              {/* Route markers */}
-              <View style={[styles.routeMarker, styles.routeMarker1]} />
-              <View style={[styles.routeMarker, styles.routeMarker2]} />
+            </View>
+            
+            {/* Right Side - Vehicle */}
+            <View style={styles.rightSection}>
+              <Image source={require('../../assets/Beep Beep Motorcycle.png')} style={styles.motorcycleImage} resizeMode="contain" />
+            </View>
+          </View>
+          
+          {/* Bottom Section - Ride Details */}
+          <View style={styles.rideDetailsSection}>
+            {/* Seats and Price Row */}
+            <View style={styles.seatsAndPriceRow}>
+              <View style={styles.seatsContainer}>
+                <Image source={require('../../assets/sofa.png')} style={styles.seatIcon} />
+                <Text style={styles.seatsText}>{getSeatsText(ride.total_seats, ride.booked_seats)}</Text>
+              </View>
+              <View style={styles.priceContainer}>
+                <Image source={require('../../assets/wallet.png')} style={styles.walletIcon} />
+                <Text style={styles.priceText}>{getPriceText(ride.total_price)}</Text>
+              </View>
+            </View>
+            
+            {/* Creator Info */}
+            <Text style={styles.creatorText}>Ride Created by {ride.host_user_name || 'Unknown User'} on {formatDate(ride.start_time)}</Text>
+            <Text style={styles.yobText}>YOB: 2004</Text>
+            
+            {/* Date and Time Row */}
+            <View style={styles.dateTimeRow}>
+              <View style={styles.dateContainer}>
+                <Image source={require('../../assets/calendar.png')} style={styles.calendarIcon} />
+                <Text style={styles.dateText}>{formatDate(ride.start_time)}</Text>
+              </View>
+              <View style={styles.timeContainer}>
+                <Image source={require('../../assets/clock.png')} style={styles.clockIcon} />
+                <Text style={styles.timeText}>{formatTime(ride.start_time)}</Text>
+              </View>
+            </View>
+            
+            {/* Trip Length */}
+            <Text style={styles.tripLengthText}>Estimated Trip Length: 2 hours 45 minutes</Text>
+            
+            {/* Map Section - Below Trip Length */}
+            <View style={styles.mapSection}>
+              {hasPermission && initialRegion ? (
+                <MapView
+                  style={styles.mapView}
+                  initialRegion={{
+                    latitude: 12.9698,
+                    longitude: 79.1559,
+                    latitudeDelta: 1.5,
+                    longitudeDelta: 1.5,
+                  }}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  pitchEnabled={false}
+                  rotateEnabled={false}
+                >
+                  {/* Start Marker - From Location */}
+                  <Marker
+                    coordinate={{ latitude: 12.9698, longitude: 79.1559 }}
+                    title={ride.start_location}
+                  >
+                    <View style={styles.startMarker}>
+                      <Text style={styles.markerText}>|</Text>
+                    </View>
+                  </Marker>
+                  
+                  {/* End Marker - To Location */}
+                  <Marker
+                    coordinate={{ latitude: 13.0827, longitude: 80.2707 }}
+                    title={ride.end_location}
+                  >
+                    <View style={styles.endMarker}>
+                      <Image source={require('../../assets/navigation-2.png')} style={styles.endMarkerIcon} />
+                    </View>
+                  </Marker>
+                  
+                  {/* Route Polyline */}
+                  <Polyline
+                    coordinates={routeCoordinates}
+                    strokeColor={AppColors.primaryLightGreen}
+                    strokeWidth={3}
+                    lineDashPattern={[5, 5]}
+                  />
+                </MapView>
+              ) : (
+                <View style={styles.mapPlaceholder}>
+                  <Text style={styles.loadingText}>Loading map...</Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -201,285 +308,279 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: AppColors.primaryLightGreen,
   },
   header: {
-    backgroundColor: '#84cc16',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    backgroundColor: AppColors.primaryLightGreen,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  navigationRow: {
+    backgroundColor: AppColors.primaryLightGreen,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerLeft: {
+  navigationLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
   backButton: {
-    marginRight: 12,
-  },
-  headerSubtext: {
-    fontSize: 10,
-    color: '#166534',
-    marginBottom: 2,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#166534',
+    marginRight: 0,
   },
   createRideBtn: {
-    backgroundColor: '#111827',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: AppColors.basicBlack,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
   },
   createRideBtnText: {
-    color: '#ffffff',
-    fontSize: 14,
+    color: AppColors.basicWhite,
+    fontSize: 16,
     fontWeight: '600',
+    fontFamily: 'NunitoSans_600SemiBold',
   },
   scrollContainer: {
     flex: 1,
   },
   rideCard: {
-    margin: 20,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-    borderStyle: 'dashed',
-    borderRadius: 16,
+    marginHorizontal: 28,
+    marginBottom: 28,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderBottomLeftRadius: 34,
+    borderBottomRightRadius: 34,
     padding: 20,
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  routeSection: {
-    backgroundColor: '#0f766e',
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 16,
-    position: 'relative',
+    backgroundColor: AppColors.secondaryDarkGreen,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.13,
+    shadowRadius: 12,
+    elevation: 6,
     overflow: 'hidden',
-    minHeight: 140,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  routeHeader: {
+  cardContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    marginBottom: 20,
   },
-  routeFrom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  leftSection: {
+    flex: 1,
+    paddingRight: 20,
   },
-  routeTo: {
+  rightSection: {
+    flex: 0,
+    width: 120,
+    overflow: 'hidden',
+    marginRight: -20,
+    marginTop: -20,
+    marginBottom: -20,
+  },
+  locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     marginBottom: 12,
   },
-  routeText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+  startLocationIcon: {
+    width: 26,
+    height: 26,
+    marginRight: 10,
+    resizeMode: 'contain',
   },
-  dotIndicators: {
-    flexDirection: 'row',
-    gap: 4,
+  startLocationLine: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 28,
+    fontWeight: '700',
+    marginRight: 10,
+    fontFamily: 'NunitoSans_700',
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  endLocationIcon: {
+    width: 26,
+    height: 26,
+    marginRight: 10,
+    tintColor: AppColors.basicWhite,
   },
-  dotOrange: {
-    backgroundColor: '#fb923c',
+  locationText: {
+    color: AppColors.basicWhite,
+    fontSize: 20,
+    fontWeight: '700',
+    fontFamily: 'NunitoSans_600SemiBold',
   },
-  dotWhite: {
-    backgroundColor: '#ffffff',
-  },
-  vehicleContainer: {
-    position: 'absolute',
-    right: 20,
-    top: '50%',
-    transform: [{ translateY: -32 }],
-  },
-  vehicleImage: {
-    width: 80,
+  dottedLineVertical: {
+    width: 24,
     height: 60,
-    tintColor: '#fb923c', // Orange tint to match design
+    marginLeft: 1,
+    marginVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    resizeMode: 'contain',
   },
-  rideInfo: {
+  verticalDottedLine: {
+    width: 2,
+    height: 90,
+    tintColor: AppColors.primaryLightGreen,
+    resizeMode: 'repeat',
+  },
+    motorcycleImage: {
+      width: 155,
+      height: 165,
+      marginLeft: -18,
+      marginTop: 10,
+    },
+  rideDetailsSection: {
+  },
+  seatsAndPriceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
-  seatsInfo: {
+  seatsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  seatIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 8,
+    tintColor: AppColors.basicWhite,
+    resizeMode: 'contain',
+  },
+  walletIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 8,
+    tintColor: AppColors.basicWhite,
+    resizeMode: 'contain',
+  },
+  seatsText: {
+    color: AppColors.basicWhite,
+    fontSize: 16,
+    fontFamily: 'NunitoSans_400Regular',
   },
   priceText: {
-    color: '#ffffff',
+    color: AppColors.basicWhite,
     fontSize: 18,
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    fontWeight: '100',
+    fontFamily: 'NunitoSans_600SemiBold',
   },
-  rideDetails: {
-    marginBottom: 16,
-  },
-  detailText: {
-    fontSize: 14,
-    color: '#6b7280',
+  creatorText: {
+    color: AppColors.basicWhite,
+    fontSize: 16,
+    fontFamily: 'NunitoSans_400Regular',
     marginBottom: 4,
   },
-  boldText: {
-    fontWeight: '600',
+  yobText: {
+    color: AppColors.basicWhite,
+    fontSize: 16,
+    fontFamily: 'NunitoSans_400Regular',
+    marginBottom: 12,
   },
-  dateTimeContainer: {
+  dateTimeRow: {
     flexDirection: 'row',
-    gap: 16,
-    marginTop: 12,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 36,
   },
-  dateBox: {
-    backgroundColor: '#dbeafe',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+  dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  timeBox: {
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 10,
+  },
+  timeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
-  dateTimeText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  dateTimeIcon: {
-    width: 16,
-    height: 16,
-  },
-  locationIcon: {
-    width: 16,
-    height: 16,
+  calendarIcon: {
+    width: 20,
+    height: 20,
     marginRight: 8,
+    tintColor: AppColors.primaryLightGreen,
+    resizeMode: 'contain',
+  },
+  clockIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 8,
+    tintColor: AppColors.primaryLightGreen,
+    resizeMode: 'contain',
+  },
+  dateText: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 16,
+    fontWeight: '700',
+    fontFamily: 'NunitoSans_700Bold',
+  },
+  timeText: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 16,
+    fontWeight: '700',
+    fontFamily: 'NunitoSans_700Bold',
   },
   tripLengthText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 16,
+    color: AppColors.basicWhite,
+    fontSize: 16,
+    fontWeight: '700',
+    fontFamily: 'NunitoSans_700Bold',
+    marginBottom: 12,
   },
-  mapContainer: {
-    height: 240,
-    backgroundColor: '#f8fafc',
-    borderRadius: 16,
+  bottomContainer: {
+    backgroundColor: AppColors.primaryLightGreen,
+    paddingHorizontal: 28,
+  },
+  mapSection: {
+    height: 180,
     overflow: 'hidden',
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginTop: 0,
+    marginBottom: -20,
+    marginLeft: -20,
+    marginRight: -20,
+  },
+  mapView: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   mapPlaceholder: {
     flex: 1,
-    backgroundColor: '#e0f2fe',
-    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: AppColors.primaryLightGreen + '20',
   },
-  mapMarker: {
-    position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  loadingText: {
+    color: AppColors.basicWhite,
+    fontSize: 16,
+    fontFamily: 'NunitoSans_400Regular',
   },
   startMarker: {
-    top: 16,
-    left: 16,
-    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   endMarker: {
-    bottom: 16,
-    right: 16,
-    backgroundColor: '#3b82f6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  mapLabel: {
-    position: 'absolute',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+  markerText: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 24,
+    fontWeight: '700',
+    fontFamily: 'NunitoSans_700',
   },
-  startLabel: {
-    top: 32,
-    right: 32,
-  },
-  endLabel: {
-    bottom: 48,
-    left: 32,
-  },
-  mapLabelText: {
-    fontSize: 10,
-    color: '#374151',
-  },
-  routeMarker: {
-    position: 'absolute',
-    width: 8,
-    height: 8,
-    backgroundColor: '#2563eb',
-    borderRadius: 4,
-  },
-  routeMarker1: {
-    top: '33%',
-    left: '25%',
-  },
-  routeMarker2: {
-    top: '67%',
-    right: '33%',
-  },
-  bottomContainer: {
-    backgroundColor: '#84cc16',
-    padding: 20,
-    paddingBottom: 32,
+  endMarkerIcon: {
+    width: 20,
+    height: 20,
+    tintColor: AppColors.basicWhite,
   },
 });
 
