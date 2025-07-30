@@ -72,8 +72,12 @@ const BookingScreen: React.FC = () => {
         const bookings = await apiUtil.get<any>("/user/rides");
         const upcoming: RideData[] = [];
         const inProgress: RideData[] = [];
+        const seenIds = new Set<string>();
         if (Array.isArray(bookings)) {
           bookings.forEach((ride: RideData) => {
+            const rideId = ride.ride_id || ride.id;
+            if (!rideId || seenIds.has(rideId)) return;
+            seenIds.add(rideId);
             if (ride.is_ongoing) {
               inProgress.push(ride);
             } else {
@@ -81,8 +85,8 @@ const BookingScreen: React.FC = () => {
             }
           });
         }
-        console.log("Upcoming Rides:", upcoming);
-        console.log("In-Progress Rides:", inProgress);
+        // console.log("Upcoming Rides:", upcoming);
+        // console.log("In-Progress Rides:", inProgress);
         setUpcomingRides(upcoming);
         setInProgressRides(inProgress);
       } catch (err: any) {
@@ -105,7 +109,6 @@ const BookingScreen: React.FC = () => {
           left: 0,
           right: 0,
           zIndex: 10,
-          paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
           backgroundColor: AppColors.primaryLightGreen,
         }}
       >
