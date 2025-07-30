@@ -44,10 +44,10 @@ export const chatScreenStyles = StyleSheet.create({
     marginTop: 48,
   },
   chatTitle: {
-    fontSize: 20,
+    fontSize: 24,
+    fontWeight: "600",
     color: AppColors.basicBlack,
-    marginLeft: 8,
-    fontFamily: 'NunitoSans-Regular',
+    fontFamily: "NunitoSans_600SemiBold",
   },
   chatSubtitleNumber: {
     fontSize: 14,
