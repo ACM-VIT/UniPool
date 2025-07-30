@@ -134,7 +134,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           left: 0,
           right: 0,
           zIndex: 10,
-          paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
         }}
       >
         <BrandInfo />
