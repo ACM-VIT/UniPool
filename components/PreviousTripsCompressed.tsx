@@ -24,13 +24,15 @@ interface RideDetails {
 
 interface PreviousTripsCompressedProps {
   trip: RideDetails;
+  onPress?: () => void;
 }
 
 const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
   trip,
+  onPress,
 }) => {
   return (
-    <TouchableOpacity style={styles.container}>
+    <TouchableOpacity style={styles.container} onPress={onPress}>
       <View style={styles.contentWrapper}>
         <View style={styles.tripInfo}>
           <Text style={styles.tripText} numberOfLines={1} ellipsizeMode="tail">

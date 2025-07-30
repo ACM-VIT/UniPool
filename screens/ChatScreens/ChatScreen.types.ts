@@ -23,8 +23,9 @@ export interface ChatMessage {
   id: string;
   text: string;
   sender: 'user' | 'other';
-  timestamp: Date;
+  senderId: string;
   senderName?: string;
+  timestamp: Date;
 }
 
 export interface ChatParticipant {
