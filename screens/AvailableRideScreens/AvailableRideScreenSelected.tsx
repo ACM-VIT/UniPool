@@ -169,7 +169,10 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
             <ChevronBack />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.createRideBtn}>
+        <TouchableOpacity 
+          style={styles.createRideBtn}
+          onPress={() => (nav as any).navigate('CreateRide')}
+        >
           <Text style={styles.createRideBtnText}>Create Ride</Text>
         </TouchableOpacity>
       </View>
