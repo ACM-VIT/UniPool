@@ -51,6 +51,7 @@ const CreateRide: React.FC = () => {
   // Animation states
   const [currentVehicleImage, setCurrentVehicleImage] = useState(require("../assets/Taxi.png"));
   const slideAnimation = useRef(new Animated.Value(0)).current;
+  const fadeAnimation = useRef(new Animated.Value(1)).current;
   const counterAnimation = useRef(new Animated.Value(0)).current;
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -133,24 +134,89 @@ const CreateRide: React.FC = () => {
     if (newVehicleImage !== currentVehicleImage) {
       setIsAnimating(true);
 
-      Animated.timing(slideAnimation, {
-        toValue: -width,
-        duration: 200,
-        useNativeDriver: true,
-      }).start(() => {
-
-        setCurrentVehicleImage(newVehicleImage);
-
-        slideAnimation.setValue(width);
-
+      const isNewUFO = newVehicleImage === require("../assets/UFO.png");
+      const isCurrentUFO = currentVehicleImage === require("../assets/UFO.png");
+      
+      if (isNewUFO) {
+        Animated.sequence([
+          Animated.timing(fadeAnimation, {
+            toValue: 0,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideAnimation, {
+            toValue: -50, 
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setCurrentVehicleImage(newVehicleImage);
+          
+          Animated.parallel([
+            Animated.timing(fadeAnimation, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+            Animated.timing(slideAnimation, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            setIsAnimating(false);
+          });
+        });
+      } else if (isCurrentUFO) {
+        Animated.parallel([
+          Animated.timing(fadeAnimation, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideAnimation, {
+            toValue: -50,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setCurrentVehicleImage(newVehicleImage);
+          slideAnimation.setValue(width);
+          
+          Animated.parallel([
+            Animated.timing(fadeAnimation, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+            Animated.timing(slideAnimation, {
+              toValue: 0,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            setIsAnimating(false);
+          });
+        });
+      } else {
         Animated.timing(slideAnimation, {
-          toValue: 0,
+          toValue: -width,
           duration: 200,
           useNativeDriver: true,
         }).start(() => {
-          setIsAnimating(false);
+          setCurrentVehicleImage(newVehicleImage);
+
+          slideAnimation.setValue(width);
+
+          Animated.timing(slideAnimation, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            setIsAnimating(false);
+          });
         });
-      });
+      }
     }
 
     counterAnimation.setValue(0);
@@ -301,8 +367,14 @@ const CreateRide: React.FC = () => {
           style={[
             styles.vehicleImageContainer,
             {
+              opacity: fadeAnimation,
               transform: [
-                { translateX: slideAnimation },
+                { 
+                  translateX: currentVehicleImage === require("../assets/UFO.png") ? 0 : slideAnimation 
+                },
+                { 
+                  translateY: currentVehicleImage === require("../assets/UFO.png") ? slideAnimation : 0 
+                },
                 { scale: counterAnimation.interpolate({
                   inputRange: [0, 1],
                   outputRange: [1, 1.1]
