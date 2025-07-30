@@ -139,7 +139,7 @@ const BookingScreen: React.FC = () => {
             >
               {upcomingRides.length === 0 ? (
                 <View style={{ justifyContent: "center", alignItems: "center", width: window.width }}>
-                  <Text>No upcoming rides found.</Text>
+                  <Text style={{ fontFamily: "NunitoSans_400Regular" }}>No upcoming rides found.</Text>
                 </View>
               ) : (
                 upcomingRides.map((ride) => (
@@ -188,7 +188,7 @@ const BookingScreen: React.FC = () => {
             >
               {inProgressRides.length === 0 ? (
                 <View style={{ justifyContent: "center", alignItems: "center", width: window.width }}>
-                  <Text>No in-progress rides found.</Text>
+                  <Text style={{ fontFamily: "NunitoSans_400Regular" }}>No in-progress rides found.</Text>
                 </View>
               ) : (
                 inProgressRides.map((ride) => (
