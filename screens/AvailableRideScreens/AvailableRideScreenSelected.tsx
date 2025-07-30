@@ -49,29 +49,55 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
   const [initialRegion, setInitialRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
 
-  // Default ride data
-  const defaultRide = {
+  // Get ride data from route params
+  const rideData = route?.params?.ride;
+  console.log("Received ride data:", rideData);
+
+  // Use backend data if available, otherwise fallback to default
+  const ride = rideData || {
     id: '1',
-    from: 'VIT Vellore',
-    to: 'Chennai Airport',
-    time: '1700 hrs',
-    date: '03 January, 2025',
-    price: '₹500 pp',
-    seats: 1,
-    driver: {
-      name: 'Yash Raj Singh',
-      rating: 4.5,
-      phone: '+91 9876543210',
-    },
-    vehicle: {
-      make: 'Scooter',
-      model: 'Honda',
-      color: 'Orange',
-      plate: 'TN-01-AB-1234',
-    },
+    start_location: 'VIT Vellore',
+    end_location: 'Chennai Airport',
+    start_time: '2025-01-03T17:00:00Z',
+    total_price: 500,
+    total_seats: 2,
+    booked_seats: 1,
+    host_user_name: 'Yash Raj Singh',
+    is_same_gender: 0,
   };
 
-  const ride = route?.params?.ride || defaultRide;
+  // Helper functions to format backend data
+  const formatTime = (timeString: string): string => {
+    try {
+      const date = new Date(timeString);
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${hours}${minutes} hrs`;
+    } catch (error) {
+      return '1700 hrs';
+    }
+  };
+
+  const formatDate = (timeString: string): string => {
+    try {
+      const date = new Date(timeString);
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = date.toLocaleString('en-US', { month: 'long' });
+      const year = date.getFullYear();
+      return `${day} ${month}, ${year}`;
+    } catch (error) {
+      return '03 January, 2025';
+    }
+  };
+
+  const getSeatsText = (totalSeats: number, bookedSeats: number): string => {
+    const availableSeats = totalSeats - bookedSeats;
+    return `${availableSeats}/${totalSeats} seat${availableSeats !== 1 ? 's' : ''} available`;
+  };
+
+  const getPriceText = (price: number): string => {
+    return `₹ ${price} pp`;
+  };
 
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -106,15 +132,23 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
     requestLocationPermission();
   }, []);
 
-  // Sample coordinates for VIT Vellore to Chennai Airport route
+  // Sample coordinates for route (VIT Vellore to Chennai Airport as default)
   const routeCoordinates = [
-    { latitude: 12.9698, longitude: 79.1559 }, // VIT Vellore
+    { latitude: 12.9698, longitude: 79.1559 }, // Start location
     { latitude: 12.9716, longitude: 79.1644 },
-    { latitude: 13.0827, longitude: 80.2707 }, // Chennai Airport
+    { latitude: 13.0827, longitude: 80.2707 }, // End location
   ];
 
   const handleRequestRide = () => {
     console.log('Requesting ride:', ride.id);
+    console.log('Ride details:', {
+      id: ride.id,
+      from: ride.start_location,
+      to: ride.end_location,
+      time: formatTime(ride.start_time),
+      price: ride.total_price,
+      availableSeats: ride.total_seats - ride.booked_seats
+    });
     // Navigate to booking or request confirmation
   };
 
@@ -150,7 +184,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
               {/* Start Location */}
               <View style={styles.locationRow}>
                 <Image source={require('../../assets/location-pin.png')} style={styles.startLocationIcon} />
-                <Text style={styles.locationText}>VIT Vellore</Text>
+                <Text style={styles.locationText}>{ride.start_location}</Text>
               </View>
               
               {/* Dotted Line */}
@@ -161,7 +195,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
               {/* End Location */}
               <View style={styles.locationRow}>
                 <Image source={require('../../assets/navigation-2.png')} style={styles.endLocationIcon} />
-                <Text style={styles.locationText}>Chennai Airport</Text>
+                <Text style={styles.locationText}>{ride.end_location}</Text>
               </View>
             </View>
             
@@ -177,27 +211,27 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
             <View style={styles.seatsAndPriceRow}>
               <View style={styles.seatsContainer}>
                 <Image source={require('../../assets/sofa.png')} style={styles.seatIcon} />
-                <Text style={styles.seatsText}>1/2 seat available</Text>
+                <Text style={styles.seatsText}>{getSeatsText(ride.total_seats, ride.booked_seats)}</Text>
               </View>
               <View style={styles.priceContainer}>
                 <Image source={require('../../assets/wallet.png')} style={styles.walletIcon} />
-                <Text style={styles.priceText}>₹ 500 pp</Text>
+                <Text style={styles.priceText}>{getPriceText(ride.total_price)}</Text>
               </View>
             </View>
             
             {/* Creator Info */}
-            <Text style={styles.creatorText}>Ride Created by Yash Raj Singh on 01 January, 2025</Text>
+            <Text style={styles.creatorText}>Ride Created by {ride.host_user_name || 'Unknown User'} on {formatDate(ride.start_time)}</Text>
             <Text style={styles.yobText}>YOB: 2004</Text>
             
             {/* Date and Time Row */}
             <View style={styles.dateTimeRow}>
               <View style={styles.dateContainer}>
                 <Image source={require('../../assets/calendar.png')} style={styles.calendarIcon} />
-                <Text style={styles.dateText}>03 January, 2025</Text>
+                <Text style={styles.dateText}>{formatDate(ride.start_time)}</Text>
               </View>
               <View style={styles.timeContainer}>
                 <Image source={require('../../assets/clock.png')} style={styles.clockIcon} />
-                <Text style={styles.timeText}>1700 hrs</Text>
+                <Text style={styles.timeText}>{formatTime(ride.start_time)}</Text>
               </View>
             </View>
             
@@ -220,20 +254,20 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
                   pitchEnabled={false}
                   rotateEnabled={false}
                 >
-                  {/* Start Marker - VIT Vellore */}
+                  {/* Start Marker - From Location */}
                   <Marker
                     coordinate={{ latitude: 12.9698, longitude: 79.1559 }}
-                    title="VIT Vellore"
+                    title={ride.start_location}
                   >
                     <View style={styles.startMarker}>
                       <Text style={styles.markerText}>|</Text>
                     </View>
                   </Marker>
                   
-                  {/* End Marker - Chennai Airport */}
+                  {/* End Marker - To Location */}
                   <Marker
                     coordinate={{ latitude: 13.0827, longitude: 80.2707 }}
-                    title="Chennai Airport"
+                    title={ride.end_location}
                   >
                     <View style={styles.endMarker}>
                       <Image source={require('../../assets/navigation-2.png')} style={styles.endMarkerIcon} />
@@ -314,10 +348,11 @@ const styles = StyleSheet.create({
   rideCard: {
     marginHorizontal: 28,
     marginBottom: 28,
-    borderRadius: 20,
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
-    padding: 28,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderBottomLeftRadius: 34,
+    borderBottomRightRadius: 34,
+    padding: 20,
     backgroundColor: AppColors.secondaryDarkGreen,
     shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 6 },
@@ -329,19 +364,19 @@ const styles = StyleSheet.create({
   cardContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 28,
+    marginBottom: 20,
   },
   leftSection: {
     flex: 1,
-    paddingRight: 28,
+    paddingRight: 20,
   },
   rightSection: {
     flex: 0,
-    width: 140,
+    width: 120,
     overflow: 'hidden',
-    marginRight: -28,
-    marginTop: -28,
-    marginBottom: -28,
+    marginRight: -20,
+    marginTop: -20,
+    marginBottom: -20,
   },
   locationRow: {
     flexDirection: 'row',
@@ -375,20 +410,20 @@ const styles = StyleSheet.create({
   },
   dottedLineVertical: {
     width: 24,
-    height: 80,
+    height: 60,
     marginLeft: 12,
-    marginVertical: 12,
+    marginVertical: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   verticalDottedLine: {
     width: 3,
-    height: 80,
+    height: 60,
     tintColor: AppColors.primaryLightGreen,
   },
     motorcycleImage: {
-      width: 140,
-      height: 160,
+      width: 120,
+      height: 130,
       marginLeft: 10,
     },
   rideDetailsSection: {
@@ -397,7 +432,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   seatsContainer: {
     flexDirection: 'row',
@@ -436,19 +471,19 @@ const styles = StyleSheet.create({
     color: AppColors.basicWhite,
     fontSize: 16,
     fontFamily: 'NunitoSans_400Regular',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   yobText: {
     color: AppColors.basicWhite,
     fontSize: 16,
     fontFamily: 'NunitoSans_400Regular',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   dateTimeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     gap: 36,
   },
   dateContainer: {
@@ -495,19 +530,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     fontFamily: 'NunitoSans_700Bold',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   bottomContainer: {
     backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 28,
   },
   mapSection: {
-    height: 200,
+    height: 180,
     overflow: 'hidden',
     marginTop: 0,
-    marginBottom: -28,
-    marginLeft: -28,
-    marginRight: -28,
+    marginBottom: -20,
+    marginLeft: -20,
+    marginRight: -20,
   },
   mapView: {
     flex: 1,
