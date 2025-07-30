@@ -14,26 +14,130 @@ const RideDetailsScreen: React.FC = () => {
   const [requests, setRequests] = React.useState<any[]>([]);
   const [requestsLoading, setRequestsLoading] = React.useState(true);
   const [requestsError, setRequestsError] = React.useState<string | null>(null);
+  const [rideDetails, setRideDetails] = React.useState<any>(null);
+  const [currentUser, setCurrentUser] = React.useState<any>(null);
+  const [isHost, setIsHost] = React.useState<boolean>(false);
   const { apiUtil } = require('../utils/ApiUtil').useApi();
   const navigation = useNavigation();
   const route = useRoute();
   const ride = (route.params && (route.params as any).ride) || {};
 
   React.useEffect(() => {
-    async function fetchRequests() {
+    console.log('RideDetailsScreen - Received ride data:', ride);
+    console.log('RideDetailsScreen - Ride ID:', ride?.id || ride?.ride_id);
+  }, [ride]);
+
+  React.useEffect(() => {
+    async function fetchRideDetails() {
       setRequestsLoading(true);
       setRequestsError(null);
       try {
-        const res = await apiUtil.get(`/ride/fetch/${ride?.id || ride?.ride_id || ride?.booking_id}`);
-        setRequests(res.requests || []);
-      } catch (err) {
-        setRequestsError("Failed to fetch requests");
+        const rideId = ride?.id || ride?.ride_id;
+        if (!rideId) {
+          setRequestsError("No ride ID found");
+          return;
+        }
+
+        console.log('Fetching ride details for ID:', rideId);
+        
+        const userResponse = await apiUtil.get('/user/details');
+        console.log('Current user:', userResponse);
+        setCurrentUser(userResponse.user);
+        
+        const rideResponse = await apiUtil.get(`/ride/fetch/${rideId}`);
+        console.log('Ride details:', rideResponse);
+        setRideDetails(rideResponse);
+
+        const isUserHost = userResponse.user?.id === rideResponse.host_user_id || userResponse.user?.id === rideResponse.driver_id;
+        setIsHost(isUserHost);
+        console.log('Is user host?', isUserHost);
+
+        const bookingsResponse = await apiUtil.get(`/booking/list`);
+        console.log('All bookings:', bookingsResponse);
+
+        let rideBookings;
+        if (isUserHost) {
+          rideBookings = bookingsResponse.bookings?.filter((booking: any) => 
+            booking.ride_id === rideId && booking.request_status === 'pending'
+          ) || [];
+        } else {
+          rideBookings = bookingsResponse.bookings?.filter((booking: any) => 
+            booking.ride_id === rideId && booking.request_status === 'accepted'
+          ) || [];
+        }
+
+        console.log('Filtered ride bookings:', rideBookings);
+
+        if (rideBookings.length > 0 || !isUserHost) {
+          try {
+            console.log('Processing bookings with available user data...');
+            
+            const bookingsWithPassengerDetails = rideBookings.map((booking: any) => {
+              let passengerName = 'Unknown User';
+              
+              if (booking.passenger_id === userResponse.user?.id) {
+                passengerName = userResponse.user?.name || 'You';
+              } else if (booking.passenger_name) {
+                passengerName = booking.passenger_name;
+              } else if (booking.user_name) {
+                passengerName = booking.user_name;
+              } else if (booking.ride_details?.passenger_name) {
+                passengerName = booking.ride_details.passenger_name;
+              }
+              
+              return {
+                ...booking,
+                passenger: { 
+                  id: booking.passenger_id,
+                  name: passengerName 
+                }
+              };
+            });
+
+            // If not host (passenger view), add the host to the list
+            if (!isUserHost) {
+              const hostId = rideResponse.host_user_id || rideResponse.host_id || rideResponse.driver_id;
+              let hostName = 'Host';
+              
+              if (rideResponse.host_user_name) {
+                hostName = rideResponse.host_user_name;
+              } else if (rideResponse.host_user?.name) {
+                hostName = rideResponse.host_user.name;
+              } else if (rideBookings.length > 0 && rideBookings[0].ride_details?.host_user?.name) {
+                hostName = rideBookings[0].ride_details.host_user.name;
+              }
+              
+              const hostEntry = {
+                id: `host-${hostId}`,
+                passenger_id: hostId,
+                passenger: { 
+                  id: hostId,
+                  name: hostName 
+                },
+                request_status: 'accepted',
+                is_host: true,
+              };
+              bookingsWithPassengerDetails.unshift(hostEntry);
+            }
+
+            console.log('Bookings with passenger details:', bookingsWithPassengerDetails);
+            setRequests(bookingsWithPassengerDetails);
+          } catch (error) {
+            console.error('Error processing booking details:', error);
+            setRequests(rideBookings);
+          }
+        } else {
+          setRequests([]);
+        }
+      } catch (err: any) {
+        console.error('Error fetching ride details:', err);
+        setRequestsError(err.message || "Failed to fetch ride details");
       } finally {
         setRequestsLoading(false);
       }
     }
-    fetchRequests();
-  }, [ride?.id, ride?.ride_id, ride?.booking_id]);
+    fetchRideDetails();
+  }, [ride?.id, ride?.ride_id]);
   const bookingId = ride?.booking_id || ride?.id || ride?.ride_id || "demo-booking-id";
 
   function formatTime(timeStr: string) {
@@ -48,7 +152,8 @@ const RideDetailsScreen: React.FC = () => {
     return timeStr;
   }
 
-  const rawDate = ride?.date || ride?.ride_date || ride?.start_time || null;
+  const displayRide = rideDetails || ride;
+  const rawDate = displayRide?.date || displayRide?.ride_date || displayRide?.start_time || null;
   let formattedDate = "";
   if (rawDate) {
     const dateObj = new Date(rawDate);
@@ -68,7 +173,6 @@ const RideDetailsScreen: React.FC = () => {
           left: 0,
           right: 0,
           zIndex: 100,
-          paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
           backgroundColor: AppColors.primaryLightGreen,
         }}
       >
@@ -84,87 +188,126 @@ const RideDetailsScreen: React.FC = () => {
       ) : null}
       <View style={{ margin: 16, marginBottom: 8 }}>
         <RideCard
-          id={ride?.id || ride?.ride_id || ""}
-          origin={ride?.origin || ride?.start_location || "VIT Vellore"}
-          destination={ride?.destination || ride?.end_location || "Chennai Airport"}
-          time={formatTime(ride?.time || ride?.start_time || "1700 hrs")}
-          price={ride?.price || ride?.total_price || 500}
-          seatsAvailable={ride?.seatsAvailable || `${ride?.booked_seats || 1}/${ride?.total_seats || 2}`}
+          id={displayRide?.id || displayRide?.ride_id || ""}
+          origin={displayRide?.origin || displayRide?.start_location || "VIT Vellore"}
+          destination={displayRide?.destination || displayRide?.end_location || "Chennai Airport"}
+          time={formatTime(displayRide?.time || displayRide?.start_time || "1700 hrs")}
+          price={displayRide?.price || displayRide?.total_price || 500}
+          seatsAvailable={displayRide?.seatsAvailable || `${displayRide?.booked_seats || 1}/${displayRide?.total_seats || 2}`}
           isSelected={true}
-          variant={ride?.variant || "inprogress"}
+          variant={displayRide?.variant || "inprogress"}
         />
       </View>
-      <Text style={styles.requestsHeader}>Requests</Text>
+      <Text style={styles.requestsHeader}>{isHost ? "Requests" : "Passengers"}</Text>
       {requestsLoading ? (
-        <Text style={{ color: AppColors.basicBlack, marginLeft: 16 }}>Loading requests...</Text>
+        <Text style={{ color: AppColors.basicBlack, marginLeft: 16 }}>Loading {isHost ? "requests" : "passengers"}...</Text>
       ) : requestsError ? (
         <Text style={{ color: 'red', marginLeft: 16 }}>{requestsError}</Text>
       ) : requests.length === 0 ? (
-        <Text style={{ color: AppColors.basicBlack, marginLeft: 16 }}>No requests found.</Text>
+        <Text style={{ color: AppColors.basicBlack, marginLeft: 16 }}>
+          {isHost ? "No requests found." : "No confirmed passengers yet."}
+        </Text>
       ) : (
         requests.map((req, idx) => (
           <View style={styles.requestCard} key={req.id || idx}>
-            {showSlide === null ? (
-              <View style={styles.requestCardBlack}>
-                <Text style={styles.requestNameLargeBlack}>{req.name || req.passenger_name || "User"}</Text>
-                <View style={styles.requestActionsRowBlack}>
-                  <TouchableOpacity style={styles.rejectButtonBlack} onPress={() => setShowSlide('reject')}>
-                    <Image source={require('../assets/cross.png')} style={styles.actionIconBlack} />
-                    <Text style={styles.actionLabelBlack}>Reject</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.acceptButtonBlack} onPress={() => setShowSlide('accept')}>
-                    <Image source={require('../assets/check.png')} style={styles.actionIconAccept} />
-                    <Text style={styles.acceptLabelBlack}>Accept</Text>
-                  </TouchableOpacity>
+            {isHost ? (
+              showSlide === null ? (
+                <View style={styles.requestCardBlack}>
+                  <Text style={styles.requestNameLargeBlack}>
+                    {req.passenger?.name || req.passenger_name || req.name || "User"}
+                  </Text>
+                  <View style={styles.requestActionsRowBlack}>
+                    <TouchableOpacity style={styles.rejectButtonBlack} onPress={() => setShowSlide('reject')}>
+                      <Image source={require('../assets/cross.png')} style={styles.actionIconBlack} />
+                      <Text style={styles.actionLabelBlack}>Reject</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.acceptButtonBlack} onPress={() => setShowSlide('accept')}>
+                      <Image source={require('../assets/check.png')} style={styles.actionIconAccept} />
+                      <Text style={styles.acceptLabelBlack}>Accept</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            ) : showSlide === 'accept' ? (
-              <View style={styles.slideContainer}>
-                <SlideToCreate
-                  text={loading ? "Accepting..." : "Slide to accept user"}
-                  onSlideComplete={async () => {
-                    setLoading(true);
-                    setError(null);
-                    try {
-                      await apiUtil.put(`/bookings/accept/${req.booking_id || req.id}`, {});
-                      setShowSlide(null);
-                    } catch (err) {
-                      setError("Failed to accept request");
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
-                  sliderIcon={require('../assets/slide.png')}
-                  backgroundColor="#fff"
-                  sliderButtonColor={AppColors.secondaryDarkGreen}
-                  textColor={AppColors.secondaryDarkGreen}
-                  borderColor="#fff"
-                />
-                {error && <Text style={{ color: 'red', marginTop: 8 }}>{error}</Text>}
-              </View>
+              ) : showSlide === 'accept' ? (
+                <View style={styles.slideContainer}>
+                  <SlideToCreate
+                    text={loading ? "Accepting..." : "Slide to accept user"}
+                    onSlideComplete={async () => {
+                      setLoading(true);
+                      setError(null);
+                      try {
+                        const bookingId = req.id || req.booking_id;
+                        console.log('Accepting booking:', bookingId);
+                        await apiUtil.put(`/bookings/accept/${bookingId}`, {});
+                        
+                        setRequests(prev => prev.filter(r => (r.id || r.booking_id) !== bookingId));
+                        setShowSlide(null);
+                      } catch (err: any) {
+                        console.error('Error accepting request:', err);
+                        setError(err.message || "Failed to accept request");
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    sliderIcon={require('../assets/slide.png')}
+                    backgroundColor="#fff"
+                    sliderButtonColor={AppColors.secondaryDarkGreen}
+                    textColor={AppColors.secondaryDarkGreen}
+                    borderColor="#fff"
+                  />
+                  {error && <Text style={{ color: 'red', marginTop: 8 }}>{error}</Text>}
+                </View>
+              ) : (
+                <View style={styles.slideContainer}>
+                  <SlideToCreate
+                    text={loading ? "Rejecting..." : "Slide to reject user"}
+                    onSlideComplete={async () => {
+                      setLoading(true);
+                      setError(null);
+                      try {
+                        const bookingId = req.id || req.booking_id;
+                        console.log('Rejecting booking:', bookingId);
+                        await apiUtil.patch(`/booking/update/${bookingId}`, { request_status: "rejected" });
+                        
+                        setRequests(prev => prev.filter(r => (r.id || r.booking_id) !== bookingId));
+                        setShowSlide(null);
+                      } catch (err: any) {
+                        console.error('Error rejecting request:', err);
+                        setError(err.message || "Failed to reject request");
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    sliderIcon={require('../assets/slide.png')}
+                    backgroundColor="#fff"
+                    sliderButtonColor="#FF3B30"
+                    textColor="#FF3B30"
+                    borderColor="#fff"
+                  />
+                  {error && <Text style={{ color: 'red', marginTop: 8 }}>{error}</Text>}
+                </View>
+              )
             ) : (
-              <View style={styles.slideContainer}>
-                <SlideToCreate
-                  text={loading ? "Rejecting..." : "Slide to reject user"}
-                  onSlideComplete={async () => {
-                    setLoading(true);
-                    setError(null);
-                    try {
-                      await apiUtil.put(`/booking/update/${req.booking_id || req.id}`, { request_status: "rejected" });
-                      setShowSlide(null);
-                    } catch (err) {
-                      setError("Failed to reject request");
-                    } finally {
-                      setLoading(false);
+              <View style={styles.passengerCardView}>
+                <Text style={styles.passengerNameText}>
+                  {(() => {
+                    const passengerName = req.passenger?.name || req.passenger_name || req.name || "User";
+                    const isCurrentUser = req.passenger_id === currentUser?.id;
+                    const isHost = req.is_host;
+                    
+                    if (isCurrentUser && isHost) {
+                      return `${passengerName} (You - Host)`;
+                    } else if (isCurrentUser) {
+                      return `${passengerName} (You)`;
+                    } else if (isHost) {
+                      return `${passengerName} (Host)`;
+                    } else {
+                      return passengerName;
                     }
-                  }}
-                  sliderIcon={require('../assets/slide.png')}
-                  backgroundColor="#fff"
-                  sliderButtonColor="#FF3B30"
-                  textColor="#FF3B30"
-                  borderColor="#fff"
-                />
-                {error && <Text style={{ color: 'red', marginTop: 8 }}>{error}</Text>}
+                  })()}
+                </Text>
+                <View style={styles.confirmedBadge}>
+                  <Text style={styles.confirmedText}>Confirmed</Text>
+                </View>
               </View>
             )}
           </View>
@@ -175,6 +318,40 @@ const RideDetailsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  passengerCardView: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    backgroundColor: AppColors.basicWhite,
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginHorizontal: 0,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  passengerNameText: {
+    color: AppColors.basicBlack,
+    fontSize: 18,
+    fontFamily: 'NunitoSans_600SemiBold',
+    flex: 1,
+  },
+  confirmedBadge: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  confirmedText: {
+    color: AppColors.basicWhite,
+    fontSize: 12,
+    fontFamily: 'NunitoSans_600SemiBold',
+  },
   requestCardBlack: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -276,7 +453,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: AppColors.primaryLightGreen,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   header: {
     flexDirection: "row",
@@ -375,12 +551,11 @@ const styles = StyleSheet.create({
   requestCard: {
     borderRadius: 22,
     marginHorizontal: 16,
-    paddingVertical: 18,
     paddingHorizontal: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: 3,
     elevation: 0,
   },
   slideContainer: {
