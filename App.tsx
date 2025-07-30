@@ -187,7 +187,7 @@ const App = () => {
                   <Stack.Screen
                     name="RideRequestedScreen"
                     component={RideRequestedScreen}
-                    options={{ headerShown: false }}
+                    options={{ headerShown: false, animation: 'none' }}
                   />
                   <Stack.Screen
                     name="BookingScreen"
@@ -245,7 +245,7 @@ const App = () => {
                       require("./screens/AvailableRideScreens/AvailableRideScreenSelected")
                         .default
                     }
-                    options={{ headerShown: false }}
+                    options={{ headerShown: false, animation: 'none' }}
                   />
                   <Stack.Screen
                     name="BookingsScreen"
