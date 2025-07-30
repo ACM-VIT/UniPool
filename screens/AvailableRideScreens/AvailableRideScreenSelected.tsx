@@ -11,6 +11,20 @@ import ChevronBack from '../../components/ChevronBack/ChevronBack';
 import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
 import BrandInfo from '../../components/BrandInfo/BrandInfo';
 import AppColors from '../../design_systems/colors';
+import { useApi } from '../../utils/ApiUtil';
+
+interface RideRequestResponse {
+  success?: boolean;
+  id?: string;
+  booking_id?: string;
+  message?: string;
+  status?: string;
+}
+
+interface RideRequestPayload {
+  ride_id: string;
+  request_status: string;
+}
 
 type RootStackParamList = {
   AvailableRidesScreen: undefined;
@@ -45,15 +59,15 @@ type AvailableRideScreenSelectedProps = {
 
 const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = ({ navigation, route }) => {
   const nav = useNavigation();
+  const { apiUtil } = useApi();
   const [location, setLocation] = useState<any>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
+  const [isRequesting, setIsRequesting] = useState(false);
 
-  // Get ride data from route params
   const rideData = route?.params?.ride;
   console.log("Received ride data:", rideData);
 
-  // Use backend data if available, otherwise fallback to default
   const ride = rideData || {
     id: '1',
     start_location: 'VIT Vellore',
@@ -66,7 +80,6 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
     is_same_gender: 0,
   };
 
-  // Helper functions to format backend data
   const formatTime = (timeString: string): string => {
     try {
       const date = new Date(timeString);
@@ -132,24 +145,63 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
     requestLocationPermission();
   }, []);
 
-  // Sample coordinates for route (VIT Vellore to Chennai Airport as default)
   const routeCoordinates = [
-    { latitude: 12.9698, longitude: 79.1559 }, // Start location
+    { latitude: 12.9698, longitude: 79.1559 },
     { latitude: 12.9716, longitude: 79.1644 },
-    { latitude: 13.0827, longitude: 80.2707 }, // End location
+    { latitude: 13.0827, longitude: 80.2707 },
   ];
 
-  const handleRequestRide = () => {
-    console.log('Requesting ride:', ride.id);
-    console.log('Ride details:', {
-      id: ride.id,
-      from: ride.start_location,
-      to: ride.end_location,
-      time: formatTime(ride.start_time),
-      price: ride.total_price,
-      availableSeats: ride.total_seats - ride.booked_seats
-    });
-    (nav as any).navigate('RideRequestedScreen');
+  const handleRequestRide = async () => {
+    if (isRequesting) return;
+    
+    setIsRequesting(true);
+    
+    try {
+      const requestPayload: RideRequestPayload = {
+        ride_id: ride.id,
+        request_status: "pending",
+      };
+
+      console.log('Requesting ride with payload:', requestPayload);
+
+      const response = await apiUtil.post('/bookings/request', requestPayload) as RideRequestResponse;
+      
+      console.log('Ride request response:', response);
+
+      if (response && (response.success || response.id || response.booking_id)) {
+        (nav as any).navigate('RideRequestedScreen', {
+          rideId: ride.id,
+          bookingId: response.id || response.booking_id,
+          rideDetails: {
+            from: ride.start_location,
+            to: ride.end_location,
+            time: formatTime(ride.start_time),
+            price: ride.total_price,
+            driver: ride.host_user_name,
+          }
+        });
+      } else {
+        throw new Error(response?.message || 'Failed to request ride');
+      }
+    } catch (error: any) {
+      console.error('Error requesting ride:', error);
+      
+      let errorMessage = 'Failed to request ride. Please try again.';
+      
+      if (error?.response?.status === 400) {
+        errorMessage = error?.response?.data?.message || 'Invalid request. Please check ride availability.';
+      } else if (error?.response?.status === 401) {
+        errorMessage = 'Please log in to request a ride.';
+      } else if (error?.response?.status === 409) {
+        errorMessage = 'You have already requested this ride or the ride is full.';
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      console.error('Ride request error:', errorMessage);
+    } finally {
+      setIsRequesting(false);
+    }
   };
 
   return (
@@ -299,8 +351,8 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
       <View style={styles.bottomContainer}>
         <SlideToCreate
           onSlideComplete={handleRequestRide}
-          text="Slide to request ride"
-          disabled={false}
+          text={isRequesting ? "Requesting..." : "Slide to request ride"}
+          disabled={isRequesting}
           sliderIcon={require("../../assets/slide.png")}
         />
       </View>
