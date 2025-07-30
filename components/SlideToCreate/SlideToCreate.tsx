@@ -58,11 +58,12 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
       useNativeDriver: false,
       listener: (event: any) => {
         const { translationX } = event.nativeEvent;
+        const maxTranslation = sliderWidth - 64; // Account for button width (60) + small padding (4)
         // Prevent sliding beyond boundaries
         if (translationX < 0) {
           translateX.setValue(0);
-        } else if (translationX > sliderWidth - 60) {
-          translateX.setValue(sliderWidth - 60);
+        } else if (translationX > maxTranslation) {
+          translateX.setValue(maxTranslation);
         }
       }
     }
@@ -72,12 +73,13 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
     const { state, translationX } = event.nativeEvent;
     
     if (state === State.END) {
-      const threshold = sliderWidth * 0.8; // 80% of the way
+      const maxTranslation = sliderWidth - 64; // Account for button width + padding
+      const threshold = maxTranslation * 0.8; // 80% of the available slide distance
       
       if (translationX >= threshold && !disabled) {
         // Slide completed
         Animated.spring(translateX, {
-          toValue: sliderWidth - 60,
+          toValue: maxTranslation,
           useNativeDriver: false,
         }).start(() => {
           onSlideComplete();

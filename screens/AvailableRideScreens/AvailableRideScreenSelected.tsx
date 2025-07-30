@@ -149,7 +149,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
       price: ride.total_price,
       availableSeats: ride.total_seats - ride.booked_seats
     });
-    // Navigate to booking or request confirmation
+    (nav as any).navigate('RideRequestedScreen');
   };
 
   return (
@@ -169,7 +169,10 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
             <ChevronBack />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.createRideBtn}>
+        <TouchableOpacity 
+          style={styles.createRideBtn}
+          onPress={() => (nav as any).navigate('CreateRide')}
+        >
           <Text style={styles.createRideBtnText}>Create Ride</Text>
         </TouchableOpacity>
       </View>
