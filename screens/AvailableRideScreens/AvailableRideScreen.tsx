@@ -134,7 +134,15 @@ console.log("AvailableRideScreen params:", { fromLocation, toLocation });
   ]);
 
   const handleRideSelection = (rideId: string) => {
-    setSelectedRideId((prev) => (prev === rideId ? null : rideId));
+    const selectedRide = rides.find(ride => ride.id === rideId);
+    if (selectedRide) {
+      // Navigate to detailed screen with ride data
+      (navigation as any).navigate("AvailableRidesSelectedScreen", { 
+        ride: selectedRide 
+      });
+    } else {
+      setSelectedRideId((prev) => (prev === rideId ? null : rideId));
+    }
   };
 
   return (
