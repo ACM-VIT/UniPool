@@ -130,9 +130,7 @@ const App = () => {
     currentRouteName !== "AuthScreen" && 
     currentRouteName !== "SignUpScreen" && 
     currentRouteName !== "CreateRide" && 
-    currentRouteName !== "AvailableRidesSelectedScreen" &&
-    currentRouteName !== "ChatConversationScreen" &&
-    currentRouteName !== "ChatMessages"
+    currentRouteName !== "AvailableRidesSelectedScreen"
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ApiProvider navigationRef={navigationRef}>
