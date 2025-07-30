@@ -132,8 +132,7 @@ const App = () => {
     currentRouteName !== "CreateRide" && 
     currentRouteName !== "AvailableRidesSelectedScreen" &&
     currentRouteName !== "ChatConversationScreen" &&
-    currentRouteName !== "ChatMessages" &&
-    currentRouteName !== "PassengerInfoScreen"
+    currentRouteName !== "ChatMessages"
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ApiProvider navigationRef={navigationRef}>
