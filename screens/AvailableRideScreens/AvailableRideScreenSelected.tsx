@@ -149,7 +149,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
       price: ride.total_price,
       availableSeats: ride.total_seats - ride.booked_seats
     });
-    // Navigate to booking or request confirmation
+    (nav as any).navigate('RideRequestedScreen');
   };
 
   return (
