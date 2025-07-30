@@ -151,6 +151,30 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     });
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to log out?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+              await AsyncStorage.clear();
+              setUserData(null);
+              navigation.reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
+            } catch (e) {
+              Alert.alert('Logout Failed', 'An error occurred while logging out.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const moreItems: MenuItem[] = [
     {
       id: "share",
@@ -180,6 +204,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       title: "Account Settings",
       hasCheckmark: true,
       onPress: () => navigation.navigate("AccountSettingsScreen"),
+    },
+    {
+      id: "logout",
+      title: "Logout",
+      onPress: handleLogout,
     },
   ];
 
