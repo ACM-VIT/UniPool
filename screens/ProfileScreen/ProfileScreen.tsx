@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { ProfileScreenProps } from "./ProfileScreen.types";
 import BrandInfo from "../../components/BrandInfo";
-import MainNavBar from "../../components/MainNavBar";
 import styles from "./ProfileScreen.styles";
 import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";

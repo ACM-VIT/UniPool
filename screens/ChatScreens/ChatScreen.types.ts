@@ -1,3 +1,16 @@
+export interface Ride {
+  id: string;
+  host_user_id: string;
+  start_location: string;
+  end_location: string;
+  start_time: string;
+  total_seats: number;
+  booked_seats: number;
+  total_price: number;
+  is_ongoing: number;
+  is_same_gender: number;
+}
+
 export interface Trip {
   id: number;
   destination: string;
@@ -28,13 +41,18 @@ export interface ChatRoom {
   lastMessage?: ChatMessage;
 }
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export interface PassengerDestination {
   id: string;
   name: string;
   isActive?: boolean;
 }
 
-// Navigation types
 export type ChatStackParamList = {
   PassengerInfo: undefined;
   TripInfo: undefined;

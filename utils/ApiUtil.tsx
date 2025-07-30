@@ -56,6 +56,10 @@ export default class ApiUtil {
     return this.makeRequest<T>("DELETE", endpoint, undefined, headers, timeout);
   }
 
+  getCurrentUserId(): string | null {
+    return getAuth().currentUser?.uid ?? null;
+  }
+
   private async makeRequest<T>(
     method: string,
     endpoint: string,
