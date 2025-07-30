@@ -13,7 +13,7 @@ import BrandInfo from '../../components/BrandInfo/BrandInfo';
 import AppColors from '../../design_systems/colors';
 
 type RootStackParamList = {
-  AvailableRideScreen: undefined;
+  AvailableRidesScreen: undefined;
   AvailableRidesSelectedScreen: {
     ride?: {
       id: string;
@@ -44,6 +44,7 @@ type AvailableRideScreenSelectedProps = {
 };
 
 const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = ({ navigation, route }) => {
+  const nav = useNavigation();
   const [location, setLocation] = useState<any>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
@@ -127,7 +128,12 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
       {/* Navigation Row */}
       <View style={styles.navigationRow}>
         <View style={styles.navigationLeft}>
-          <ChevronBack style={styles.backButton} />
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => (nav as any).navigate('AvailableRidesScreen')}
+          >
+            <ChevronBack />
+          </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.createRideBtn}>
           <Text style={styles.createRideBtnText}>Create Ride</Text>
@@ -346,7 +352,7 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     marginRight: 10,
-    tintColor: AppColors.primaryLightGreen,
+    resizeMode: 'contain',
   },
   startLocationLine: {
     color: AppColors.primaryLightGreen,
@@ -365,7 +371,7 @@ const styles = StyleSheet.create({
     color: AppColors.basicWhite,
     fontSize: 20,
     fontWeight: '700',
-    fontFamily: 'NunitoSans_700',
+    fontFamily: 'NunitoSans_600SemiBold',
   },
   dottedLineVertical: {
     width: 24,
@@ -386,7 +392,6 @@ const styles = StyleSheet.create({
       marginLeft: 10,
     },
   rideDetailsSection: {
-    paddingTop: 20,
   },
   seatsAndPriceRow: {
     flexDirection: 'row',
@@ -407,12 +412,14 @@ const styles = StyleSheet.create({
     height: 20,
     marginRight: 8,
     tintColor: AppColors.basicWhite,
+    resizeMode: 'contain',
   },
   walletIcon: {
     width: 20,
     height: 20,
     marginRight: 8,
     tintColor: AppColors.basicWhite,
+    resizeMode: 'contain',
   },
   seatsText: {
     color: AppColors.basicWhite,
@@ -462,12 +469,14 @@ const styles = StyleSheet.create({
     height: 20,
     marginRight: 8,
     tintColor: AppColors.primaryLightGreen,
+    resizeMode: 'contain',
   },
   clockIcon: {
     width: 20,
     height: 20,
     marginRight: 8,
     tintColor: AppColors.primaryLightGreen,
+    resizeMode: 'contain',
   },
   dateText: {
     color: AppColors.primaryLightGreen,
