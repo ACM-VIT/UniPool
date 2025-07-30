@@ -24,9 +24,7 @@ const RideDetailsScreen: React.FC = () => {
       setRequestsLoading(true);
       setRequestsError(null);
       try {
-        // Replace with correct endpoint and params as needed
         const res = await apiUtil.get(`/ride/fetch/${ride?.id || ride?.ride_id || ride?.booking_id}`);
-        // Assume res.requests is an array of requests/passengers
         setRequests(res.requests || []);
       } catch (err) {
         setRequestsError("Failed to fetch requests");
@@ -36,7 +34,6 @@ const RideDetailsScreen: React.FC = () => {
     }
     fetchRequests();
   }, [ride?.id, ride?.ride_id, ride?.booking_id]);
-  // Dummy bookingId for demo, replace with actual booking id from props/data
   const bookingId = ride?.booking_id || ride?.id || ride?.ride_id || "demo-booking-id";
 
   function formatTime(timeStr: string) {
@@ -64,7 +61,6 @@ const RideDetailsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Move BrandInfo absolutely to the very top, above all content */}
       <View
         style={{
           position: "absolute",

@@ -8,7 +8,12 @@ import { useNavigation } from '@react-navigation/native';
 
 interface Booking {
   id: string;
-  rideDetails: string;
+  ride_details: {
+    start_location?: string;
+    end_location?: string;
+    start_time?: string;
+    [key: string]: any;
+  };
   [key: string]: any;
 }
 
@@ -22,6 +27,15 @@ const BookingsScreen: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  const dedupedBookings = React.useMemo(() => {
+    const seen = new Set();
+    return bookings.filter(b => {
+      if (seen.has(b.ride_id)) return false;
+      seen.add(b.ride_id);
+      return true;
+    });
+  }, [bookings]);
 
   useEffect(() => {
     apiUtil.get<BookingsResponse>('/booking/list')
@@ -62,11 +76,27 @@ const BookingsScreen: React.FC = () => {
     </View>
   );
 
-  const renderBooking: ListRenderItem<Booking> = ({ item }) => (
-    <View style={styles.menuItem}>
-      <Text style={styles.menuItemText}>{item.rideDetails || 'No details available'}</Text>
-    </View>
-  );
+  const renderBooking: ListRenderItem<Booking> = ({ item }) => {
+    const details = item.ride_details;
+    let summary = 'No details available';
+    if (details) {
+      const origin = details.start_location || '';
+      const destination = details.end_location || '';
+      const time = details.start_time ? new Date(details.start_time).toLocaleString() : '';
+      if (origin && destination && time) {
+        summary = `From ${origin} to ${destination} at ${time}`;
+      } else if (origin && destination) {
+        summary = `From ${origin} to ${destination}`;
+      } else {
+        summary = JSON.stringify(details);
+      }
+    }
+    return (
+      <View style={styles.menuItem}>
+        <Text style={styles.menuItemText}>{summary}</Text>
+      </View>
+    );
+  };
 
   if (error) {
     return (
@@ -102,7 +132,7 @@ const BookingsScreen: React.FC = () => {
         </View>
       </View>
       <View style={styles.newSection}>
-        {bookings.length === 0 ? (
+        {dedupedBookings.length === 0 ? (
           <View style={{
             minHeight: 120,
             justifyContent: 'center',
@@ -121,7 +151,7 @@ const BookingsScreen: React.FC = () => {
         ) : (
           <View style={styles.menuContainer}>
             <FlatList
-              data={bookings}
+              data={dedupedBookings}
               keyExtractor={(item) => item.id}
               renderItem={renderBooking}
             />

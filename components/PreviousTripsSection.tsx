@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, ScrollView, StyleSheet, Dimensions, ActivityIndicator } from "react-native";
 import PreviousTripsCompressed from "../components/PreviousTripsCompressed";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/RootStackParamList';
 import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
 
@@ -18,7 +21,9 @@ interface UserRideData {
     passenger_id?: string;
 }
 
+type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'HomeScreen'>;
 const PreviousTripsSection: React.FC = () => {
+    const navigation = useNavigation<NavigationProp>();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [rideData, setRideData] = useState<UserRideData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -27,7 +32,14 @@ const PreviousTripsSection: React.FC = () => {
     const screenWidth = Dimensions.get("window").width;
     const maxDots = 5;
 
-    const displayedRides = rideData.slice(Math.max(rideData.length - 5, 0));
+    const uniqueRidesMap = new Map<string, UserRideData>();
+    rideData.forEach((ride) => {
+        if (ride.ride_id && !uniqueRidesMap.has(ride.ride_id)) {
+            uniqueRidesMap.set(ride.ride_id, ride);
+        }
+    });
+    const uniqueRides = Array.from(uniqueRidesMap.values());
+    const displayedRides = uniqueRides.slice(Math.max(uniqueRides.length - 5, 0));
 
     const fetchUserRides = async () => {
         try {
@@ -160,7 +172,10 @@ const PreviousTripsSection: React.FC = () => {
                                     { width: screenWidth - 32 },
                                 ]}
                             >
-                                <PreviousTripsCompressed trip={trip} />
+                                <PreviousTripsCompressed
+                                    trip={trip}
+                                    onPress={() => navigation.navigate('RideDetailsScreen', { ride: trip })}
+                                />
                             </View>
                         ))}
                     </ScrollView>
