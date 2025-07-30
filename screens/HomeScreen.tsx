@@ -7,9 +7,10 @@ import {
   StyleSheet,
   Dimensions,
   Platform,
-  StatusBar,
+  Alert,
+  PixelRatio,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import { useNavigation, useIsFocused } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -26,13 +27,39 @@ type HomeScreenNavigationProp = NativeStackNavigationProp<
   "HomeScreen"
 >;
 
-const { width, height } = Dimensions.get("window");
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const pixelRatio = PixelRatio.get();
+const fontScale = PixelRatio.getFontScale();
+
+const normalize = (size: number) => {
+  const scale = screenWidth / 375;
+  const newSize = size * scale;
+  
+  if (Platform.OS === 'ios') {
+    return Math.round(PixelRatio.roundToNearestPixel(newSize));
+  } else {
+    return Math.round(PixelRatio.roundToNearestPixel(newSize)) - 2;
+  }
+};
+
+const responsiveHeight = (percentage: number) => {
+  return (screenHeight * percentage) / 100;
+};
+
+const responsiveWidth = (percentage: number) => {
+  return (screenWidth * percentage) / 100;
+};
 
 interface HomeScreenProps {
   setNavBarVariant: (variant: 0 | 1 | 2) => void;
   setNavBarText: (text: string) => void;
   setNavBarIcon: (icon: any) => void;
   setNavBarItems: (items: any[]) => void;
+}
+
+interface LocationCoords {
+  latitude: number;
+  longitude: number;
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -44,47 +71,175 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const isFocused = useIsFocused();
 
-  const [location, setLocation] = useState<any>(null);
+  const [location, setLocation] = useState<LocationCoords | null>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
+  const [mapRegion, setMapRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
   const [rideDetails, setRideDetails] = useState<{ from: string; to: string; date: Date } | null>(null);
+  const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
+  const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
+
+  const customMapStyle = [
+    {
+      featureType: "all",
+      elementType: "geometry",
+      stylers: [
+        {
+          color: "#f5f5f5"
+        }
+      ]
+    },
+    {
+      featureType: "road",
+      elementType: "geometry",
+      stylers: [
+        {
+          color: "#ffffff"
+        }
+      ]
+    },
+    {
+      featureType: "road",
+      elementType: "geometry.stroke",
+      stylers: [
+        {
+          color: "#e8e8e8"
+        }
+      ]
+    },
+    {
+      featureType: "water",
+      elementType: "geometry",
+      stylers: [
+        {
+          color: AppColors.primaryLightGreen || "#a8d8a8"
+        }
+      ]
+    },
+    {
+      featureType: "landscape",
+      elementType: "geometry",
+      stylers: [
+        {
+          color: "#f9f9f9"
+        }
+      ]
+    },
+    {
+      featureType: "poi",
+      elementType: "geometry",
+      stylers: [
+        {
+          color: "#eeeeee"
+        }
+      ]
+    },
+    {
+      featureType: "poi.park",
+      elementType: "geometry",
+      stylers: [
+        {
+          color: AppColors.primaryLightGreen || "#a8d8a8"
+        }
+      ]
+    }
+  ];
 
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status === "granted") {
-      getUserLocation();
-      setHasPermission(true);
+      if (!hasPermission) setHasPermission(true);
+      if (!location) await getUserLocation();
     } else {
-      setHasPermission(false);
+      if (hasPermission) setHasPermission(false);
       console.log("Location permission denied");
     }
   };
 
   const getUserLocation = async () => {
+    if (location) return;
     try {
       const { coords } = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
       const { latitude, longitude } = coords;
-      setLocation({ latitude, longitude });
-      setInitialRegion({
+      const userLocation = { latitude, longitude };
+      setLocation(userLocation);
+
+      const region = {
         latitude,
         longitude,
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
-      });
+      };
+      setInitialRegion(region);
+      setMapRegion(region);
     } catch (error) {
       console.error("Error fetching location:", error);
     }
   };
 
+  const geocodeAddress = async (address: string): Promise<LocationCoords | null> => {
+    try {
+      const results = await Location.geocodeAsync(address);
+      if (results.length === 0) {
+        console.warn(`No geocoding results for "${address}"`);
+        return null;
+      }
+      const { latitude, longitude } = results[0];
+      return { latitude, longitude };
+    } catch (error) {
+      console.error("Geocoding error:", error);
+      return null;
+    }
+  };
+
+  const fitMapToWaypoints = (from: LocationCoords, to: LocationCoords, userLoc: LocationCoords) => {
+    const coordinates = [from, to, userLoc];
+
+    const minLat = Math.min(...coordinates.map(coord => coord.latitude));
+    const maxLat = Math.max(...coordinates.map(coord => coord.latitude));
+    const minLng = Math.min(...coordinates.map(coord => coord.longitude));
+    const maxLng = Math.max(...coordinates.map(coord => coord.longitude));
+
+    const midLat = (minLat + maxLat) / 2;
+    const midLng = (minLng + maxLng) / 2;
+    const deltaLat = (maxLat - minLat) * 1.5;
+    const deltaLng = (maxLng - minLng) * 1.5;
+
+    setMapRegion({
+      latitude: midLat,
+      longitude: midLng,
+      latitudeDelta: Math.max(deltaLat, 0.02),
+      longitudeDelta: Math.max(deltaLng, 0.02),
+    });
+  };
+
   useEffect(() => {
     requestLocationPermission();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleRideSubmit = (details: { from: string; to: string; date: Date }) => {
+  const handleRideSubmit = async (details: { from: string; to: string; date: Date }) => {
     setRideDetails(details);
+    if (!details.from || !details.to) return;
+
+    const [fromLocation, toLocation] = await Promise.all([
+      geocodeAddress(details.from),
+      geocodeAddress(details.to),
+    ]);
+
+    if (fromLocation && toLocation && location) {
+      setFromCoords(fromLocation);
+      setToCoords(toLocation);
+      fitMapToWaypoints(fromLocation, toLocation, location);
+    } else {
+      Alert.alert(
+        "Could not find location",
+        "Please check your 'From' and 'To' addresses and try again."
+      );
+    }
   };
 
   //donot change this code, state mgmt is crucial here
@@ -123,37 +278,82 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const handleLocationSelectionChange = (hasFromAndTo: boolean) => {
     setBothLocationsSelected(hasFromAndTo);
+
+    if (!hasFromAndTo) {
+      setFromCoords(null);
+      setToCoords(null);
+      if (initialRegion) {
+        setMapRegion(initialRegion);
+      }
+    }
   };
 
+  const getPolylineCoordinates = () => {
+    if (!fromCoords || !toCoords) return [];
+    return [fromCoords, toCoords];
+  };
+
+  // Determine background color: basicWhite on initial load, then primaryLightGreen when map loads
+  const isMapLoaded = location && mapRegion && hasPermission;
+  const containerBg = isMapLoaded ? AppColors.basicWhite : AppColors.primaryLightGreen;
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 10,
-        }}
-      >
+    <SafeAreaView style={[styles.container, { backgroundColor: containerBg }]}> 
+      <View style={styles.brandInfoContainer}>
         <BrandInfo />
       </View>
+
       <View style={styles.scrollView}>
         <View style={styles.mapContainer}>
-          {hasPermission && initialRegion && location ? (
+          {isMapLoaded ? (
             <MapView
+              provider={PROVIDER_GOOGLE}
               style={styles.map}
               initialRegion={initialRegion}
-              region={initialRegion}
+              region={mapRegion}
               showsUserLocation={true}
               showsMyLocationButton={true}
               toolbarEnabled={false}
+              customMapStyle={customMapStyle}
               onMapReady={() => console.log("Map ready")}
             >
-              <Marker coordinate={location} />
+              <Marker 
+                coordinate={location}
+                title="From"
+                pinColor={AppColors.secondaryDarkGreen || "#2d5016"}
+              />
+
+              {fromCoords && (
+                <Marker
+                  coordinate={fromCoords}
+                  title="From"
+                  description={rideDetails?.from}
+                  pinColor="#4CAF50"
+                />
+              )}
+
+              {toCoords && (
+                <Marker
+                  coordinate={toCoords}
+                  title="To"
+                  description={rideDetails?.to}
+                  pinColor="#FF5722"
+                />
+              )}
+
+              {fromCoords && toCoords && (
+                <Polyline
+                  coordinates={getPolylineCoordinates()}
+                  strokeColor={AppColors.secondaryDarkGreen || "#2d5016"}
+                  strokeWidth={4}
+                  lineDashPattern={[1, 1]}
+                />
+              )}
             </MapView>
           ) : (
-            <Text style={styles.loadingText}></Text>
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading map...</Text>
+            </View>
           )}
         </View>
 
@@ -174,7 +374,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             <RideDetailsSelector
               onSubmit={handleRideSubmit}
               onLocationSelectionChange={handleLocationSelectionChange}
-              userLocation={location}
+              userLocation={location ?? undefined}
             />
           </View>
         </View>
@@ -185,109 +385,105 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: AppColors.basicWhite,
+    flex: 1,
+    backgroundColor: AppColors.primaryLightGreen,
+  },
+  brandInfoContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
   },
   scrollView: {
-    width: "100%",
-    height: "100%",
+    flex: 1,
+  },
+  scrollViewContent: {
+    flexGrow: 1,
+    minHeight: screenHeight,
   },
   mapContainer: {
     width: "100%",
-    height: height * 0.26,
+    height: Math.min(responsiveHeight(26), 280),
+    minHeight: Math.max(responsiveHeight(20), 180),
     zIndex: 1,
+    borderBottomLeftRadius: normalize(32),
+    borderBottomRightRadius: normalize(32),
+    overflow: "hidden",
+    backgroundColor: AppColors.primaryLightGreen,
   },
   map: {
     flex: 1,
-    width: Dimensions.get("window").width,
-    height: height * 0.23,
+    width: "100%",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: normalize(16),
+    color: "#666",
+    fontFamily: "NunitoSans_400Regular",
+    textAlign: "center",
   },
   mainContent: {
     flex: 1,
-    borderTopRightRadius: 25,
-    borderTopLeftRadius: 25,
+    borderTopRightRadius: normalize(32),
+    borderTopLeftRadius: normalize(32),
     backgroundColor: AppColors.primaryLightGreen,
-    padding: "2.5%",
-    paddingBottom: height * 0.09,
+    paddingHorizontal: responsiveWidth(2.5),
+    paddingTop: 10,
+    paddingBottom: Math.max(responsiveHeight(12), 50),
   },
   section: {
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: height * 0.03,
-  },
-  InDemandSection: {
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "flex-start",
-    padding: "2.5%",
-  },
-  YourTripsSection: {
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "flex-start",
-    padding: "2.5%",
+    marginBottom: responsiveHeight(3),
+    backgroundColor: AppColors.primaryLightGreen,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
+    fontSize: normalize(20),
     color: "#000",
-    fontFamily: "NunitoSans_600SemiBold",
-  },
-  destinationsContainer: {
-    paddingVertical: "2.5%",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  destinationButton: {
-    backgroundColor: AppColors.basicBlack,
-    paddingVertical: "2%",
-    paddingHorizontal: "4%",
-    borderRadius: 8,
-  },
-  destinationButtonText: {
-    color: AppColors.basicWhite,
-    fontSize: 12,
     fontFamily: "NunitoSans_400Regular",
+    textAlign: "center",
+    maxWidth: "90%",
   },
   createRideButton: {
     backgroundColor: AppColors.secondaryDarkGreen,
-    paddingVertical: 16,
-    paddingHorizontal: "2.5%",
-    borderRadius: 12,
+    paddingVertical: normalize(16),
+    paddingHorizontal: responsiveWidth(2.5),
+    borderRadius: normalize(12),
     alignItems: "center",
     width: "100%",
-    marginTop: 8,
-    marginBottom: 16,
+    maxWidth: 400,
+    marginTop: responsiveHeight(1),
+    marginBottom: responsiveHeight(2),
     alignSelf: "center",
     elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
   },
   createRideButtonText: {
     color: "#FFFFFF",
-    fontSize: 20,
+    fontSize: normalize(18),
     fontFamily: "NunitoSans_400Regular",
-  },
-  navBarView: {
-    width: "100%",
-    backgroundColor: AppColors.primaryLightGreen,
-    justifyContent: "center",
-    alignItems: "center",
-    top: 95,
+    fontWeight: "500",
   },
   createRideText: {
     width: "100%",
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "2.5%",
-  },
-  loadingText: {
-    fontSize: 16,
-    color: "#000",
+    justifyContent: "flex-start",
     fontFamily: "NunitoSans_400Regular",
-    textAlign: "center",
+    alignItems: "center",
+    paddingHorizontal: responsiveWidth(2.5),
+    paddingVertical: responsiveHeight(1),
   },
 });
 
