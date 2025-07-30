@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
   priceText: {
     color: AppColors.basicWhite,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '100',
     fontFamily: 'NunitoSans_600SemiBold',
   },
   creatorText: {
@@ -449,11 +449,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    gap: 36,
   },
   dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 10,
   },
