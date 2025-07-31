@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
   StatusBar,
+  Alert,
 } from "react-native";
 import RideCard from "../../components/RideCard";
 import styles from "./BookingScreen.styles";
@@ -100,6 +101,9 @@ const BookingScreen: React.FC = () => {
     fetchRides();
   }, [apiUtil]);
 
+  // Debug: Log all rides once before rendering
+  console.log('upcomingRides:', upcomingRides);
+  console.log('inProgressRides:', inProgressRides);
   return (
     <View style={styles.container}>
       <View
@@ -152,7 +156,15 @@ const BookingScreen: React.FC = () => {
                       price={ride.total_price}
                       variant="upcoming"
                       date={ride.start_time ? new Date(ride.start_time).toLocaleDateString("en-GB") : ""}
-                      onSelect={() => navigation.navigate("RideDetailsScreen", { ride })}
+                      onSelect={() => {
+                        if (!ride.ride_id) {
+                          console.error("No ride_id found for this ride:", ride);
+                          Alert.alert("Error", "No ride ID found for this ride. Please try again later.");
+                          return;
+                        }
+                        console.log("Pressed rideId (upcoming):", ride.ride_id);
+                        navigation.navigate("RideDetailsScreen", { rideId: ride.ride_id });
+                      }}
                     />
                   </View>
                 ))
@@ -219,7 +231,15 @@ const BookingScreen: React.FC = () => {
                       seatsAvailable={`${ride.booked_seats}/${ride.total_seats}`}
                       isSelected={true}
                       variant="inprogress"
-                      onSelect={() => navigation.navigate("RideDetailsScreen", { ride })}
+                      onSelect={() => {
+                        if (!ride.ride_id) {
+                          console.error("No ride_id found for this ride:", ride);
+                          Alert.alert("Error", "No ride ID found for this ride. Please try again later.");
+                          return;
+                        }
+                        console.log("Pressed rideId (inprogress):", ride.ride_id);
+                        navigation.navigate("RideDetailsScreen", { rideId: ride.ride_id });
+                      }}
                     />
                   </View>
                 ))
