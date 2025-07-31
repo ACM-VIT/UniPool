@@ -16,9 +16,22 @@ import RideCard from "../../components/RideCard";
 import styles from "./BookingScreen.styles";
 import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
-import type { RideData } from "../../dummy-data/Bookings";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import BrandInfo from "../../components/BrandInfo";
+
+export interface RideData {
+  id?: string;
+  ride_id?: string;
+  start_location: string;
+  end_location: string;
+  start_time: string;
+  total_seats: number;
+  booked_seats: number;
+  total_price: number;
+  is_ongoing: number;
+  is_same_gender: number;
+  vehicle_type?: "scooter" | "van" | "car" | "suv";
+}
 
 const window = Dimensions.get("window");
 
