@@ -1453,11 +1453,8 @@ export const getPopularLocations = async (
     !effectiveLocation.latitude ||
     !effectiveLocation.longitude
   ) {
-    console.log("→ No valid location, fallback to default")
-    return getRandomPopularLocations(
-      POPULAR_LOCATIONS.default,
-      4
-    )
+    console.warn("→ No valid user location, cannot fetch popular locations.")
+    return [];
   }
 
   // cache key = lat,long + query

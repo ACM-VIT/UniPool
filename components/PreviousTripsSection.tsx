@@ -174,7 +174,7 @@ const PreviousTripsSection: React.FC = () => {
                             >
                                 <PreviousTripsCompressed
                                     trip={trip}
-                                    onPress={() => navigation.navigate('RideDetailsScreen', { ride: trip })}
+                                    onPress={() => navigation.navigate("RideDetailsScreen", { rideId: trip.ride_id })}
                                 />
                             </View>
                         ))}

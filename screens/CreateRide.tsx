@@ -11,6 +11,7 @@ import {
   TextInput,
   Animated,
 } from "react-native";
+import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
 import AppColors from "../design_systems/colors";
 import SlideToCreate from "../components/SlideToCreate";
@@ -37,8 +38,23 @@ const CreateRide: React.FC = () => {
   const navigation = useNavigation();
   const { apiUtil } = useApi();
 
-  // This now holds the full Date+Time from your selector
   const [rideDateTime, setRideDateTime] = useState<Date>(new Date());
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | undefined>(undefined);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          console.warn("Location permission not granted");
+          return;
+        }
+        const { coords } = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        setUserLocation({ latitude: coords.latitude, longitude: coords.longitude });
+      } catch (err) {
+        console.warn("Error fetching user location in CreateRide:", err);
+      }
+    })();
+  }, []);
   const [passengerCount, setPassengerCount] = useState<number>(3);
   const [fromLocation, setFromLocation] = useState<string>("");
   const [toLocation, setToLocation] = useState<string>("");
@@ -297,6 +313,7 @@ const CreateRide: React.FC = () => {
             onLocationSelectionChange={() => {}}
             fromLocation={fromLocation}
             toLocation={toLocation}
+            userLocation={userLocation}
           />
         </View>
 
