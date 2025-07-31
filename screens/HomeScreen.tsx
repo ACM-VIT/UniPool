@@ -15,12 +15,15 @@ import * as Location from "expo-location";
 import { useNavigation, useIsFocused } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
+import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
 import RideDetailsSelector from "../components/RideDetailsSelector";
 import PreviousTripsSection from "../components/PreviousTripsSection";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { RootStackParamList } from "../navigation/RootStackParamList";
 import BrandInfo from "../components/BrandInfo";
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -50,6 +53,111 @@ const responsiveWidth = (percentage: number) => {
   return (screenWidth * percentage) / 100;
 };
 
+// Configure notification behavior
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+async function sendTokenToBackend(token: string, apiUtil: any): Promise<boolean> {
+  try {
+    // Use your existing API utility which handles Firebase auth automatically
+    await apiUtil.post("/users/me/token", {
+      token,
+      platform: Platform.OS,
+      deviceId: Device.osInternalBuildId,
+    });
+
+    console.log("Token successfully sent to backend");
+    return true;
+  } catch (error) {
+    console.error("Failed to send token to backend:", error);
+    return false;
+  }
+}
+
+// Function to send FCM notification via your backend (recommended approach)
+async function sendFCMNotification(
+  apiUtil: any,
+  targetToken: string, 
+  title: string, 
+  body: string, 
+  data?: Record<string, string>
+): Promise<boolean> {
+  try {
+    // Send notification request to your backend
+    // Your backend will handle the FCM API call with proper service account auth
+    await apiUtil.post("/notifications/send", {
+      targetToken,
+      notification: {
+        title,
+        body,
+      },
+      data: data || {},
+      platform: Platform.OS,
+    });
+
+    console.log("FCM notification sent successfully via backend");
+    return true;
+  } catch (error) {
+    console.error("Failed to send FCM notification:", error);
+    return false;
+  }
+}
+
+async function registerForPushNotificationsAsync(): Promise<string | null> {
+  let token = null;
+
+  // Check if device is physical (not simulator/emulator)
+  if (Device.isDevice) {
+    try {
+      // On Android 13+: create channel so the permission prompt appears
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "default",
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: "#FF231F7C",
+        });
+      }
+
+      // Request permissions
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Push notifications are needed to receive ride updates and alerts."
+        );
+        return null;
+      }
+
+      // Get the native device push token (FCM for Android, APNs for iOS)
+      const tokenData = await Notifications.getDevicePushTokenAsync();
+      token = tokenData.data;
+      console.log("Native Push Token (FCM/APNs):", token);
+    } catch (error) {
+      console.error("Error getting push token:", error);
+      return null;
+    }
+  } else {
+    console.log("Must use physical device for Push Notifications");
+  }
+
+  return token;
+}
+
 interface HomeScreenProps {
   setNavBarVariant: (variant: 0 | 1 | 2) => void;
   setNavBarText: (text: string) => void;
@@ -70,6 +178,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 }) => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const isFocused = useIsFocused();
+  const { apiUtil } = useApi(); // Get the API utility with Firebase auth
 
   const [location, setLocation] = useState<LocationCoords | null>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
@@ -77,6 +186,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [hasPermission, setHasPermission] = useState(false);
   const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
   const [rideDetails, setRideDetails] = useState<{ from: string; to: string; date: Date } | null>(null);
+  const [pushToken, setPushToken] = useState<string | null>(null);
+
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
   const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
 
@@ -215,6 +326,51 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       longitudeDelta: Math.max(deltaLng, 0.02),
     });
   };
+  // Setup push notifications
+  useEffect(() => {
+    registerForPushNotificationsAsync().then(async (token) => {
+      if (token) {
+        setPushToken(token);
+        await sendTokenToBackend(token, apiUtil);
+      }
+    });
+
+    // Listen for incoming notifications while app is running
+    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log("Notification received:", notification);
+      // Handle notification when app is in foreground
+    });
+
+    // Listen for notification taps
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log("Notification response:", response);
+      // Handle notification tap - navigate to relevant screen
+      const data = response.notification.request.content.data;
+      if (data.rideId) {
+        // Navigate to ride details or relevant screen
+        // navigation.navigate("RideDetails", { rideId: data.rideId });
+      }
+    });
+
+    // Cleanup listeners
+    return () => {
+      Notifications.removeNotificationSubscription(notificationListener);
+      Notifications.removeNotificationSubscription(responseListener);
+    };
+  }, [apiUtil]);
+
+  // Handle token refresh (tokens can change)
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const newToken = await registerForPushNotificationsAsync();
+      if (newToken && newToken !== pushToken) {
+        setPushToken(newToken);
+        await sendTokenToBackend(newToken, apiUtil);
+      }
+    }, 24 * 60 * 60 * 1000); // Check daily
+
+    return () => clearInterval(interval);
+  }, [pushToken, apiUtil]);
 
   useEffect(() => {
     requestLocationPermission();
@@ -242,7 +398,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     }
   };
 
-  //donot change this code, state mgmt is crucial here
+  // Don't change this code, state mgmt is crucial here
   useEffect(() => {
     if (!isFocused) return;
     if (bothLocationsSelected) {
@@ -292,7 +448,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     if (!fromCoords || !toCoords) return [];
     return [fromCoords, toCoords];
   };
-
   // Determine background color: basicWhite on initial load, then primaryLightGreen when map loads
   const isMapLoaded = location && mapRegion && hasPermission;
   const containerBg = isMapLoaded ? AppColors.basicWhite : AppColors.primaryLightGreen;

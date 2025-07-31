@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, StyleSheet, Alert, Dimensions, SafeAreaView } from "react-native";
 import { TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Modal, Image } from "react-native";
 import { X } from "lucide-react-native";
@@ -19,9 +20,15 @@ const DefaultAddressScreen: React.FC = () => {
     const fetchDefaultAddress = async () => {
       setLoading(true);
       try {
-        const res = await apiUtil.get("/user/default-address");
-        if (typeof res === "object" && res !== null && "address" in res && typeof (res as any).address === "string") {
-          setDefaultAddress((res as any).address);
+        const cached = await AsyncStorage.getItem("defaultAddress");
+        if (cached) {
+          setDefaultAddress(cached);
+        } else {
+          const res = await apiUtil.get("/user/default-address");
+          if (typeof res === "object" && res !== null && "address" in res && typeof (res as any).address === "string") {
+            setDefaultAddress((res as any).address);
+            await AsyncStorage.setItem("defaultAddress", (res as any).address);
+          }
         }
       } catch (err) {
       } finally {
@@ -42,6 +49,7 @@ const DefaultAddressScreen: React.FC = () => {
         Alert.alert("Success", "Default address set!");
       }
       setDefaultAddress(details.from);
+      await AsyncStorage.setItem("defaultAddress", details.from);
     } catch (err) {
       Alert.alert("Error", "Could not update default address.");
     } finally {
@@ -119,9 +127,14 @@ const DefaultAddressScreen: React.FC = () => {
     setSearchResults([]);
   };
 
-  const clearAddress = () => {
+  const clearAddress = async () => {
     setDefaultAddress("");
     setSearchQuery("");
+    await AsyncStorage.removeItem("defaultAddress");
+    try {
+      await apiUtil.put("/user/default-address", { address: "" });
+    } catch (err) {
+    }
   };
 
   return (

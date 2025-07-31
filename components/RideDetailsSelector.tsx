@@ -98,6 +98,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   }, [apiUtil]);
 
   const [fromLocation, setFromLocation] = useState<string>(externalFromLocation || "");
+  const [hasClearedFrom, setHasClearedFrom] = useState(false);
   const [toLocation, setToLocation] = useState<string>(externalToLocation || "");
   const [selectedDate, setSelectedDate] = useState(new Date());
   
@@ -390,6 +391,12 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       setToCoordinates(coords);
     }
   }, [externalToLocation]);
+
+    useEffect(() => {
+    if (fromLocation && hasClearedFrom) {
+      setHasClearedFrom(false);
+    }
+  }, [fromLocation]);
 
   useEffect(() => {
     if (onLocationSelectionChange) {
