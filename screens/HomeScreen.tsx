@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,9 @@ import {
   Platform,
   Alert,
   PixelRatio,
+  PanResponder,
+  Animated,
+  ScrollView,
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
@@ -53,6 +56,11 @@ const responsiveHeight = (percentage: number) => {
 const responsiveWidth = (percentage: number) => {
   return (screenWidth * percentage) / 100;
 };
+
+const BOTTOM_SHEET_MAX_HEIGHT = screenHeight * 0.75;
+const BOTTOM_SHEET_MIN_HEIGHT = screenHeight * 0.35;
+const SNAP_POINTS = [BOTTOM_SHEET_MIN_HEIGHT, BOTTOM_SHEET_MAX_HEIGHT];
+const DRAG_THRESHOLD = 10;
 
 async function sendTokenToBackend(token: string, apiUtil: any): Promise<boolean> {
   try {
@@ -173,6 +181,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
   const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
 
+  const bottomSheetY = useRef(new Animated.Value(BOTTOM_SHEET_MIN_HEIGHT)).current;
+  const lastGestureY = useRef(BOTTOM_SHEET_MIN_HEIGHT);
+
   const customMapStyle = [
     {
       featureType: "all",
@@ -206,7 +217,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       elementType: "geometry",
       stylers: [
         {
-          color: AppColors.primaryLightGreen || "#a8d8a8"
+          color: "#1e00ffff"
         }
       ]
     },
@@ -238,6 +249,56 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       ]
     }
   ];
+
+  const panResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (evt, gestureState) => {
+      return Math.abs(gestureState.dy) > DRAG_THRESHOLD;
+    },
+    onPanResponderGrant: () => {
+      // @ts-ignore: access private property for current value
+      lastGestureY.current = bottomSheetY['__getValue']();
+    },
+    onPanResponderMove: (evt, gestureState) => {
+      const newHeight = lastGestureY.current - gestureState.dy;
+      
+      if (newHeight < BOTTOM_SHEET_MIN_HEIGHT) {
+        const overscroll = BOTTOM_SHEET_MIN_HEIGHT - newHeight;
+        const resistedHeight = BOTTOM_SHEET_MIN_HEIGHT - overscroll * 0.3;
+        bottomSheetY.setValue(Math.max(resistedHeight, BOTTOM_SHEET_MIN_HEIGHT - 50));
+      } else if (newHeight > BOTTOM_SHEET_MAX_HEIGHT) {
+        const overscroll = newHeight - BOTTOM_SHEET_MAX_HEIGHT;
+        const resistedHeight = BOTTOM_SHEET_MAX_HEIGHT + overscroll * 0.3;
+        bottomSheetY.setValue(Math.min(resistedHeight, BOTTOM_SHEET_MAX_HEIGHT + 50));
+      } else {
+        bottomSheetY.setValue(newHeight);
+      }
+    },
+    onPanResponderRelease: (evt, gestureState) => {
+      const velocity = -gestureState.vy;
+      // @ts-ignore: access private property for current value
+      const currentHeight = bottomSheetY['__getValue']();
+      
+      let targetHeight = SNAP_POINTS.reduce((prev, curr) => {
+        return Math.abs(curr - currentHeight) < Math.abs(prev - currentHeight) ? curr : prev;
+      });
+      
+      if (Math.abs(velocity) > 500) {
+        if (velocity > 0) {
+          targetHeight = BOTTOM_SHEET_MAX_HEIGHT;
+        } else {
+          targetHeight = BOTTOM_SHEET_MIN_HEIGHT;
+        }
+      }
+      
+      Animated.spring(bottomSheetY, {
+        toValue: targetHeight,
+        velocity: velocity,
+        tension: 300,
+        friction: 30,
+        useNativeDriver: false,
+      }).start();
+    },
+  });
 
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -308,7 +369,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       longitudeDelta: Math.max(deltaLng, 0.02),
     });
   };
-  // Setup push notifications
+
   useEffect(() => {
     registerForPushNotificationsAsync().then(async (token) => {
       if (token) {
@@ -431,92 +492,111 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     if (!fromCoords || !toCoords) return [];
     return [fromCoords, toCoords];
   };
-  // Determine background color: basicWhite on initial load, then primaryLightGreen when map loads
+
   const isMapLoaded = location && mapRegion && hasPermission;
-  const containerBg = isMapLoaded ? AppColors.basicWhite : AppColors.primaryLightGreen;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: containerBg }]}> 
+    <SafeAreaView style={styles.container}>
       <View style={styles.brandInfoContainer}>
         <BrandInfo />
       </View>
 
-      <View style={styles.scrollView}>
-        <View style={styles.mapContainer}>
-          {isMapLoaded ? (
-            <MapView
-              provider={PROVIDER_GOOGLE}
-              style={styles.map}
-              initialRegion={initialRegion}
-              region={mapRegion}
-              showsUserLocation={true}
-              showsMyLocationButton={true}
-              toolbarEnabled={false}
-              customMapStyle={customMapStyle}
-              onMapReady={() => console.log("Map ready")}
-            >
-              <Marker 
-                coordinate={location}
-                title="From"
-                pinColor={AppColors.secondaryDarkGreen || "#2d5016"}
-              />
-
-              {fromCoords && (
-                <Marker
-                  coordinate={fromCoords}
-                  title="From"
-                  description={rideDetails?.from}
-                  pinColor="#4CAF50"
-                />
-              )}
-
-              {toCoords && (
-                <Marker
-                  coordinate={toCoords}
-                  title="To"
-                  description={rideDetails?.to}
-                  pinColor="#FF5722"
-                />
-              )}
-
-              {fromCoords && toCoords && (
-                <Polyline
-                  coordinates={getPolylineCoordinates()}
-                  strokeColor={AppColors.secondaryDarkGreen || "#2d5016"}
-                  strokeWidth={4}
-                  lineDashPattern={[1, 1]}
-                />
-              )}
-            </MapView>
-          ) : (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading map...</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.mainContent}>
-          <PreviousTripsSection />
-          <View style={styles.section}>
-            <View style={styles.createRideText}>
-              <Text style={styles.sectionTitle}>Where'd you like to go?</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.createRideButton}
-              onPress={() => {
-                navigation.navigate("CreateRide");
-              }}
-            >
-              <Text style={styles.createRideButtonText}>Create Ride</Text>
-            </TouchableOpacity>
-            <RideDetailsSelector
-              onSubmit={handleRideSubmit}
-              onLocationSelectionChange={handleLocationSelectionChange}
-              userLocation={location ?? undefined}
+      <View style={styles.mapContainer}>
+        {isMapLoaded ? (
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            initialRegion={initialRegion}
+            region={mapRegion}
+            showsUserLocation={true}
+            showsMyLocationButton={true}
+            toolbarEnabled={false}
+            customMapStyle={customMapStyle}
+            onMapReady={() => console.log("Map ready")}
+          >
+            <Marker 
+              coordinate={location}
+              title="Your Location"
+              pinColor={AppColors.secondaryDarkGreen || "#2d5016"}
             />
+
+            {fromCoords && (
+              <Marker
+                coordinate={fromCoords}
+                title="From"
+                description={rideDetails?.from}
+                pinColor="#4CAF50"
+              />
+            )}
+
+            {toCoords && (
+              <Marker
+                coordinate={toCoords}
+                title="To"
+                description={rideDetails?.to}
+                pinColor="#FF5722"
+              />
+            )}
+
+            {fromCoords && toCoords && (
+              <Polyline
+                coordinates={getPolylineCoordinates()}
+                strokeColor={AppColors.secondaryDarkGreen || "#2d5016"}
+                strokeWidth={4}
+                lineDashPattern={[1, 1]}
+              />
+            )}
+          </MapView>
+        ) : (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading map...</Text>
           </View>
-        </View>
+        )}
       </View>
+
+      <Animated.View 
+        style={[
+          styles.bottomSheet,
+          {
+            height: bottomSheetY,
+          }
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <View style={styles.dragHandle} />
+        
+        <View style={styles.bottomSheetContent}>
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollableContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            <PreviousTripsSection />
+            
+            <View style={styles.section}>
+              <View style={styles.createRideText}>
+                <Text style={styles.sectionTitle}>Where'd you like to go?</Text>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.createRideButton}
+                onPress={() => {
+                  navigation.navigate("CreateRide");
+                }}
+              >
+                <Text style={styles.createRideButtonText}>Create Ride</Text>
+              </TouchableOpacity>
+              
+              <RideDetailsSelector
+                onSubmit={handleRideSubmit}
+                onLocationSelectionChange={handleLocationSelectionChange}
+                userLocation={location ?? undefined}
+              />
+            </View>
+          </ScrollView>
+        </View>
+      </Animated.View>
     </SafeAreaView>
   );
 };
@@ -524,31 +604,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: AppColors.primaryLightGreen,
+    backgroundColor: AppColors.basicWhite,
   },
   brandInfoContainer: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 10,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollViewContent: {
-    flexGrow: 1,
-    minHeight: screenHeight,
+    zIndex: 20,
   },
   mapContainer: {
-    width: "100%",
-    height: Math.min(responsiveHeight(26), 280),
-    minHeight: Math.max(responsiveHeight(20), 180),
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     zIndex: 1,
-    borderBottomLeftRadius: normalize(32),
-    borderBottomRightRadius: normalize(32),
-    overflow: "hidden",
-    backgroundColor: AppColors.primaryLightGreen,
   },
   map: {
     flex: 1,
@@ -558,6 +629,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: AppColors.primaryLightGreen,
   },
   loadingText: {
     fontSize: normalize(16),
@@ -565,21 +637,50 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_400Regular",
     textAlign: "center",
   },
-  mainContent: {
-    flex: 1,
-    borderTopRightRadius: normalize(32),
-    borderTopLeftRadius: normalize(32),
+  bottomSheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: AppColors.primaryLightGreen,
+    borderTopLeftRadius: normalize(32),
+    borderTopRightRadius: normalize(32),
+    zIndex: 10,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  dragHandle: {
+    width: 50,
+    height: 5,
+    backgroundColor: AppColors.basicBlack,
+    borderRadius: 3,
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  bottomSheetContent: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollableContent: {
     paddingHorizontal: responsiveWidth(2.5),
-    paddingTop: 10,
     paddingBottom: Math.max(responsiveHeight(12), 50),
+    minHeight: BOTTOM_SHEET_MAX_HEIGHT - 60,
   },
   section: {
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: responsiveHeight(3),
-    backgroundColor: AppColors.primaryLightGreen,
   },
   sectionTitle: {
     fontSize: normalize(20),
