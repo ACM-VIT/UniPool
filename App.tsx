@@ -180,9 +180,15 @@ const App = () => {
                   />
                   <Stack.Screen
                     name="RideCreatedScreen"
-                    component={RideCreatedScreen}
                     options={{ headerShown: false }}
-                  />
+                  >
+                    {(props) => (
+                      <RideCreatedScreen
+                        {...props}
+                        setNavBarVariant={setNavBarVariant}
+                      />
+                    )}
+                  </Stack.Screen>
                   <Stack.Screen
                     name="RideRequestedScreen"
                     component={RideRequestedScreen}

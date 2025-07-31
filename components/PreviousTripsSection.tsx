@@ -199,9 +199,8 @@ const styles = StyleSheet.create({
     sectionTitle: {
         paddingHorizontal:"2.5%",
         fontSize: 20,
-        fontWeight: "600",
         color: "#000",
-        fontFamily: "NunitoSans_600SemiBold",
+        fontFamily: "NunitoSans_400Regular",
     },
     tripContainer: {
         display: "flex",
