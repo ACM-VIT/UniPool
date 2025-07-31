@@ -187,6 +187,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
   const [rideDetails, setRideDetails] = useState<{ from: string; to: string; date: Date } | null>(null);
   const [pushToken, setPushToken] = useState<string | null>(null);
+
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
   const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
 
@@ -325,7 +326,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       longitudeDelta: Math.max(deltaLng, 0.02),
     });
   };
-
   // Setup push notifications
   useEffect(() => {
     registerForPushNotificationsAsync().then(async (token) => {
@@ -448,7 +448,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     if (!fromCoords || !toCoords) return [];
     return [fromCoords, toCoords];
   };
-
   // Determine background color: basicWhite on initial load, then primaryLightGreen when map loads
   const isMapLoaded = location && mapRegion && hasPermission;
   const containerBg = isMapLoaded ? AppColors.basicWhite : AppColors.primaryLightGreen;
