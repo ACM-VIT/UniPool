@@ -9,11 +9,9 @@ import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
-// Design dimensions
 const DESIGN_WIDTH = 710.67;
 const DESIGN_HEIGHT = 1524;
 
-// Scale factors for responsive design
 const scaleX = screenWidth / DESIGN_WIDTH;
 const scaleY = screenHeight / DESIGN_HEIGHT;
 const scale = Math.min(scaleX, scaleY);
@@ -21,7 +19,6 @@ const scale = Math.min(scaleX, scaleY);
 const SplashScreen: React.FC = () => {
   return (
     <View style={styles.container}>
-      {/* Car Outline Vector */}
       <View style={[styles.carOutlineContainer, {
         left: 80 * scaleX,
         top: 480 * scaleY,
@@ -33,7 +30,7 @@ const SplashScreen: React.FC = () => {
           fill="none"
         >
           <Path 
-            d="M2.54053 296.514V14.3514C2.54053 7.42541 8.15509 1.81082 15.081 1.81082H367.437C373.661 1.81082 378.943 6.37562 379.845 12.5338L403.071 171.089C403.973 177.247 409.255 181.812 415.479 181.812H492.211C498.636 181.812 504.022 186.669 504.684 193.06L515.269 295.221C516.036 302.619 510.233 309.054 502.796 309.054H15.0811C8.15512 309.054 2.54053 303.439 2.54053 296.514Z" 
+            d="M5.59473 5.71582V289.011C5.59473 295.495 10.6223 300.897 17.0991 301.216C54.3526 303.05 78.8759 299.946 86.6166 290.117C90.9568 284.606 94.2871 276.605 101.148 275.142C184.156 257.439 269.391 252.878 383.595 272.8L421.595 280.116C442.757 284.555 464.898 289.785 488.161 295.864C496.563 298.06 504.624 291.213 503.724 282.575L493.822 187.561C493.166 181.27 487.862 176.49 481.537 176.49H406.271C400.192 176.49 395.017 172.067 394.071 166.063L370.431 16.1433C369.484 10.1388 364.309 5.71582 358.23 5.71582H306.595" 
             stroke="#263B33" 
             strokeWidth="3.13513"
             fill="none"
@@ -41,23 +38,20 @@ const SplashScreen: React.FC = () => {
         </Svg>
       </View>
       
-      {/* Logo Text - Properly Aligned */}
       <View style={[styles.logoContainer, {
         left: 70 * scaleX,
         top: 520 * scaleY,
       }]}>
-        {/* First Line: Uni - moved up */}
         <Text style={[styles.logoTextLine, { 
           fontSize: 210.74 * scale,
-          marginTop: -50 * scale, // Move Uni up more
+          marginTop: -50 * scale,
         }]}>
           <Text style={styles.logoTextDark}>Uni</Text>
         </Text>
         
-        {/* Second Line: Pool - P aligned under U with gap */}
         <Text style={[styles.logoTextLine, { 
           fontSize: 210.74 * scale,
-          marginTop: 10 * scale, // Positive margin to create more gap
+          marginTop: 10 * scale,
         }]}>
           <Text style={styles.logoTextDark}>P</Text>
           <Text style={styles.logoTextWhite}>oo</Text>
@@ -65,7 +59,6 @@ const SplashScreen: React.FC = () => {
         </Text>
       </View>
 
-      {/* Tagline */}
       <Text style={[styles.tagline, {
         left: screenWidth * 0.15,
         top: 950 * scaleY,
@@ -76,7 +69,6 @@ const SplashScreen: React.FC = () => {
         Share, Commute, Save
       </Text>
 
-      {/* Footer Left */}
       <Text style={[styles.footerText, {
         left: 149 * scaleX,
         top: 1400 * scaleY,
@@ -85,7 +77,6 @@ const SplashScreen: React.FC = () => {
         Crafted with
       </Text>
 
-      {/* Footer Right */}
       <Text style={[styles.footerText, {
         left: 388.11 * scaleX,
         top: 1400 * scaleY,
@@ -94,7 +85,6 @@ const SplashScreen: React.FC = () => {
         by ACM-VIT
       </Text>
 
-      {/* Heart SVG */}
       <View style={[styles.heartContainer, {
         left: 338 * scaleX,
         top: 1403 * scaleY,
