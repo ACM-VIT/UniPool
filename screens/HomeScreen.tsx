@@ -13,6 +13,7 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import { useNavigation, useIsFocused } from "@react-navigation/native";
+import { navigationRef } from "../navigation/navigationRef";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { useApi } from "../utils/ApiUtil";
@@ -335,20 +336,24 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       }
     });
 
-    // Listen for incoming notifications while app is running
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log("Notification received:", notification);
-      // Handle notification when app is in foreground
+      try {
+        console.log("Notification received:", notification);
+      } catch (err) {
+        console.error("Error in notification received listener:", err);
+      }
     });
 
-    // Listen for notification taps
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log("Notification response:", response);
-      // Handle notification tap - navigate to relevant screen
-      const data = response.notification.request.content.data;
-      if (data.rideId) {
-        // Navigate to ride details or relevant screen
-        // navigation.navigate("RideDetails", { rideId: data.rideId });
+      try {
+        console.log("Notification response:", response);
+        if (!response || !response.notification || !response.notification.request || !response.notification.request.content) return;
+        const data = response.notification.request.content.data || {};
+        if (data.rideId && navigationRef.current) {
+          navigationRef.current.navigate("RideDetailsScreen", { ride: { id: data.rideId } });
+        }
+      } catch (err) {
+        console.error("Error in notification response listener:", err);
       }
     });
 

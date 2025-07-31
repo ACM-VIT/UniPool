@@ -1,7 +1,8 @@
 import 'react-native-gesture-handler';
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
+import { navigationRef } from "./navigation/navigationRef";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { RootStackParamList } from "./navigation/RootStackParamList";
 
@@ -71,7 +72,6 @@ const App = () => {
     useState<keyof RootStackParamList | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCustomSplash, setShowCustomSplash] = useState(true);
-  const navigationRef = useRef<any>(null);
 
   const [fontsLoaded] = useFonts({
     NunitoSans_400Regular,
@@ -286,7 +286,7 @@ const App = () => {
                         text={navBarText}
                         iconPath={navBarIcon}
                         onPress={() => {
-                          navigationRef.current?.navigate("AvailableRidesScreen");
+                          navigationRef.isReady() && navigationRef.navigate("AvailableRidesScreen", { fromLocation: "", toLocation: "" });
                           setNavBarVariant(0);
                           setNavBarText("");
                           setNavBarIcon(require("./assets/wallet.png"));
@@ -299,9 +299,7 @@ const App = () => {
                         text={navBarText}
                         iconPath={navBarIcon}
                         onPress={() => {
-                          navigationRef.current?.navigate(
-                            "AvailableRidesSelectedScreen"
-                          );
+                          navigationRef.isReady() && navigationRef.navigate("AvailableRidesSelectedScreen");
                         }}
                       />
                     ) : (
