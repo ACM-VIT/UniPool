@@ -20,125 +20,34 @@ const RideDetailsScreen: React.FC = () => {
   const { apiUtil } = require('../utils/ApiUtil').useApi();
   const navigation = useNavigation();
   const route = useRoute();
-  const ride = (route.params && (route.params as any).ride) || {};
+  // Accept rideId from navigation params
+  const rideId = route.params && (route.params as any).rideId;
 
-  React.useEffect(() => {
-    console.log('RideDetailsScreen - Received ride data:', ride);
-    console.log('RideDetailsScreen - Ride ID:', ride?.id || ride?.ride_id);
-  }, [ride]);
 
   React.useEffect(() => {
     async function fetchRideDetails() {
-      setRequestsLoading(true);
-      setRequestsError(null);
       try {
-        const rideId = ride?.id || ride?.ride_id;
-        if (!rideId) {
-          setRequestsError("No ride ID found");
+        // Validate rideId: must be a non-empty string and look like a UUID
+        if (!rideId || typeof rideId !== 'string' || !/^[0-9a-fA-F-]{36}$/.test(rideId)) {
+          setRequestsError("Invalid or missing ride ID. Please go back and try again.");
           return;
         }
-
         console.log('Fetching ride details for ID:', rideId);
-        
         const userResponse = await apiUtil.get('/user/details');
-        console.log('Current user:', userResponse);
-        setCurrentUser(userResponse.user);
-        
+        setCurrentUser(userResponse);
         const rideResponse = await apiUtil.get(`/ride/fetch/${rideId}`);
-        console.log('Ride details:', rideResponse);
         setRideDetails(rideResponse);
-
-        const isUserHost = userResponse.user?.id === rideResponse.host_user_id || userResponse.user?.id === rideResponse.driver_id;
-        setIsHost(isUserHost);
-        console.log('Is user host?', isUserHost);
-
         const bookingsResponse = await apiUtil.get(`/booking/list`);
-        console.log('All bookings:', bookingsResponse);
-
-        let rideBookings;
-        if (isUserHost) {
-          rideBookings = bookingsResponse.bookings?.filter((booking: any) => 
-            booking.ride_id === rideId && booking.request_status === 'pending'
-          ) || [];
-        } else {
-          rideBookings = bookingsResponse.bookings?.filter((booking: any) => 
-            booking.ride_id === rideId && booking.request_status === 'accepted'
-          ) || [];
-        }
-
-        console.log('Filtered ride bookings:', rideBookings);
-
-        if (rideBookings.length > 0 || !isUserHost) {
-          try {
-            console.log('Processing bookings with available user data...');
-            
-            const bookingsWithPassengerDetails = rideBookings.map((booking: any) => {
-              let passengerName = 'Unknown User';
-              
-              if (booking.passenger_id === userResponse.user?.id) {
-                passengerName = userResponse.user?.name || 'You';
-              } else if (booking.passenger_name) {
-                passengerName = booking.passenger_name;
-              } else if (booking.user_name) {
-                passengerName = booking.user_name;
-              } else if (booking.ride_details?.passenger_name) {
-                passengerName = booking.ride_details.passenger_name;
-              }
-              
-              return {
-                ...booking,
-                passenger: { 
-                  id: booking.passenger_id,
-                  name: passengerName 
-                }
-              };
-            });
-
-            // If not host (passenger view), add the host to the list
-            if (!isUserHost) {
-              const hostId = rideResponse.host_user_id || rideResponse.host_id || rideResponse.driver_id;
-              let hostName = 'Host';
-              
-              if (rideResponse.host_user_name) {
-                hostName = rideResponse.host_user_name;
-              } else if (rideResponse.host_user?.name) {
-                hostName = rideResponse.host_user.name;
-              } else if (rideBookings.length > 0 && rideBookings[0].ride_details?.host_user?.name) {
-                hostName = rideBookings[0].ride_details.host_user.name;
-              }
-              
-              const hostEntry = {
-                id: `host-${hostId}`,
-                passenger_id: hostId,
-                passenger: { 
-                  id: hostId,
-                  name: hostName 
-                },
-                request_status: 'accepted',
-                is_host: true,
-              };
-              bookingsWithPassengerDetails.unshift(hostEntry);
-            }
-
-            console.log('Bookings with passenger details:', bookingsWithPassengerDetails);
-            setRequests(bookingsWithPassengerDetails);
-          } catch (error) {
-            console.error('Error processing booking details:', error);
-            setRequests(rideBookings);
-          }
-        } else {
-          setRequests([]);
-        }
+        setRequests(bookingsResponse);
+        setRequestsError(null);
       } catch (err: any) {
         console.error('Error fetching ride details:', err);
         setRequestsError(err.message || "Failed to fetch ride details");
-      } finally {
-        setRequestsLoading(false);
       }
     }
     fetchRideDetails();
-  }, [ride?.id, ride?.ride_id]);
-  const bookingId = ride?.booking_id || ride?.id || ride?.ride_id || "demo-booking-id";
+  }, [rideId]);
+  const bookingId = rideId || "demo-booking-id";
 
   function formatTime(timeStr: string) {
     if (!timeStr) return "";
@@ -152,7 +61,7 @@ const RideDetailsScreen: React.FC = () => {
     return timeStr;
   }
 
-  const displayRide = rideDetails || ride;
+  const displayRide = rideDetails;
   const rawDate = displayRide?.date || displayRide?.ride_date || displayRide?.start_time || null;
   let formattedDate = "";
   if (rawDate) {
