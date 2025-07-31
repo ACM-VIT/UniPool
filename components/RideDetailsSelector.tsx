@@ -29,6 +29,25 @@ import {
 
 const { width, height } = Dimensions.get("window");
 
+const isSmallDevice = width < 350;
+const isMediumDevice = width >= 350 && width < 400;
+const isLargeDevice = width >= 400;
+
+const wp = (percentage: number) => (width * percentage) / 100;
+const hp = (percentage: number) => (height * percentage) / 100;
+
+const getFontSize = (small: number, medium: number, large: number) => {
+  if (isSmallDevice) return small;
+  if (isMediumDevice) return medium;
+  return large;
+};
+
+const getSpacing = (base: number) => {
+  if (isSmallDevice) return base * 0.8;
+  if (isLargeDevice) return base * 1.2;
+  return base;
+};
+
 export const CommonLocationCoordinates = [
   { location: "Chennai", latitude: 12.989196, longitude: 80.178799 },
   { location: "Vellore", latitude: 12.968, longitude: 77.1559 },
@@ -61,7 +80,7 @@ interface RideDetailsSelectorProps {
   userLocation?: UserLocation;
 }
 
-const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
+export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   onSubmit,
   onLocationSelectionChange,
   onLocationSwap,
@@ -336,6 +355,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       setFromLocation("");
       setFromCoordinates(null);
       setFromCleared(true);
+    } else {
       setToLocation("");
       setToCoordinates(null);
     }
@@ -392,7 +412,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
   }, [externalToLocation]);
 
-    useEffect(() => {
+  useEffect(() => {
     if (fromLocation && hasClearedFrom) {
       setHasClearedFrom(false);
     }
@@ -412,6 +432,12 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     };
   }, [searchTimeout]);
 
+  const getTextTruncationLength = () => {
+    if (isSmallDevice) return 20;
+    if (isMediumDevice) return 25;
+    return 30;
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.locationsWrapper}>
@@ -425,17 +451,17 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               style={styles.icon}
             />
             <Text style={styles.selectedText} numberOfLines={1} ellipsizeMode="tail">
-              {fromLocation ? (fromLocation.length > 28 ? fromLocation.slice(0, 25) + '...' : fromLocation) : "From"}
+              {fromLocation ? (fromLocation.length > getTextTruncationLength() ? fromLocation.slice(0, getTextTruncationLength() - 3) + '...' : fromLocation) : "From"}
             </Text>
             {fromLocation !== "" && (
               <TouchableOpacity
-                style={[styles.clearIconContainer, { marginLeft: 8 }]}
+                style={styles.clearIconContainer}
                 onPress={e => {
                   e.stopPropagation && e.stopPropagation();
                   handleLocationClear(true);
                 }}
               >
-                <X size={16} color={AppColors.basicBlack} />
+                <X size={wp(4)} color={AppColors.basicBlack} />
               </TouchableOpacity>
             )}
           </View>
@@ -461,17 +487,17 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               style={styles.icon}
             />
             <Text style={styles.selectedText} numberOfLines={1} ellipsizeMode="tail">
-              {toLocation ? (toLocation.length > 28 ? toLocation.slice(0, 25) + '...' : toLocation) : "To"}
+              {toLocation ? (toLocation.length > getTextTruncationLength() ? toLocation.slice(0, getTextTruncationLength() - 3) + '...' : toLocation) : "To"}
             </Text>
             {toLocation !== "" && (
               <TouchableOpacity
-                style={[styles.clearIconContainer, { marginLeft: 8 }]}
+                style={styles.clearIconContainer}
                 onPress={e => {
                   e.stopPropagation && e.stopPropagation();
                   handleLocationClear(false);
                 }}
               >
-                <X size={16} color={AppColors.basicBlack} />
+                <X size={wp(4)} color={AppColors.basicBlack} />
               </TouchableOpacity>
             )}
           </View>
@@ -479,13 +505,13 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       </View>
 
       <View style={styles.dateContainer}>
-        <TouchableOpacity onPress={handleDateFieldClick}>
+        <TouchableOpacity onPress={handleDateFieldClick} style={styles.dateInputContainer}>
           <View style={styles.inputContent}>
             <Image
               source={require("../assets/calendar-icon.png")}
               style={styles.icon}
             />
-            <View>
+            <View style={styles.dateTextContainer}>
               {selectedDate ? (
                 <>
                   <Text style={styles.label}>{format(selectedDate, "EEE d MMM yyyy")}</Text>
@@ -497,14 +523,6 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             </View>
           </View>
         </TouchableOpacity>
-        {/* <View style={styles.dateButtons}>
-          <TouchableOpacity style={styles.dateButton} onPress={setToToday}>
-            <Text style={styles.dateButtonText}>Today</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.dateButton} onPress={setToTomorrow}>
-            <Text style={styles.dateButtonText}>Tomorrow</Text>
-          </TouchableOpacity>
-        </View> */}
       </View>
 
       <Modal
@@ -630,7 +648,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    borderRadius: 20,
+    borderRadius: wp(5),
     overflow: "hidden",
     borderColor: AppColors.basicBlack,
     borderWidth: 2,
@@ -640,67 +658,53 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     width: "100%",
-    padding: "4%",
-    paddingVertical: "6%",
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(2.5),
     borderBottomWidth: 2,
     borderBottomColor: AppColors.basicBlack,
     flexDirection: "row",
+    minHeight: hp(7),
   },
   inputContent: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
   },
   icon: {
-    height: height * 0.03,
-    width: height * 0.04,
-    objectFit: "contain",
+    height: hp(3),
+    width: hp(3),
+    resizeMode: "contain",
   },
   label: {
-    marginLeft: "2%",
-    fontSize: 20,
+    marginLeft: wp(2),
+    fontSize: getFontSize(16, 18, 20),
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_600SemiBold",
   },
   selectedText: {
-    fontSize: 20,
+    fontSize: getFontSize(16, 18, 20),
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_600SemiBold",
-    marginLeft: "2%",
+    marginLeft: wp(2),
+    flex: 1,
   },
   selectedDateText: {
-    marginLeft: "2%",
-    fontSize: 12,
+    marginLeft: wp(2),
+    fontSize: getFontSize(10, 11, 12),
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_600SemiBold",
   },
   dateContainer: {
     width: "100%",
-    padding: "4%",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 20,
+    paddingHorizontal: wp(4),
+    paddingVertical: hp(2),
+    minHeight: hp(7),
   },
-  dateButtons: {
-    flexDirection: "row",
-    gap: 6,
+  dateInputContainer: {
     flex: 1,
-    justifyContent: "flex-end",
   },
-  dateButton: {
-    backgroundColor: AppColors.basicBlack,
-    paddingVertical: "4%",
-    paddingHorizontal: "8%",
-    borderRadius: 8,
-    textAlign: "center",
-    alignItems: "center",
+  dateTextContainer: {
     flex: 1,
-    minWidth: 70,
-  },
-  dateButtonText: {
-    color: AppColors.basicWhite,
-    fontSize: 10,
-    fontFamily: "NunitoSans_600SemiBold",
   },
   modalContainer: {
     flex: 1,
@@ -709,61 +713,64 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: AppColors.secondaryDarkGreen,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    padding: "5%",
-    maxHeight: "80%",
+    borderTopLeftRadius: wp(3),
+    borderTopRightRadius: wp(3),
+    paddingHorizontal: wp(5),
+    paddingVertical: hp(3),
+    maxHeight: hp(80),
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: getFontSize(16, 17, 18),
     fontFamily: "NunitoSans_600SemiBold",
-    marginBottom: "4%",
+    marginBottom: hp(2),
     color: AppColors.primaryLightGreen,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: AppColors.basicBlack,
-    borderRadius: 8,
-    marginBottom: "4%",
-    paddingHorizontal: "3%",
+    borderRadius: wp(2),
+    marginBottom: hp(2),
+    paddingHorizontal: wp(3),
+    minHeight: hp(6),
   },
   searchInput: {
     flex: 1,
     color: AppColors.basicWhite,
-    fontSize: 16,
+    fontSize: getFontSize(14, 15, 16),
     fontFamily: "NunitoSans_400Regular",
-    paddingVertical: "3%",
+    paddingVertical: hp(1.5),
   },
   searchLoader: {
-    marginLeft: "2%",
+    marginLeft: wp(2),
   },
   locationList: {
-    maxHeight: "70%",
+    maxHeight: hp(50),
   },
   sectionHeader: {
-    fontSize: 14,
+    fontSize: getFontSize(12, 13, 14),
     fontFamily: "NunitoSans_600SemiBold",
     color: AppColors.primaryLightGreen,
-    marginTop: "3%",
-    marginBottom: "2%",
+    marginTop: hp(1.5),
+    marginBottom: hp(1),
   },
   locationItem: {
-    paddingVertical: "3%",
-    paddingHorizontal: "2%",
+    paddingVertical: hp(1.5),
+    paddingHorizontal: wp(2),
     borderBottomWidth: 1,
     borderBottomColor: AppColors.basicWhite + "20",
     flexDirection: "row",
     alignItems: "center",
+    minHeight: hp(6),
   },
   locationIcon: {
-    width: 16,
-    height: 16,
+    width: wp(4),
+    height: wp(4),
     tintColor: AppColors.basicWhite,
-    marginRight: "3%",
+    marginRight: wp(3),
   },
   locationText: {
-    fontSize: 16,
+    fontSize: getFontSize(14, 15, 16),
     fontFamily: "NunitoSans_400Regular",
     color: AppColors.basicWhite,
     flex: 1,
@@ -772,69 +779,64 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   locationSubtext: {
-    fontSize: 12,
+    fontSize: getFontSize(10, 11, 12),
     fontFamily: "NunitoSans_300Light",
     color: AppColors.basicWhite + "80",
-    marginTop: 2,
+    marginTop: hp(0.3),
   },
   noResultsText: {
-    fontSize: 14,
+    fontSize: getFontSize(12, 13, 14),
     fontFamily: "NunitoSans_400Regular",
     color: AppColors.basicWhite + "80",
     textAlign: "center",
-    marginTop: "5%",
+    marginTop: hp(3),
     fontStyle: "italic",
   },
   loadingContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: "5%",
+    paddingVertical: hp(3),
   },
   loadingText: {
-    fontSize: 14,
+    fontSize: getFontSize(12, 13, 14),
     fontFamily: "NunitoSans_400Regular",
     color: AppColors.basicWhite,
-    marginLeft: "3%",
+    marginLeft: wp(3),
   },
   closeButton: {
-    marginTop: "4%",
+    marginTop: hp(2),
     alignItems: "center",
-    padding: "3%",
+    paddingVertical: hp(2),
     backgroundColor: AppColors.basicBlack,
-    borderRadius: 8,
+    borderRadius: wp(2),
+    minHeight: hp(6),
+    justifyContent: "center",
   },
   closeButtonText: {
     color: AppColors.basicWhite,
-    fontSize: 16,
+    fontSize: getFontSize(14, 15, 16),
     fontFamily: "NunitoSans_600SemiBold",
   },
   switchIconContainer: {
     position: "absolute",
-    right: 30,
-    top: 70,
-    transform: [{ translateY: -10 }],
+    right: wp(8),
+    top: hp(7),
     zIndex: 10,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    padding: getSpacing(4),
+    backgroundColor: AppColors.primaryLightGreen,
   },
   switchIcon: {
-    width: 25,
-    height: 25,
+    width: wp(6),
+    height: wp(6),
     tintColor: AppColors.basicBlack,
   },
   clearIconContainer: {
-    marginLeft: 24,
+    marginLeft: wp(2),
     justifyContent: "center",
     alignItems: "center",
-    height: 24,
-    width: 24,
-  },
-  clearIcon: {
-    width: 16,
-    height: 16,
-    tintColor: AppColors.basicBlack,
+    minHeight: hp(4),
+    minWidth: wp(6),
+    paddingHorizontal: wp(1),
   },
 });
-
-export default RideDetailsSelector;
