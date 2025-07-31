@@ -54,20 +54,8 @@ const responsiveWidth = (percentage: number) => {
   return (screenWidth * percentage) / 100;
 };
 
-// Configure notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
 async function sendTokenToBackend(token: string, apiUtil: any): Promise<boolean> {
   try {
-    // Use your existing API utility which handles Firebase auth automatically
     await apiUtil.post("/users/me/token", {
       token,
       platform: Platform.OS,
@@ -82,7 +70,6 @@ async function sendTokenToBackend(token: string, apiUtil: any): Promise<boolean>
   }
 }
 
-// Function to send FCM notification via your backend (recommended approach)
 async function sendFCMNotification(
   apiUtil: any,
   targetToken: string, 
@@ -91,8 +78,6 @@ async function sendFCMNotification(
   data?: Record<string, string>
 ): Promise<boolean> {
   try {
-    // Send notification request to your backend
-    // Your backend will handle the FCM API call with proper service account auth
     await apiUtil.post("/notifications/send", {
       targetToken,
       notification: {
@@ -114,10 +99,8 @@ async function sendFCMNotification(
 async function registerForPushNotificationsAsync(): Promise<string | null> {
   let token = null;
 
-  // Check if device is physical (not simulator/emulator)
   if (Device.isDevice) {
     try {
-      // On Android 13+: create channel so the permission prompt appears
       if (Platform.OS === "android") {
         await Notifications.setNotificationChannelAsync("default", {
           name: "default",
@@ -127,7 +110,6 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
         });
       }
 
-      // Request permissions
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
 
@@ -144,7 +126,6 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
         return null;
       }
 
-      // Get the native device push token (FCM for Android, APNs for iOS)
       const tokenData = await Notifications.getDevicePushTokenAsync();
       token = tokenData.data;
       console.log("Native Push Token (FCM/APNs):", token);
@@ -179,7 +160,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 }) => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const isFocused = useIsFocused();
-  const { apiUtil } = useApi(); // Get the API utility with Firebase auth
+  const { apiUtil } = useApi();
 
   const [location, setLocation] = useState<LocationCoords | null>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
@@ -357,14 +338,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       }
     });
 
-    // Cleanup listeners
     return () => {
-      Notifications.removeNotificationSubscription(notificationListener);
-      Notifications.removeNotificationSubscription(responseListener);
+      notificationListener.remove();
+      responseListener.remove();
     };
   }, [apiUtil]);
 
-  // Handle token refresh (tokens can change)
   useEffect(() => {
     const interval = setInterval(async () => {
       const newToken = await registerForPushNotificationsAsync();
@@ -372,8 +351,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         setPushToken(newToken);
         await sendTokenToBackend(newToken, apiUtil);
       }
-    }, 24 * 60 * 60 * 1000); // Check daily
-
+    }, 24 * 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, [pushToken, apiUtil]);
 
