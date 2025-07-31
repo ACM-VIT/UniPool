@@ -7,6 +7,7 @@ import {
   StatusBar,
   Platform,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { passengerInfoStyles } from './ChatScreen.styles';
 import { PassengerInfoScreenProps, User } from './ChatScreen.types';
@@ -44,62 +45,64 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
   return (
     <SafeAreaView style={passengerInfoStyles.container}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
-      <View
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 10,
-        }}
-      >
-        <BrandInfo />
-      </View>
-
-      <View style={passengerInfoStyles.chatHeader}>
-        <Text style={passengerInfoStyles.chatTitle}>Chat</Text>
-      </View>
-
-      <View style={passengerInfoStyles.toggleContainer}>
-        <TouchableOpacity 
-          style={passengerInfoStyles.toggleButtonInactive}
-          onPress={() => navigation?.navigate('TripsListScreen' as never)}
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 10,
+          }}
         >
-          <Text style={passengerInfoStyles.toggleTextInactive}>Trips</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={passengerInfoStyles.toggleButtonActive}>
-          <Text style={passengerInfoStyles.toggleTextActive}>Passenger</Text>
-        </TouchableOpacity>
-      </View>
+          <BrandInfo />
+        </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color={AppColors.primaryLightGreen} />
-      ) : (
-        passengers.length === 0 ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-            <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 18, color: AppColors.basicBlack, textAlign: 'center' }}>
-              No passengers found. When you join a ride as a passenger, they will appear here.
-            </Text>
-          </View>
+        <View style={passengerInfoStyles.chatHeader}>
+          <Text style={passengerInfoStyles.chatTitle}>Chat</Text>
+        </View>
+
+        <View style={passengerInfoStyles.toggleContainer}>
+          <TouchableOpacity 
+            style={passengerInfoStyles.toggleButtonInactive}
+            onPress={() => navigation?.navigate('TripsListScreen' as never)}
+          >
+            <Text style={passengerInfoStyles.toggleTextInactive}>Trips</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={passengerInfoStyles.toggleButtonActive}>
+            <Text style={passengerInfoStyles.toggleTextActive}>Passenger</Text>
+          </TouchableOpacity>
+        </View>
+
+        {loading ? (
+          <ActivityIndicator size="large" color={AppColors.primaryLightGreen} style={{ marginTop: 32 }} />
         ) : (
-          <View style={passengerInfoStyles.destinationsList}>
-            {passengers.map((passenger) => (
-              <TouchableOpacity 
-                key={passenger.id} 
-                style={passengerInfoStyles.destinationItem}
-                onPress={() => navigation?.navigate('ChatMessages' as never, {
-                  chatId: passenger.id,
-                  chatTitle: `Chat with ${passenger.name}`,
-                  chatSubtitle: ``,
-                  isGroupChat: false,
-                })}
-              >
-                <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )
-      )}
+          passengers.length === 0 ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+              <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 18, color: AppColors.basicBlack, textAlign: 'center' }}>
+                No passengers found. When you join a ride as a passenger, they will appear here.
+              </Text>
+            </View>
+          ) : (
+            <View style={passengerInfoStyles.destinationsList}>
+              {passengers.map((passenger) => (
+                <TouchableOpacity 
+                  key={passenger.id} 
+                  style={passengerInfoStyles.destinationItem}
+                  onPress={() => navigation?.navigate('ChatMessages' as never, {
+                    chatId: passenger.id,
+                    chatTitle: `Chat with ${passenger.name}`,
+                    chatSubtitle: ``,
+                    isGroupChat: false,
+                  })}
+                >
+                  <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 };
