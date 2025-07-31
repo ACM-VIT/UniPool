@@ -231,10 +231,8 @@ const styles = StyleSheet.create({
         width: "100%",
         backgroundColor: AppColors.secondaryDarkGreen,
         borderRadius: 15,
-        padding: "5%",
         justifyContent: "center",
         alignItems: "center",
-        marginHorizontal: 8,
         minHeight: 100,
     },
     loadingText: {
