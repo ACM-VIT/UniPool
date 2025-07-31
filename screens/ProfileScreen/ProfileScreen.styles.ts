@@ -106,16 +106,8 @@ const styles = StyleSheet.create({
   },
   menuContainer: {
     backgroundColor: AppColors.primaryLightGreen,
-    borderRadius: 18,
-    borderWidth: 2.5,
-    borderColor: AppColors.secondaryDarkGreen,
     marginBottom: 24,
     overflow: "hidden",
-    shadowColor: AppColors.secondaryDarkGreen,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
   },
   menuItem: {
     flexDirection: "row",
