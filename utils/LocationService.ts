@@ -27,7 +27,7 @@ const searchCache = new Map<string, LocationResult[]>()
 const nearbyPlacesCache = new Map<string, NearbyPlace[]>()
 const popularLocationsCache = new Map<string, string[]>()
 
-export const USE_TEST_LOCATION = true // change to false for production
+export const USE_TEST_LOCATION = false // change to false for production
 export const TEST_LOCATION: UserLocation = {
   latitude: 12.9165,
   longitude: 79.1325
