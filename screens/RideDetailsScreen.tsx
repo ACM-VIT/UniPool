@@ -38,11 +38,14 @@ const RideDetailsScreen: React.FC = () => {
         const rideResponse = await apiUtil.get(`/ride/fetch/${rideId}`);
         setRideDetails(rideResponse);
         const bookingsResponse = await apiUtil.get(`/booking/list`);
-        setRequests(bookingsResponse);
+        console.log("bookingsResponse", bookingsResponse);
+        setRequests(Array.isArray(bookingsResponse) ? bookingsResponse : []);
         setRequestsError(null);
       } catch (err: any) {
         console.error('Error fetching ride details:', err);
         setRequestsError(err.message || "Failed to fetch ride details");
+      } finally {
+        setRequestsLoading(false);
       }
     }
     fetchRideDetails();
