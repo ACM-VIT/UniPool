@@ -75,22 +75,30 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
       {loading ? (
         <ActivityIndicator size="large" color={AppColors.primaryLightGreen} />
       ) : (
-        <View style={passengerInfoStyles.destinationsList}>
-          {passengers.map((passenger) => (
-            <TouchableOpacity 
-              key={passenger.id} 
-              style={passengerInfoStyles.destinationItem}
-              onPress={() => navigation?.navigate('ChatMessages' as never, {
-                chatId: passenger.id,
-                chatTitle: `Chat with ${passenger.name}`,
-                chatSubtitle: ``,
-                isGroupChat: false,
-              })}
-            >
-              <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        passengers.length === 0 ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+            <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 18, color: AppColors.basicBlack, textAlign: 'center' }}>
+              No passengers found. When you join a ride as a passenger, they will appear here.
+            </Text>
+          </View>
+        ) : (
+          <View style={passengerInfoStyles.destinationsList}>
+            {passengers.map((passenger) => (
+              <TouchableOpacity 
+                key={passenger.id} 
+                style={passengerInfoStyles.destinationItem}
+                onPress={() => navigation?.navigate('ChatMessages' as never, {
+                  chatId: passenger.id,
+                  chatTitle: `Chat with ${passenger.name}`,
+                  chatSubtitle: ``,
+                  isGroupChat: false,
+                })}
+              >
+                <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )
       )}
     </SafeAreaView>
   );

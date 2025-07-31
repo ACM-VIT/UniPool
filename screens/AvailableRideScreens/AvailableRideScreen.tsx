@@ -136,7 +136,6 @@ console.log("AvailableRideScreen params:", { fromLocation, toLocation });
   const handleRideSelection = (rideId: string) => {
     const selectedRide = rides.find(ride => ride.id === rideId);
     if (selectedRide) {
-      // Navigate to detailed screen with ride data
       (navigation as any).navigate("AvailableRidesSelectedScreen", { 
         ride: selectedRide 
       });
@@ -177,9 +176,9 @@ console.log("AvailableRideScreen params:", { fromLocation, toLocation });
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.contentContainer}>
+        <View style={[styles.contentContainer, { backgroundColor: require('../../design_systems/colors').default.primaryLightGreen }]}> 
           {rides.length === 0 && !loading ? (
-            <Text style={{ textAlign: "center", marginTop: 40 }}>No rides found for selected locations.</Text>
+            <Text style={{ fontFamily: "NunitoSans_400Regular", textAlign: "center", marginTop: 40 }}>No rides found for selected locations.</Text>
           ) : (
             rides.map((ride: any) => (
               <RideCard
