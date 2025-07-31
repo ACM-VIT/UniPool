@@ -106,6 +106,8 @@ const styles = StyleSheet.create({
   },
   menuContainer: {
     backgroundColor: AppColors.primaryLightGreen,
+    borderRadius: 18,
+    borderWidth: 2.5,
     marginBottom: 24,
     overflow: "hidden",
   },
