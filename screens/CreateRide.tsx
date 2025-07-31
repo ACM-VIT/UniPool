@@ -276,7 +276,7 @@ const CreateRide: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={styles.headerRowWithTitle}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -286,11 +286,10 @@ const CreateRide: React.FC = () => {
             style={styles.backIcon}
           />
         </TouchableOpacity>
+        <Text style={styles.title}>Create a Ride</Text>
       </View>
 
       <View style={styles.mainContent}>
-        <Text style={styles.title}>Create a Ride</Text>
-
         {/* ← Your built‑in selector handles both date & time */}
         <View style={styles.section}>
           <RideDetailsSelector
@@ -408,12 +407,13 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: AppColors.primaryLightGreen,
   },
-  header: {
+  headerRowWithTitle: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 10,
+    gap: 12,
   },
   backButton: {
     padding: 5,
@@ -426,12 +426,11 @@ const styles = StyleSheet.create({
   mainContent: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 5,
   },
   title: {
     fontSize: 20,
     fontWeight: "600",
-    paddingBottom: 15,
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_600SemiBold",
   },
