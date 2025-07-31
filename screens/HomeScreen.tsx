@@ -181,8 +181,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
   const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
 
-  const bottomSheetY = useRef(new Animated.Value(BOTTOM_SHEET_MIN_HEIGHT)).current;
-  const lastGestureY = useRef(BOTTOM_SHEET_MIN_HEIGHT);
+  const bottomSheetY = useRef(new Animated.Value(BOTTOM_SHEET_MAX_HEIGHT)).current;
+  const lastGestureY = useRef(BOTTOM_SHEET_MAX_HEIGHT);
 
   const customMapStyle = [
     {
