@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
   },
   rideDetailsSubHeader: {
     fontSize: 20,
-    fontFamily: "NunitoSans_700Bold",
+    fontFamily: "NunitoSans_400Regular",
     color: AppColors.basicBlack,
   },
   backButton: {
