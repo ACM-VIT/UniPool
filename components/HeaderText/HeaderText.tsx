@@ -11,7 +11,6 @@ const HeaderText: React.FC<HeaderTextProps> = ({
   paddingTop = width * 0.06,
   paddingBottom = width * 0.03,
   
-  letterSpacing = 2,
 }) => (
   <Text style={[styles.header, { fontSize: size, paddingTop }]}>
     {children}
