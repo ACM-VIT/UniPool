@@ -184,71 +184,71 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const bottomSheetY = useRef(new Animated.Value(BOTTOM_SHEET_MAX_HEIGHT)).current;
   const lastGestureY = useRef(BOTTOM_SHEET_MAX_HEIGHT);
 
-  const customMapStyle = [
-    {
-      featureType: "all",
-      elementType: "geometry",
-      stylers: [
-        {
-          color: "#f5f5f5"
-        }
-      ]
-    },
-    {
-      featureType: "road",
-      elementType: "geometry",
-      stylers: [
-        {
-          color: "#ffffff"
-        }
-      ]
-    },
-    {
-      featureType: "road",
-      elementType: "geometry.stroke",
-      stylers: [
-        {
-          color: "#e8e8e8"
-        }
-      ]
-    },
-    {
-      featureType: "water",
-      elementType: "geometry",
-      stylers: [
-        {
-          color: "#1e00ffff"
-        }
-      ]
-    },
-    {
-      featureType: "landscape",
-      elementType: "geometry",
-      stylers: [
-        {
-          color: "#f9f9f9"
-        }
-      ]
-    },
-    {
-      featureType: "poi",
-      elementType: "geometry",
-      stylers: [
-        {
-          color: "#eeeeee"
-        }
-      ]
-    },
-    {
-      featureType: "poi.park",
-      elementType: "geometry",
-      stylers: [
-        {
-          color: AppColors.primaryLightGreen || "#a8d8a8"
-        }
-      ]
-    }
-  ];
+  // const customMapStyle = [
+  //   {
+  //     featureType: "all",
+  //     elementType: "geometry",
+  //     stylers: [
+  //       {
+  //         color: "#f5f5f5"
+  //       }
+  //     ]
+  //   },
+  //   {
+  //     featureType: "road",
+  //     elementType: "geometry",
+  //     stylers: [
+  //       {
+  //         color: "#ffffff"
+  //       }
+  //     ]
+  //   },
+  //   {
+  //     featureType: "road",
+  //     elementType: "geometry.stroke",
+  //     stylers: [
+  //       {
+  //         color: "#e8e8e8"
+  //       }
+  //     ]
+  //   },
+  //   {
+  //     featureType: "water",
+  //     elementType: "geometry",
+  //     stylers: [
+  //       {
+  //         color: "#1e00ffff"
+  //       }
+  //     ]
+  //   },
+  //   {
+  //     featureType: "landscape",
+  //     elementType: "geometry",
+  //     stylers: [
+  //       {
+  //         color: "#f9f9f9"
+  //       }
+  //     ]
+  //   },
+  //   {
+  //     featureType: "poi",
+  //     elementType: "geometry",
+  //     stylers: [
+  //       {
+  //         color: "#eeeeee"
+  //       }
+  //     ]
+  //   },
+  //   {
+  //     featureType: "poi.park",
+  //     elementType: "geometry",
+  //     stylers: [
+  //       {
+  //         color: AppColors.primaryLightGreen || "#a8d8a8"
+  //       }
+  //     ]
+  //   }
+  // ];
 
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (evt, gestureState) => {
@@ -511,7 +511,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             showsUserLocation={true}
             showsMyLocationButton={true}
             toolbarEnabled={false}
-            customMapStyle={customMapStyle}
+            // customMapStyle={customMapStyle}
             onMapReady={() => console.log("Map ready")}
           >
             <Marker 
