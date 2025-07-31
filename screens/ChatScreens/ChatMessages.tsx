@@ -105,13 +105,23 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
 
   const fetchChatDetails = async (rideId: string) => {
     try {
-      const rideResponse = await apiUtil.get<{ride: RideDetails}>(`/rides/${rideId}`);
+      const rideResponse = await apiUtil.get<{ride: RideDetails}>(`/ride/fetch/${rideId}`);
       setRideDetails(rideResponse.ride);
 
-      const participantsResponse = await apiUtil.get<{participants: Participant[]}>(`/rides/${rideId}/participants`);
-      setParticipants(participantsResponse.participants);
+      const bookingsResponse = await apiUtil.get<{bookings: any[]}>(`/booking/ride/${rideId}`);
+      const participants: Participant[] = bookingsResponse.bookings.map((booking: any) => {
+        const passenger = booking.RideDetails?.Passenger || booking.Passenger || {};
+        return {
+          id: passenger.id || booking.passenger_id || '',
+          name: passenger.name || 'Unknown',
+          avatar: passenger.avatar,
+          isOnline: false,
+          role: 'member',
+        };
+      });
+      setParticipants(participants);
 
-      const settingsResponse = await apiUtil.get<{muted: boolean}>(`/rides/${rideId}/settings`);
+      const settingsResponse = await apiUtil.get<{muted: boolean}>(`/ride/fetch/${rideId}/settings`);
       setNotificationsMuted(settingsResponse.muted);
     } catch (error) {
       console.warn('[Chat] Failed to fetch chat details', error);
@@ -584,8 +594,12 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
 
       <View style={chatMessagesStyles.typingBarContainer}>
         <TextInput
-          style={[chatMessagesStyles.typingBarText, { flex: 1 }]}
+          style={[
+            chatMessagesStyles.typingBarText,
+            { flex: 1, color: '#000', fontFamily: 'Nunito Sans' }
+          ]}
           placeholder="Start typing..."
+          placeholderTextColor="#000"
           value={newMessage}
           onChangeText={setNewMessage}
         />

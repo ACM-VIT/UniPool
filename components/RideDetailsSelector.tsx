@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { X } from "lucide-react-native";
 import {
   View,
@@ -38,10 +39,17 @@ export const CommonLocationCoordinates = [
   { location: "Pondicherry", latitude: 11.9352, longitude: 79.8082 },
 ];
 
+interface LocationCoordinates {
+  latitude: number;
+  longitude: number;
+}
+
 interface RideDetails {
   from: string;
   to: string;
   date: Date;
+  fromCoordinates?: LocationCoordinates;
+  toCoordinates?: LocationCoordinates;
 }
 
 interface RideDetailsSelectorProps {
@@ -63,11 +71,13 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 }) => {
   const { apiUtil } = require('../utils/ApiUtil').useApi();
   const [defaultStartAddress, setDefaultStartAddress] = useState<string>("");
+  
   React.useEffect(() => {
     async function fetchDefaultAddress() {
       let cached = "";
-      if (typeof window !== 'undefined' && window.sessionStorage) {
-        cached = window.sessionStorage.getItem('unipool_start_address') || "";
+      try {
+        cached = await AsyncStorage.getItem('unipool_start_address') || "";
+      } catch (e) {
       }
       if (cached) {
         setDefaultStartAddress(cached);
@@ -77,8 +87,9 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         const res = await apiUtil.get("/user/default-address");
         if (typeof res === "object" && res !== null && "address" in res && typeof (res as any).address === "string") {
           setDefaultStartAddress((res as any).address);
-          if (typeof window !== 'undefined' && window.sessionStorage) {
-            window.sessionStorage.setItem('unipool_start_address', (res as any).address);
+          try {
+            await AsyncStorage.setItem('unipool_start_address', (res as any).address);
+          } catch (e) {
           }
         }
       } catch (err) {}
@@ -89,12 +100,18 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const [fromLocation, setFromLocation] = useState<string>(externalFromLocation || "");
   const [toLocation, setToLocation] = useState<string>(externalToLocation || "");
   const [selectedDate, setSelectedDate] = useState(new Date());
+  
+  const [fromCoordinates, setFromCoordinates] = useState<LocationCoordinates | null>(null);
+  const [toCoordinates, setToCoordinates] = useState<LocationCoordinates | null>(null);
+  const [selectedLocationResult, setSelectedLocationResult] = useState<LocationResult | null>(null);
+
+  const [fromCleared, setFromCleared] = useState(false);
 
   React.useEffect(() => {
-    if (!externalFromLocation && !fromLocation && defaultStartAddress) {
+    if (!externalFromLocation && !fromLocation && defaultStartAddress && !fromCleared) {
       setFromLocation(defaultStartAddress);
     }
-  }, [defaultStartAddress, externalFromLocation, fromLocation]);
+  }, [defaultStartAddress, externalFromLocation, fromLocation, fromCleared]);
 
   const [showFromDropdown, setShowFromDropdown] = useState(false);
   const [showToDropdown, setShowToDropdown] = useState(false);
@@ -107,6 +124,54 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingPopular, setIsLoadingPopular] = useState(false);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+
+  const getCoordinatesForLocation = (locationName: string, locationResult?: LocationResult): LocationCoordinates | null => {
+    if (locationResult && locationResult.lat && locationResult.lon) {
+      return {
+        latitude: parseFloat(locationResult.lat),
+        longitude: parseFloat(locationResult.lon)
+      };
+    }
+
+    const commonLocation = CommonLocationCoordinates.find(
+      loc => loc.location.toLowerCase().includes(locationName.toLowerCase()) ||
+             locationName.toLowerCase().includes(loc.location.toLowerCase())
+    );
+    
+    if (commonLocation) {
+      return {
+        latitude: commonLocation.latitude,
+        longitude: commonLocation.longitude
+      };
+    }
+
+    if (userLocation) {
+      const randomOffset = () => (Math.random() - 0.5) * 0.02;
+      return {
+        latitude: userLocation.latitude + randomOffset(),
+        longitude: userLocation.longitude + randomOffset(),
+      };
+    }
+
+    const randomOffset = () => (Math.random() - 0.5) * 0.02;
+    return {
+      latitude: 12.989196 + randomOffset(),
+      longitude: 80.178799 + randomOffset(),
+    };
+  };
+
+  const submitRideDetails = (from: string, to: string, date: Date, fromCoords?: LocationCoordinates, toCoords?: LocationCoordinates) => {
+    const rideDetails: RideDetails = {
+      from,
+      to,
+      date,
+      fromCoordinates: (fromCoords ?? fromCoordinates) ?? undefined,
+      toCoordinates: (toCoords ?? toCoordinates) ?? undefined
+    };
+    
+    console.log('Submitting ride details with coordinates:', rideDetails);
+    onSubmit(rideDetails);
+  };
 
   const handleSearchInput = async (text: string) => {
     setSearchQuery(text);
@@ -152,12 +217,19 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
   };
 
-  const handleLocationSelect = (location: string, isFrom: boolean) => {
+  const handleLocationSelect = (location: string, isFrom: boolean, locationResult?: LocationResult) => {
+    console.log('Location selected:', location, 'isFrom:', isFrom, 'locationResult:', locationResult);
+    
+    const coordinates = getCoordinatesForLocation(location, locationResult);
+    console.log('Generated coordinates:', coordinates);
+    
     if (isFrom) {
       setFromLocation(location);
+      setFromCoordinates(coordinates);
       setShowFromDropdown(false);
     } else {
       setToLocation(location);
+      setToCoordinates(coordinates);
       setShowToDropdown(false);
     }
     
@@ -167,13 +239,17 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     
     const updatedFrom = isFrom ? location : fromLocation;
     const updatedTo = isFrom ? toLocation : location;
+    const updatedFromCoords = isFrom ? coordinates : fromCoordinates;
+    const updatedToCoords = isFrom ? toCoordinates : coordinates;
     
-    if (updatedFrom && updatedTo && onSubmit) {
-      onSubmit({
-        from: updatedFrom,
-        to: updatedTo,
-        date: selectedDate
-      });
+    if (updatedFrom && updatedTo) {
+      submitRideDetails(
+        updatedFrom,
+        updatedTo,
+        selectedDate,
+        updatedFromCoords ?? undefined,
+        updatedToCoords ?? undefined
+      );
     }
   };
 
@@ -215,12 +291,8 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         setShowPicker(false);
         setPickerMode("date");
         
-        if (fromLocation && toLocation && onSubmit) {
-          onSubmit({
-            from: fromLocation,
-            to: toLocation,
-            date: selected
-          });
+        if (fromLocation && toLocation) {
+          submitRideDetails(fromLocation, toLocation, selected, fromCoordinates ?? undefined, toCoordinates ?? undefined);
         }
       }
     } else {
@@ -236,21 +308,55 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
   const handleLocationSwap = () => {
     const tempLocation = fromLocation;
+    const tempCoordinates = fromCoordinates;
+    
     setFromLocation(toLocation);
     setToLocation(tempLocation);
+    setFromCoordinates(toCoordinates);
+    setToCoordinates(tempCoordinates);
+    
     if (onLocationSwap) {
       onLocationSwap();
+    }
+
+    if (toLocation && tempLocation) {
+      submitRideDetails(
+        toLocation,
+        tempLocation,
+        selectedDate,
+        (toCoordinates ?? undefined),
+        (tempCoordinates ?? undefined)
+      );
+    }
+  };
+
+  const handleLocationClear = (isFrom: boolean) => {
+    if (isFrom) {
+      setFromLocation("");
+      setFromCoordinates(null);
+      setFromCleared(true);
+      setToLocation("");
+      setToCoordinates(null);
+    }
+
+    const updatedFrom = isFrom ? "" : fromLocation;
+    const updatedTo = isFrom ? toLocation : "";
+    
+    if (onLocationSelectionChange) {
+      onLocationSelectionChange(updatedFrom !== "" && updatedTo !== "");
     }
   };
 
   const setToToday = () => {
     setSelectedDate(new Date());
-    if (fromLocation && toLocation && onSubmit) {
-      onSubmit({
-        from: fromLocation,
-        to: toLocation,
-        date: new Date()
-      });
+    if (fromLocation && toLocation) {
+      submitRideDetails(
+        fromLocation,
+        toLocation,
+        new Date(),
+        fromCoordinates ?? undefined,
+        toCoordinates ?? undefined
+      );
     }
   };
 
@@ -258,24 +364,30 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     setSelectedDate(tomorrow);
-    if (fromLocation && toLocation && onSubmit) {
-      onSubmit({
-        from: fromLocation,
-        to: toLocation,
-        date: tomorrow
-      });
+    if (fromLocation && toLocation) {
+      submitRideDetails(
+        fromLocation,
+        toLocation,
+        tomorrow,
+        fromCoordinates ?? undefined,
+        toCoordinates ?? undefined
+      );
     }
   };
 
   useEffect(() => {
     if (externalFromLocation !== undefined) {
       setFromLocation(externalFromLocation);
+      const coords = getCoordinatesForLocation(externalFromLocation);
+      setFromCoordinates(coords);
     }
   }, [externalFromLocation]);
 
   useEffect(() => {
     if (externalToLocation !== undefined) {
       setToLocation(externalToLocation);
+      const coords = getCoordinatesForLocation(externalToLocation);
+      setToCoordinates(coords);
     }
   }, [externalToLocation]);
 
@@ -305,13 +417,15 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               source={require("../assets/location-pin-2.png")}
               style={styles.icon}
             />
-            <Text style={styles.selectedText}>{fromLocation || "From"}</Text>
+            <Text style={styles.selectedText} numberOfLines={1} ellipsizeMode="tail">
+              {fromLocation ? (fromLocation.length > 28 ? fromLocation.slice(0, 25) + '...' : fromLocation) : "From"}
+            </Text>
             {fromLocation !== "" && (
               <TouchableOpacity
-                style={styles.clearIconContainer}
+                style={[styles.clearIconContainer, { marginLeft: 8 }]}
                 onPress={e => {
                   e.stopPropagation && e.stopPropagation();
-                  setFromLocation("");
+                  handleLocationClear(true);
                 }}
               >
                 <X size={16} color={AppColors.basicBlack} />
@@ -339,13 +453,15 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               source={require("../assets/arrow-icon.png")}
               style={styles.icon}
             />
-            <Text style={styles.selectedText}>{toLocation || "To"}</Text>
+            <Text style={styles.selectedText} numberOfLines={1} ellipsizeMode="tail">
+              {toLocation ? (toLocation.length > 28 ? toLocation.slice(0, 25) + '...' : toLocation) : "To"}
+            </Text>
             {toLocation !== "" && (
               <TouchableOpacity
-                style={styles.clearIconContainer}
+                style={[styles.clearIconContainer, { marginLeft: 8 }]}
                 onPress={e => {
                   e.stopPropagation && e.stopPropagation();
-                  setToLocation("");
+                  handleLocationClear(false);
                 }}
               >
                 <X size={16} color={AppColors.basicBlack} />
@@ -363,10 +479,14 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               style={styles.icon}
             />
             <View>
-              <Text style={styles.label}>When</Text>
-              <Text style={styles.selectedDateText}>
-                {format(selectedDate, "EEE d MMM yyyy, h:mm a")}
-              </Text> 
+              {selectedDate ? (
+                <>
+                  <Text style={styles.label}>{format(selectedDate, "EEE d MMM yyyy")}</Text>
+                  <Text style={styles.selectedDateText}>{format(selectedDate, "h:mm a")}</Text>
+                </>
+              ) : (
+                <Text style={styles.label}>When</Text>
+              )}
             </View>
           </View>
         </TouchableOpacity>
@@ -444,7 +564,7 @@ const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                       key={result.place_id}
                       style={styles.locationItem}
                       onPress={() =>
-                        handleLocationSelect(formatLocationName(result), showFromDropdown)
+                        handleLocationSelect(formatLocationName(result), showFromDropdown, result)
                       }
                     >
                       <Image

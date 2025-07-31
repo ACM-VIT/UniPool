@@ -44,10 +44,10 @@ export const chatScreenStyles = StyleSheet.create({
     marginTop: 48,
   },
   chatTitle: {
-    fontSize: 20,
+    fontSize: 24,
+    fontWeight: "600",
     color: AppColors.basicBlack,
-    marginLeft: 8,
-    fontFamily: 'NunitoSans-Regular',
+    fontFamily: "NunitoSans_600SemiBold",
   },
   chatSubtitleNumber: {
     fontSize: 14,
@@ -302,13 +302,13 @@ export const chatMessagesStyles = StyleSheet.create({
     color: AppColors.basicWhite,
     fontSize: 14,
     lineHeight: 18,
-    fontFamily: 'NunitoSans-Regular',
+    fontFamily: 'NunitoSans_400Regular',
   },
   messageTextSent: {
     color: AppColors.basicBlack,
     fontSize: 14,
     lineHeight: 18,
-    fontFamily: 'NunitoSans-Regular',
+    fontFamily: 'NunitoSans_400Regular',
   },
   messageTime: {
     color: AppColors.basicWhite,
@@ -316,7 +316,7 @@ export const chatMessagesStyles = StyleSheet.create({
     marginTop: 4,
     alignSelf: 'flex-end',
     opacity: 0.7,
-    fontFamily: 'NunitoSans-Regular',
+    fontFamily: 'NunitoSans_400Regular',
   },
   messageTimeSent: {
     color: AppColors.basicBlack,
@@ -324,7 +324,7 @@ export const chatMessagesStyles = StyleSheet.create({
     marginTop: 4,
     alignSelf: 'flex-end',
     opacity: 0.7,
-    fontFamily: 'NunitoSans-Regular',
+    fontFamily: 'NunitoSans_400Regular',
   },
   inputContainer: {
     flexDirection: 'row',
@@ -353,6 +353,7 @@ export const chatMessagesStyles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 44,
     borderWidth: 2.28,
+    marginTop: 8,
     borderColor: AppColors.secondaryDarkGreen,
     backgroundColor: 'transparent',
     flexDirection: 'row',
@@ -363,7 +364,7 @@ export const chatMessagesStyles = StyleSheet.create({
     color: AppColors.basicBlack,
     fontSize: 16,
     flex: 1,
-    fontFamily: 'NunitoSans-Regular',
+    fontFamily: 'NunitoSans_400Regular',
   },
   typingBarIconContainer: {
     width: 35,
