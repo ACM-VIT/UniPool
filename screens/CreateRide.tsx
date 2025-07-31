@@ -13,9 +13,9 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AppColors from "../design_systems/colors";
-import RideDetailsSelector from "../components/RideDetailsSelector";
 import SlideToCreate from "../components/SlideToCreate";
 import { useApi } from "../utils/ApiUtil";
+import { RideDetailsSelector } from "../components/RideDetailsSelector";
 
 const { width, height } = Dimensions.get("window");
 

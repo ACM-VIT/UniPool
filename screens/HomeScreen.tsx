@@ -21,7 +21,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
-import RideDetailsSelector from "../components/RideDetailsSelector";
+import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import PreviousTripsSection from "../components/PreviousTripsSection";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { RootStackParamList } from "../navigation/RootStackParamList";
