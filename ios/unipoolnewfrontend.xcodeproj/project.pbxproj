@@ -22,6 +22,7 @@
 		44AC71F0B87240B6A43559A3 /* Trap-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = F22B70881E8A4F18915F045A /* Trap-Medium.otf */; };
 		B2A05397741049559AB6C4CB /* Trap-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = 18FD7739185A45869EC7B29E /* Trap-Regular.otf */; };
 		16267BD9F36C43DABBDA8278 /* Trap-SemiBold.otf in Resources */ = {isa = PBXBuildFile; fileRef = CD12B84D8A2845578E9D4FA5 /* Trap-SemiBold.otf */; };
+		1CD8FC4B905E4D8C9DECE905 /* notification.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A82DBE7DAC1242B1A624FC02 /* notification.mp3 */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +47,7 @@
 		F22B70881E8A4F18915F045A /* Trap-Medium.otf */ = {isa = PBXFileReference; name = "Trap-Medium.otf"; path = "../assets/fonts/trap/Trap-Medium.otf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
 		18FD7739185A45869EC7B29E /* Trap-Regular.otf */ = {isa = PBXFileReference; name = "Trap-Regular.otf"; path = "../assets/fonts/trap/Trap-Regular.otf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
 		CD12B84D8A2845578E9D4FA5 /* Trap-SemiBold.otf */ = {isa = PBXFileReference; name = "Trap-SemiBold.otf"; path = "../assets/fonts/trap/Trap-SemiBold.otf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		A82DBE7DAC1242B1A624FC02 /* notification.mp3 */ = {isa = PBXFileReference; name = "notification.mp3"; path = "unipoolnewfrontend/notification.mp3"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,6 +73,7 @@
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				D2131EF38D0644D4910F2FDA /* GoogleService-Info.plist */,
 				12636BC312329F2F6BBF980C /* PrivacyInfo.xcprivacy */,
+				A82DBE7DAC1242B1A624FC02 /* notification.mp3 */,
 			);
 			name = unipoolnewfrontend;
 			sourceTree = "<group>";
@@ -239,6 +242,7 @@
 				44AC71F0B87240B6A43559A3 /* Trap-Medium.otf in Resources */,
 				B2A05397741049559AB6C4CB /* Trap-Regular.otf in Resources */,
 				16267BD9F36C43DABBDA8278 /* Trap-SemiBold.otf in Resources */,
+				1CD8FC4B905E4D8C9DECE905 /* notification.mp3 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -426,7 +430,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.carpoolitapp;
-				PRODUCT_NAME = unipoolnewfrontend;
+				PRODUCT_NAME = "unipoolnewfrontend";
 				SWIFT_OBJC_BRIDGING_HEADER = "unipoolnewfrontend/unipoolnewfrontend-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -457,7 +461,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.carpoolitapp;
-				PRODUCT_NAME = unipoolnewfrontend;
+				PRODUCT_NAME = "unipoolnewfrontend";
 				SWIFT_OBJC_BRIDGING_HEADER = "unipoolnewfrontend/unipoolnewfrontend-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
