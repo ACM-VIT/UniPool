@@ -435,10 +435,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       setToCoords(toLocation);
       fitMapToWaypoints(fromLocation, toLocation, location);
     } else {
-      Alert.alert(
-        "Could not find location",
-        "Please check your 'From' and 'To' addresses and try again."
-      );
+      // Alert.alert(
+      //   "Could not find location",
+      //   "Please check your 'From' and 'To' addresses and try again."
+      // );
     }
   };
 

@@ -24,7 +24,7 @@ const styles = StyleSheet.create({
   headerBottomRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 4,
+    marginTop: 15,
   },
   ridesCountText: {
     fontSize: 16,
@@ -82,10 +82,11 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.primaryLightGreen,
   },
   brandInfoHeaderRow: {
-    width: "100%",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
     backgroundColor: AppColors.primaryLightGreen,
   },
   ridesHeaderRow: {
@@ -93,7 +94,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     width: "100%",
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
+    paddingTop: 35,
     paddingBottom: 8,
     backgroundColor: AppColors.primaryLightGreen,
   },
@@ -143,6 +145,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 16,
+    marginTop: 0,
   },
   navBarView: {
     position: "absolute",
