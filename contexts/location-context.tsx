@@ -40,7 +40,7 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchedOnceRef = useRef(false);
 
-  const fetchLocation = async () => {
+  const fetchLocation = async (retryCount = 0) => {
     try {
       setLoading(true);
       setError(null);
@@ -53,23 +53,75 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({});
+      let loc;
+      try {
+        loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+      } catch (locationError) {
+        console.warn("Balanced accuracy location failed, trying high accuracy for landmarks:", locationError);
+        if (retryCount < 1) {
+          loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+        } else {
+          throw locationError;
+        }
+      }
+
       const { latitude, longitude } = loc.coords;
       setCoords({ latitude, longitude });
 
       const geocode = await Location.reverseGeocodeAsync(loc.coords);
       if (geocode?.length) {
         const first = geocode[0];
-        const locRaw = first.city || first.region || first.country || "";
-        const locStr = (locRaw || "").split(",")[0].trim();
-        setLocationText(locStr || "");
+        
+        let locStr = "";
+        
+        const isLandmark = (text: string | null): boolean => {
+          if (!text) return false;
+          const landmarkKeywords = [
+            'Institute', 'University', 'College', 'Hospital', 'Mall', 'Airport', 
+            'Station', 'Park', 'Temple', 'Church', 'Mosque', 'School', 'Market',
+            'Complex', 'Center', 'Centre', 'Plaza', 'Tower', 'Building', 'Campus'
+          ];
+          return landmarkKeywords.some(keyword => text.includes(keyword));
+        };
+        
+        if (first.name && first.name !== first.city && first.name !== first.district && isLandmark(first.name)) {
+          locStr = first.name;
+        } else if (first.name && first.name !== first.city && first.name !== first.district) {
+          locStr = first.name;
+        } else if (first.district && first.district !== first.city) {
+          locStr = first.district;
+        } else if (first.subregion && first.subregion !== first.city) {
+          locStr = first.subregion;
+        } else if (first.city) {
+          locStr = first.city;
+        } else if (first.region) {
+          locStr = first.region;
+        }
+        
+        if (first.postalCode === "632014") {
+          locStr = "VIT University";
+        }
+        
+        setLocationText(locStr || "Location found");
         setPincode(first.postalCode || "");
       }
 
       setLastUpdated(Date.now());
     } catch (e) {
+      console.error("Location fetch error:", e);
+      if (retryCount < 1) {
+        console.log("Retrying location fetch with lower accuracy...");
+        setTimeout(() => fetchLocation(retryCount + 1), 2000);
+        return;
+      }
       setError("Failed to get location");
-      if (!locationText) setLocationText("Failed to get location");
+      if (!locationText || locationText === "Fetching location...") {
+        setLocationText("Failed to get location");
+      }
     } finally {
       setLoading(false);
     }
