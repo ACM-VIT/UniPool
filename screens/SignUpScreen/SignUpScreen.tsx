@@ -29,7 +29,13 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
 
   const handleProfileCompletion = async () => {
     if (hasSubmitted || loading) return;
-    
+
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(contactNumber)) {
+      Alert.alert("Invalid Phone Number", "Please enter a valid 10-digit phone number (numbers only, no spaces or symbols).");
+      return;
+    }
+
     try {
       setLoading(true);
       setHasSubmitted(true);
@@ -70,12 +76,10 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
       >
         <View style={styles.contentContainer}>
           <HeaderText>Just finishing</HeaderText>
-
           <HeaderText>
             To make it easier for us to find you a ride please provide us with the
             following information as well:
           </HeaderText>
-
           <HeaderText>Contact Number</HeaderText>
           <CustomInput
             placeholder="Do not prefix with 0"
@@ -83,7 +87,6 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
             onChangeText={setContactNumber}
             keyboardType="numeric"
           />
-
           <HeaderText>Year of Birth</HeaderText>
           <CustomInput
             placeholder="YYYY"
@@ -91,20 +94,17 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
             onChangeText={setYob}
             keyboardType="numeric"
           />
-
           <HeaderText>Gender</HeaderText>
           <View style={styles.genderContainer}>
             <GenderSelector value={gender} onChange={setGender} />
           </View>
-          
           {loading && (
             <HeaderText>Completing your profile...</HeaderText>
           )}
         </View>
       </KeyboardAvoidingView>
-      
-      <Image 
-        source={require("../../assets/Warning2.png")} 
+      <Image
+        source={require("../../assets/Warning2.png")}
         style={styles.bottomIcon}
         resizeMode="contain"
       />

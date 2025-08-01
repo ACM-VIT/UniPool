@@ -8,7 +8,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     backgroundColor: AppColors.primaryLightGreen,
-    paddingTop: height * 0.06,
   },
   contentContainer: {
     flex: 1,
@@ -25,6 +24,7 @@ const styles = StyleSheet.create({
     right: -35,
     width: 350,
     height: 560,
+    zIndex: -99999,
   },
 });
 

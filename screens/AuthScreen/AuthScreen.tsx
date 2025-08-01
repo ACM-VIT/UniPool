@@ -1,46 +1,51 @@
 import React from "react";
 import { View, Text, Image, Alert, TouchableOpacity } from "react-native";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
-import auth from "@react-native-firebase/auth";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithCredential,
+} from "@react-native-firebase/auth";
 import { AuthScreenProps } from "./AuthScreen.types";
 import styles from "./AuthScreen.styles";
 import { useApi } from "../../utils/ApiUtil";
 
-
 const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
   const { apiUtil } = useApi();
+
   const handleGoogleSignIn = async () => {
     try {
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
+
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
       if (!idToken) throw new Error("No ID token from Google");
 
-      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-      await auth().signInWithCredential(googleCredential);
+      const googleCredential = GoogleAuthProvider.credential(idToken);
+      await signInWithCredential(getAuth(), googleCredential);
 
       try {
-        const response = await apiUtil.get("/user/details");
+        await apiUtil.get("/user/details");
         navigation.navigate("HomeScreen");
       } catch (err: any) {
-        // Check for 404 and newUser info
         if (err.response?.status === 404 && err.response?.data?.newUser) {
-          navigation.navigate("SignUpScreen", { newUser: err.response.data.newUser });
+          navigation.navigate("SignUpScreen", {
+            newUser: err.response.data.newUser,
+          });
         } else if (err.response?.status === 400) {
           Alert.alert("Error", err.response?.data?.message || "Unknown error");
         } else if (err.response?.status === 404) {
-          // If 404 but no newUser, show error
           Alert.alert("Sign-Up Required", "User not found. Please sign up.");
         } else {
           Alert.alert("Sign-In Failed", err.message || "An unknown error occurred");
         }
       }
-    } catch (error) {
-      const errorMessage =
-        typeof error === "object" && error !== null && "message" in error
-          ? String((error as { message?: unknown }).message)
-          : "An unknown error occurred";
-      Alert.alert("Sign-In Failed", errorMessage);
+    } catch (error: any) {
+      const message =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      Alert.alert("Sign-In Failed", message);
     }
   };
 
@@ -49,12 +54,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
       <Text style={styles.greeting}>Hello!</Text>
       <Text style={styles.subtext}>Let's get you started with:</Text>
 
-
       <View>
         <Text style={styles.label}>Authentication</Text>
         <TouchableOpacity style={styles.button} onPress={handleGoogleSignIn}>
           <View style={styles.googleIcon}>
-            <Image source={require("../../assets/google.png")} style={{ width: 20, height: 20, resizeMode: 'contain' }} />
+            <Image
+              source={require("../../assets/google.png")}
+              style={{ width: 20, height: 20, resizeMode: "contain" }}
+            />
           </View>
           <Text style={styles.text}>Sign In with Google</Text>
         </TouchableOpacity>

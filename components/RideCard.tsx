@@ -51,10 +51,8 @@ const RideCard: React.FC<RideCardProps> = ({
     onSelect(id);
   };
 
-  // Extract the first number from seats available to determine vehicle type
   const totalSeats = parseInt(seatsAvailable.split("/")[1]) || 0;
 
-  // Get vehicle icon based on seat capacity
   const getVehicleIcon = (): ImageSourcePropType => {
     if (totalSeats <= 2) {
       return require("../assets/motorcycle.png");
