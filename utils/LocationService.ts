@@ -1240,7 +1240,7 @@ export const getNearestCity = async (
       "Unknown"
     return city.toLowerCase()
   } catch (err) {
-    console.error("❌ Error getting nearest city:", err)
+    console.error("Error getting nearest city:", err)
     return "default"
   }
 }
@@ -1264,10 +1264,10 @@ export const searchLocations = async (
     return searchCache.get(encodedQuery)!
   }
 
-  console.log("🔍 Searching for:", query)
+  console.log("Searching for:", query)
   const controller = new AbortController()
   const timeoutId = setTimeout(() => {
-    console.log("⏱️ Search API timeout, aborting…")
+    console.log("Search API timeout, aborting…")
     controller.abort()
   }, 5000)
 
@@ -1283,7 +1283,7 @@ export const searchLocations = async (
     if (!resp.ok)
       throw new Error(`HTTP error! status: ${resp.status}`)
     const data = (await resp.json()) as any[]
-    console.log("📍 Search results found:", data.length)
+    console.log("Search results found:", data.length)
 
     const results: LocationResult[] = data.map(item => ({
       display_name: item.display_name,
@@ -1298,9 +1298,9 @@ export const searchLocations = async (
     return results
   } catch (err: any) {
     if (err.name === "AbortError") {
-      console.log("⏱️ Search request timed out")
+      console.log("Search request timed out")
     } else {
-      console.error("❌ Location search error:", err)
+      console.error("Location search error:", err)
     }
     return []
   }
@@ -1379,11 +1379,15 @@ export const searchLocationsWithFallback = async (
     )
     if (apiResults.length > 0) return apiResults
   } catch {
-    console.log("⚠️ API search failed, using fallback locations")
+    console.log("API search failed, using fallback locations")
   }
 
   // fallback popular
   const fallback = getPopularLocationsFallback(query)
+  if (fallback.length === 0) {
+    console.log("No fallback locations available")
+    return []
+  }
   return fallback.slice(0, 4).map((loc, i) => ({
     display_name: `${loc}, India`,
     lat: "12.9716",
@@ -1575,17 +1579,19 @@ export const getPopularLocations = async (
       4
     )
   else
-    fallbackList = getRandomPopularLocations(
-      POPULAR_LOCATIONS.default,
-      4
-    )
+    fallbackList = []
 
-  popularLocationsCache.set(
-    `${effectiveLocation.latitude},${effectiveLocation.longitude}_${searchQuery}`,
-    fallbackList
-  )
-  console.log("🔄 Returning default fallback list:", fallbackList)
-  return fallbackList
+  if (fallbackList.length > 0) {
+    popularLocationsCache.set(
+      `${effectiveLocation.latitude},${effectiveLocation.longitude}_${searchQuery}`,
+      fallbackList
+    )
+    console.log("Returning fallback list:", fallbackList)
+    return fallbackList
+  }
+
+  console.log("No popular locations found")
+  return []
 }
 
 // -----------------------------------------------------------------------------
@@ -1636,10 +1642,7 @@ export const getPopularLocationsFallback = (
       POPULAR_LOCATIONS.pondicherry,
       4
     )
-  return getRandomPopularLocations(
-    POPULAR_LOCATIONS.default,
-    4
-  )
+  return []
 }
 
 // -----------------------------------------------------------------------------
@@ -1662,10 +1665,7 @@ export const getPopularLocationsByCity = (
       4
     )
   }
-  return getRandomPopularLocations(
-    POPULAR_LOCATIONS.default,
-    4
-  )
+  return []
 }
 
 export const formatLocationName = (

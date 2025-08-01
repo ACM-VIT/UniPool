@@ -174,6 +174,7 @@ const PreviousTripsSection: React.FC = () => {
                             >
                                 <PreviousTripsCompressed
                                     trip={trip}
+                                    // @ts-ignore: rideId is expected by RideDetailsScreen navigation
                                     onPress={() => navigation.navigate("RideDetailsScreen", { rideId: trip.ride_id })}
                                 />
                             </View>

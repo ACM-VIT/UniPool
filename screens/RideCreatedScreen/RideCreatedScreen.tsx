@@ -12,7 +12,7 @@ const RideCreatedScreen: React.FC<RideCreateScreenProps & { setNavBarVariant?: (
   }, [props.setNavBarVariant]);
   return (
     <View style={styles.container}>
-      <Image source={require("../../assets/create.png")} style={styles.create} />
+      <Image source={require("../../assets/create.png")} style={styles.create} resizeMode="contain" />
     </View>
   );
 };

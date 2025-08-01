@@ -162,11 +162,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           style: "destructive",
           onPress: async () => {
             try {
+              const { getAuth, signOut } = await import('@react-native-firebase/auth');
               const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
-              await AsyncStorage.clear();
+              
+              const auth = getAuth();
+              await signOut(auth);
+              
+              await AsyncStorage.removeItem('unipool_start_address');
+              await AsyncStorage.removeItem('defaultAddress');
+              
               setUserData(null);
               navigation.reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
             } catch (e) {
+              console.error('Logout error:', e);
               Alert.alert('Logout Failed', 'An error occurred while logging out.');
             }
           },
