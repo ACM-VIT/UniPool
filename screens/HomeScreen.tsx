@@ -549,7 +549,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           </MapView>
         ) : (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading map...</Text>
+            <Text style={styles.brandText}>
+              <Text style={styles.brandTextDark}>Uni</Text>
+              <Text style={styles.brandTextDark}>P</Text>
+              <Text style={styles.brandTextWhite}>oo</Text>
+              <Text style={styles.brandTextDark}>l</Text>
+            </Text>
           </View>
         )}
       </View>
@@ -604,7 +609,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: AppColors.basicWhite,
+    backgroundColor: AppColors.primaryLightGreen,
   },
   brandInfoContainer: {
     position: "absolute",
@@ -630,6 +635,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: AppColors.primaryLightGreen,
+    paddingBottom: responsiveHeight(70),
   },
   loadingText: {
     fontSize: normalize(16),
@@ -723,6 +729,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: responsiveWidth(2.5),
     paddingVertical: responsiveHeight(1),
+  },
+  brandText: {
+    fontSize: normalize(32),
+    fontFamily: "Trap-Bold",
+    textAlign: "center",
+  },
+  brandTextDark: {
+    color: AppColors.secondaryDarkGreen,
+  },
+  brandTextWhite: {
+    color: AppColors.basicWhite,
   },
 });
 
