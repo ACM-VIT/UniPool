@@ -11,10 +11,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   create: {
-    width: screenWidth * 0.5,
-    height: screenHeight * 0.35,
-    justifyContent: "center", 
-    alignItems: "center",
+    width: Math.min(screenWidth * 0.8, 300),
+    height: Math.min(screenHeight * 0.5, 400),
+    resizeMode: "contain",
+    maxWidth: "90%",
+    maxHeight: "60%",
   },
   navBarView: {
     width: "100%",
