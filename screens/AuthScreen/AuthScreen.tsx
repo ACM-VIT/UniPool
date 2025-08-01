@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, Image, Alert, TouchableOpacity } from "react-native";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import {
@@ -12,6 +12,29 @@ import { useApi } from "../../utils/ApiUtil";
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
   const { apiUtil } = useApi();
+
+  useEffect(() => {
+    const checkExistingAuth = async () => {
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      
+      if (currentUser) {
+        console.log("AuthScreen: User already authenticated, redirecting to HomeScreen");
+        try {
+          await apiUtil.get("/user/details");
+          navigation.replace("HomeScreen");
+        } catch (err: any) {
+          if (err.response?.status === 404) {
+            console.log("AuthScreen: User not found in backend, signing out");
+            await auth.signOut();
+            await GoogleSignin.signOut();
+          }
+        }
+      }
+    };
+
+    checkExistingAuth();
+  }, [navigation, apiUtil]);
 
   const handleGoogleSignIn = async () => {
     try {
