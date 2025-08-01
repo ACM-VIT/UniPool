@@ -54,7 +54,9 @@ const RideDetailsScreen: React.FC = () => {
           const rideResponse = await apiUtil.get(`/ride/fetch/${rideId}`);
           if (rideResponse) {
             setRideDetails(rideResponse);
-            if (currentUser && rideResponse.host_id === currentUser.id) {
+            // Check if user is host using the fresh response data  
+            const userResponse = await apiUtil.get('/user/details');
+            if (userResponse && rideResponse.host_id === userResponse.id) {
               setIsHost(true);
             }
           } else {
@@ -68,10 +70,32 @@ const RideDetailsScreen: React.FC = () => {
         }
 
         try {
-          const bookingsResponse = await apiUtil.get(`/booking/list?ride_id=${rideId}`);
+          const bookingsResponse = await apiUtil.get(`/booking/ride/${rideId}`);
           console.log("bookingsResponse", bookingsResponse);
-          if (Array.isArray(bookingsResponse)) {
-            setRequests(bookingsResponse);
+          
+          if (bookingsResponse && bookingsResponse.bookings && Array.isArray(bookingsResponse.bookings)) {
+            const allBookings = bookingsResponse.bookings;
+            
+            const userResponse = await apiUtil.get('/user/details');
+            const rideResponse = await apiUtil.get(`/ride/fetch/${rideId}`);
+            
+            let filteredBookings = allBookings;
+            
+            if (userResponse && rideResponse && rideResponse.host_id === userResponse.id) {
+              const hostHasBooking = allBookings.some((booking: any) => booking.passenger_id === userResponse.id);
+              if (!hostHasBooking) {
+                const hostBooking = {
+                  id: 'host-booking',
+                  passenger_id: userResponse.id,
+                  passenger_name: userResponse.name,
+                  Passenger: { name: userResponse.name },
+                  request_status: 'accepted'
+                };
+                filteredBookings = [hostBooking, ...allBookings];
+              }
+            }
+            
+            setRequests(filteredBookings);
           } else {
             setRequests([]);
           }
@@ -99,13 +123,25 @@ const RideDetailsScreen: React.FC = () => {
 
   function formatTime(timeStr: string) {
     if (!timeStr) return "";
+    
     const isoMatch = timeStr.match(/^(\d{4}-\d{2}-\d{2}T)(\d{2}):(\d{2})/);
     if (isoMatch) {
+      const dateTime = new Date(timeStr);
+      if (!isNaN(dateTime.getTime())) {
+        const localHours = dateTime.getHours().toString().padStart(2, '0');
+        const localMinutes = dateTime.getMinutes().toString().padStart(2, '0');
+        return `${localHours}${localMinutes}Hrs`;
+      }
       return `${isoMatch[2]}${isoMatch[3]}Hrs`;
     }
+    
     if (/\d{4}Hrs/.test(timeStr)) return timeStr;
     if (/\d{4} ?hrs?/i.test(timeStr)) return timeStr.replace(/ ?hrs?/i, "Hrs");
-    if (/^\d{2}:\d{2}$/.test(timeStr)) return timeStr + "Hrs";
+    if (/^\d{2}:\d{2}$/.test(timeStr)) {
+      const [hours, minutes] = timeStr.split(':');
+      return `${hours}${minutes}Hrs`;
+    }
+    
     return timeStr;
   }
 
@@ -114,7 +150,8 @@ const RideDetailsScreen: React.FC = () => {
     
     const dateObj = new Date(rawDate);
     if (!isNaN(dateObj.getTime())) {
-      return `${dateObj.getDate()} ${dateObj.toLocaleString("default", { month: "long" })}, ${dateObj.getFullYear()}`;
+      const localDate = new Date(dateObj.getTime());
+      return `${localDate.getDate()} ${localDate.toLocaleString("default", { month: "long" })}, ${localDate.getFullYear()}`;
     }
     
     if (typeof rawDate === "string" && rawDate.length > 0) {
@@ -229,7 +266,9 @@ const RideDetailsScreen: React.FC = () => {
         />
       </View>
       
-      <Text style={styles.requestsHeader}>{isHost ? "Requests" : "Passengers"}</Text>
+      <Text style={styles.requestsHeader}>
+        {isHost ? "Ride Management" : "Passengers"}
+      </Text>
       
       {requestsLoading ? (
         <Text style={styles.loadingText}>Loading {isHost ? "requests" : "passengers"}...</Text>
@@ -239,16 +278,17 @@ const RideDetailsScreen: React.FC = () => {
         </View>
       ) : requests.length === 0 ? (
         <Text style={styles.emptyText}>
-          {isHost ? "No requests found." : "No confirmed passengers yet."}
+          {isHost ? "No bookings found." : "No confirmed passengers yet."}
         </Text>
       ) : (
         requests.map((req, idx) => (
           <View style={styles.requestCard} key={req.id || idx}>
-            {isHost ? (
+            {isHost && req.request_status === 'pending' ? (
+              // Show pending requests with accept/reject buttons for hosts
               showSlide === null ? (
                 <View style={styles.requestCardBlack}>
                   <Text style={styles.requestNameBlack}>
-                    {req.passenger?.name || req.passenger_name || req.name || "User"}
+                    {req.passenger?.name || req.Passenger?.name || "User"}
                   </Text>
                   <View style={styles.requestActionsRowBlack}>
                     <TouchableOpacity style={styles.rejectButtonBlack} onPress={() => setShowSlide('reject')}>
@@ -324,9 +364,9 @@ const RideDetailsScreen: React.FC = () => {
               <View style={styles.passengerCardView}>
                 <Text style={styles.passengerNameText}>
                   {(() => {
-                    const passengerName = req.passenger?.name || req.passenger_name || req.name || "User";
+                    const passengerName = req.passenger?.name || req.Passenger?.name || "User";
                     const isCurrentUser = req.passenger_id === currentUser?.id;
-                    const isHostPassenger = req.is_host;
+                    const isHostPassenger = rideDetails?.host_id === req.passenger_id;
                     
                     if (isCurrentUser && isHostPassenger) {
                       return `${passengerName} (You - Host)`;
@@ -340,7 +380,9 @@ const RideDetailsScreen: React.FC = () => {
                   })()}
                 </Text>
                 <View style={styles.confirmedBadge}>
-                  <Text style={styles.confirmedText}>Confirmed</Text>
+                  <Text style={styles.confirmedText}>
+                    {req.request_status === 'pending' ? 'Pending' : 'Confirmed'}
+                  </Text>
                 </View>
               </View>
             )}

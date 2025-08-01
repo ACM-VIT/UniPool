@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, StatusBar } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { navigationRef } from "./navigation/navigationRef";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -41,7 +41,7 @@ import {
   NunitoSans_800ExtraBold,
 } from "@expo-google-fonts/nunito-sans";
 import * as SplashScreen from "expo-splash-screen";
-import { getAuth, onAuthStateChanged } from "@react-native-firebase/auth";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithCredential } from "@react-native-firebase/auth";
 
 import { LocationProvider } from "./contexts/location-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -72,6 +72,7 @@ const App = () => {
     useState<keyof RootStackParamList | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCustomSplash, setShowCustomSplash] = useState(true);
+  const [authStateResolved, setAuthStateResolved] = useState(false);
 
   const [fontsLoaded] = useFonts({
     NunitoSans_400Regular,
@@ -96,22 +97,126 @@ const App = () => {
 
   useEffect(() => {
     const authInstance = getAuth();
-    const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+    
+    console.log("Setting up Firebase auth state listener...");
+    
+    const currentUser = authInstance.currentUser;
+    console.log("Current user on startup:", currentUser ? `Signed in as ${currentUser.email}` : "No current user");
+
+    const checkGoogleSignInStatus = async () => {
+      try {
+        const googleUser = GoogleSignin.getCurrentUser();
+        console.log("Google Sign-In status:", googleUser ? "Signed in" : "Not signed in");
+        if (googleUser) {
+          console.log("Google current user:", googleUser?.user?.email || "No email");
+          
+          if (!currentUser) {
+            console.log("Attempting to restore Firebase auth from Google user...");
+            try {
+              const userInfo = await GoogleSignin.signInSilently();
+              console.log("Google silent sign-in successful");
+              
+              const tokens = await GoogleSignin.getTokens();
+              const idToken = tokens.idToken;
+              
+              if (idToken) {
+                const googleCredential = GoogleAuthProvider.credential(idToken);
+                
+                await signInWithCredential(authInstance, googleCredential);
+                console.log("Firebase auth restored from Google credentials");
+              } else {
+                console.log("No ID token available from Google");
+              }
+            } catch (silentSignInError: any) {
+              console.log("Google silent sign-in failed:", silentSignInError);
+            }
+          }
+        }
+      } catch (err: any) {
+        console.log("Google Sign-In status check error:", err);
+      }
+    };
+    
+    checkGoogleSignInStatus();
+    
+    let authCheckTimeout: NodeJS.Timeout;
+    let hasAuthStateChanged = false;
+    
+    const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
+      hasAuthStateChanged = true;
+      setAuthStateResolved(true);
+      
+      if (authCheckTimeout) {
+        clearTimeout(authCheckTimeout);
+      }
+      
+      console.log("Auth state changed:", user ? "User signed in" : "User signed out");
+      if (user) {
+        console.log("User UID:", user.uid);
+        console.log("User email:", user.email);
+        console.log("Last sign in:", user.metadata.lastSignInTime);
+        console.log("Token refresh time:", user.metadata.lastSignInTime);
+        
+        try {
+          const tokenResult = await user.getIdTokenResult(false);
+          console.log("🎟️ Token valid until:", new Date(tokenResult.expirationTime));
+        } catch (tokenError) {
+          console.error("Token validation error:", tokenError);
+        }
+      }
+      
       setInitialRoute(user ? "HomeScreen" : "AuthScreen");
       setLoading(false);
     });
-    return unsubscribe;
+    
+    authCheckTimeout = setTimeout(async () => {
+      if (!hasAuthStateChanged) {
+        console.log("Auth state timeout - checking current user manually");
+        
+        try {
+          await authInstance.currentUser?.reload();
+        } catch (reloadError: any) {
+          console.log("Auth reload error:", reloadError);
+        }
+        
+        const manualCurrentUser = authInstance.currentUser;
+        if (manualCurrentUser) {
+          console.log("Found current user manually:", manualCurrentUser.email);
+          
+          try {
+            const tokenResult = await manualCurrentUser.getIdTokenResult(true); // Force refresh
+            console.log("Token refreshed and valid until:", new Date(tokenResult.expirationTime));
+            setInitialRoute("HomeScreen");
+          } catch (tokenError: any) {
+            console.error("Token refresh failed:", tokenError);
+            setInitialRoute("AuthScreen");
+          }
+        } else {
+          console.log("No current user found - redirecting to auth");
+          setInitialRoute("AuthScreen");
+        }
+        setAuthStateResolved(true);
+        setLoading(false);
+      }
+    }, 5000); // Increased timeout to 5 seconds
+    
+    return () => {
+      unsubscribe();
+      if (authCheckTimeout) {
+        clearTimeout(authCheckTimeout);
+      }
+    };
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded && !loading && initialRoute) {
+    if (fontsLoaded && !loading && initialRoute && authStateResolved) {
       const timer = setTimeout(() => {
         setShowCustomSplash(false);
         SplashScreen.hideAsync();
-      }, 2000);
+      }, 3000); // Increased from 2000ms to 3000ms to ensure smooth transition
       return () => clearTimeout(timer);
     }
-  }, [fontsLoaded, loading, initialRoute]);
+  }, [fontsLoaded, loading, initialRoute, authStateResolved]);
 
   const getCurrentRouteName = () => {
     if (navigationRef.current && navigationRef.current.getCurrentRoute) {
@@ -121,7 +226,7 @@ const App = () => {
     return initialRoute;
   };
 
-  if (showCustomSplash || !fontsLoaded || loading || !initialRoute) {
+  if (showCustomSplash || !fontsLoaded || loading || !initialRoute || !authStateResolved) {
     return <SplashScreenComponent />;
   }
 
@@ -134,6 +239,7 @@ const App = () => {
     currentRouteName !== "ChatMessages"
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <StatusBar backgroundColor="#A8D8A8" barStyle="dark-content" />
       <ApiProvider navigationRef={navigationRef}>
         <LocationProvider>
           <View style={{ flex: 1 }}>
