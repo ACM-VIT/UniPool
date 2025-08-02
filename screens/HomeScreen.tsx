@@ -372,7 +372,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
   useEffect(() => {
     registerForPushNotificationsAsync().then(async (token) => {
-      if (token) {
+      if (token && !pushToken) {
         setPushToken(token);
         await sendTokenToBackend(token, apiUtil);
       }
@@ -403,18 +403,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       notificationListener.remove();
       responseListener.remove();
     };
-  }, [apiUtil]);
+  }, []);
 
   useEffect(() => {
+    if (!pushToken || !apiUtil) return;
+    
     const interval = setInterval(async () => {
       const newToken = await registerForPushNotificationsAsync();
       if (newToken && newToken !== pushToken) {
+        console.log("Token refreshed after 24 hours");
         setPushToken(newToken);
         await sendTokenToBackend(newToken, apiUtil);
       }
     }, 24 * 60 * 60 * 1000);
+    
     return () => clearInterval(interval);
-  }, [pushToken, apiUtil]);
+  }, [pushToken]);
 
   useEffect(() => {
     requestLocationPermission();
