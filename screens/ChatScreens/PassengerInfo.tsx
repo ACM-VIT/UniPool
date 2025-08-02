@@ -30,8 +30,56 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
   useEffect(() => {
     const fetchPassengers = async () => {
       try {
-        const fetchedPassengers = await RideService.getAllPassengers(apiUtil);
-        setPassengers(fetchedPassengers);
+        const involvedRides = await RideService.getInvolvedRides(apiUtil);
+        
+        const currentUserResponse = await apiUtil.get<{user: {id: string, name: string}}>("/user/details");
+        const currentUserId = currentUserResponse.user.id;
+        
+        const allPeople: User[] = [];
+        const uniquePeopleMap = new Map<string, User>();
+        
+        for (const ride of involvedRides) {
+          try {
+            const rideDetails = await apiUtil.get<{
+              host: {
+                id: string;
+                name: string;
+                email: string;
+                profile_picture_url: string;
+              };
+              bookings: Array<{
+                passenger_id: string;
+                passenger_name: string;
+                passenger_email: string;
+                passenger_profile_picture_url: string;
+                request_status: string;
+              }>;
+            }>(`/ride/details/${ride.id}`);
+            
+            if (rideDetails.host.id !== currentUserId) {
+              uniquePeopleMap.set(rideDetails.host.id, {
+                id: rideDetails.host.id,
+                name: rideDetails.host.name,
+                email: rideDetails.host.email,
+              });
+            }
+            
+            rideDetails.bookings
+              .filter(booking => booking.request_status === 'accepted' && booking.passenger_id !== currentUserId)
+              .forEach(booking => {
+                uniquePeopleMap.set(booking.passenger_id, {
+                  id: booking.passenger_id,
+                  name: booking.passenger_name,
+                  email: booking.passenger_email,
+                });
+              });
+          } catch (error) {
+            console.warn(`Failed to fetch details for ride ${ride.id}:`, error);
+          }
+        }
+        
+        const uniquePeople = Array.from(uniquePeopleMap.values());
+        setPassengers(uniquePeople);
       } catch (error) {
         console.error("Failed to fetch passengers:", error);
       } finally {
