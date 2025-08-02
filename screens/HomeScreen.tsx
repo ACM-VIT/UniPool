@@ -322,7 +322,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       setLocation(userLocation);
 
       const region = {
-        latitude,
+        latitude: latitude,
         longitude,
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
@@ -501,7 +501,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         <BrandInfo />
       </View>
 
-      <View style={styles.mapContainer}>
+      <Animated.View 
+        style={[
+          styles.mapContainer,
+          {
+            bottom: bottomSheetY,
+          }
+        ]}
+      >
         {isMapLoaded ? (
           <MapView
             provider={PROVIDER_GOOGLE}
@@ -557,7 +564,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             </Text>
           </View>
         )}
-      </View>
+      </Animated.View>
 
       <Animated.View 
         style={[
@@ -609,7 +616,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: AppColors.primaryLightGreen,
   },
   brandInfoContainer: {
     position: "absolute",
@@ -623,7 +629,6 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
     zIndex: 1,
   },
   map: {
