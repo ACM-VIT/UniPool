@@ -138,16 +138,14 @@ const styles = StyleSheet.create({
     height: 16,
     tintColor: AppColors.primaryLightGreen,
   },
-
   footerBranding: {
     position: 'relative',
     width: '100%',
     height: 400,
-    marginTop: height * 0.03,
   },
   footerTextContainer: {
     position: 'absolute',
-    top: 150,
+    top: 250,
     left: 0,
     right: 0,
     alignItems: "center",
@@ -177,7 +175,7 @@ const styles = StyleSheet.create({
   },
   footerImageContainer: {
     position: 'absolute',
-    bottom: -10,
+    bottom: -42,
     left: 0,
     right: 0,
     width: '100%',
