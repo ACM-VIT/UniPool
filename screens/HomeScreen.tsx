@@ -184,71 +184,233 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const bottomSheetY = useRef(new Animated.Value(BOTTOM_SHEET_MAX_HEIGHT)).current;
   const lastGestureY = useRef(BOTTOM_SHEET_MAX_HEIGHT);
 
-  // const customMapStyle = [
-  //   {
-  //     featureType: "all",
-  //     elementType: "geometry",
-  //     stylers: [
-  //       {
-  //         color: "#f5f5f5"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     featureType: "road",
-  //     elementType: "geometry",
-  //     stylers: [
-  //       {
-  //         color: "#ffffff"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     featureType: "road",
-  //     elementType: "geometry.stroke",
-  //     stylers: [
-  //       {
-  //         color: "#e8e8e8"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     featureType: "water",
-  //     elementType: "geometry",
-  //     stylers: [
-  //       {
-  //         color: "#1e00ffff"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     featureType: "landscape",
-  //     elementType: "geometry",
-  //     stylers: [
-  //       {
-  //         color: "#f9f9f9"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     featureType: "poi",
-  //     elementType: "geometry",
-  //     stylers: [
-  //       {
-  //         color: "#eeeeee"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     featureType: "poi.park",
-  //     elementType: "geometry",
-  //     stylers: [
-  //       {
-  //         color: AppColors.primaryLightGreen || "#a8d8a8"
-  //       }
-  //     ]
-  //   }
-  // ];
+
+
+const customMapStyle = [
+  {
+    featureType: "all",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f8f8f8"
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.text.fill",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.text.stroke",
+    stylers: [
+      {
+        color: "#ffffff"
+      },
+      {
+        weight: 2
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.icon",
+    stylers: [
+      {
+        visibility: "simplified"
+      }
+    ]
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#e0e0e0"
+      },
+      {
+        weight: 0.5
+      }
+    ]
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        weight: 2
+      }
+    ]
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#e0e0e0"
+      },
+      {
+        weight: 1
+      }
+    ]
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#b3d9ff"
+      }
+    ]
+  },
+  {
+    featureType: "landscape",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f8f8f8"
+      }
+    ]
+  },
+  {
+    featureType: "landscape.natural",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#e8f5e8"
+      }
+    ]
+  },
+  {
+    featureType: "poi",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f0f0f0"
+      }
+    ]
+  },
+  {
+    featureType: "poi.park",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        lightness: 20
+      }
+    ]
+  },
+  {
+    featureType: "poi.business",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f5f5f5"
+      }
+    ]
+  },
+  {
+    featureType: "poi.attraction",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        lightness: 40
+      }
+    ]
+  },
+  {
+    featureType: "transit",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  },
+  {
+    featureType: "transit.line",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      }
+    ]
+  },
+  {
+    featureType: "administrative",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#d0d0d0"
+      },
+      {
+        weight: 0.3
+      }
+    ]
+  },
+  {
+    featureType: "administrative.country",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#273B33"
+      },
+      {
+        weight: 1
+      }
+    ]
+  },
+  {
+    featureType: "administrative.locality",
+    elementType: "labels.text.fill",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  }
+];
+
 
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (evt, gestureState) => {
@@ -522,7 +684,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             showsUserLocation={true}
             showsMyLocationButton={true}
             toolbarEnabled={false}
-            // customMapStyle={customMapStyle}
+            customMapStyle={customMapStyle}
             onMapReady={() => console.log("Map ready")}
           >
             <Marker 
