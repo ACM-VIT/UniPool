@@ -75,12 +75,13 @@ const RideDetailsScreen: React.FC = () => {
               id: booking.id,
               passenger_id: booking.passenger_id,
               request_status: booking.request_status,
-              created_at: booking.created_at,
+              created_at: booking.booking_created_at || booking.created_at,
               passenger: {
-                id: booking.passenger.id,
-                name: booking.passenger.name,
-                email: booking.passenger.email,
-                profile_picture_url: booking.passenger.profile_picture_url
+                id: booking.passenger_id,
+                name: booking.passenger_name,
+                email: booking.passenger_email,
+                profile_picture_url: booking.passenger_profile_picture_url,
+                contact_number: booking.passenger_contact_number
               }
             }));
 
@@ -251,7 +252,7 @@ const RideDetailsScreen: React.FC = () => {
           destination={displayRide?.end_location || ""}
           time={formatTime(displayRide?.start_time || "")}
           price={displayRide?.total_price || 0}
-          seatsAvailable={`${(displayRide?.total_seats || 0) - (displayRide?.booked_seats || 0)}/${displayRide?.total_seats || 0}`}
+          seatsAvailable={`${(displayRide?.total_seats || 0) - ((displayRide?.booked_seats || 0) + 1)}/${displayRide?.total_seats || 0}`}
           isSelected={true}
           variant={displayRide?.is_ongoing ? "inprogress" : "upcoming"}
         />
@@ -351,12 +352,13 @@ const RideDetailsScreen: React.FC = () => {
                           id: booking.id,
                           passenger_id: booking.passenger_id,
                           request_status: booking.request_status,
-                          created_at: booking.created_at,
+                          created_at: booking.booking_created_at || booking.created_at,
                           passenger: {
-                            id: booking.passenger.id,
-                            name: booking.passenger.name,
-                            email: booking.passenger.email,
-                            profile_picture_url: booking.passenger.profile_picture_url
+                            id: booking.passenger_id,
+                            name: booking.passenger_name,
+                            email: booking.passenger_email,
+                            profile_picture_url: booking.passenger_profile_picture_url,
+                            contact_number: booking.passenger_contact_number
                           }
                         }));
                         setRequests(transformedBookings);
