@@ -62,6 +62,38 @@ const BookingScreen: React.FC = () => {
     }
   };
 
+  const categorizeRide = (ride: RideData, currentTime: Date): 'upcoming' | 'inprogress' | 'completed' => {
+    try {
+      const rideStartTime = new Date(ride.start_time);
+      if (isNaN(rideStartTime.getTime())) {
+        return 'upcoming';
+      }
+      
+      const timeDiffHours = (rideStartTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60);
+      
+      if (timeDiffHours < -24) {
+        return 'completed';
+      }
+      
+      if (timeDiffHours > 1) {
+        return 'upcoming';
+      }
+      
+      if (timeDiffHours >= -6 && timeDiffHours <= 1) {
+        if (ride.is_ongoing === 1) return 'inprogress';
+        if (ride.is_ongoing === 0 && timeDiffHours > 0) return 'upcoming';
+        
+        return timeDiffHours <= 0 ? 'inprogress' : 'upcoming';
+      }
+      
+      return 'completed';
+      
+    } catch (error) {
+      console.warn('Error categorizing ride:', error);
+      return 'upcoming';
+    }
+  };
+
   const handleUpcomingScroll = (
     event: NativeSyntheticEvent<NativeScrollEvent>
   ) => {
@@ -87,20 +119,64 @@ const BookingScreen: React.FC = () => {
         const upcoming: RideData[] = [];
         const inProgress: RideData[] = [];
         const seenIds = new Set<string>();
+        const currentTime = new Date();
+        
         if (Array.isArray(bookings)) {
           bookings.forEach((ride: RideData) => {
             const rideId = ride.ride_id || ride.id;
             if (!rideId || seenIds.has(rideId)) return;
             seenIds.add(rideId);
-            if (ride.is_ongoing) {
+            
+            if (!ride.start_time || !ride.start_location || !ride.end_location) {
+              console.warn("Skipping ride with missing required fields:", ride);
+              return;
+            }
+            
+            let rideStartTime: Date;
+            try {
+              rideStartTime = new Date(ride.start_time);
+              if (isNaN(rideStartTime.getTime())) {
+                throw new Error("Invalid date");
+              }
+            } catch (error) {
+              console.warn("Skipping ride with invalid start_time:", ride.start_time, ride);
+              return;
+            }
+            
+            const category = categorizeRide(ride, currentTime);
+            const timeDiffHours = (rideStartTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60);
+            
+            console.log(`Categorizing ride ${rideId}: start_time=${ride.start_time}, is_ongoing=${ride.is_ongoing}, timeDiff=${timeDiffHours.toFixed(2)}h, category=${category}`);
+            
+            if (category === 'completed') {
+              console.log(`Skipping completed ride ${rideId}`);
+              return;
+            }
+            
+            if (category === 'inprogress') {
               inProgress.push(ride);
             } else {
               upcoming.push(ride);
             }
           });
+          
+          upcoming.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+          
+          inProgress.sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
         }
-        // console.log("Upcoming Rides:", upcoming);
-        // console.log("In-Progress Rides:", inProgress);
+        
+        console.log("Categorized rides:");
+        console.log("Upcoming Rides:", upcoming.length, upcoming.map(r => ({ 
+          id: r.ride_id || r.id, 
+          start_time: r.start_time, 
+          is_ongoing: r.is_ongoing 
+        })));
+        console.log("In-Progress Rides:", inProgress.length, inProgress.map(r => ({ 
+          id: r.ride_id || r.id, 
+          start_time: r.start_time, 
+          is_ongoing: r.is_ongoing 
+        })));
+        
         setUpcomingRides(upcoming);
         setInProgressRides(inProgress);
       } catch (err: any) {
@@ -185,7 +261,7 @@ const BookingScreen: React.FC = () => {
             </ScrollView>
 
             <View style={styles.paginationContainer}>
-              {upcomingRides.map((_, index) => (
+              {upcomingRides.length > 1 && upcomingRides.map((_, index) => (
                 <View
                   key={index}
                   style={[
@@ -260,7 +336,7 @@ const BookingScreen: React.FC = () => {
             </ScrollView>
 
             <View style={styles.paginationContainer}>
-              {inProgressRides.map((_, index) => (
+              {inProgressRides.length > 1 && inProgressRides.map((_, index) => (
                 <View
                   key={index}
                   style={[
