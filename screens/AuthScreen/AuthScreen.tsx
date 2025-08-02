@@ -6,6 +6,7 @@ import {
   GoogleAuthProvider,
   signInWithCredential,
 } from "@react-native-firebase/auth";
+import LottieView from 'lottie-react-native';
 import { AuthScreenProps } from "./AuthScreen.types";
 import styles from "./AuthScreen.styles";
 import { useApi } from "../../utils/ApiUtil";
@@ -19,8 +20,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
       const currentUser = auth.currentUser;
       
       if (currentUser) {
-        console.log("AuthScreen: User already authenticated, redirecting to HomeScreen");
+        console.log("AuthScreen: User already authenticated, checking backend");
         try {
+          await currentUser.getIdToken(true);
           await apiUtil.get("/user/details");
           navigation.replace("HomeScreen");
         } catch (err: any) {
@@ -28,6 +30,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
             console.log("AuthScreen: User not found in backend, signing out");
             await auth.signOut();
             await GoogleSignin.signOut();
+          } else {
+            console.log("AuthScreen: Backend check failed, but keeping auth:", err.response?.status);
           }
         }
       }
@@ -76,6 +80,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
     <View style={styles.container}>
       <Text style={styles.greeting}>Hello!</Text>
       <Text style={styles.subtext}>Let's get you started with:</Text>
+
+      <LottieView
+        source={require("../../assets/artboard.json")}
+        autoPlay
+        loop
+        style={{ width: 200, height: 200, alignSelf: 'center', marginTop: -50 }}
+      />
 
       <View>
         <Text style={styles.label}>Authentication</Text>

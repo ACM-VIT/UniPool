@@ -12,6 +12,8 @@ import {
   Dimensions,
   TextInput,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { format } from "date-fns";
@@ -200,12 +202,19 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       clearTimeout(searchTimeout);
     }
     
-    try {
-      const popular = await getPopularLocations(text, userLocation);
-      setPopularLocations(popular);
-    } catch (error) {
-      const fallbackPopular = getPopularLocationsFallback(text);
-      setPopularLocations(fallbackPopular);
+    // Clear popular locations when user types more than 2 characters
+    // This prevents confusion between search results and popular locations
+    if (text.length > 2) {
+      setPopularLocations([]);
+    } else {
+      // Only show popular locations for short queries (0-2 characters)
+      try {
+        const popular = await getPopularLocations(text, userLocation);
+        setPopularLocations(popular);
+      } catch (error) {
+        const fallbackPopular = getPopularLocationsFallback(text);
+        setPopularLocations(fallbackPopular);
+      }
     }
     
     if (text.length >= 2) {
@@ -530,7 +539,10 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         transparent
         animationType="slide"
       >
-        <View style={styles.modalContainer}>
+        <KeyboardAvoidingView 
+          style={styles.modalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
               Select {showFromDropdown ? "From" : "To"} Location
@@ -554,15 +566,33 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               )}
             </View>
 
-            <ScrollView style={styles.locationList}>
+            <View style={styles.scrollableArea}>
+              <ScrollView 
+                style={styles.locationList}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
+              {/* Show loading state */}
               {isLoadingPopular ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="small" color={AppColors.basicWhite} />
                   <Text style={styles.loadingText}>Loading nearby places...</Text>
                 </View>
-              ) : popularLocations.length > 0 ? (
+              ) : null}
+
+              {/* Show popular locations only when:
+                  1. Search query is empty or very short (<=2 chars)
+                  2. No search results are available
+                  3. Not currently searching
+              */}
+              {!isSearching && 
+               searchQuery.length <= 2 && 
+               searchResults.length === 0 && 
+               popularLocations.length > 0 ? (
                 <>
-                  <Text style={styles.sectionHeader}>Popular Locations</Text>
+                  <Text style={styles.sectionHeader}>
+                    {searchQuery.length === 0 ? "Popular Locations" : "Popular Locations"}
+                  </Text>
                   {popularLocations.map((location, index) => (
                     <TouchableOpacity
                       key={`popular-${index}`}
@@ -581,6 +611,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                 </>
               ) : null}
 
+              {/* Show search results when available */}
               {searchResults.length > 0 && (
                 <>
                   <Text style={styles.sectionHeader}>Search Results</Text>
@@ -609,12 +640,28 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                 </>
               )}
 
-              {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
-                <Text style={styles.noResultsText}>
-                  No locations found. Try a different search term.
-                </Text>
+              {/* Show "No results found" only when user has typed >2 chars and no results */}
+              {searchQuery.length > 2 && !isSearching && searchResults.length === 0 && (
+                <View style={styles.noResultsContainer}>
+                  <Text style={styles.noResultsText}>
+                    No locations found for "{searchQuery}"
+                  </Text>
+                  <Text style={styles.noResultsSubtext}>
+                    Try a different search term or check your spelling
+                  </Text>
+                </View>
+              )}
+
+              {/* Show helpful message when user starts typing but results aren't loaded yet */}
+              {searchQuery.length > 0 && searchQuery.length <= 2 && !isSearching && searchResults.length === 0 && (
+                <View style={styles.hintContainer}>
+                  <Text style={styles.hintText}>
+                    Type more characters to search for locations...
+                  </Text>
+                </View>
               )}
             </ScrollView>
+            </View>
 
             <TouchableOpacity
               style={styles.closeButton}
@@ -629,7 +676,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {showPicker && (
@@ -717,7 +764,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: wp(3),
     paddingHorizontal: wp(5),
     paddingVertical: hp(3),
-    maxHeight: hp(80),
+    maxHeight: hp(75),
+    minHeight: hp(50),
   },
   modalTitle: {
     fontSize: getFontSize(16, 17, 18),
@@ -733,6 +781,8 @@ const styles = StyleSheet.create({
     marginBottom: hp(2),
     paddingHorizontal: wp(3),
     minHeight: hp(6),
+    borderWidth: 1,
+    borderColor: AppColors.primaryLightGreen + "30",
   },
   searchInput: {
     flex: 1,
@@ -744,8 +794,12 @@ const styles = StyleSheet.create({
   searchLoader: {
     marginLeft: wp(2),
   },
+  scrollableArea: {
+    flex: 1,
+  },
   locationList: {
-    maxHeight: hp(50),
+    maxHeight: hp(40),
+    minHeight: hp(20),
   },
   sectionHeader: {
     fontSize: getFontSize(12, 13, 14),
@@ -790,6 +844,31 @@ const styles = StyleSheet.create({
     color: AppColors.basicWhite + "80",
     textAlign: "center",
     marginTop: hp(3),
+    fontStyle: "italic",
+  },
+  noResultsContainer: {
+    alignItems: "center",
+    paddingVertical: hp(3),
+    paddingHorizontal: wp(4),
+  },
+  noResultsSubtext: {
+    fontSize: getFontSize(10, 11, 12),
+    fontFamily: "NunitoSans_300Light",
+    color: AppColors.basicWhite + "60",
+    textAlign: "center",
+    marginTop: hp(1),
+    fontStyle: "italic",
+  },
+  hintContainer: {
+    alignItems: "center",
+    paddingVertical: hp(2),
+    paddingHorizontal: wp(4),
+  },
+  hintText: {
+    fontSize: getFontSize(11, 12, 13),
+    fontFamily: "NunitoSans_400Regular",
+    color: AppColors.basicWhite + "70",
+    textAlign: "center",
     fontStyle: "italic",
   },
   loadingContainer: {
