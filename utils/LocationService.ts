@@ -1326,7 +1326,6 @@ export const searchLocationsWithFallback = async (
   const lowerQuery = query.toLowerCase()
   const localResults: LocationResult[] = []
 
-  // local partial matches from POPULAR_LOCATIONS
   Object.entries(POPULAR_LOCATIONS).forEach(([cityKey, locations]) => {
     if (cityKey === "default") return
 
@@ -1347,13 +1346,15 @@ export const searchLocationsWithFallback = async (
         })
       }
     })
+  })
 
-    if (
-      cityKey.includes(lowerQuery) ||
-      lowerQuery.includes(cityKey)
-    ) {
+  Object.entries(POPULAR_LOCATIONS).forEach(([cityKey, locations]) => {
+    if (cityKey === "default") return
+    
+    if (cityKey.includes(lowerQuery) || lowerQuery.includes(cityKey)) {
       const { lat, lon } = getCityCoordinates(cityKey)
-      localResults.push({
+      
+      localResults.unshift({
         display_name: `${
           cityKey[0].toUpperCase() + cityKey.slice(1)
         }, India`,
@@ -1362,12 +1363,31 @@ export const searchLocationsWithFallback = async (
         place_id: `local_city_${cityKey}`,
         name: cityKey[0].toUpperCase() + cityKey.slice(1)
       })
+      
+      locations.slice(0, 8).forEach((location, index) => {
+        const randomOffset = () => (Math.random() - 0.5) * 0.01;
+        localResults.push({
+          display_name: `${location}, ${
+            cityKey[0].toUpperCase() + cityKey.slice(1)
+          }, India`,
+          lat: (lat + randomOffset()).toString(),
+          lon: (lon + randomOffset()).toString(),
+          place_id: `local_${cityKey}_${location.replace(
+            /\s+/g,
+            "_"
+          )}_${index}`,
+          name: location
+        })
+      })
     }
   })
 
   if (localResults.length > 0) {
     console.log("→ Found local results:", localResults.length)
-    return localResults.slice(0, limit)
+    const uniqueResults = localResults.filter(
+      (result, index, arr) => arr.findIndex(r => r.name === result.name) === index
+    )
+    return uniqueResults.slice(0, limit)
   }
 
   console.log("→ No local results, trying API search…")
@@ -1382,7 +1402,7 @@ export const searchLocationsWithFallback = async (
     console.log("API search failed, using fallback locations")
   }
 
-  // fallback popular
+  // fallback popular - return consistent locations
   const fallback = getPopularLocationsFallback(query)
   if (fallback.length === 0) {
     console.log("No fallback locations available")
@@ -1407,14 +1427,11 @@ export const debouncedSearchLocationsWithFallback = debounce(
 // small helpers for fallback (unchanged)
 // -----------------------------------------------------------------------------
 
-const getRandomPopularLocations = (
+const getStablePopularLocations = (
   locations: string[],
   count = 4
 ): string[] => {
-  if (locations.length <= count) return locations
-  return [...locations]
-    .sort(() => 0.5 - Math.random())
-    .slice(0, count)
+  return locations.slice(0, count)
 }
 
 const getCityCoordinates = (
@@ -1503,7 +1520,7 @@ export const getPopularLocations = async (
     // no nearby: fallback to city list
     if (USE_TEST_LOCATION) {
       console.log("→ Test mode: returning Vellore list")
-      const list = getRandomPopularLocations(
+      const list = getStablePopularLocations(
         POPULAR_LOCATIONS.vellore,
         4
       )
@@ -1522,59 +1539,58 @@ export const getPopularLocations = async (
         POPULAR_LOCATIONS[
           nearestCity as keyof typeof POPULAR_LOCATIONS
         ]
-      const pick = getRandomPopularLocations(cityList, 4)
+      const pick = getStablePopularLocations(cityList, 4)
       popularLocationsCache.set(cacheKey, pick)
-      console.log("✅ Returning city list:", pick)
+      console.log("Returning city list:", pick)
       return pick
     }
   } catch (err) {
     console.error(
-      "❌ Error getting location-based popular places:",
+      "Error getting location-based popular places:",
       err
     )
   }
 
-  // final string‑based fallback
   console.log("→ String fallback for query:", searchQuery)
   const q = searchQuery.toLowerCase()
   let fallbackList: string[] = []
   if (q.includes("chennai"))
-    fallbackList = getRandomPopularLocations(
+    fallbackList = getStablePopularLocations(
       POPULAR_LOCATIONS.chennai,
       4
     )
   else if (q.includes("bangalore") || q.includes("bengaluru"))
-    fallbackList = getRandomPopularLocations(
+    fallbackList = getStablePopularLocations(
       POPULAR_LOCATIONS.bangalore,
       4
     )
   else if (q.includes("hyderabad"))
-    fallbackList = getRandomPopularLocations(
+    fallbackList = getStablePopularLocations(
       POPULAR_LOCATIONS.hyderabad,
       4
     )
   else if (q.includes("vellore"))
-    fallbackList = getRandomPopularLocations(
+    fallbackList = getStablePopularLocations(
       POPULAR_LOCATIONS.vellore,
       4
     )
   else if (q.includes("coimbatore"))
-    fallbackList = getRandomPopularLocations(
+    fallbackList = getStablePopularLocations(
       POPULAR_LOCATIONS.coimbatore,
       4
     )
   else if (q.includes("madurai"))
-    fallbackList = getRandomPopularLocations(
+    fallbackList = getStablePopularLocations(
       POPULAR_LOCATIONS.madurai,
       4
     )
   else if (q.includes("salem"))
-    fallbackList = getRandomPopularLocations(
+    fallbackList = getStablePopularLocations(
       POPULAR_LOCATIONS.salem,
       4
     )
   else if (q.includes("pondicherry") || q.includes("puducherry"))
-    fallbackList = getRandomPopularLocations(
+    fallbackList = getStablePopularLocations(
       POPULAR_LOCATIONS.pondicherry,
       4
     )
@@ -1603,42 +1619,42 @@ export const getPopularLocationsFallback = (
 ): string[] => {
   const q = searchQuery.toLowerCase()
   if (q.includes("chennai"))
-    return getRandomPopularLocations(
+    return getStablePopularLocations(
       POPULAR_LOCATIONS.chennai,
       4
     )
   if (q.includes("bangalore") || q.includes("bengaluru"))
-    return getRandomPopularLocations(
+    return getStablePopularLocations(
       POPULAR_LOCATIONS.bangalore,
       4
     )
   if (q.includes("hyderabad"))
-    return getRandomPopularLocations(
+    return getStablePopularLocations(
       POPULAR_LOCATIONS.hyderabad,
       4
     )
   if (q.includes("vellore"))
-    return getRandomPopularLocations(
+    return getStablePopularLocations(
       POPULAR_LOCATIONS.vellore,
       4
     )
   if (q.includes("coimbatore"))
-    return getRandomPopularLocations(
+    return getStablePopularLocations(
       POPULAR_LOCATIONS.coimbatore,
       4
     )
   if (q.includes("madurai"))
-    return getRandomPopularLocations(
+    return getStablePopularLocations(
       POPULAR_LOCATIONS.madurai,
       4
     )
   if (q.includes("salem"))
-    return getRandomPopularLocations(
+    return getStablePopularLocations(
       POPULAR_LOCATIONS.salem,
       4
     )
   if (q.includes("pondicherry") || q.includes("puducherry"))
-    return getRandomPopularLocations(
+    return getStablePopularLocations(
       POPULAR_LOCATIONS.pondicherry,
       4
     )
@@ -1658,7 +1674,7 @@ export const getPopularLocationsByCity = (
       city as keyof typeof POPULAR_LOCATIONS
     ]
   ) {
-    return getRandomPopularLocations(
+    return getStablePopularLocations(
       POPULAR_LOCATIONS[
         city as keyof typeof POPULAR_LOCATIONS
       ],

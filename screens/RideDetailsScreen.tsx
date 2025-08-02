@@ -76,22 +76,51 @@ const RideDetailsScreen: React.FC = () => {
           if (bookingsResponse && bookingsResponse.bookings && Array.isArray(bookingsResponse.bookings)) {
             const allBookings = bookingsResponse.bookings;
             
+            const bookingsWithPassengerDetails = await Promise.all(
+              allBookings.map(async (booking: any) => {
+                try {
+                  const passengerResponse = await apiUtil.get(`/user/${booking.passenger_id}`);
+                  return {
+                    ...booking,
+                    passenger: passengerResponse || { 
+                      id: booking.passenger_id, 
+                      name: 'Unknown User' 
+                    }
+                  };
+                } catch (err) {
+                  console.error(`Error fetching passenger details for ${booking.passenger_id}:`, err);
+                  return {
+                    ...booking,
+                    passenger: { 
+                      id: booking.passenger_id, 
+                      name: 'Unknown User' 
+                    }
+                  };
+                }
+              })
+            );
+            
             const userResponse = await apiUtil.get('/user/details');
             const rideResponse = await apiUtil.get(`/ride/fetch/${rideId}`);
             
-            let filteredBookings = allBookings;
+            let filteredBookings = bookingsWithPassengerDetails;
             
             if (userResponse && rideResponse && rideResponse.host_id === userResponse.id) {
-              const hostHasBooking = allBookings.some((booking: any) => booking.passenger_id === userResponse.id);
+              const hostHasBooking = bookingsWithPassengerDetails.some((booking: any) => booking.passenger_id === userResponse.id);
               if (!hostHasBooking) {
                 const hostBooking = {
                   id: 'host-booking',
                   passenger_id: userResponse.id,
                   passenger_name: userResponse.name,
-                  Passenger: { name: userResponse.name },
+                  passenger: { 
+                    id: userResponse.id,
+                    name: userResponse.name,
+                    email: userResponse.email,
+                    profile_picture_url: userResponse.profile_picture_url 
+                  },
                   request_status: 'accepted'
                 };
-                filteredBookings = [hostBooking, ...allBookings];
+                filteredBookings = [hostBooking, ...bookingsWithPassengerDetails];
               }
             }
             
