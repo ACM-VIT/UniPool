@@ -8,7 +8,8 @@ import SlideToCreate from "../components/SlideToCreate";
 import { useNavigation, useRoute } from "@react-navigation/native";
 
 const RideDetailsScreen: React.FC = () => {
-  const [showSlide, setShowSlide] = React.useState<null | 'accept' | 'reject'>(null);
+  const [showSlide, setShowSlide] = React.useState<null | 'accept' | 'reject' | 'remove'>(null);
+  const [selectedRequest, setSelectedRequest] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [requests, setRequests] = React.useState<any[]>([]);
@@ -37,103 +38,64 @@ const RideDetailsScreen: React.FC = () => {
           return;
         }
 
-        console.log('Fetching ride details for ID:', rideId);
+        console.log('Fetching complete ride details for ID:', rideId);
         
         try {
-          const userResponse = await apiUtil.get('/user/details');
-          if (userResponse) {
-            setCurrentUser(userResponse);
-          }
-        } catch (err: any) {
-          console.error('Error fetching user details:', err);
-        } finally {
-          setUserLoading(false);
-        }
+          const completeRideData = await apiUtil.get(`/ride/details/${rideId}`);
+          console.log('Complete ride data received:', completeRideData);
+          
+          if (completeRideData) {
+            setRideDetails({
+              id: completeRideData.id,
+              host_user_id: completeRideData.host_user_id,
+              host_user_name: completeRideData.host_user_name,
+              start_location: completeRideData.start_location,
+              end_location: completeRideData.end_location,
+              start_time: completeRideData.start_time,
+              total_price: completeRideData.total_price,
+              total_seats: completeRideData.total_seats,
+              booked_seats: completeRideData.booked_seats,
+              is_ongoing: completeRideData.is_ongoing,
+              created_at: completeRideData.created_at
+            });
 
-        try {
-          const rideResponse = await apiUtil.get(`/ride/fetch/${rideId}`);
-          if (rideResponse) {
-            setRideDetails(rideResponse);
-            // Check if user is host using the fresh response data  
-            const userResponse = await apiUtil.get('/user/details');
-            if (userResponse && rideResponse.host_id === userResponse.id) {
-              setIsHost(true);
+            if (completeRideData.is_user_host) {
+              setCurrentUser({
+                id: completeRideData.host.id,
+                name: completeRideData.host.name,
+                email: completeRideData.host.email,
+                profile_picture_url: completeRideData.host.profile_picture_url
+              });
             }
+
+            setIsHost(completeRideData.is_user_host);
+            console.log('User is host:', completeRideData.is_user_host);
+
+            const transformedBookings = completeRideData.bookings.map((booking: any) => ({
+              id: booking.id,
+              passenger_id: booking.passenger_id,
+              request_status: booking.request_status,
+              created_at: booking.created_at,
+              passenger: {
+                id: booking.passenger.id,
+                name: booking.passenger.name,
+                email: booking.passenger.email,
+                profile_picture_url: booking.passenger.profile_picture_url
+              }
+            }));
+
+            setRequests(transformedBookings);
+            console.log('Transformed bookings:', transformedBookings);
+            
           } else {
             setRideError("Ride not found");
           }
         } catch (err: any) {
-          console.error('Error fetching ride details:', err);
+          console.error('Error fetching complete ride details:', err);
           setRideError(err.message || "Failed to fetch ride details");
         } finally {
           setRideLoading(false);
-        }
-
-        try {
-          const bookingsResponse = await apiUtil.get(`/booking/ride/${rideId}`);
-          console.log("bookingsResponse", bookingsResponse);
-          
-          if (bookingsResponse && bookingsResponse.bookings && Array.isArray(bookingsResponse.bookings)) {
-            const allBookings = bookingsResponse.bookings;
-            
-            const bookingsWithPassengerDetails = await Promise.all(
-              allBookings.map(async (booking: any) => {
-                try {
-                  const passengerResponse = await apiUtil.get(`/user/${booking.passenger_id}`);
-                  return {
-                    ...booking,
-                    passenger: passengerResponse || { 
-                      id: booking.passenger_id, 
-                      name: 'Unknown User' 
-                    }
-                  };
-                } catch (err) {
-                  console.error(`Error fetching passenger details for ${booking.passenger_id}:`, err);
-                  return {
-                    ...booking,
-                    passenger: { 
-                      id: booking.passenger_id, 
-                      name: 'Unknown User' 
-                    }
-                  };
-                }
-              })
-            );
-            
-            const userResponse = await apiUtil.get('/user/details');
-            const rideResponse = await apiUtil.get(`/ride/fetch/${rideId}`);
-            
-            let filteredBookings = bookingsWithPassengerDetails;
-            
-            if (userResponse && rideResponse && rideResponse.host_id === userResponse.id) {
-              const hostHasBooking = bookingsWithPassengerDetails.some((booking: any) => booking.passenger_id === userResponse.id);
-              if (!hostHasBooking) {
-                const hostBooking = {
-                  id: 'host-booking',
-                  passenger_id: userResponse.id,
-                  passenger_name: userResponse.name,
-                  passenger: { 
-                    id: userResponse.id,
-                    name: userResponse.name,
-                    email: userResponse.email,
-                    profile_picture_url: userResponse.profile_picture_url 
-                  },
-                  request_status: 'accepted'
-                };
-                filteredBookings = [hostBooking, ...bookingsWithPassengerDetails];
-              }
-            }
-            
-            setRequests(filteredBookings);
-          } else {
-            setRequests([]);
-          }
-          setRequestsError(null);
-        } catch (err: any) {
-          console.error('Error fetching bookings:', err);
-          setRequestsError(err.message || "Failed to fetch booking requests");
-          setRequests([]);
-        } finally {
+          setUserLoading(false);
           setRequestsLoading(false);
         }
 
@@ -284,20 +246,24 @@ const RideDetailsScreen: React.FC = () => {
       
       <View style={{ margin: 16, marginBottom: 8 }}>
         <RideCard
-          id={displayRide?.id || displayRide?.ride_id || ""}
-          origin={displayRide?.origin || displayRide?.start_location || ""}
-          destination={displayRide?.destination || displayRide?.end_location || ""}
-          time={formatTime(displayRide?.time || displayRide?.start_time || "")}
-          price={displayRide?.price || displayRide?.total_price || 0}
-          seatsAvailable={displayRide?.seatsAvailable || `${displayRide?.booked_seats || 0}/${displayRide?.total_seats || 0}`}
+          id={displayRide?.id || ""}
+          origin={displayRide?.start_location || ""}
+          destination={displayRide?.end_location || ""}
+          time={formatTime(displayRide?.start_time || "")}
+          price={displayRide?.total_price || 0}
+          seatsAvailable={`${(displayRide?.total_seats || 0) - (displayRide?.booked_seats || 0)}/${displayRide?.total_seats || 0}`}
           isSelected={true}
-          variant={displayRide?.variant || "inprogress"}
+          variant={displayRide?.is_ongoing ? "inprogress" : "upcoming"}
         />
       </View>
       
       <Text style={styles.requestsHeader}>
         {isHost ? "Ride Management" : "Passengers"}
       </Text>
+      
+      {/* <Text style={{fontSize: 12, color: 'gray', marginLeft: 16, marginBottom: 8}}>
+        Debug: isHost={String(isHost)}, currentUserId={currentUser?.id}, hostUserId={rideDetails?.host_user_id}, currentUserType={typeof currentUser?.id}, hostType={typeof rideDetails?.host_user_id}
+      </Text> */}
       
       {requestsLoading ? (
         <Text style={styles.loadingText}>Loading {isHost ? "requests" : "passengers"}...</Text>
@@ -310,119 +276,238 @@ const RideDetailsScreen: React.FC = () => {
           {isHost ? "No bookings found." : "No confirmed passengers yet."}
         </Text>
       ) : (
-        requests.map((req, idx) => (
-          <View style={styles.requestCard} key={req.id || idx}>
-            {isHost && req.request_status === 'pending' ? (
-              // Show pending requests with accept/reject buttons for hosts
-              showSlide === null ? (
-                <View style={styles.requestCardBlack}>
-                  <Text style={styles.requestNameBlack}>
-                    {req.passenger?.name || req.Passenger?.name || "User"}
-                  </Text>
-                  <View style={styles.requestActionsRowBlack}>
-                    <TouchableOpacity style={styles.rejectButtonBlack} onPress={() => setShowSlide('reject')}>
-                      <Image source={require('../assets/cross.png')} style={styles.actionIconBlack} />
-                      <Text style={styles.actionLabelBlack}>Reject</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.acceptButtonBlack} onPress={() => setShowSlide('accept')}>
-                      <Image source={require('../assets/check.png')} style={styles.actionIconAccept} />
-                      <Text style={styles.acceptLabelBlack}>Accept</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : showSlide === 'accept' ? (
-                <View style={styles.slideContainer}>
-                  <SlideToCreate
-                    text={loading ? "Accepting..." : "Slide to accept user"}
-                    onSlideComplete={async () => {
-                      setLoading(true);
-                      setError(null);
-                      try {
-                        const bookingId = req.id || req.booking_id;
+        requests.map((req, idx) => {
+          const passengerName = req.passenger?.name || req.Passenger?.name || 
+                              (req.passenger_id === currentUser?.id ? currentUser?.name : null) || 
+                              "Unknown User";
+          const isCurrentUser = req.passenger_id === currentUser?.id;
+          const isHostPassenger = (rideDetails?.host_user_id === req.passenger_id || 
+                                  String(rideDetails?.host_user_id) === String(req.passenger_id));
+          const isHostBooking = req.id === 'host-booking';
+          const canRemove = isHost && !isHostBooking && !isCurrentUser;
+
+          let displayName = passengerName;
+          if (isCurrentUser && isHostPassenger) {
+            displayName = `${passengerName} (Host)`;
+          } else if (isCurrentUser) {
+            displayName = `${passengerName} (You)`;
+          } else if (isHostPassenger) {
+            displayName = `${passengerName} (Host)`;
+          }
+
+          if (req.passenger_id === currentUser?.id) {
+            console.log('Current user passenger details:', {
+              passengerName,
+              isCurrentUser,
+              isHostPassenger,
+              rideHostId: rideDetails?.host_user_id,
+              currentUserId: currentUser?.id,
+              isEqual: rideDetails?.host_user_id === currentUser?.id,
+              isEqualString: String(rideDetails?.host_user_id) === String(currentUser?.id)
+            });
+          }
+
+          if (showSlide && selectedRequest?.id === req.id) {
+            return (
+              <View key={req.id || idx} style={styles.slideContainer}>
+                <SlideToCreate
+                  text={
+                    loading ? 
+                      (showSlide === 'accept' ? "Accepting..." : 
+                       showSlide === 'reject' ? "Rejecting..." : "Removing...") :
+                      (showSlide === 'accept' ? "Slide to accept user" :
+                       showSlide === 'reject' ? "Slide to reject user" :
+                       `Slide to remove ${passengerName}`)
+                  }
+                  onSlideComplete={async () => {
+                    setLoading(true);
+                    setError(null);
+                    try {
+                      const bookingId = req.id || req.booking_id;
+                      let updatedBookings = [];
+                      if (showSlide === 'accept') {
                         console.log('Accepting booking:', bookingId);
-                        await apiUtil.put(`/bookings/accept/${bookingId}`, {});
-                        
-                        setRequests(prev => prev.filter(r => (r.id || r.booking_id) !== bookingId));
-                        setShowSlide(null);
-                      } catch (err: any) {
-                        console.error('Error accepting request:', err);
-                        setError(err.message || "Failed to accept request");
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                    sliderIcon={require('../assets/slide.png')}
-                    backgroundColor="#fff"
-                    sliderButtonColor={AppColors.secondaryDarkGreen}
-                    textColor={AppColors.secondaryDarkGreen}
-                    borderColor="#fff"
-                  />
-                  {error && <Text style={styles.errorText}>{error}</Text>}
-                </View>
-              ) : (
-                <View style={styles.slideContainer}>
-                  <SlideToCreate
-                    text={loading ? "Rejecting..." : "Slide to reject user"}
-                    onSlideComplete={async () => {
-                      setLoading(true);
-                      setError(null);
-                      try {
-                        const bookingId = req.id || req.booking_id;
+                        const acceptRes = await apiUtil.put(`/bookings/accept/${bookingId}`, {});
+                        const bookingsResponse = await apiUtil.get(`/booking/ride/${rideId}`);
+                        updatedBookings = bookingsResponse?.bookings || [];
+                      } else if (showSlide === 'reject') {
                         console.log('Rejecting booking:', bookingId);
                         await apiUtil.patch(`/booking/update/${bookingId}`, { request_status: "rejected" });
-                        
-                        setRequests(prev => prev.filter(r => (r.id || r.booking_id) !== bookingId));
-                        setShowSlide(null);
-                      } catch (err: any) {
-                        console.error('Error rejecting request:', err);
-                        setError(err.message || "Failed to reject request");
-                      } finally {
-                        setLoading(false);
+                        const bookingsResponse = await apiUtil.get(`/booking/ride/${rideId}`);
+                        updatedBookings = bookingsResponse?.bookings || [];
+                      } else if (showSlide === 'remove') {
+                        if (isHostBooking) {
+                          throw new Error("Cannot remove host from their own ride");
+                        }
+                        console.log('Removing passenger from booking:', bookingId);
+                        await apiUtil.delete(`/booking/delete/${bookingId}`);
+                        const bookingsResponse = await apiUtil.get(`/booking/ride/${rideId}`);
+                        updatedBookings = bookingsResponse?.bookings || [];
                       }
-                    }}
-                    sliderIcon={require('../assets/slide.png')}
-                    backgroundColor="#fff"
-                    sliderButtonColor="#FF3B30"
-                    textColor="#FF3B30"
-                    borderColor="#fff"
-                  />
-                  {error && <Text style={styles.errorText}>{error}</Text>}
-                </View>
-              )
-            ) : (
-              <View style={styles.passengerCardView}>
-                <Text style={styles.passengerNameText}>
-                  {(() => {
-                    const passengerName = req.passenger?.name || req.Passenger?.name || "User";
-                    const isCurrentUser = req.passenger_id === currentUser?.id;
-                    const isHostPassenger = rideDetails?.host_id === req.passenger_id;
-                    
-                    if (isCurrentUser && isHostPassenger) {
-                      return `${passengerName} (You - Host)`;
-                    } else if (isCurrentUser) {
-                      return `${passengerName} (You)`;
-                    } else if (isHostPassenger) {
-                      return `${passengerName} (Host)`;
-                    } else {
-                      return passengerName;
+                      // After successful action, refresh the complete ride data
+                      const completeRideData = await apiUtil.get(`/ride/details/${rideId}`);
+                      if (completeRideData) {
+                        const transformedBookings = completeRideData.bookings.map((booking: any) => ({
+                          id: booking.id,
+                          passenger_id: booking.passenger_id,
+                          request_status: booking.request_status,
+                          created_at: booking.created_at,
+                          passenger: {
+                            id: booking.passenger.id,
+                            name: booking.passenger.name,
+                            email: booking.passenger.email,
+                            profile_picture_url: booking.passenger.profile_picture_url
+                          }
+                        }));
+                        setRequests(transformedBookings);
+                        
+                        // Update ride details with new booked seats count
+                        setRideDetails((prev: any) => ({
+                          ...prev,
+                          booked_seats: completeRideData.booked_seats
+                        }));
+                      }
+                      setShowSlide(null);
+                      setSelectedRequest(null);
+                    } catch (err: any) {
+                      console.error(`Error ${showSlide}ing request:`, err);
+                      setError(err.message || `Failed to ${showSlide} request`);
+                    } finally {
+                      setLoading(false);
                     }
-                  })()}
-                </Text>
-                <View style={styles.confirmedBadge}>
-                  <Text style={styles.confirmedText}>
+                  }}
+                  sliderIcon={require('../assets/slide.png')}
+                  backgroundColor="#fff"
+                  sliderButtonColor={showSlide === 'accept' ? AppColors.secondaryDarkGreen : "#FF3B30"}
+                  textColor={showSlide === 'accept' ? AppColors.secondaryDarkGreen : "#FF3B30"}
+                  borderColor="#fff"
+                />
+                {error && <Text style={styles.errorText}>{error}</Text>}
+                {showSlide === 'remove' && (
+                  <TouchableOpacity 
+                    style={styles.cancelButton}
+                    onPress={() => {
+                      setShowSlide(null);
+                      setSelectedRequest(null);
+                      setError(null);
+                    }}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          }
+
+          if (isHost && req.request_status === 'pending') {
+            return (
+              <View key={req.id || idx} style={styles.pendingRequestCard}>
+                <Text style={styles.pendingRequestName}>{displayName}</Text>
+                <View style={styles.pendingRequestActions}>
+                  <TouchableOpacity 
+                    style={styles.rejectButton} 
+                    onPress={() => {
+                      setSelectedRequest(req);
+                      setShowSlide('reject');
+                    }}
+                  >
+                    <Image source={require('../assets/cross.png')} style={styles.actionIcon} />
+                    <Text style={styles.rejectLabel}>Reject</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.acceptButton} 
+                    onPress={() => {
+                      setSelectedRequest(req);
+                      setShowSlide('accept');
+                    }}
+                  >
+                    <Image source={require('../assets/check.png')} style={styles.actionIconAccept} />
+                    <Text style={styles.acceptLabel}>Accept</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          }
+
+          return (
+            <View key={req.id || idx} style={[
+              styles.confirmedPassengerCard,
+              isHostBooking && styles.hostPassengerCard
+            ]}>
+              <View style={styles.passengerInfo}>
+                <Text style={[
+                  styles.passengerName,
+                  isHostBooking && styles.hostPassengerName
+                ]}>{displayName}</Text>
+                <View style={[
+                  styles.statusBadge,
+                  isHostBooking && styles.hostStatusBadge
+                ]}>
+                  <Text style={styles.statusText}>
                     {req.request_status === 'pending' ? 'Pending' : 'Confirmed'}
                   </Text>
                 </View>
               </View>
-            )}
-          </View>
-        ))
+              
+              {canRemove && (
+                <TouchableOpacity 
+                  style={styles.removeButton}
+                  onPress={() => {
+                    setSelectedRequest(req);
+                    setShowSlide('remove');
+                  }}
+                >
+                  <Image source={require('../assets/cross.png')} style={styles.removeIcon} />
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })
       )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: AppColors.primaryLightGreen,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  chevronRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    marginTop: 34,
+    marginBottom: 8,
+  },
+  rideDetailsSubHeader: {
+    fontSize: 20,
+    fontFamily: "NunitoSans_400Regular",
+    color: AppColors.basicBlack,
+  },
+  dateText: {
+    fontSize: 16,
+    fontFamily: "NunitoSans_700Bold",
+    color: AppColors.basicBlack,
+    marginLeft: 16,
+    marginBottom: 4,
+    textAlign: "left",
+  },
+  requestsHeader: {
+    fontSize: 18,
+    fontFamily: "NunitoSans_700Bold",
+    color: AppColors.basicBlack,
+    marginLeft: 16,
+    marginTop: 16,
+    marginBottom: 16,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -467,155 +552,147 @@ const styles = StyleSheet.create({
     fontFamily: 'NunitoSans_400Regular',
     marginLeft: 16,
   },
-  passengerCardView: {
+  pendingRequestCard: {
+    backgroundColor: AppColors.basicBlack,
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    width: '100%',
+  },
+  pendingRequestName: {
+    color: AppColors.basicWhite,
+    fontSize: 16,
+    fontFamily: 'NunitoSans_600SemiBold',
+    flex: 1,
+    marginRight: 16,
+  },
+  pendingRequestActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+  },
+  rejectButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  acceptButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  actionIcon: {
+    width: 24,
+    height: 24,
+    marginBottom: 2,
+    resizeMode: 'contain',
+  },
+  actionIconAccept: {
+    width: 24,
+    height: 24,
+    marginBottom: 2,
+    resizeMode: 'contain',
+  },
+  rejectLabel: {
+    color: AppColors.basicWhite,
+    fontSize: 11,
+    fontFamily: 'NunitoSans_400Regular',
+    textAlign: 'center',
+  },
+  acceptLabel: {
+    color: '#C6FF00',
+    fontSize: 11,
+    fontFamily: 'NunitoSans_600SemiBold',
+    textAlign: 'center',
+  },
+  confirmedPassengerCard: {
     backgroundColor: AppColors.basicWhite,
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    marginHorizontal: 0,
-    marginBottom: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-  },
-  passengerNameText: {
-    color: AppColors.basicBlack,
-    fontSize: 18,
-    fontFamily: 'NunitoSans_600SemiBold',
-    flex: 1,
-  },
-  confirmedBadge: {
-    backgroundColor: AppColors.secondaryDarkGreen,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  confirmedText: {
-    color: AppColors.basicWhite,
-    fontSize: 12,
-    fontFamily: 'NunitoSans_600SemiBold',
-  },
-  requestCardBlack: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    width: '100%',
-    backgroundColor: AppColors.basicBlack,
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    marginHorizontal: 0,
-    marginBottom: 16,
-    elevation: 0,
   },
-  requestNameBlack: {
-    color: AppColors.basicWhite,
-    fontSize: 18,
-    fontFamily: 'NunitoSans_600SemiBold',
+  hostPassengerCard: {
+    backgroundColor: AppColors.primaryLightGreen,
+    borderWidth: 2,
+    borderColor: AppColors.secondaryDarkGreen,
+    elevation: 3,
+    shadowOpacity: 0.15,
+  },
+  passengerInfo: {
     flex: 1,
-  },
-  requestActionsRowBlack: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 32,
-    marginLeft: 16,
+    gap: 12,
+    marginRight: 12,
   },
-  rejectButtonBlack: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 60,
-  },
-  actionIconBlack: {
-    width: 32,
-    height: 32,
-    marginBottom: 2,
-    resizeMode: 'contain',
-  },
-  actionLabelBlack: {
-    color: AppColors.basicWhite,
-    fontSize: 12,
-    fontFamily: 'NunitoSans_400Regular',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  acceptButtonBlack: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 60,
-  },
-  actionIconAccept: {
-    width: 32,
-    height: 32,
-    marginBottom: 2,
-    resizeMode: 'contain',
-  },
-  acceptLabelBlack: {
-    color: '#C6FF00',
-    fontSize: 12,
-    fontFamily: 'NunitoSans_600SemiBold',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: AppColors.primaryLightGreen,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  dateText: {
+  passengerName: {
+    color: AppColors.basicBlack,
     fontSize: 16,
-    fontFamily: "NunitoSans_700Bold",
-    color: AppColors.basicBlack,
-    marginLeft: 16,
-    marginBottom: 4,
-    textAlign: "left",
+    fontFamily: 'NunitoSans_600SemiBold',
+    flex: 1,
   },
-  chevronRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    marginTop: 34,
-    marginBottom: 8,
+  hostPassengerName: {
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: 'NunitoSans_700Bold',
   },
-  rideDetailsSubHeader: {
-    fontSize: 20,
-    fontFamily: "NunitoSans_400Regular",
-    color: AppColors.basicBlack,
+  statusBadge: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  requestsHeader: {
-    fontSize: 18,
-    fontFamily: "NunitoSans_700Bold",
-    color: AppColors.basicBlack,
-    marginLeft: 16,
-    marginTop: 16,
-    marginBottom: 8,
+  hostStatusBadge: {
+    backgroundColor: AppColors.basicBlack,
   },
-  requestCard: {
-    borderRadius: 22,
-    marginHorizontal: 16,
-    paddingHorizontal: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 3,
-    elevation: 0,
+  statusText: {
+    color: AppColors.basicWhite,
+    fontSize: 11,
+    fontFamily: 'NunitoSans_600SemiBold',
+  },
+  removeButton: {
+    backgroundColor: '#FF3B30',
+    borderRadius: 20,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeIcon: {
+    width: 14,
+    height: 14,
+    tintColor: '#fff',
   },
   slideContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
+    marginHorizontal: 16,
+    marginBottom: 12,
+  },
+  cancelButton: {
+    backgroundColor: 'rgba(102, 102, 102, 0.8)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+    alignSelf: 'center',
+  },
+  cancelButtonText: {
+    color: AppColors.basicWhite,
+    fontSize: 14,
+    fontFamily: 'NunitoSans_600SemiBold',
+    textAlign: 'center',
   },
 });
 
