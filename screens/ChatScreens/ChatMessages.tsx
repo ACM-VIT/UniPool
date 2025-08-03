@@ -6,17 +6,19 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
-  ScrollView,
+  FlatList,
   Image,
   TextInput,
   Modal,
   Switch,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { chatMessagesStyles } from './ChatScreen.styles';
 import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
-
 import { useApi } from '../../utils/ApiUtil';
 import ChatService from '../../utils/ChatService';
 import BrandInfo from '../../components/BrandInfo';
@@ -51,22 +53,24 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
   setNavBarVariant,
 }) => {
   const { apiUtil } = useApi();
+
   const [newMessage, setNewMessage] = useState('');
   const [userUuid, setUserUuid] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [userProfiles, setUserProfiles] = useState<{[userId: string]: {name: string, avatar?: string}}>({});
+  const [userProfiles, setUserProfiles] = useState<{ [k: string]: { name: string; avatar?: string } }>({});
   const [showSettings, setShowSettings] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [rideDetails, setRideDetails] = useState<RideDetails | null>(null);
   const [notificationsMuted, setNotificationsMuted] = useState(false);
   const [editingChatName, setEditingChatName] = useState(false);
   const [newChatName, setNewChatName] = useState('');
-  const [typingUsers, setTypingUsers] = useState<{[userId: string]: {name: string, timeout: NodeJS.Timeout}}>({});
+  const [typingUsers, setTypingUsers] = useState<{ [k: string]: { name: string; timeout: NodeJS.Timeout } }>({});
   const [isTyping, setIsTyping] = useState(false);
+
   const wsRef = useRef<WebSocket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const scrollViewRef = useRef<ScrollView | null>(null);
+  const flatListRef = useRef<FlatList<ChatMessage> | null>(null);
 
   type ChatRouteParams = {
     chatId?: string;
@@ -77,617 +81,403 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     isGroupChat?: boolean;
     otherUserId?: string;
   };
-
   const chatParams = (route?.params as ChatRouteParams) ?? {};
   const [chatTitle, setChatTitle] = useState(chatParams.chatTitle ?? 'Vellore to Chennai');
   const chatSubtitle = chatParams.chatSubtitle ?? 'You, Bhallaldeva, Kattappa and 3 more';
 
+  const processBackendMessage = (backendMsg: any, currentUserId: string): ChatMessage => {
+    console.log('[ProcessMessage] Raw backend message:', JSON.stringify(backendMsg, null, 2));
+    
+    const messageId = backendMsg.id || backendMsg.message_id;
+    const content = backendMsg.content || backendMsg.text || backendMsg.message;
+    const senderId = backendMsg.sender_id || backendMsg.user_id || backendMsg.from_user_id;
+    const senderName = backendMsg.sender_name || backendMsg.user_name || backendMsg.sender?.name;
+    const senderAvatar = backendMsg.sender_avatar || backendMsg.profile_picture_url || backendMsg.sender?.profile_picture_url;
+    const timestamp = backendMsg.timestamp || backendMsg.created_at || backendMsg.sent_at;
+    
+    let parsedTimestamp: Date;
+    if (timestamp) {
+      parsedTimestamp = new Date(timestamp);
+      if (isNaN(parsedTimestamp.getTime())) {
+        console.warn('[ProcessMessage] Invalid timestamp:', timestamp);
+        parsedTimestamp = new Date();
+      }
+    } else {
+      parsedTimestamp = new Date();
+    }
+    
+    const isFromCurrentUser = senderId === currentUserId;
+    
+    const processedMessage: ChatMessage = {
+      id: messageId,
+      text: content,
+      sender: isFromCurrentUser ? 'user' : 'other',
+      senderId: senderId,
+      senderName: isFromCurrentUser ? 'You' : (senderName || 'Unknown'),
+      senderAvatar: senderAvatar,
+      timestamp: parsedTimestamp,
+      status: isFromCurrentUser ? 'sent' : undefined,
+      readBy: backendMsg.read_by || [],
+    };
+    
+    console.log('[ProcessMessage] Processed message:', {
+      id: processedMessage.id,
+      sender: processedMessage.sender,
+      isFromCurrentUser,
+      timestamp: processedMessage.timestamp.toISOString(),
+      timestampValid: !isNaN(processedMessage.timestamp.getTime())
+    });
+    
+    return processedMessage;
+  };
+
   useEffect(() => {
     setNavBarVariant?.(0);
-    apiUtil.get<{user: {id: string, name: string}}>("/user/details")
-      .then((resp) => {
+    apiUtil
+      .get<{ user: { id: string; name: string } }>('/user/details')
+      .then(resp => {
         setUserUuid(resp.user.id);
         setUserProfiles(prev => ({
-          ...prev, 
-          [resp.user.id]: { 
-            name: resp.user.name || 'You', 
-            avatar: undefined 
-          }
+          ...prev,
+          [resp.user.id]: { name: resp.user.name || 'You', avatar: undefined },
         }));
-        console.log('[Chat] fetched user details', resp.user);
       })
-      .catch((e) => console.warn('[Chat] failed to fetch user details', e));
+      .catch(e => console.warn('[Chat] fetch user failed', e));
   }, [apiUtil, setNavBarVariant]);
 
-  const fetchUserProfile = async (userId: string): Promise<{name: string, avatar?: string}> => {
-    if (userProfiles[userId]) return userProfiles[userId];
-    
+  const fetchUserProfile = async (uid: string) => {
+    if (userProfiles[uid]) return userProfiles[uid];
     try {
-      const response = await apiUtil.get<{user: {id: string, name: string, avatar?: string}}>(`/user/${userId}`);
-      const profile = {
-        name: response.user.name || 'Unknown User',
-        avatar: response.user.avatar
-      };
-      setUserProfiles(prev => ({...prev, [userId]: profile}));
-      return profile;
-    } catch (error) {
-      console.warn('[Chat] Failed to fetch user profile for', userId, error);
-      const fallbackProfile = { name: 'Unknown User', avatar: undefined };
-      setUserProfiles(prev => ({...prev, [userId]: fallbackProfile}));
-      return fallbackProfile;
+      const res = await apiUtil.get<{ user: { name: string; avatar?: string } }>(`/user/${uid}`);
+      const prof = { name: res.user.name || 'Unknown', avatar: res.user.avatar };
+      setUserProfiles(prev => ({ ...prev, [uid]: prof }));
+      return prof;
+    } catch {
+      const fallback = { name: 'Unknown', avatar: undefined };
+      setUserProfiles(prev => ({ ...prev, [uid]: fallback }));
+      return fallback;
     }
   };
 
-  const markMessageAsRead = (messageId: string) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const payload = {
-        type: 'message_status',
-        message_id: messageId,
-        status: 'seen',
-        user_id: userUuid,
-        timestamp: new Date().toISOString(),
-      };
-      wsRef.current.send(JSON.stringify(payload));
-      
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId 
-          ? { ...msg, status: 'seen', readBy: [...(msg.readBy || []), userUuid!] }
-          : msg
-      ));
+  const markMessageAsRead = (mid: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN && userUuid) {
+      wsRef.current.send(
+        JSON.stringify({ type: 'message_status', message_id: mid, status: 'seen', user_id: userUuid, timestamp: new Date().toISOString() })
+      );
+      setMessages(ms =>
+        ms.map(m => (m.id === mid ? { ...m, status: 'seen', readBy: [...(m.readBy||[]), userUuid] } : m))
+      );
+    }
+  };
+  const sendMessageStatus = (mid: string, status: 'delivered' | 'seen') => {
+    if (wsRef.current?.readyState === WebSocket.OPEN && userUuid) {
+      wsRef.current.send(
+        JSON.stringify({ type: 'message_status', message_id: mid, status, user_id: userUuid, timestamp: new Date().toISOString() })
+      );
     }
   };
 
-  const sendMessageStatus = (messageId: string, status: 'delivered' | 'seen') => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const payload = {
-        type: 'message_status',
-        message_id: messageId,
-        status,
-        user_id: userUuid,
-        timestamp: new Date().toISOString(),
-      };
-      wsRef.current.send(JSON.stringify(payload));
+  const sendTypingIndicator = (typing: boolean) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN && userUuid) {
+      wsRef.current.send(
+        JSON.stringify({ type: 'typing', user_id: userUuid, is_typing: typing, timestamp: new Date().toISOString() })
+      );
     }
   };
-
-  const sendTypingIndicator = (isTyping: boolean) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && userUuid) {
-      const payload = {
-        type: 'typing',
-        user_id: userUuid,
-        is_typing: isTyping,
-        timestamp: new Date().toISOString(),
-      };
-      wsRef.current.send(JSON.stringify(payload));
-      console.log('[WebSocket] Sent typing indicator:', { is_typing: isTyping });
-    }
+  const sendTypingIndicatorDebounced = (typing: boolean) => {
+    typingDebounceRef.current && clearTimeout(typingDebounceRef.current);
+    if (typing) sendTypingIndicator(true);
+    else typingDebounceRef.current = setTimeout(() => sendTypingIndicator(false), 100);
   };
-
-  const sendTypingIndicatorDebounced = (isTyping: boolean) => {
-    if (typingDebounceRef.current) {
-      clearTimeout(typingDebounceRef.current);
-    }
-    
-    if (isTyping) {
-      sendTypingIndicator(true);
-    } else {
-      typingDebounceRef.current = setTimeout(() => {
-        sendTypingIndicator(false);
-      }, 100);
-    }
-  };
-
   const handleTypingStart = () => {
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    
+    typingTimeoutRef.current && clearTimeout(typingTimeoutRef.current);
     if (!isTyping) {
       setIsTyping(true);
       sendTypingIndicatorDebounced(true);
     }
-    
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
       sendTypingIndicatorDebounced(false);
       typingTimeoutRef.current = null;
     }, 3000);
   };
-
   const handleTypingStop = () => {
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-    
+    typingTimeoutRef.current && clearTimeout(typingTimeoutRef.current);
     if (isTyping) {
       setIsTyping(false);
       sendTypingIndicatorDebounced(false);
     }
   };
 
-  const addTypingUser = (userId: string, userName: string) => {
-    if (userId === userUuid) return;
-    
+  const addTypingUser = (uid: string, name: string) => {
+    if (uid === userUuid) return;
     setTypingUsers(prev => {
-      const newTypingUsers = { ...prev };
-      
-      if (newTypingUsers[userId]?.timeout) {
-        clearTimeout(newTypingUsers[userId].timeout);
-      }
-      
-      newTypingUsers[userId] = {
-        name: userName,
-        timeout: setTimeout(() => {
-          setTypingUsers(current => {
-            const updated = { ...current };
-            delete updated[userId];
-            return updated;
-          });
-        }, 5000)
+      const next = { ...prev };
+      next[uid]?.timeout && clearTimeout(next[uid].timeout);
+      next[uid] = {
+        name,
+        timeout: setTimeout(() => setTypingUsers(curr => { const c={...curr}; delete c[uid]; return c; }), 5000),
       };
-      
-      return newTypingUsers;
+      return next;
     });
   };
-
-  const removeTypingUser = (userId: string) => {
+  const removeTypingUser = (uid: string) => {
     setTypingUsers(prev => {
-      const newTypingUsers = { ...prev };
-      if (newTypingUsers[userId]?.timeout) {
-        clearTimeout(newTypingUsers[userId].timeout);
-      }
-      delete newTypingUsers[userId];
-      return newTypingUsers;
+      const next = { ...prev };
+      next[uid]?.timeout && clearTimeout(next[uid].timeout);
+      delete next[uid];
+      return next;
     });
   };
 
   const fetchChatDetails = async (rideId: string) => {
     try {
-      const rideResponse = await apiUtil.get<{
+      const r = await apiUtil.get<{
         id: string;
         host_user_id: string;
-        host_user_name: string;
         start_location: string;
         end_location: string;
         start_time: string;
         total_price: number;
         total_seats: number;
         booked_seats: number;
-        is_ongoing: boolean;
-        created_at: string;
         is_user_host: boolean;
-        host: {
-          id: string;
-          name: string;
-          email: string;
-          profile_picture_url: string;
-          contact_number: string;
-        };
-        bookings: Array<{
-          id: string;
-          passenger_id: string;
-          request_status: string;
-          booking_created_at: string;
-          passenger_name: string;
-          passenger_email: string;
-          passenger_profile_picture_url: string;
-          passenger_contact_number: string;
-        }>;
+        host: { id: string; name: string; profile_picture_url: string };
+        bookings: Array<{ passenger_id: string; request_status: string; passenger_name: string; passenger_profile_picture_url: string }>;
       }>(`/ride/details/${rideId}`);
 
-      const rideData = rideResponse;
-      
       setRideDetails({
-        id: rideData.id,
-        title: `${rideData.start_location} to ${rideData.end_location}`,
-        subtitle: `${rideData.booked_seats + 1} participants`, // +1 for host
-        destination: rideData.end_location,
-        departure: rideData.start_location,
-        date: new Date(rideData.start_time).toLocaleDateString(),
-        time: new Date(rideData.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        price: `₹${rideData.total_price}`,
-        driverName: rideData.host.name,
-        totalSeats: rideData.total_seats,
-        availableSeats: rideData.total_seats - (rideData.booked_seats + 1), // -1 for host seat
-        hostUserId: rideData.host_user_id,
-        isUserHost: rideData.is_user_host
+        id: r.id,
+        title: `${r.start_location} to ${r.end_location}`,
+        subtitle: `${r.booked_seats + 1} participants`,
+        departure: r.start_location,
+        destination: r.end_location,
+        date: new Date(r.start_time).toLocaleDateString(),
+        time: new Date(r.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        price: `₹${r.total_price}`,
+        driverName: r.host.name,
+        totalSeats: r.total_seats,
+        availableSeats: r.total_seats - (r.booked_seats + 1),
+        hostUserId: r.host_user_id,
+        isUserHost: r.is_user_host,
       });
 
-      const participants: Participant[] = [];
-      
-      participants.push({
-        id: rideData.host.id,
-        name: rideData.host.name,
-        avatar: rideData.host.profile_picture_url,
-        isOnline: false,
-        role: 'admin',
-      });
-      console.log('[Chat] Added host participant:', { id: rideData.host.id, name: rideData.host.name });
+      const list: Participant[] = [
+        { id: r.host.id, name: r.host.name, avatar: r.host.profile_picture_url, isOnline: false, role: 'admin' },
+      ];
+      if (r.bookings && Array.isArray(r.bookings)) {
+        r.bookings.filter(b => b.request_status === 'accepted').forEach(b =>
+          list.push({ id: b.passenger_id, name: b.passenger_name, avatar: b.passenger_profile_picture_url, isOnline: false, role: 'member' })
+        );
+      }
+      setParticipants(list);
 
-      rideData.bookings
-        .filter(booking => booking.request_status === 'accepted')
-        .forEach(booking => {
-          participants.push({
-            id: booking.passenger_id,
-            name: booking.passenger_name,
-            avatar: booking.passenger_profile_picture_url,
-            isOnline: false,
-            role: 'member',
-          });
-          console.log('[Chat] Added passenger participant:', { id: booking.passenger_id, name: booking.passenger_name });
-        });
-
-      setParticipants(participants);
-      console.log('[Chat] Set participants:', participants.map(p => ({ id: p.id, name: p.name, role: p.role })));
-
-      const totalOccupiedSeats = rideData.booked_seats + 1; // +1 for host
-      const remainingSeats = rideData.total_seats - totalOccupiedSeats;
-      
-      setRideDetails(prevDetails => ({
-        ...prevDetails!,
-        availableSeats: Math.max(0, remainingSeats),
-        subtitle: `${participants.length} participants`
+      setRideDetails(prev => prev && ({
+        ...prev,
+        subtitle: `${list.length} participants`,
+        availableSeats: Math.max(0, (prev.totalSeats||0) - list.length),
       }));
 
       try {
-        const settingsResponse = await apiUtil.get<{settings: {chat_name?: string, notifications_muted?: boolean}}>(`/ride/${rideId}/settings`);
-        setNotificationsMuted(settingsResponse.settings?.notifications_muted || false);
-        if (settingsResponse.settings?.chat_name) {
-          setChatTitle(settingsResponse.settings.chat_name);
-        }
-      } catch (settingsError) {
-        console.warn('[Chat] Failed to fetch ride settings, using default', settingsError);
-        setNotificationsMuted(false);
-      }
-    } catch (error) {
-      console.warn('[Chat] Failed to fetch chat details', error);
+        const s = await apiUtil.get<{ settings: { chat_name?: string; notifications_muted?: boolean } }>(`/ride/${rideId}/settings`);
+        s.settings.chat_name && setChatTitle(s.settings.chat_name);
+        setNotificationsMuted(!!s.settings.notifications_muted);
+      } catch { setNotificationsMuted(false); }
+    } catch (e) {
+      console.warn('[Chat] fetchChatDetails error', e);
       setRideDetails({
         id: rideId,
         title: chatTitle,
         subtitle: chatSubtitle,
-        destination: 'Unknown Destination',
-        departure: 'Unknown Departure',
+        departure: 'Unknown',
+        destination: 'Unknown',
         date: new Date().toLocaleDateString(),
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         price: '₹0',
-        driverName: 'Unknown Host',
+        driverName: 'Unknown',
         totalSeats: 4,
-        availableSeats: 1
+        availableSeats: 1,
       });
-      setParticipants([
-        { 
-          id: userUuid || '1', 
-          name: userProfiles[userUuid || '1']?.name || 'You', 
-          role: 'member', 
-          isOnline: true 
-        },
-      ]);
-      console.log('[Chat] Set fallback participants, userUuid:', userUuid, 'userProfiles:', userProfiles);
+      setParticipants([{ id: userUuid||'', name: userProfiles[userUuid||'']?.name||'You', role: 'member', isOnline: true }]);
     }
   };
 
   useEffect(() => {
     if (!userUuid) return;
     setNavBarVariant?.(0);
+
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
-    const userId: string = chatParams.userId || userUuid;
-    const isGroupChat = chatParams.isGroupChat !== false; // Default to true for backward compatibility
+    const isGroup = chatParams.isGroupChat !== false;
+    const userId = chatParams.userId || userUuid;
     if (!chatId) return;
 
-    if (isGroupChat) {
-      // For group chats, chatId is the ride ID
+    if (isGroup) {
       fetchChatDetails(chatId);
     } else {
-      // For DMs, chatId is the room ID (dm_userId1_userId2)
-      // Set up a simple chat with just the current user and the other user
-      setRideDetails(null); // No ride details for DMs
-      
-      // Fetch the other user's profile for better display
-      const otherUserId = chatParams.otherUserId;
-      if (otherUserId) {
-        fetchUserProfile(otherUserId).then(otherUserProfile => {
+      setRideDetails(null);
+      if (chatParams.otherUserId) {
+        fetchUserProfile(chatParams.otherUserId).then(p =>
           setParticipants([
-            { 
-              id: userUuid, 
-              name: userProfiles[userUuid]?.name || 'You', 
-              role: 'member', 
-              isOnline: true 
-            },
-            { 
-              id: otherUserId, 
-              name: otherUserProfile.name || 'Other User', 
-              role: 'member', 
-              isOnline: false 
-            }
-          ]);
-        });
+            { id: userUuid, name: userProfiles[userUuid]?.name||'You', role:'member', isOnline:true },
+            { id: chatParams.otherUserId!, name:p.name, role:'member', isOnline:false },
+          ])
+        );
       } else {
-        // Fallback if otherUserId is not provided
         setParticipants([
-          { 
-            id: userUuid, 
-            name: userProfiles[userUuid]?.name || 'You', 
-            role: 'member', 
-            isOnline: true 
-          },
-          { 
-            id: 'unknown', 
-            name: chatParams.chatTitle?.replace('Chat with ', '') || 'Other User', 
-            role: 'member', 
-            isOnline: false 
-          }
+          { id:userUuid, name:userProfiles[userUuid]?.name||'You', role:'member', isOnline:true },
+          { id:'unknown', name:chatParams.chatTitle?.replace('Chat with ','')||'Other User', role:'member', isOnline:false },
         ]);
       }
-      console.log('[Chat] Set DM participants for room:', chatId, 'with other user:', otherUserId);
     }
 
     ChatService.fetchMessages(apiUtil, chatId)
-      .then(async (msgs) => {
-        console.log('[Chat] fetched messages', msgs);
-        const transformed = msgs.map((m: any): ChatMessage => {
-          let senderName = 'Unknown User';
-          let senderAvatar = undefined;
-          
-          if (m.sender && typeof m.sender === 'object') {
-            senderName = m.sender.name || m.sender_name || 'Unknown User';
-            senderAvatar = m.sender.profile_picture_url || m.sender.avatar;
-          } else if (m.sender_name) {
-            senderName = m.sender_name;
-          }
-          
-          return {
-            id: m.id,
-            text: m.content || m.text || '',
-            sender: m.sender_id === userUuid ? 'user' : 'other',
-            senderId: m.sender_id,
-            senderName,
-            senderAvatar,
-            timestamp: new Date(m.created_at || m.timestamp || Date.now()),
-            status: m.sender_id === userUuid ? (m.status || 'sent') : undefined,
-            readBy: m.read_by || [],
-          };
-        });
-        setMessages(transformed);
-      })
-      .catch((error) => {
-        if (!isGroupChat) {
-          // For DMs, if message fetching fails, start with empty messages
-          // This is expected until backend supports DM message storage
-          console.log('[Chat] DM message fetching not yet supported, starting with empty messages');
+      .then((rawMessages: any[]) => {
+        console.log('[Chat] Raw messages from API:', JSON.stringify(rawMessages.slice(0, 2), null, 2)); // Log first 2 messages
+        console.log('[Chat] Total messages fetched:', rawMessages.length);
+        
+        if (!userUuid) {
+          console.warn('[Chat] No userUuid available for message processing');
           setMessages([]);
-        } else {
-          console.error('[Chat] Failed to fetch messages:', error);
+          return;
         }
-      });
+        
+        const processedMessages = rawMessages.map(msg => processBackendMessage(msg, userUuid));
+        console.log('[Chat] Processed messages:', processedMessages.length);
+        setMessages(processedMessages);
+      })
+      .catch(err => { if (!isGroup) setMessages([]); else console.error('[Chat] fetchMessages err',err); });
 
-    const ws = ChatService.openSocket(userId, chatId, (e) => {
-      console.log('[WebSocket] message received raw', e.data);
-      try {
-        const rawData = e.data.trim();
-        
-        const messages = rawData.split('\n').filter((line: string) => line.trim());
-        
-        for (const messageStr of messages) {
-          try {
-            const data = JSON.parse(messageStr);
-            
-            if (data.type === 'message') {
-              if (data.temp_id) {
-                console.log('[WebSocket] Received temp_id confirmation:', data.temp_id, '→', data.message_id);
-                setMessages(prev => {
-                  const updated = prev.map(msg => 
-                    msg.id === data.temp_id 
-                      ? { ...msg, id: data.message_id, status: 'sent' as const }
-                      : msg
-                  );
-                  console.log('[WebSocket] Updated message with real ID, total messages:', updated.length);
-                  return updated;
-                });
-                continue;
-              }
-              
-              let senderName = 'Unknown User';
-              let senderAvatar = undefined;
-              
-              if (data.sender && typeof data.sender === 'object') {
-                senderName = data.sender.name || data.sender_name || 'Unknown User';
-                senderAvatar = data.sender.profile_picture_url || data.sender.avatar;
-              } else if (data.sender_name) {
-                senderName = data.sender_name;
-              }
-              
-              const newMessage: ChatMessage = {
-                id: data.message_id,
-                text: data.content,
-                sender: data.sender_id === userId ? 'user' : 'other',
-                senderId: data.sender_id,
-                senderName,
-                senderAvatar,
-                timestamp: new Date(data.timestamp),
-                status: data.sender_id === userId ? 'sent' : undefined,
-              };
-              
-              console.log('[WebSocket] Processing new message:', {
-                id: newMessage.id,
-                content: newMessage.text,
-                sender: newMessage.sender,
-                senderId: newMessage.senderId,
-                currentUserId: userId
-              });
-              
+    const ws = ChatService.openSocket(userId, chatId, e => {
+      (e.data as string).trim().split('\n').filter(Boolean).forEach(line => {
+        try {
+          const d = JSON.parse(line);
+          console.log('[WebSocket] Received message:', d.type, d.temp_id ? `(temp_id: ${d.temp_id})` : '', d.sender_id === userId ? '(from me)' : '(from other)');
+          console.log('[WebSocket] Full message data:', JSON.stringify(d, null, 2));
+          console.log('[WebSocket] Timestamp received:', d.timestamp, 'type:', typeof d.timestamp);
+          
+          if (d.type === 'message') {
+            if (d.temp_id) {
               setMessages(prev => {
-                if (prev.some(m => m.id === data.message_id)) {
-                  console.log('[WebSocket] Duplicate message ignored:', data.message_id);
-                  return prev;
-                }
+                const hasExistingMessage = prev.some(m => m.id === d.temp_id);
+                console.log('[WebSocket] temp_id processing:', d.temp_id, 'hasExisting:', hasExistingMessage, 'currentCount:', prev.length);
                 
-                console.log('[WebSocket] Adding new message to UI:', data.content, 'from:', senderName);
-                const updated = [...prev, newMessage];
-                console.log('[WebSocket] New messages array length:', updated.length);
-                
-                if (data.sender_id !== userId) {
-                  setTimeout(() => {
-                    sendMessageStatus(data.message_id, 'delivered');
-                    setTimeout(() => {
-                      sendMessageStatus(data.message_id, 'seen');
-                    }, 500);
-                  }, 100);
-                }
-                
-                return updated;
-              });
-            } else if (data.type === 'message_status') {
-              setMessages(prev => prev.map(msg => {
-                if (msg.id === data.message_id) {
-                  let updatedReadBy = msg.readBy || [];
-                  if (data.status === 'seen' && data.user_id && !updatedReadBy.includes(data.user_id)) {
-                    updatedReadBy = [...updatedReadBy, data.user_id];
-                  }
-                  return {
-                    ...msg,
-                    status: data.status,
-                    readBy: updatedReadBy
-                  };
-                }
-                return msg;
-              }));
-            } else if (data.type === 'user_joined' || data.type === 'user_left') {
-              console.log(`[Chat] User ${data.type}: ${data.user_name || data.user_id}`);
-            } else if (data.type === 'typing') {
-              console.log(`[Chat] ${data.user_name || data.user_id} is typing: ${data.is_typing}`);
-              if (data.user_id && data.user_name && data.user_id !== userUuid) {
-                if (data.is_typing) {
-                  addTypingUser(data.user_id, data.user_name);
+                if (hasExistingMessage) {
+                  console.log('[WebSocket] Updating existing message');
+                  return prev.map(m => m.id === d.temp_id ? { ...m, id: d.message_id || d.id, status:'sent' } : m);
                 } else {
-                  removeTypingUser(data.user_id);
+                  console.log('[WebSocket] Adding new message from another user via temp_id');
+                  if (!userUuid) return prev;
+                  
+                  const nm = processBackendMessage(d, userUuid);
+                  if (prev.some(x => x.id === nm.id)) {
+                    console.log('[WebSocket] Message already exists, skipping');
+                    return prev;
+                  }
+                  const out = [...prev, nm];
+                  console.log('[WebSocket] New message count:', out.length);
+                  requestAnimationFrame(() => flatListRef.current?.scrollToEnd({animated:true}));
+                  if (nm.sender === 'other') {
+                    setTimeout(() => sendMessageStatus(nm.id, 'delivered'), 100);
+                    setTimeout(() => sendMessageStatus(nm.id, 'seen'), 600);
+                  }
+                  return out;
                 }
-              }
+              });
+            } else {
+              console.log('[WebSocket] Processing message without temp_id');
+              if (!userUuid) return;
+              
+              const nm = processBackendMessage(d, userUuid);
+              setMessages(prev => {
+                if (prev.some(x => x.id === nm.id)) return prev;
+                const out = [...prev, nm];
+                requestAnimationFrame(() => flatListRef.current?.scrollToEnd({animated:true}));
+                if (nm.sender === 'other') {
+                  setTimeout(() => sendMessageStatus(nm.id, 'delivered'), 100);
+                  setTimeout(() => sendMessageStatus(nm.id, 'seen'), 600);
+                }
+                return out;
+              });
             }
-          } catch (parseError) {
-            console.warn('[WebSocket] JSON parse error for message:', messageStr);
-            console.warn('[WebSocket] Parse error details:', parseError);
+          } else if (d.type==='message_status') {
+            setMessages(prev=>prev.map(m=> {
+              if (m.id===d.message_id) {
+                const rb = m.readBy||[];
+                if (d.status==='seen' && d.user_id && !rb.includes(d.user_id)) rb.push(d.user_id);
+                return {...m,status:d.status, readBy:rb};
+              }
+              return m;
+            }));
+          } else if (d.type==='typing') {
+            d.user_id!==userUuid && (d.is_typing?addTypingUser(d.user_id,d.user_name):removeTypingUser(d.user_id));
           }
-        }
-      } catch (err) {
-        console.warn('[WebSocket] Error processing WebSocket message:', err);
-      }
+        } catch {}
+      });
     });
-    console.log('[WebSocket] Initializing connection to:', ws.url);
-    ws.onopen = () => {
-      console.log('[WebSocket] Connection opened');
-    };
-    
     wsRef.current = ws;
     return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = null;
-      }
-      
-      if (typingDebounceRef.current) {
-        clearTimeout(typingDebounceRef.current);
-        typingDebounceRef.current = null;
-      }
-      
-      if (isTyping && ws.readyState === WebSocket.OPEN) {
-        sendTypingIndicator(false);
-      }
-      
-      Object.values(typingUsers).forEach(user => {
-        if (user.timeout) {
-          clearTimeout(user.timeout);
-        }
-      });
-      
+      typingTimeoutRef.current && clearTimeout(typingTimeoutRef.current);
+      typingDebounceRef.current && clearTimeout(typingDebounceRef.current);
+      isTyping && ws.readyState===WebSocket.OPEN && sendTypingIndicator(false);
+      Object.values(typingUsers).forEach(u=>u.timeout&&clearTimeout(u.timeout));
       ws.close();
     };
-  }, [route?.params, setNavBarVariant, userUuid]);
+  }, [route?.params, userUuid]);
 
   useEffect(() => {
-    if (!userUuid || messages.length === 0) return;
-    
-    const unreadMessages = messages.filter(msg => 
-      msg.sender === 'other' && 
-      (!msg.readBy || !msg.readBy.includes(userUuid))
-    );
-    
-    unreadMessages.forEach(msg => {
-      markMessageAsRead(msg.id);
-    });
+    if (!userUuid) return;
+    messages.filter(m => m.sender==='other' && !m.readBy?.includes(userUuid))
+      .forEach(m => markMessageAsRead(m.id));
   }, [messages, userUuid]);
 
   useEffect(() => {
-    console.log('[Chat] Messages state updated, count:', messages.length, 'messages:', messages.map(m => ({ id: m.id, text: m.text.substring(0, 20) })));
-    if (messages.length > 0) {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
+    messages.length>0 && setTimeout(()=>flatListRef.current?.scrollToEnd({animated:true}),100);
   }, [messages]);
 
   const sendMessage = () => {
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
-    if (!userUuid) { console.warn('[Chat] userUuid not ready'); return; }
-    const userId: string = chatParams.userId || userUuid;
-    if (!newMessage.trim() || !chatId) return;
+    if (!userUuid || !chatId || !newMessage.trim()) return;
 
     handleTypingStop();
-
-    const tempMessageId = `temp_${Date.now()}_${Math.random()}`;
-    const messageText = newMessage.trim();
-    
-    const optimisticMessage: ChatMessage = {
-      id: tempMessageId,
-      text: messageText,
+    const tempId = `temp_${Date.now()}_${Math.random()}`;
+    const optimistic: ChatMessage = {
+      id: tempId,
+      text: newMessage.trim(),
       sender: 'user',
-      senderId: userId,
+      senderId: userUuid,
       senderName: 'You',
+      senderAvatar: undefined,
       timestamp: new Date(),
-      status: 'sending'
+      status: 'sending',
+      readBy: [],
     };
-    
-    console.log('[Chat] Adding optimistic message:', optimisticMessage);
-    setMessages(prev => {
-      const updated = [...prev, optimisticMessage];
-      console.log('[Chat] Total messages after optimistic add:', updated.length);
-      return updated;
-    });
+    setMessages(prev => [...prev, optimistic]);
     setNewMessage('');
 
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const payload = {
-        type: 'message',
-        room_id: chatId,
-        sender_id: userId,
-        content: messageText,
-        timestamp: new Date().toISOString(),
-        temp_id: tempMessageId,
-      };
-      console.log('[WebSocket] sending', payload);
-      wsRef.current.send(JSON.stringify(payload));
+    if (wsRef.current?.readyState===WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type:'message',
+        room_id:chatId,
+        sender_id:userUuid,
+        content:optimistic.text,
+        timestamp:new Date().toISOString(),
+        temp_id:tempId,
+      }));
     } else {
-      console.warn('[WebSocket] Not connected, cannot send message');
-      setMessages(prev => prev.map(msg => 
-        msg.id === tempMessageId 
-          ? { ...msg, status: 'failed' as any }
-          : msg
-      ));
+      setMessages(prev => prev.map(m => m.id===tempId?{...m, status:'failed'}:m));
     }
   };
 
-  const handleMuteToggle = async (value: boolean) => {
+  const handleMuteToggle = async (val: boolean) => {
     try {
       const chatId = chatParams.chatRoom?.id || chatParams.chatId;
-      const isGroupChat = chatParams.isGroupChat !== false;
-      
-      if (isGroupChat) {
-        await apiUtil.put(`/ride/${chatId}/settings`, { notifications_muted: value });
+      if (chatParams.isGroupChat!==false && chatId) {
+        await apiUtil.put(`/ride/${chatId}/settings`, { notifications_muted: val });
       }
-      setNotificationsMuted(value);
-    } catch (error) {
-      console.warn('[Chat] Failed to update notification settings', error);
-      setNotificationsMuted(value);
+      setNotificationsMuted(val);
+    } catch {
+      console.warn('[Chat] mute toggle failed');
+      setNotificationsMuted(val);
     }
   };
 
@@ -696,160 +486,116 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
       setEditingChatName(false);
       return;
     }
-
     try {
       const chatId = chatParams.chatRoom?.id || chatParams.chatId;
-      const isGroupChat = chatParams.isGroupChat !== false;
-      
-      if (isGroupChat) {
+      if (chatParams.isGroupChat!==false && chatId) {
         await apiUtil.put(`/ride/${chatId}/settings`, { chat_name: newChatName });
       }
       setChatTitle(newChatName);
-      setEditingChatName(false);
-      setNewChatName('');
-    } catch (error) {
-      console.warn('[Chat] Failed to rename chat', error);
+    } catch {
+      console.warn('[Chat] rename failed');
       setChatTitle(newChatName);
+    } finally {
       setEditingChatName(false);
       setNewChatName('');
     }
   };
 
   const handleLeaveRide = () => {
-    const isGroupChat = chatParams.isGroupChat !== false;
-    
-    if (!isGroupChat) {
-      // For DMs, just go back (no need to "leave")
+    const chatId = chatParams.chatRoom?.id || chatParams.chatId;
+    if (chatParams.isGroupChat===false || !chatId) {
       navigation.goBack();
       return;
     }
-    
     Alert.alert(
-      "Leave Ride",
+      'Leave Ride',
       "Are you sure you want to leave this ride? You won't be able to rejoin unless invited again.",
       [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Leave", 
-          style: "destructive",
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
           onPress: async () => {
             try {
-              const chatId = chatParams.chatRoom?.id || chatParams.chatId;
               await apiUtil.delete(`/rides/${chatId}/participants/${userUuid}`);
-              navigation.goBack();
-            } catch (error) {
-              console.warn('[Chat] Failed to leave ride', error);
+            } catch {
+              console.warn('[Chat] leave ride failed');
+            } finally {
               navigation.goBack();
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
 
-  const renderMessageStatus = (msg: ChatMessage) => {
-    if (msg.sender !== 'user') return null;
+  const formatMessageTime = (timestamp: any) => {
+    console.log('[FormatTime] Input:', timestamp, 'type:', typeof timestamp);
     
-    const { status } = msg;
-    
-    let statusText = '';
-    let statusColor = '#999';
-    
-    switch (status) {
-      case 'sending':
-        statusText = '○';
-        statusColor = '#999';
-        break;
-      case 'sent':
-        statusText = '✓';
-        statusColor = '#999';
-        break;
-      case 'delivered':
-        statusText = '✓✓';
-        statusColor = '#999';
-        break;
-      case 'seen':
-        statusText = '✓✓';
-        statusColor = AppColors.secondaryDarkGreen || '#4CAF50';
-        break;
-      case 'failed':
-        statusText = '!';
-        statusColor = '#f44336';
-        break;
-      default:
-        statusText = '✓';
-        statusColor = '#999';
+    if (!timestamp) {
+      return 'No time';
     }
     
-    return (
-      <Text style={{ 
-        fontSize: 10, 
-        color: statusColor, 
-        marginLeft: 4,
-        fontWeight: status === 'seen' ? 'bold' : 'normal',
-        fontFamily: 'monospace', 
-      }}>
-        {statusText}
-      </Text>
-    );
+    let date: Date;
+    
+    if (timestamp instanceof Date) {
+      date = timestamp;
+    } else if (typeof timestamp === 'string') {
+      date = new Date(timestamp);
+    } else if (typeof timestamp === 'number') {
+      date = new Date(timestamp > 1000000000000 ? timestamp : timestamp * 1000);
+    } else {
+      return `Invalid (${typeof timestamp})`;
+    }
+    
+    if (isNaN(date.getTime())) {
+      return `Invalid date (${timestamp})`;
+    }
+    
+    try {
+      return date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    } catch (error) {
+      console.error('[FormatTime] Error formatting:', error);
+      return `Format error (${date})`;
+    }
+  };
+
+  const renderMessageStatus = (msg: ChatMessage) => {
+    if (msg.sender!=='user') return null;
+    let sym='✓', col='#999';
+    switch(msg.status){
+      case 'sending': sym='○'; break;
+      case 'sent': sym='✓'; break;
+      case 'delivered': sym='✓✓'; break;
+      case 'seen': sym='✓✓'; col=AppColors.secondaryDarkGreen; break;
+      case 'failed': sym='!'; col='#f44336'; break;
+    }
+    return <Text style={{
+      fontSize:10, color:col, marginLeft:4,
+      fontWeight: msg.status==='seen'?'bold':'normal',
+      fontFamily:'monospace'
+    }}>{sym}</Text>;
   };
 
   const renderMessage = (msg: ChatMessage) => {
-    const isUserMessage = msg.sender === 'user';
+    const me=msg.sender==='user';
     
     return (
-      <View
-        key={msg.id}
-        style={[
-          isUserMessage
-            ? chatMessagesStyles.messageSent
-            : chatMessagesStyles.messageReceived,
-          { marginVertical: 6 }
-        ]}
-      >
-        {!isUserMessage && (
-          <Text style={chatMessagesStyles.senderName}>
-            {msg.senderName || 'Unknown User'}
-          </Text>
-        )}
-        
-        <Text
-          style={
-            isUserMessage
-              ? chatMessagesStyles.messageTextSent
-              : chatMessagesStyles.messageText
-          }
-        >
+      <View key={msg.id} style={[
+        me?chatMessagesStyles.messageSent:chatMessagesStyles.messageReceived,
+        {marginVertical:6}
+      ]}>
+        {!me && <Text style={chatMessagesStyles.senderName}>{msg.senderName}</Text>}
+        <Text style={ me? chatMessagesStyles.messageTextSent:chatMessagesStyles.messageText }>
           {msg.text}
         </Text>
-        
-        <View style={{ 
-          flexDirection: 'row', 
-          alignItems: 'center', 
-          justifyContent: isUserMessage ? 'flex-end' : 'flex-start',
-          marginTop: 2
+        <View style={{
+          flexDirection:'row', alignItems:'center',
+          justifyContent: me?'flex-end':'flex-start',
+          marginTop:2
         }}>
-          <Text
-            style={
-              isUserMessage
-                ? chatMessagesStyles.messageTimeSent
-                : chatMessagesStyles.messageTime
-            }
-          >
-            {msg.timestamp
-              ? (() => {
-                  try {
-                    const d = new Date(msg.timestamp);
-                    if (isNaN(d.getTime())) return '';
-                    return d.toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    });
-                  } catch {
-                    return '';
-                  }
-                })()
-              : ''}
+          <Text style={ me? chatMessagesStyles.messageTimeSent:chatMessagesStyles.messageTime }>
+            {formatMessageTime(msg.timestamp)}
           </Text>
           {renderMessageStatus(msg)}
         </View>
@@ -858,217 +604,179 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
   };
 
   const renderSettingsModal = () => {
-    const isGroupChat = chatParams.isGroupChat !== false;
-    
+    const isGroup = chatParams.isGroupChat!==false;
     return (
-    <Modal
-      visible={showSettings}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={() => setShowSettings(false)}
-    >
-      <SafeAreaView style={chatMessagesStyles.container}>
-        <View style={chatMessagesStyles.settingsHeader}>
-          <TouchableOpacity onPress={() => setShowSettings(false)}>
-            <Text style={chatMessagesStyles.settingsCloseButton}>Done</Text>
-          </TouchableOpacity>
-          <Text style={chatMessagesStyles.settingsTitle}>Chat Settings</Text>
-          <View style={{ width: 50 }} />
-        </View>
-
-        <ScrollView style={chatMessagesStyles.settingsContent}>
-          <View style={chatMessagesStyles.settingsSection}>
-            <View style={chatMessagesStyles.chatInfoHeader}>
-              <View style={chatMessagesStyles.chatAvatarContainer}>
-                <Text style={chatMessagesStyles.chatAvatarText}>
-                  {(chatTitle || 'C').charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <View style={chatMessagesStyles.chatInfoDetails}>
-                {editingChatName && isGroupChat ? (
-                  <View style={chatMessagesStyles.editNameContainer}>
-                    <TextInput
-                      style={chatMessagesStyles.editNameInput}
-                      value={newChatName}
-                      onChangeText={setNewChatName}
-                      placeholder="Enter new chat name"
-                      autoFocus
-                      onSubmitEditing={handleChatRename}
-                    />
-                    <TouchableOpacity onPress={handleChatRename}>
-                      <Text style={chatMessagesStyles.saveButton}>Save</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity onPress={isGroupChat ? () => {
-                    setEditingChatName(true);
-                    setNewChatName(chatTitle);
-                  } : undefined}>
-                    <Text style={chatMessagesStyles.chatTitleLarge}>{chatTitle}</Text>
-                    {isGroupChat && <Text style={chatMessagesStyles.tapToEdit}>Tap to edit</Text>}
-                  </TouchableOpacity>
-                )}
-                <Text style={chatMessagesStyles.participantCount}>
-                  {participants.length} participants
-                </Text>
-              </View>
-            </View>
+      <Modal
+        visible={showSettings}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={()=>setShowSettings(false)}
+      >
+        <SafeAreaView style={chatMessagesStyles.container}>
+          <View style={chatMessagesStyles.settingsHeader}>
+            <TouchableOpacity onPress={()=>setShowSettings(false)}>
+              <Text style={chatMessagesStyles.settingsCloseButton}>Done</Text>
+            </TouchableOpacity>
+            <Text style={chatMessagesStyles.settingsTitle}>Chat Settings</Text>
+            <View style={{width:50}}/>
           </View>
-
-          <View style={chatMessagesStyles.settingsSection}>
-            <Text style={chatMessagesStyles.sectionTitle}>Participants</Text>
-            {participants.map((participant, index) => (
-              <View key={`participant-${index}-${participant.id}`} style={chatMessagesStyles.participantItem}>
-                <View style={chatMessagesStyles.participantAvatar}>
-                  <Text style={chatMessagesStyles.participantAvatarText}>
-                    {(() => {
-                      if (participant.id === userUuid) {
-                        const userName = userProfiles[userUuid]?.name || participant.name;
-                        return (userName && userName !== 'Unknown User' ? userName : 'Y').charAt(0).toUpperCase();
-                      }
-                      const name = participant.name && participant.name.trim() !== '' && participant.name !== 'Unknown User'
-                        ? participant.name
-                        : 'U';
-                      return name.charAt(0).toUpperCase();
-                    })()}
-                  </Text>
-                  {participant.isOnline && (
-                    <View style={chatMessagesStyles.onlineIndicator} />
-                  )}
-                </View>
-                <View style={chatMessagesStyles.participantInfo}>
-                  <Text style={chatMessagesStyles.participantName}>
-                    {(() => {
-                      if (participant.id === userUuid) {
-                        // For current user, prioritize stored user profile name
-                        const userName = userProfiles[userUuid]?.name || participant.name;
-                        return userName && userName !== 'Unknown User' 
-                          ? `${userName} (You)` 
-                          : 'You';
-                      }
-                      // For other participants, use participant name with fallback
-                      return participant.name && participant.name.trim() !== '' && participant.name !== 'Unknown User' 
-                        ? participant.name 
-                        : 'Unknown User';
-                    })()}
-                  </Text>
-                  <Text style={chatMessagesStyles.participantRole}>
-                    {isGroupChat ? (participant.role === 'admin' ? 'Host' : 'Passenger') : 'Contact'}
-                    {participant.isOnline ? ' • Online' : ' • Offline'}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          {rideDetails && isGroupChat && (
+          <ScrollView style={chatMessagesStyles.settingsContent}>
             <View style={chatMessagesStyles.settingsSection}>
-              <Text style={chatMessagesStyles.sectionTitle}>Ride Details</Text>
-              <View style={chatMessagesStyles.rideDetailItem}>
-                <Text style={chatMessagesStyles.rideDetailLabel}>Route</Text>
-                <Text style={chatMessagesStyles.rideDetailValue}>
-                  {rideDetails.departure} → {rideDetails.destination}
-                </Text>
-              </View>
-              <View style={chatMessagesStyles.rideDetailItem}>
-                <Text style={chatMessagesStyles.rideDetailLabel}>Date & Time</Text>
-                <Text style={chatMessagesStyles.rideDetailValue}>
-                  {rideDetails.date} at {rideDetails.time}
-                </Text>
-              </View>
-              {rideDetails.price && (
-                <View style={chatMessagesStyles.rideDetailItem}>
-                  <Text style={chatMessagesStyles.rideDetailLabel}>Price</Text>
-                  <Text style={chatMessagesStyles.rideDetailValue}>{rideDetails.price}</Text>
+              <View style={chatMessagesStyles.chatInfoHeader}>
+                <View style={chatMessagesStyles.chatAvatarContainer}>
+                  <Text style={chatMessagesStyles.chatAvatarText}>
+                    {chatTitle.charAt(0).toUpperCase()}
+                  </Text>
                 </View>
-              )}
-              {rideDetails.driverName && (
-                <View style={chatMessagesStyles.rideDetailItem}>
-                  <Text style={chatMessagesStyles.rideDetailLabel}>Host</Text>
-                  <Text style={chatMessagesStyles.rideDetailValue}>{rideDetails.driverName}</Text>
+                <View style={chatMessagesStyles.chatInfoDetails}>
+                  {editingChatName && isGroup ? (
+                    <View style={chatMessagesStyles.editNameContainer}>
+                      <TextInput
+                        style={chatMessagesStyles.editNameInput}
+                        value={newChatName}
+                        onChangeText={setNewChatName}
+                        placeholder="Enter new chat name"
+                        autoFocus
+                        onSubmitEditing={handleChatRename}
+                      />
+                      <TouchableOpacity onPress={handleChatRename}>
+                        <Text style={chatMessagesStyles.saveButton}>Save</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      disabled={!isGroup}
+                      onPress={()=>{
+                        if(isGroup){
+                          setEditingChatName(true);
+                          setNewChatName(chatTitle);
+                        }
+                      }}
+                    >
+                      <Text style={chatMessagesStyles.chatTitleLarge}>{chatTitle}</Text>
+                      {isGroup && <Text style={chatMessagesStyles.tapToEdit}>Tap to edit</Text>}
+                    </TouchableOpacity>
+                  )}
+                  <Text style={chatMessagesStyles.participantCount}>
+                    {participants.length} participants
+                  </Text>
                 </View>
-              )}
-              <View style={chatMessagesStyles.rideDetailItem}>
-                <Text style={chatMessagesStyles.rideDetailLabel}>Seats</Text>
-                <Text style={chatMessagesStyles.rideDetailValue}>
-                  {((rideDetails.totalSeats || 0) - (rideDetails.availableSeats || 0))}/{rideDetails.totalSeats || 0} occupied • {rideDetails.availableSeats || 0} available
-                </Text>
               </View>
             </View>
-          )}
 
-          {/* Settings Section */}
-          <View style={chatMessagesStyles.settingsSection}>
-            <Text style={chatMessagesStyles.sectionTitle}>Settings</Text>
-            <View style={chatMessagesStyles.settingItem}>
-              <Text style={chatMessagesStyles.settingLabel}>Mute Notifications</Text>
-              <Switch
-                value={notificationsMuted}
-                onValueChange={handleMuteToggle}
-                trackColor={{ false: '#767577', true: AppColors.secondaryDarkGreen }}
-                thumbColor={notificationsMuted ? AppColors.primaryLightGreen : '#f4f3f4'}
-              />
+            <View style={chatMessagesStyles.settingsSection}>
+              <Text style={chatMessagesStyles.sectionTitle}>Participants</Text>
+              {participants.map((p,i)=>(
+                <View key={`${p.id}-${i}`} style={chatMessagesStyles.participantItem}>
+                  <View style={chatMessagesStyles.participantAvatar}>
+                    <Text style={chatMessagesStyles.participantAvatarText}>
+                      {p.id===userUuid
+                        ? userProfiles[userUuid]?.name.charAt(0).toUpperCase()||'Y'
+                        : p.name.charAt(0).toUpperCase()||'U'
+                      }
+                    </Text>
+                    {p.isOnline && <View style={chatMessagesStyles.onlineIndicator}/>}
+                  </View>
+                  <View style={chatMessagesStyles.participantInfo}>
+                    <Text style={chatMessagesStyles.participantName}>
+                      {p.id===userUuid
+                        ? `${userProfiles[userUuid]?.name} (You)`
+                        : p.name
+                      }
+                    </Text>
+                    <Text style={chatMessagesStyles.participantRole}>
+                      {isGroup
+                        ? p.role==='admin'?'Host':'Passenger'
+                        : 'Contact'
+                      }
+                      {p.isOnline?' • Online':' • Offline'}
+                    </Text>
+                  </View>
+                </View>
+              ))}
             </View>
-          </View>
 
-          {isGroupChat && (
-            <View style={chatMessagesStyles.settingsSection}>            
-              <TouchableOpacity
-                style={[chatMessagesStyles.actionButton, chatMessagesStyles.destructiveButton]}
-                onPress={handleLeaveRide}
-              >
-                <Text style={[chatMessagesStyles.actionButtonText, chatMessagesStyles.destructiveButtonText]}>
-                  Leave Ride
-                </Text>
-              </TouchableOpacity>
+            {rideDetails && isGroup && (
+              <View style={chatMessagesStyles.settingsSection}>
+                <Text style={chatMessagesStyles.sectionTitle}>Ride Details</Text>
+                <View style={chatMessagesStyles.rideDetailItem}>
+                  <Text style={chatMessagesStyles.rideDetailLabel}>Route</Text>
+                  <Text style={chatMessagesStyles.rideDetailValue}>
+                    {rideDetails.departure} → {rideDetails.destination}
+                  </Text>
+                </View>
+                <View style={chatMessagesStyles.rideDetailItem}>
+                  <Text style={chatMessagesStyles.rideDetailLabel}>Date & Time</Text>
+                  <Text style={chatMessagesStyles.rideDetailValue}>
+                    {rideDetails.date} at {rideDetails.time}
+                  </Text>
+                </View>
+                {rideDetails.price && (
+                  <View style={chatMessagesStyles.rideDetailItem}>
+                    <Text style={chatMessagesStyles.rideDetailLabel}>Price</Text>
+                    <Text style={chatMessagesStyles.rideDetailValue}>{rideDetails.price}</Text>
+                  </View>
+                )}
+                {rideDetails.driverName && (
+                  <View style={chatMessagesStyles.rideDetailItem}>
+                    <Text style={chatMessagesStyles.rideDetailLabel}>Host</Text>
+                    <Text style={chatMessagesStyles.rideDetailValue}>{rideDetails.driverName}</Text>
+                  </View>
+                )}
+                <View style={chatMessagesStyles.rideDetailItem}>
+                  <Text style={chatMessagesStyles.rideDetailLabel}>Seats</Text>
+                  <Text style={chatMessagesStyles.rideDetailValue}>
+                    {(rideDetails.totalSeats! - rideDetails.availableSeats!)}/{rideDetails.totalSeats!} occupied • {rideDetails.availableSeats} available
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <View style={chatMessagesStyles.settingsSection}>
+              <Text style={chatMessagesStyles.sectionTitle}>Settings</Text>
+              <View style={chatMessagesStyles.settingItem}>
+                <Text style={chatMessagesStyles.settingLabel}>Mute Notifications</Text>
+                <Switch
+                  value={notificationsMuted}
+                  onValueChange={handleMuteToggle}
+                  trackColor={{ false: '#767577', true: AppColors.secondaryDarkGreen }}
+                  thumbColor={notificationsMuted ? AppColors.primaryLightGreen : '#f4f3f4'}
+                />
+              </View>
             </View>
-          )}
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
+
+            {chatParams.isGroupChat !== false && (
+              <View style={chatMessagesStyles.settingsSection}>
+                <TouchableOpacity
+                  style={[chatMessagesStyles.actionButton, chatMessagesStyles.destructiveButton]}
+                  onPress={handleLeaveRide}
+                >
+                  <Text style={[chatMessagesStyles.actionButtonText, chatMessagesStyles.destructiveButtonText]}>
+                    Leave Ride
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     );
   };
 
   return (
-    <SafeAreaView style={chatMessagesStyles.container}>
-      <StatusBar
-        backgroundColor={AppColors.primaryLightGreen}
-        barStyle="dark-content"
-      />
+    <SafeAreaView style={[chatMessagesStyles.container, { flex: 1 }]}>
+      <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
 
-      <View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 10,
-        }}
-      >
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
         <BrandInfo />
       </View>
 
-      <View
-        style={[
-          chatMessagesStyles.chatHeader,
-          { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
-        ]}
-      >
-        <TouchableOpacity
-          style={{ marginRight: 12 }}
-          onPress={() => navigation.goBack()}
-        >
-          <Image
-            source={require('../../assets/arrow-square-left.png')}
-            style={{ width: 24, height: 24 }}
-            resizeMode="contain"
-          />
+      <View style={[chatMessagesStyles.chatHeader, { flexDirection: 'row', alignItems: 'center', marginTop: 16 }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginRight: 12 }}>
+          <Image source={require('../../assets/arrow-square-left.png')} style={{ width: 24, height: 24 }} />
         </TouchableOpacity>
-
         <View style={{ flex: 1 }}>
-          <View
-            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}
-          >
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
             <Text
               style={{
                 color: '#273B33',
@@ -1082,104 +790,73 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
             >
               {chatTitle}
             </Text>
-            <TouchableOpacity
-              onPress={() => setShowSettings(true)}
-              style={chatMessagesStyles.settingsButton}
-            >
+            <TouchableOpacity onPress={() => setShowSettings(true)} style={chatMessagesStyles.settingsButton}>
               <Settings size={24} color="#273B33" />
             </TouchableOpacity>
           </View>
-          {/* <Text
-            style={{
-              color: '#000',
-              fontSize: 15,
-              fontFamily: 'Nunito Sans',
-              fontWeight: '300',
-            }}
-            numberOfLines={2}
-            ellipsizeMode="tail"
-          >
-            {chatSubtitle}
-          </Text> */}
         </View>
       </View>
 
-      <ScrollView 
-        ref={scrollViewRef}
-        style={chatMessagesStyles.messagesContainer}
-        onContentSizeChange={() => {
-          scrollViewRef.current?.scrollToEnd({ animated: true });
-        }}
-        key={`messages-${messages.length}`}
-      >
-        {messages.map((msg, index) => (
-          <View key={`msg-${index}-${msg.id}`}>
-            {renderMessage(msg)}
-          </View>
-        ))}
-      </ScrollView>
+      <FlatList
+        ref={flatListRef}
+        style={[chatMessagesStyles.messagesContainer, { flex: 1 }]}
+        data={messages}
+        extraData={messages}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => renderMessage(item)}
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+      />
 
       {Object.keys(typingUsers).length > 0 && (
         <View style={{
-          paddingHorizontal: 16,
-          paddingVertical: 8,
-          backgroundColor: 'rgba(168, 216, 168, 0.1)',
-          borderTopWidth: 1,
-          borderTopColor: 'rgba(168, 216, 168, 0.3)',
+          paddingHorizontal: 16, paddingVertical: 8,
+          backgroundColor: 'rgba(168,216,168,0.1)',
+          borderTopWidth: 1, borderTopColor: 'rgba(168,216,168,0.3)'
         }}>
           <Text style={{
-            color: '#666',
-            fontSize: 14,
-            fontFamily: 'Nunito Sans',
-            fontStyle: 'italic'
+            color: '#666', fontSize: 14, fontFamily: 'Nunito Sans', fontStyle: 'italic'
           }}>
-            {Object.values(typingUsers).length === 1 
+            {Object.values(typingUsers).length === 1
               ? `${Object.values(typingUsers)[0].name} is typing...`
               : Object.values(typingUsers).length === 2
-              ? `${Object.values(typingUsers)[0].name} and ${Object.values(typingUsers)[1].name} are typing...`
-              : `${Object.values(typingUsers)[0].name} and ${Object.values(typingUsers).length - 1} others are typing...`
+                ? `${Object.values(typingUsers)[0].name} and ${Object.values(typingUsers)[1].name} are typing...`
+                : `${Object.values(typingUsers)[0].name} and ${Object.values(typingUsers).length - 1} others are typing...`
             }
           </Text>
         </View>
       )}
 
-      <View style={chatMessagesStyles.typingBarContainer}>
-        <TextInput
-          style={[
-            chatMessagesStyles.typingBarText,
-            { flex: 1, color: '#000', fontFamily: 'Nunito Sans' }
-          ]}
-          placeholder="Start typing..."
-          placeholderTextColor="#000"
-          value={newMessage}
-          onChangeText={(text) => {
-            setNewMessage(text);
-            if (text.trim().length > 0) {
-              handleTypingStart();
-            } else {
+      <KeyboardAvoidingView
+        behavior={Platform.select({ ios: 'padding', android: undefined })}
+        keyboardVerticalOffset={Platform.select({ ios: 80, android: 0 })}
+      >
+        <View style={chatMessagesStyles.typingBarContainer}>
+          <TextInput
+            style={[chatMessagesStyles.typingBarText, { flex: 1, color: '#000', fontFamily: 'Nunito Sans' }]}
+            placeholder="Start typing..."
+            placeholderTextColor="#000"
+            value={newMessage}
+            onChangeText={text => {
+              setNewMessage(text);
+              if (text.trim().length > 0) handleTypingStart();
+              else handleTypingStop();
+            }}
+            onBlur={handleTypingStop}
+            onSubmitEditing={() => {
               handleTypingStop();
-            }
-          }}
-          onBlur={handleTypingStop}
-          onEndEditing={handleTypingStop}
-          onSubmitEditing={() => {
-            handleTypingStop();
-            if (newMessage.trim()) {
-              sendMessage();
-            }
-          }}
-        />
-        <TouchableOpacity
-          onPress={sendMessage}
-          style={chatMessagesStyles.typingBarIconContainer}
-        >
-          <Image
-            source={require('../../assets/arrow-square-left.png')}
-            style={{ width: 40, height: 40, transform: [{ rotate: '90deg' }] }}
-            resizeMode="contain"
+              newMessage.trim() && sendMessage();
+            }}
           />
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity onPress={sendMessage} style={chatMessagesStyles.typingBarIconContainer}>
+            <Image
+              source={require('../../assets/arrow-square-left.png')}
+              style={{ width: 40, height: 40, transform: [{ rotate: '90deg' }] }}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
 
       {renderSettingsModal()}
     </SafeAreaView>
