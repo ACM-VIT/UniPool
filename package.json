@@ -28,6 +28,7 @@
     "expo-notifications": "~0.31.4",
     "expo-splash-screen": "^0.30.10",
     "expo-status-bar": "~2.2.3",
+    "expo-system-ui": "^5.0.10",
     "firebase": "^11.9.0",
     "google-auth-library": "^10.2.0",
     "lottie-react-native": "^7.2.5",
