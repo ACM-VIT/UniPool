@@ -184,71 +184,233 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const bottomSheetY = useRef(new Animated.Value(BOTTOM_SHEET_MAX_HEIGHT)).current;
   const lastGestureY = useRef(BOTTOM_SHEET_MAX_HEIGHT);
 
-  // const customMapStyle = [
-  //   {
-  //     featureType: "all",
-  //     elementType: "geometry",
-  //     stylers: [
-  //       {
-  //         color: "#f5f5f5"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     featureType: "road",
-  //     elementType: "geometry",
-  //     stylers: [
-  //       {
-  //         color: "#ffffff"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     featureType: "road",
-  //     elementType: "geometry.stroke",
-  //     stylers: [
-  //       {
-  //         color: "#e8e8e8"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     featureType: "water",
-  //     elementType: "geometry",
-  //     stylers: [
-  //       {
-  //         color: "#1e00ffff"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     featureType: "landscape",
-  //     elementType: "geometry",
-  //     stylers: [
-  //       {
-  //         color: "#f9f9f9"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     featureType: "poi",
-  //     elementType: "geometry",
-  //     stylers: [
-  //       {
-  //         color: "#eeeeee"
-  //       }
-  //     ]
-  //   },
-  //   {
-  //     featureType: "poi.park",
-  //     elementType: "geometry",
-  //     stylers: [
-  //       {
-  //         color: AppColors.primaryLightGreen || "#a8d8a8"
-  //       }
-  //     ]
-  //   }
-  // ];
+
+
+const customMapStyle = [
+  {
+    featureType: "all",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f8f8f8"
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.text.fill",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.text.stroke",
+    stylers: [
+      {
+        color: "#ffffff"
+      },
+      {
+        weight: 2
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.icon",
+    stylers: [
+      {
+        visibility: "simplified"
+      }
+    ]
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#e0e0e0"
+      },
+      {
+        weight: 0.5
+      }
+    ]
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        weight: 2
+      }
+    ]
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#e0e0e0"
+      },
+      {
+        weight: 1
+      }
+    ]
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#b3d9ff"
+      }
+    ]
+  },
+  {
+    featureType: "landscape",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f8f8f8"
+      }
+    ]
+  },
+  {
+    featureType: "landscape.natural",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#e8f5e8"
+      }
+    ]
+  },
+  {
+    featureType: "poi",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f0f0f0"
+      }
+    ]
+  },
+  {
+    featureType: "poi.park",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        lightness: 20
+      }
+    ]
+  },
+  {
+    featureType: "poi.business",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f5f5f5"
+      }
+    ]
+  },
+  {
+    featureType: "poi.attraction",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        lightness: 40
+      }
+    ]
+  },
+  {
+    featureType: "transit",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  },
+  {
+    featureType: "transit.line",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      }
+    ]
+  },
+  {
+    featureType: "administrative",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#d0d0d0"
+      },
+      {
+        weight: 0.3
+      }
+    ]
+  },
+  {
+    featureType: "administrative.country",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#273B33"
+      },
+      {
+        weight: 1
+      }
+    ]
+  },
+  {
+    featureType: "administrative.locality",
+    elementType: "labels.text.fill",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  }
+];
+
 
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (evt, gestureState) => {
@@ -322,7 +484,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       setLocation(userLocation);
 
       const region = {
-        latitude,
+        latitude: latitude,
         longitude,
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
@@ -372,7 +534,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
   useEffect(() => {
     registerForPushNotificationsAsync().then(async (token) => {
-      if (token) {
+      if (token && !pushToken) {
         setPushToken(token);
         await sendTokenToBackend(token, apiUtil);
       }
@@ -391,8 +553,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         console.log("Notification response:", response);
         if (!response || !response.notification || !response.notification.request || !response.notification.request.content) return;
         const data = response.notification.request.content.data || {};
-        if (data.rideId && navigationRef.current) {
-          navigationRef.current.navigate("RideDetailsScreen", { ride: { id: data.rideId } });
+        
+        if (data.type === "chat_message" && data.ride_id && navigationRef.current) {
+          navigationRef.current.navigate("ChatMessages", { 
+            chatId: String(data.ride_id),
+            chatTitle: "Chat",
+            chatSubtitle: "Ride Chat",
+            isGroupChat: true
+          });
+        } else if (data.rideId && navigationRef.current) {
+          navigationRef.current.navigate("RideDetailsScreen", { ride: { id: String(data.rideId) } });
+        } else if (data.ride_id && navigationRef.current) {
+          navigationRef.current.navigate("RideDetailsScreen", { ride: { id: String(data.ride_id) } });
         }
       } catch (err) {
         console.error("Error in notification response listener:", err);
@@ -403,18 +575,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       notificationListener.remove();
       responseListener.remove();
     };
-  }, [apiUtil]);
+  }, []);
 
   useEffect(() => {
+    if (!pushToken || !apiUtil) return;
+    
     const interval = setInterval(async () => {
       const newToken = await registerForPushNotificationsAsync();
       if (newToken && newToken !== pushToken) {
+        console.log("Token refreshed after 24 hours");
         setPushToken(newToken);
         await sendTokenToBackend(newToken, apiUtil);
       }
     }, 24 * 60 * 60 * 1000);
+    
     return () => clearInterval(interval);
-  }, [pushToken, apiUtil]);
+  }, [pushToken]);
 
   useEffect(() => {
     requestLocationPermission();
@@ -501,7 +677,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         <BrandInfo />
       </View>
 
-      <View style={styles.mapContainer}>
+      <Animated.View 
+        style={[
+          styles.mapContainer,
+          {
+            bottom: bottomSheetY,
+          }
+        ]}
+      >
         {isMapLoaded ? (
           <MapView
             provider={PROVIDER_GOOGLE}
@@ -511,7 +694,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             showsUserLocation={true}
             showsMyLocationButton={true}
             toolbarEnabled={false}
-            // customMapStyle={customMapStyle}
+            customMapStyle={customMapStyle}
             onMapReady={() => console.log("Map ready")}
           >
             <Marker 
@@ -557,7 +740,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             </Text>
           </View>
         )}
-      </View>
+      </Animated.View>
 
       <Animated.View 
         style={[
@@ -609,7 +792,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: AppColors.primaryLightGreen,
   },
   brandInfoContainer: {
     position: "absolute",
@@ -623,7 +805,6 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
     zIndex: 1,
   },
   map: {

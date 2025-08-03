@@ -31,6 +31,7 @@ import { PassengerInfoScreen, ChatConversationScreen, TripsListScreen } from "./
 import MainNavBar from "./components/MainNavBar";
 import bottomNavItems from "./data/BottomNavigationItems";
 import { ApiProvider } from "./utils/ApiUtil";
+import { ErrorProvider } from "./contexts/ErrorContext";
 
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { useFonts } from "expo-font";
@@ -55,6 +56,7 @@ const globalStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     pointerEvents: "box-none",
+    zIndex: 20,
   },
 });
 
@@ -240,8 +242,9 @@ const App = () => {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar backgroundColor="#A8D8A8" barStyle="dark-content" />
-      <ApiProvider navigationRef={navigationRef}>
-        <LocationProvider>
+      <ErrorProvider navigationRef={navigationRef}>
+        <ApiProvider navigationRef={navigationRef}>
+          <LocationProvider>
           <View style={{ flex: 1 }}>
             <NavigationContainer
               ref={navigationRef}
@@ -427,7 +430,8 @@ const App = () => {
             </NavigationContainer>
           </View>
         </LocationProvider>
-      </ApiProvider>
+        </ApiProvider>
+        </ErrorProvider>
     </GestureHandlerRootView>
   );
 };

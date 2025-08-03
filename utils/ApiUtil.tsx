@@ -2,6 +2,7 @@ import { getAuth, getIdTokenResult, signOut } from "@react-native-firebase/auth"
 import React, { createContext, useContext, useState } from "react";
 import baseURL from "../config/urlconfig";
 import { CommonActions } from '@react-navigation/native';
+import { useErrorContext } from '../contexts/ErrorContext';
 
 type JSON = {
   [key: string]: string | number | boolean | JSON;
@@ -10,6 +11,7 @@ type JSON = {
 export default class ApiUtil {
   private baseUrl: string;
   private navigationRef?: any;
+  private showError?: (error: any, retryAction?: () => void) => void;
 
   constructor(baseUrl: string, navigationRef?: any) {
     this.baseUrl = baseUrl;
@@ -18,6 +20,10 @@ export default class ApiUtil {
 
   setNavigationRef(navigationRef: any) {
     this.navigationRef = navigationRef;
+  }
+
+  setErrorHandler(showError: (error: any, retryAction?: () => void) => void) {
+    this.showError = showError;
   }
 
   private async handleAuthenticationFailure(): Promise<void> {
@@ -41,23 +47,56 @@ export default class ApiUtil {
   }
 
   async get<T>(endpoint: string, headers?: HeadersInit, timeout?: number): Promise<T> {
-    return this.makeRequest<T>("GET", endpoint, undefined, headers, timeout);
+    const retryAction = () => this.get<T>(endpoint, headers, timeout);
+    return this.makeRequestWithErrorHandling<T>("GET", endpoint, undefined, headers, timeout, retryAction);
   }
 
   async post<T, B>(endpoint: string, body: B, headers?: HeadersInit, timeout?: number): Promise<T> {
-    return this.makeRequest<T>("POST", endpoint, body, headers, timeout);
+    const retryAction = () => this.post<T, B>(endpoint, body, headers, timeout);
+    return this.makeRequestWithErrorHandling<T>("POST", endpoint, body, headers, timeout, retryAction);
   }
 
   async put<T, B>(endpoint: string, body: B, headers?: HeadersInit, timeout?: number): Promise<T> {
-    return this.makeRequest<T>("PUT", endpoint, body, headers, timeout);
+    const retryAction = () => this.put<T, B>(endpoint, body, headers, timeout);
+    return this.makeRequestWithErrorHandling<T>("PUT", endpoint, body, headers, timeout, retryAction);
   }
 
   async delete<T>(endpoint: string, headers?: HeadersInit, timeout?: number): Promise<T> {
-    return this.makeRequest<T>("DELETE", endpoint, undefined, headers, timeout);
+    const retryAction = () => this.delete<T>(endpoint, headers, timeout);
+    return this.makeRequestWithErrorHandling<T>("DELETE", endpoint, undefined, headers, timeout, retryAction);
   }
 
   getCurrentUserId(): string | null {
     return getAuth().currentUser?.uid ?? null;
+  }
+
+  private async makeRequestWithErrorHandling<T>(
+    method: string,
+    endpoint: string,
+    body?: any,
+    headers: HeadersInit = {},
+    timeout: number = 20000,
+    retryAction?: () => Promise<T>
+  ): Promise<T> {
+    try {
+      return await this.makeRequest<T>(method, endpoint, body, headers, timeout);
+    } catch (error) {
+      console.log('Error caught in makeRequestWithErrorHandling:', error);
+      
+      if (error instanceof Error && error.message === "AUTHENTICATION_REDIRECT") {
+        throw error;
+      }
+      
+      if (this.showError && retryAction) {
+        console.log('Showing error modal for:', error);
+        this.showError(error, retryAction);
+        throw error;
+      } else {
+        console.log('No error handler available, error handler exists:', !!this.showError);
+      }
+      
+      throw error;
+    }
   }
 
   private async makeRequest<T>(
@@ -196,9 +235,31 @@ export const ApiProvider = ({ children, navigationRef }: { children: React.React
 
   return (
     <DataContext.Provider value={{ apiUtil, revalidate, triggerRevalidation }}>
-      {children}
+      <ApiErrorHandler apiUtil={apiUtil}>
+        {children}
+      </ApiErrorHandler>
     </DataContext.Provider>
   );
+};
+
+const ApiErrorHandler: React.FC<{ children: React.ReactNode; apiUtil: ApiUtil }> = ({ children, apiUtil }) => {
+  let errorContext: any = null;
+  try {
+    errorContext = useErrorContext();
+  } catch (error) {
+    console.log('ErrorContext not available in ApiErrorHandler');
+  }
+
+  React.useEffect(() => {
+    if (errorContext?.showError) {
+      console.log('Setting up error handler in ApiUtil');
+      apiUtil.setErrorHandler(errorContext.showError);
+    } else {
+      console.log('Error context not available yet');
+    }
+  }, [apiUtil, errorContext?.showError]);
+
+  return <>{children}</>;
 };
 
 export const useApi = () => useContext(DataContext);

@@ -25,7 +25,10 @@ export interface ChatMessage {
   sender: 'user' | 'other';
   senderId: string;
   senderName?: string;
+  senderAvatar?: string;
   timestamp: Date;
+  status?: 'sending' | 'sent' | 'delivered' | 'seen' | 'failed';
+  readBy?: string[];
 }
 
 export interface ChatParticipant {
