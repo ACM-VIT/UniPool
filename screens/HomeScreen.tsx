@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Dimensions,
   Platform,
-  Alert,
   PixelRatio,
   PanResponder,
   Animated,
@@ -16,7 +15,6 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import { useNavigation, useIsFocused } from "@react-navigation/native";
-import { navigationRef } from "../navigation/navigationRef";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { useApi } from "../utils/ApiUtil";
@@ -26,8 +24,6 @@ import PreviousTripsSection from "../components/PreviousTripsSection";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { RootStackParamList } from "../navigation/RootStackParamList";
 import BrandInfo from "../components/BrandInfo";
-import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -61,92 +57,6 @@ const BOTTOM_SHEET_MAX_HEIGHT = screenHeight * 0.75;
 const BOTTOM_SHEET_MIN_HEIGHT = screenHeight * 0.35;
 const SNAP_POINTS = [BOTTOM_SHEET_MIN_HEIGHT, BOTTOM_SHEET_MAX_HEIGHT];
 const DRAG_THRESHOLD = 10;
-
-async function sendTokenToBackend(token: string, apiUtil: any): Promise<boolean> {
-  try {
-    await apiUtil.post("/users/me/token", {
-      token,
-      platform: Platform.OS,
-      deviceId: Device.osInternalBuildId,
-    });
-
-    console.log("Token successfully sent to backend");
-    return true;
-  } catch (error) {
-    console.error("Failed to send token to backend:", error);
-    return false;
-  }
-}
-
-async function sendFCMNotification(
-  apiUtil: any,
-  targetToken: string, 
-  title: string, 
-  body: string, 
-  data?: Record<string, string>
-): Promise<boolean> {
-  try {
-    await apiUtil.post("/notifications/send", {
-      targetToken,
-      notification: {
-        title,
-        body,
-      },
-      data: data || {},
-      platform: Platform.OS,
-    });
-
-    console.log("FCM notification sent successfully via backend");
-    return true;
-  } catch (error) {
-    console.error("Failed to send FCM notification:", error);
-    return false;
-  }
-}
-
-async function registerForPushNotificationsAsync(): Promise<string | null> {
-  let token = null;
-
-  if (Device.isDevice) {
-    try {
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync("default", {
-          name: "default",
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: "#FF231F7C",
-        });
-      }
-
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-
-      if (existingStatus !== "granted") {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-
-      if (finalStatus !== "granted") {
-        Alert.alert(
-          "Permission Required",
-          "Push notifications are needed to receive ride updates and alerts."
-        );
-        return null;
-      }
-
-      const tokenData = await Notifications.getDevicePushTokenAsync();
-      token = tokenData.data;
-      console.log("Native Push Token (FCM/APNs):", token);
-    } catch (error) {
-      console.error("Error getting push token:", error);
-      return null;
-    }
-  } else {
-    console.log("Must use physical device for Push Notifications");
-  }
-
-  return token;
-}
 
 interface HomeScreenProps {
   setNavBarVariant: (variant: 0 | 1 | 2) => void;
@@ -182,7 +92,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     fromCoordinates?: { latitude: number; longitude: number };
     toCoordinates?: { latitude: number; longitude: number };
   } | null>(null);
-  const [pushToken, setPushToken] = useState<string | null>(null);
 
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
   const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
@@ -576,66 +485,6 @@ const customMapStyle = [
       longitudeDelta: Math.max(deltaLng, 0.02),
     });
   };
-
-  useEffect(() => {
-    registerForPushNotificationsAsync().then(async (token) => {
-      if (token && !pushToken) {
-        setPushToken(token);
-        await sendTokenToBackend(token, apiUtil);
-      }
-    });
-
-    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      try {
-        console.log("Notification received:", notification);
-      } catch (err) {
-        console.error("Error in notification received listener:", err);
-      }
-    });
-
-    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      try {
-        console.log("Notification response:", response);
-        if (!response || !response.notification || !response.notification.request || !response.notification.request.content) return;
-        const data = response.notification.request.content.data || {};
-        
-        if (data.type === "chat_message" && data.ride_id && navigationRef.current) {
-          navigationRef.current.navigate("ChatMessages", { 
-            chatId: String(data.ride_id),
-            chatTitle: "Chat",
-            chatSubtitle: "Ride Chat",
-            isGroupChat: true
-          });
-        } else if (data.rideId && navigationRef.current) {
-          navigationRef.current.navigate("RideDetailsScreen", { ride: { id: String(data.rideId) } });
-        } else if (data.ride_id && navigationRef.current) {
-          navigationRef.current.navigate("RideDetailsScreen", { ride: { id: String(data.ride_id) } });
-        }
-      } catch (err) {
-        console.error("Error in notification response listener:", err);
-      }
-    });
-
-    return () => {
-      notificationListener.remove();
-      responseListener.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!pushToken || !apiUtil) return;
-    
-    const interval = setInterval(async () => {
-      const newToken = await registerForPushNotificationsAsync();
-      if (newToken && newToken !== pushToken) {
-        console.log("Token refreshed after 24 hours");
-        setPushToken(newToken);
-        await sendTokenToBackend(newToken, apiUtil);
-      }
-    }, 24 * 60 * 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, [pushToken]);
 
   useEffect(() => {
     requestLocationPermission();
