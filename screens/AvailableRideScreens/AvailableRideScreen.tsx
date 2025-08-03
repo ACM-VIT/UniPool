@@ -558,7 +558,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
             </Text>
             {searchMeta && (
               <Text style={styles.searchMetaText}>
-                Sorted {getSortLabel()} • {searchMeta.used_radius_km}km radius
+                Sorted {getSortLabel()}
               </Text>
             )}
           </View>

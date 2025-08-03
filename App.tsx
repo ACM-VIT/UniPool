@@ -2,6 +2,7 @@ import 'react-native-gesture-handler';
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet, StatusBar } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { navigationRef } from "./navigation/navigationRef";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { RootStackParamList } from "./navigation/RootStackParamList";
@@ -372,16 +373,17 @@ const App = () => {
     currentRouteName !== "AvailableRidesSelectedScreen" &&
     currentRouteName !== "ChatMessages"
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar backgroundColor="#A8D8A8" barStyle="dark-content" />
-      <ErrorProvider navigationRef={navigationRef}>
-        <ApiProvider navigationRef={navigationRef}>
-          <LocationProvider>
-          <View style={{ flex: 1 }}>
-            <NavigationContainer
-              ref={navigationRef}
-              onStateChange={() => setNavStateVersion((v) => v + 1)}
-            >
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <StatusBar backgroundColor="#A8D8A8" barStyle="dark-content" />
+        <ErrorProvider navigationRef={navigationRef}>
+          <ApiProvider navigationRef={navigationRef}>
+            <LocationProvider>
+            <View style={{ flex: 1 }}>
+              <NavigationContainer
+                ref={navigationRef}
+                onStateChange={() => setNavStateVersion((v) => v + 1)}
+              >
               <View style={{ flex: 1 }}>
                 <Stack.Navigator initialRouteName={initialRoute}>
                   <Stack.Screen
@@ -564,7 +566,8 @@ const App = () => {
         </LocationProvider>
         </ApiProvider>
         </ErrorProvider>
-    </GestureHandlerRootView>
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 };
 
