@@ -28,6 +28,7 @@ interface RideCardProps {
   price?: number;
   isSelected?: boolean;
   seatsAvailable?: string;
+  totalSeats?: number;
   onSelect?: (id: string) => void;
   pricePerPerson?: boolean;
   variant?: "upcoming" | "inprogress";
@@ -42,6 +43,7 @@ const RideCard: React.FC<RideCardProps> = ({
   price = 500,
   isSelected = false,
   seatsAvailable = "1/2",
+  totalSeats,
   onSelect = () => {},
   pricePerPerson = false,
   variant = "upcoming",
@@ -51,14 +53,13 @@ const RideCard: React.FC<RideCardProps> = ({
     onSelect(id);
   };
 
-  const totalSeats = parseInt(seatsAvailable.split("/")[1]) || 0;
-
+  const maxSeats = typeof totalSeats === "number" ? totalSeats : parseInt(seatsAvailable.split("/")[1]) || 0;
   const getVehicleIcon = (): ImageSourcePropType => {
-    if (totalSeats <= 2) {
+    if (maxSeats <= 2) {
       return require("../assets/motorcycle.png");
-    } else if (totalSeats <= 4) {
+    } else if (maxSeats <= 4) {
       return require("../assets/racer.png");
-    } else if (totalSeats <= 6) {
+    } else if (maxSeats <= 6) {
       return require("../assets/wagon.png");
     } else {
       return require("../assets/foodvan.png");

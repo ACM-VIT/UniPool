@@ -4,7 +4,7 @@
     "slug": "UniPool",
     "version": "2.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/appicons/Assets.xcassets/AppIcon.appiconset/1024.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "statusBarStyle": "dark",
@@ -18,18 +18,26 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
       "bundleIdentifier": "com.carpoolitapp",
-      "statusBarStyle": "dark"
+      "statusBarStyle": "dark",
+      "config": {
+        "googleMapsApiKey": "$GOOGLE_MAPS_API_KEY_IOS"
+      }
     },
     "android": {
       "googleServicesFile": "./google-services.json",
       "edgeToEdgeEnabled": false,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/appicons/android/mipmap-xxxhdpi/ic_launcher.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.carpoolitapp",
       "statusBarStyle": "dark",
-      "statusBarBackgroundColor": "#A8D8A8"
+      "statusBarBackgroundColor": "#A8D8A8",
+      "config": {
+        "googleMaps": {
+          "apiKey": "$GOOGLE_MAPS_API_KEY_ANDROID"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -53,6 +61,13 @@
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow $(PRODUCT_NAME) to access your calendar to add ride events.",
+          "remindersPermission": "Allow $(PRODUCT_NAME) to access your reminders to set ride alerts."
         }
       ],
       [
