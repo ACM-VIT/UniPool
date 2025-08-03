@@ -19,7 +19,13 @@ import RideService from '../../utils/RideService';
 const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, route, setNavBarVariant }) => {
   const [passengers, setPassengers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
   const { apiUtil } = useApi();
+
+  const generateDMRoomId = (userId1: string, userId2: string): string => {
+    const sortedIds = [userId1, userId2].sort();
+    return `dm_${sortedIds[0]}_${sortedIds[1]}`;
+  };
 
   useEffect(() => {
     if (setNavBarVariant) {
@@ -30,8 +36,57 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
   useEffect(() => {
     const fetchPassengers = async () => {
       try {
-        const fetchedPassengers = await RideService.getAllPassengers(apiUtil);
-        setPassengers(fetchedPassengers);
+        const involvedRides = await RideService.getInvolvedRides(apiUtil);
+        
+        const currentUserResponse = await apiUtil.get<{user: {id: string, name: string}}>("/user/details");
+        const fetchedCurrentUserId = currentUserResponse.user.id;
+        setCurrentUserId(fetchedCurrentUserId);
+        
+        const allPeople: User[] = [];
+        const uniquePeopleMap = new Map<string, User>();
+        
+        for (const ride of involvedRides) {
+          try {
+            const rideDetails = await apiUtil.get<{
+              host: {
+                id: string;
+                name: string;
+                email: string;
+                profile_picture_url: string;
+              };
+              bookings: Array<{
+                passenger_id: string;
+                passenger_name: string;
+                passenger_email: string;
+                passenger_profile_picture_url: string;
+                request_status: string;
+              }>;
+            }>(`/ride/details/${ride.id}`);
+            
+            if (rideDetails.host.id !== fetchedCurrentUserId) {
+              uniquePeopleMap.set(rideDetails.host.id, {
+                id: rideDetails.host.id,
+                name: rideDetails.host.name,
+                email: rideDetails.host.email,
+              });
+            }
+            
+            rideDetails.bookings
+              .filter(booking => booking.request_status === 'accepted' && booking.passenger_id !== fetchedCurrentUserId)
+              .forEach(booking => {
+                uniquePeopleMap.set(booking.passenger_id, {
+                  id: booking.passenger_id,
+                  name: booking.passenger_name,
+                  email: booking.passenger_email,
+                });
+              });
+          } catch (error) {
+            console.warn(`Failed to fetch details for ride ${ride.id}:`, error);
+          }
+        }
+        
+        const uniquePeople = Array.from(uniquePeopleMap.values());
+        setPassengers(uniquePeople);
       } catch (error) {
         console.error("Failed to fetch passengers:", error);
       } finally {
@@ -85,20 +140,24 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
             </View>
           ) : (
             <View style={passengerInfoStyles.destinationsList}>
-              {passengers.map((passenger) => (
-                <TouchableOpacity 
-                  key={passenger.id} 
-                  style={passengerInfoStyles.destinationItem}
-                  onPress={() => navigation?.navigate('ChatMessages' as never, {
-                    chatId: passenger.id,
-                    chatTitle: `Chat with ${passenger.name}`,
-                    chatSubtitle: ``,
-                    isGroupChat: false,
-                  })}
-                >
-                  <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
-                </TouchableOpacity>
-              ))}
+              {passengers.map((passenger) => {
+                const dmRoomId = generateDMRoomId(currentUserId, passenger.id);
+                return (
+                  <TouchableOpacity 
+                    key={passenger.id} 
+                    style={passengerInfoStyles.destinationItem}
+                    onPress={() => navigation?.navigate('ChatMessages' as never, {
+                      chatId: dmRoomId,
+                      chatTitle: `Chat with ${passenger.name}`,
+                      chatSubtitle: ``,
+                      isGroupChat: false,
+                      otherUserId: passenger.id,
+                    })}
+                  >
+                    <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )
         )}
