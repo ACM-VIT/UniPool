@@ -131,9 +131,9 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
   },
   customSliderButtonImage: {
-    width: 40,
-    height: 40,
-    resizeMode: "contain",
+    width: 60,
+    height: 100,
+    borderRadius: 200,
   },
 });
 

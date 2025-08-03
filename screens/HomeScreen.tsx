@@ -79,6 +79,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const isFocused = useIsFocused();
   const { apiUtil } = useApi();
+  const mapRef = useRef<MapView>(null);
 
   const [location, setLocation] = useState<LocationCoords | null>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
@@ -437,11 +438,16 @@ const customMapStyle = [
       const userLocation = { latitude, longitude };
       setLocation(userLocation);
 
+      const latitudeDelta = 0.02;
+      const longitudeDelta = 0.02;
+
+      const latOffset = latitudeDelta * 0.45;
+
       const region = {
-        latitude: latitude,
+        latitude: latitude - latOffset,
         longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
+        latitudeDelta,
+        longitudeDelta,
       };
       setInitialRegion(region);
       setMapRegion(region);
@@ -466,23 +472,18 @@ const customMapStyle = [
   };
 
   const fitMapToWaypoints = (from: LocationCoords, to: LocationCoords, userLoc: LocationCoords) => {
+    if (!mapRef.current) return;
+
     const coordinates = [from, to, userLoc];
-
-    const minLat = Math.min(...coordinates.map(coord => coord.latitude));
-    const maxLat = Math.max(...coordinates.map(coord => coord.latitude));
-    const minLng = Math.min(...coordinates.map(coord => coord.longitude));
-    const maxLng = Math.max(...coordinates.map(coord => coord.longitude));
-
-    const midLat = (minLat + maxLat) / 2;
-    const midLng = (minLng + maxLng) / 2;
-    const deltaLat = (maxLat - minLat) * 1.5;
-    const deltaLng = (maxLng - minLng) * 1.5;
-
-    setMapRegion({
-      latitude: midLat,
-      longitude: midLng,
-      latitudeDelta: Math.max(deltaLat, 0.02),
-      longitudeDelta: Math.max(deltaLng, 0.02),
+    
+    mapRef.current.fitToCoordinates(coordinates, {
+      edgePadding: {
+        top: screenHeight * 0.1,
+        right: screenWidth * 0.1,
+        bottom: screenHeight * 0.4,
+        left: screenWidth * 0.1,
+      },
+      animated: true,
     });
   };
 
@@ -579,16 +580,10 @@ const customMapStyle = [
         <BrandInfo />
       </View>
 
-      <Animated.View 
-        style={[
-          styles.mapContainer,
-          {
-            bottom: bottomSheetY,
-          }
-        ]}
-      >
+      <View style={styles.mapContainer}>
         {isMapLoaded ? (
           <MapView
+            ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={styles.map}
             initialRegion={initialRegion}
@@ -644,7 +639,7 @@ const customMapStyle = [
             </Text>
           </View>
         )}
-      </Animated.View>
+      </View>
 
       <Animated.View 
         style={[
@@ -664,7 +659,9 @@ const customMapStyle = [
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
-            <PreviousTripsSection />
+            <View style={styles.previousTripsWrapper}>
+              <PreviousTripsSection />
+            </View>
             
             <View style={styles.section}>
               <View style={styles.createRideText}>
@@ -709,6 +706,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
+    bottom: 0,
     zIndex: 1,
   },
   map: {
@@ -733,7 +731,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: AppColors.primaryLightGreen,
+    backgroundColor: "rgba(181, 215, 80, 0.95)",
     borderTopLeftRadius: normalize(32),
     borderTopRightRadius: normalize(32),
     zIndex: 10,
@@ -753,7 +751,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     alignSelf: "center",
     marginTop: 12,
-    marginBottom: 20,
+    marginBottom: 10,
   },
   bottomSheetContent: {
     flex: 1,
@@ -767,11 +765,21 @@ const styles = StyleSheet.create({
     paddingBottom: Math.max(responsiveHeight(12), 50),
     minHeight: BOTTOM_SHEET_MAX_HEIGHT - 60,
   },
+  previousTripsWrapper: {
+    backgroundColor: "rgba(181, 215, 80, 0.6)",
+    borderRadius: normalize(16),
+    paddingVertical: responsiveHeight(0.2),
+    paddingHorizontal: responsiveWidth(1),
+  },
   section: {
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: responsiveHeight(3),
+    marginBottom: responsiveHeight(0.1),
+    backgroundColor: "rgba(181, 215, 80, 0.8)",
+    borderRadius: normalize(16),
+    paddingVertical: responsiveHeight(0.2),
+    paddingHorizontal: responsiveWidth(2),
   },
   sectionTitle: {
     fontSize: normalize(20),
@@ -791,14 +799,14 @@ const styles = StyleSheet.create({
     marginTop: responsiveHeight(1),
     marginBottom: responsiveHeight(2),
     alignSelf: "center",
-    elevation: 2,
+    elevation: 3,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 2,
     },
-    shadowOpacity: 0.22,
-    shadowRadius: 2.22,
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   createRideButtonText: {
     color: "#FFFFFF",

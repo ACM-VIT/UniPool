@@ -83,8 +83,8 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
     <View style={[
       styles.bottomNavContainer,
       Platform.OS === 'ios' && {
-        paddingBottom: Math.max(insets.bottom - 10, 10),
-        bottom: 0,
+        paddingBottom: Math.max(insets.bottom, 20),
+        marginBottom: 10,
       }
     ]}>
       {items.map((item, index) => {
@@ -146,8 +146,8 @@ const SingleBar: React.FC<SingleBarProps> = ({
       style={[
         styles.singleBarContainer,
         Platform.OS === 'ios' && {
-          paddingBottom: Math.max(insets.bottom - 10, 10),
-          bottom: 0,
+          paddingBottom: Math.max(insets.bottom, 20),
+          marginBottom: 10,
         }
       ]} 
       onPress={onPress}
@@ -207,21 +207,25 @@ const MainNavBar: React.FC<MainNavBarProps> = ({
 const styles = StyleSheet.create({
   bottomNavContainer: {
     width: "95%",
-    height: 70,
+    height: Platform.OS === 'ios' ? 80 : 70,
     flexDirection: "row",
     justifyContent: "space-around",
-    alignItems: "center",
+    alignItems: Platform.OS === 'ios' ? "flex-start" : "center",
     backgroundColor: AppColors.secondaryDarkGreen,
     paddingVertical: 0,
     paddingHorizontal: 0,
+    paddingTop: Platform.OS === 'ios' ? 10 : 0,
     borderRadius: 23,
     position: "absolute",
-    bottom: 0,
+    bottom: 15,
+    alignSelf: "center",
   },
   navItem: {
     width: "25%",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    paddingTop: Platform.OS === 'ios' ? 5 : 0,
+    height: Platform.OS === 'ios' ? 55 : "auto",
   },
   navLabel: {
     fontSize: 10,
@@ -231,17 +235,19 @@ const styles = StyleSheet.create({
   },
   singleBarContainer: {
     width: "95%",
-    height: 70,
+    height: Platform.OS === 'ios' ? 80 : 70,
     flexDirection: "row",
     justifyContent: "center",
     gap: 10,
-    alignItems: "center",
+    alignItems: Platform.OS === 'ios' ? "flex-start" : "center",
     backgroundColor: AppColors.secondaryDarkGreen,
     paddingVertical: 0,
     paddingHorizontal: 0,
+    paddingTop: Platform.OS === 'ios' ? 10 : 0,
     borderRadius: 23,
     position: "absolute",
-    bottom: 0,
+    bottom: 15,
+    alignSelf: "center",
   },
   singleBarContent: {
     flexDirection: "row",
@@ -249,6 +255,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     width: "100%",
+    paddingTop: Platform.OS === 'ios' ? 5 : 0,
   },
   iconsContainer: {
     flexDirection: "row",
