@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 
 const { width, height } = Dimensions.get("window");
@@ -12,6 +12,231 @@ import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
 import BrandInfo from '../../components/BrandInfo/BrandInfo';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
+
+const customMapStyle = [
+  {
+    featureType: "all",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f8f8f8"
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.text.fill",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.text.stroke",
+    stylers: [
+      {
+        color: "#ffffff"
+      },
+      {
+        weight: 2
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.icon",
+    stylers: [
+      {
+        visibility: "simplified"
+      }
+    ]
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#e0e0e0"
+      },
+      {
+        weight: 0.5
+      }
+    ]
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        weight: 2
+      }
+    ]
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#e0e0e0"
+      },
+      {
+        weight: 1
+      }
+    ]
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#b3d9ff"
+      }
+    ]
+  },
+  {
+    featureType: "landscape",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f8f8f8"
+      }
+    ]
+  },
+  {
+    featureType: "landscape.natural",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#e8f5e8"
+      }
+    ]
+  },
+  {
+    featureType: "poi",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f0f0f0"
+      }
+    ]
+  },
+  {
+    featureType: "poi.park",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        lightness: 20
+      }
+    ]
+  },
+  {
+    featureType: "poi.business",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f5f5f5"
+      }
+    ]
+  },
+  {
+    featureType: "poi.attraction",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        lightness: 40
+      }
+    ]
+  },
+  {
+    featureType: "transit",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  },
+  {
+    featureType: "transit.line",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      }
+    ]
+  },
+  {
+    featureType: "administrative",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#d0d0d0"
+      },
+      {
+        weight: 0.3
+      }
+    ]
+  },
+  {
+    featureType: "administrative.country",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#273B33"
+      },
+      {
+        weight: 1
+      }
+    ]
+  },
+  {
+    featureType: "administrative.locality",
+    elementType: "labels.text.fill",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  }
+];
 
 interface RideRequestResponse {
   success?: boolean;
@@ -151,15 +376,32 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
   };
 
   const generateRouteCoordinates = (startLat: number, startLon: number, endLat: number, endLon: number) => {
+    const numPoints = 15;
+    const coordinates = [];
+    
     const midLat = (startLat + endLat) / 2;
     const midLon = (startLon + endLon) / 2;
     
-    return [
-      { latitude: startLat, longitude: startLon },
-      { latitude: midLat + 0.01, longitude: midLon + 0.01 },
-      { latitude: midLat - 0.01, longitude: midLon - 0.01 },
-      { latitude: endLat, longitude: endLon },
-    ];
+    const distance = calculateDistance(startLat, startLon, endLat, endLon);
+    const arcHeight = distance * 0.15;
+    
+    const deltaLat = endLat - startLat;
+    const deltaLon = endLon - startLon;
+    const perpLat = -deltaLon * arcHeight / distance;
+    const perpLon = deltaLat * arcHeight / distance;
+    
+    for (let i = 0; i <= numPoints; i++) {
+      const t = i / numPoints;
+
+      const curveFactor = 4 * t * (1 - t);
+
+      const lat = startLat + t * deltaLat + curveFactor * perpLat;
+      const lon = startLon + t * deltaLon + curveFactor * perpLon;
+      
+      coordinates.push({ latitude: lat, longitude: lon });
+    }
+    
+    return coordinates;
   };
 
   const calculateEstimatedDuration = (distance: number): string => {
@@ -388,6 +630,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
             {hasPermission && isValidCoordinate(ride.start_latitude, ride.start_longitude) && 
              isValidCoordinate(ride.end_latitude, ride.end_longitude) ? (
               <MapView
+                provider={PROVIDER_GOOGLE}
                 style={styles.mapView}
                 initialRegion={{
                   latitude: (ride.start_latitude! + ride.end_latitude!) / 2,
@@ -399,30 +642,31 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
                 zoomEnabled={false}
                 pitchEnabled={false}
                 rotateEnabled={false}
+                showsUserLocation={false}
+                showsMyLocationButton={false}
+                toolbarEnabled={false}
+                customMapStyle={customMapStyle}
+                onMapReady={() => console.log("Ride details map ready")}
               >
                 <Marker
                   coordinate={{ latitude: ride.start_latitude!, longitude: ride.start_longitude! }}
                   title={ride.start_location}
-                >
-                  <View style={styles.startMarker}>
-                    <View style={styles.startMarkerDot} />
-                  </View>
-                </Marker>
+                  pinColor={AppColors.primaryLightGreen || "#B5D750"}
+                />
                 
                 <Marker
                   coordinate={{ latitude: ride.end_latitude!, longitude: ride.end_longitude! }}
                   title={ride.end_location}
-                >
-                  <View style={styles.endMarker}>
-                    <Image source={require('../../assets/navigation-2.png')} style={styles.endMarkerIcon} />
-                  </View>
-                </Marker>
+                  pinColor={AppColors.secondaryDarkGreen || "#273B33"}
+                />
                 
                 <Polyline
                   coordinates={routeCoordinates}
-                  strokeColor="#000000"
+                  strokeColor={AppColors.secondaryDarkGreen || "#273B33"}
                   strokeWidth={3}
-                  lineDashPattern={[10, 5]}
+                  lineDashPattern={[0]}
+                  lineJoin="round"
+                  lineCap="round"
                 />
               </MapView>
             ) : (

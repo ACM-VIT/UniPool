@@ -190,7 +190,46 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const bottomSheetY = useRef(new Animated.Value(BOTTOM_SHEET_MAX_HEIGHT)).current;
   const lastGestureY = useRef(BOTTOM_SHEET_MAX_HEIGHT);
 
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
 
+  const generateCurvedRoute = (startLat: number, startLon: number, endLat: number, endLon: number) => {
+    const numPoints = 15;
+    const coordinates = [];
+    
+    const midLat = (startLat + endLat) / 2;
+    const midLon = (startLon + endLon) / 2;
+    
+    const distance = calculateDistance(startLat, startLon, endLat, endLon);
+    const arcHeight = distance * 0.15;
+    
+    const deltaLat = endLat - startLat;
+    const deltaLon = endLon - startLon;
+    const perpLat = -deltaLon * arcHeight / distance;
+    const perpLon = deltaLat * arcHeight / distance;
+    
+    for (let i = 0; i <= numPoints; i++) {
+      const t = i / numPoints;
+      
+      const curveFactor = 4 * t * (1 - t);
+      
+      const lat = startLat + t * deltaLat + curveFactor * perpLat;
+      const lon = startLon + t * deltaLon + curveFactor * perpLon;
+      
+      coordinates.push({ latitude: lat, longitude: lon });
+    }
+    
+    return coordinates;
+  };
 
 const customMapStyle = [
   {
@@ -680,7 +719,7 @@ const customMapStyle = [
 
   const getPolylineCoordinates = () => {
     if (!fromCoords || !toCoords) return [];
-    return [fromCoords, toCoords];
+    return generateCurvedRoute(fromCoords.latitude, fromCoords.longitude, toCoords.latitude, toCoords.longitude);
   };
 
   const isMapLoaded = location && mapRegion && hasPermission;
@@ -739,8 +778,10 @@ const customMapStyle = [
               <Polyline
                 coordinates={getPolylineCoordinates()}
                 strokeColor={AppColors.secondaryDarkGreen || "#2d5016"}
-                strokeWidth={4}
-                lineDashPattern={[1, 1]}
+                strokeWidth={3}
+                lineDashPattern={[0]}
+                lineJoin="round"
+                lineCap="round"
               />
             )}
           </MapView>
