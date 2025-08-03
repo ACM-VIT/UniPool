@@ -8,6 +8,8 @@ import {
   Modal,
   TextInput,
   Alert,
+  Image,
+  Dimensions,
 } from "react-native";
 import { useNavigation, useIsFocused, useRoute } from "@react-navigation/native";
 
@@ -582,10 +584,17 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         <View style={[styles.contentContainer, { backgroundColor: require('../../design_systems/colors').default.primaryLightGreen }]}>
           {rides.length === 0 && !loading ? (
             <View style={styles.noRidesContainer}>
-              <Text style={styles.noRidesTitle}>No rides found</Text>
-              <Text style={styles.noRidesSubtitle}>
-                Try adjusting your filters or search radius
-              </Text>
+              <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+                <Image
+                  source={require('../../assets/no-rides.png')}
+                  style={{
+                    marginTop: 24,
+                    width: Math.min(Dimensions.get('window').width * 0.7, 320),
+                    height: Math.min(Dimensions.get('window').width * 0.7, 320),
+                    resizeMode: 'contain',
+                  }}
+                />
+              </View>
               <TouchableOpacity
                 style={styles.adjustFiltersButton}
                 onPress={() => setShowFilters(true)}
