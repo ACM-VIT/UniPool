@@ -31,7 +31,7 @@ import { PassengerInfoScreen, ChatConversationScreen, TripsListScreen } from "./
 
 import MainNavBar from "./components/MainNavBar";
 import bottomNavItems from "./data/BottomNavigationItems";
-import { ApiProvider } from "./utils/ApiUtil";
+import { ApiProvider, useApi } from "./utils/ApiUtil";
 import { ErrorProvider } from "./contexts/ErrorContext";
 
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
@@ -114,7 +114,8 @@ GoogleSignin.configure({
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const App = () => {
+const AppContent = () => {
+  const { apiUtil } = useApi();
   const [initialRoute, setInitialRoute] =
     useState<keyof RootStackParamList | null>(null);
   const [loading, setLoading] = useState(true);
@@ -297,12 +298,25 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    registerForPushNotificationsAsync().then((token) => {
+    const setupNotifications = async () => {
+      const token = await registerForPushNotificationsAsync();
       if (token) {
         setPushToken(token);
-        console.log("Push token set in App.tsx");
+        console.log("Push token obtained, sending to backend...");
+        
+        // Send token to backend only if user is authenticated
+        if (authStateResolved && initialRoute === "HomeScreen") {
+          try {
+            await apiUtil.post("/users/me/token", { token });
+            console.log("Push token successfully sent to backend.");
+          } catch (error) {
+            console.error("Failed to send push token to backend:", error);
+          }
+        }
       }
-    });
+    };
+
+    setupNotifications();
 
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
       console.log("🔔 Notification received:", notification);
@@ -341,14 +355,14 @@ const App = () => {
       notificationListener.remove();
       responseListener.remove();
     };
-  }, []);
+  }, [apiUtil, authStateResolved, initialRoute]);
 
   useEffect(() => {
     if (fontsLoaded && !loading && initialRoute && authStateResolved) {
       const timer = setTimeout(() => {
         setShowCustomSplash(false);
         SplashScreen.hideAsync();
-      }, 3000); // Increased from 2000ms to 3000ms to ensure smooth transition
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [fontsLoaded, loading, initialRoute, authStateResolved]);
@@ -371,7 +385,197 @@ const App = () => {
     currentRouteName !== "SignUpScreen" && 
     currentRouteName !== "CreateRide" && 
     currentRouteName !== "AvailableRidesSelectedScreen" &&
-    currentRouteName !== "ChatMessages"
+    currentRouteName !== "ChatMessages";
+  
+  return (
+    <View style={{ flex: 1 }}>
+      <NavigationContainer
+        ref={navigationRef}
+        onStateChange={() => setNavStateVersion((v) => v + 1)}
+      >
+        <View style={{ flex: 1 }}>
+          <Stack.Navigator initialRouteName={initialRoute}>
+            <Stack.Screen
+              name="DefaultAddressScreen"
+              component={require("./screens/DefaultAddressScreen").default}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="AccountSettingsScreen"
+              component={AccountSettingsScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="AuthScreen"
+              component={AuthScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="SignInScreen"
+              component={SignInScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="SignUpScreen"
+              component={SignUpScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="SplashScreen"
+              component={SplashScreenComponent}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="ErrorScreen"
+              component={ErrorScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="RideCreatedScreen"
+              options={{ headerShown: false }}
+            >
+              {(props) => (
+                <RideCreatedScreen
+                  {...props}
+                  setNavBarVariant={setNavBarVariant}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen
+              name="RideRequestedScreen"
+              component={RideRequestedScreen}
+              options={{ headerShown: false, animation: 'none' }}
+            />
+            <Stack.Screen
+              name="BookingScreen"
+              component={BookingScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="RideDetailsScreen"
+              component={RideDetailsScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen name="HomeScreen" options={{ headerShown: false }}>
+              {(props) => (
+                <HomeScreen
+                  {...props}
+                  setNavBarVariant={setNavBarVariant}
+                  setNavBarText={setNavBarText}
+                  setNavBarIcon={setNavBarIcon}
+                  setNavBarItems={setNavBarItems}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen
+              name="ProfileScreen"
+              component={ProfileScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="CreateRide"
+              component={CreateRide}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="AvailableRidesScreen"
+              options={{ headerShown: false }}
+            >
+              {(props) => {
+                const AvailableRideScreen = require(
+                  "./screens/AvailableRideScreens/AvailableRideScreen"
+                ).default;
+                return (
+                  <AvailableRideScreen
+                    {...props}
+                    setNavBarVariant={setNavBarVariant}
+                    setNavBarText={setNavBarText}
+                    setNavBarIcon={setNavBarIcon}
+                    setNavBarItems={setNavBarItems}
+                  />
+                );
+              }}
+            </Stack.Screen>
+            <Stack.Screen
+              name="AvailableRidesSelectedScreen"
+              component={
+                require("./screens/AvailableRideScreens/AvailableRideScreenSelected")
+                  .default
+              }
+              options={{ headerShown: false, animation: 'none' }}
+            />
+            <Stack.Screen
+              name="BookingsScreen"
+              component={BookingsScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="PersonalInformationScreen"
+              component={PersonalInformationScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="PassengersHistoryScreen"
+              component={PassengersHistoryScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="PassengerInfoScreen"
+              component={PassengerInfoScreen}
+              options={{ headerShown: false, animation: 'none' }}
+            />
+            <Stack.Screen
+              name="ChatMessages"
+              component={ChatConversationScreen}
+              options={{ headerShown: false, animation: 'none' }}
+            />
+            <Stack.Screen
+              name="TripsListScreen"
+              component={TripsListScreen}
+              options={{ headerShown: false, animation: 'none' }}
+            />
+          </Stack.Navigator>
+
+          {showNavBar && (
+            <View style={globalStyles.navBarWrapper}>
+              {navBarVariant === 1 ? (
+                <MainNavBar
+                  variant={1}
+                  text={navBarText}
+                  iconPath={navBarIcon}
+                  onPress={() => {
+                    navigationRef.isReady() && navigationRef.navigate("AvailableRidesScreen", { fromLocation: "", toLocation: "" });
+                    setNavBarVariant(0);
+                    setNavBarText("");
+                    setNavBarIcon(require("./assets/wallet.png"));
+                    setNavBarItems(bottomNavItems);
+                  }}
+                />
+              ) : navBarVariant === 2 ? (
+                <MainNavBar
+                  variant={2}
+                  text={navBarText}
+                  iconPath={navBarIcon}
+                  onPress={() => {
+                    navigationRef.isReady() && navigationRef.navigate("AvailableRidesSelectedScreen");
+                  }}
+                />
+              ) : (
+                <MainNavBar
+                  variant={0}
+                  bottomNavItems={navBarItems}
+                  iconPath={navBarIcon}
+                />
+              )}
+            </View>
+          )}
+        </View>
+      </NavigationContainer>
+    </View>
+  );
+};
+
+const App = () => {
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -379,192 +583,9 @@ const App = () => {
         <ErrorProvider navigationRef={navigationRef}>
           <ApiProvider navigationRef={navigationRef}>
             <LocationProvider>
-            <View style={{ flex: 1 }}>
-              <NavigationContainer
-                ref={navigationRef}
-                onStateChange={() => setNavStateVersion((v) => v + 1)}
-              >
-              <View style={{ flex: 1 }}>
-                <Stack.Navigator initialRouteName={initialRoute}>
-                  <Stack.Screen
-                    name="DefaultAddressScreen"
-                    component={require("./screens/DefaultAddressScreen").default}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="AccountSettingsScreen"
-                    component={AccountSettingsScreen}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="AuthScreen"
-                    component={AuthScreen}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="SignInScreen"
-                    component={SignInScreen}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="SignUpScreen"
-                    component={SignUpScreen}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="SplashScreen"
-                    component={SplashScreenComponent}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="ErrorScreen"
-                    component={ErrorScreen}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="RideCreatedScreen"
-                    options={{ headerShown: false }}
-                  >
-                    {(props) => (
-                      <RideCreatedScreen
-                        {...props}
-                        setNavBarVariant={setNavBarVariant}
-                      />
-                    )}
-                  </Stack.Screen>
-                  <Stack.Screen
-                    name="RideRequestedScreen"
-                    component={RideRequestedScreen}
-                    options={{ headerShown: false, animation: 'none' }}
-                  />
-                  <Stack.Screen
-                    name="BookingScreen"
-                    component={BookingScreen}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="RideDetailsScreen"
-                    component={RideDetailsScreen}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen name="HomeScreen" options={{ headerShown: false }}>
-                    {(props) => (
-                      <HomeScreen
-                        {...props}
-                        setNavBarVariant={setNavBarVariant}
-                        setNavBarText={setNavBarText}
-                        setNavBarIcon={setNavBarIcon}
-                        setNavBarItems={setNavBarItems}
-                      />
-                    )}
-                  </Stack.Screen>
-                  <Stack.Screen
-                    name="ProfileScreen"
-                    component={ProfileScreen}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="CreateRide"
-                    component={CreateRide}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="AvailableRidesScreen"
-                    options={{ headerShown: false }}
-                  >
-                    {(props) => {
-                      const AvailableRideScreen = require(
-                        "./screens/AvailableRideScreens/AvailableRideScreen"
-                      ).default;
-                      return (
-                        <AvailableRideScreen
-                          {...props}
-                          setNavBarVariant={setNavBarVariant}
-                          setNavBarText={setNavBarText}
-                          setNavBarIcon={setNavBarIcon}
-                          setNavBarItems={setNavBarItems}
-                        />
-                      );
-                    }}
-                  </Stack.Screen>
-                  <Stack.Screen
-                    name="AvailableRidesSelectedScreen"
-                    component={
-                      require("./screens/AvailableRideScreens/AvailableRideScreenSelected")
-                        .default
-                    }
-                    options={{ headerShown: false, animation: 'none' }}
-                  />
-                  <Stack.Screen
-                    name="BookingsScreen"
-                    component={BookingsScreen}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="PersonalInformationScreen"
-                    component={PersonalInformationScreen}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="PassengersHistoryScreen"
-                    component={PassengersHistoryScreen}
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen
-                    name="PassengerInfoScreen"
-                    component={PassengerInfoScreen}
-                    options={{ headerShown: false, animation: 'none' }}
-                  />
-                  <Stack.Screen
-                    name="ChatMessages"
-                    component={ChatConversationScreen}
-                    options={{ headerShown: false, animation: 'none' }}
-                  />
-                  <Stack.Screen
-                    name="TripsListScreen"
-                    component={TripsListScreen}
-                    options={{ headerShown: false, animation: 'none' }}
-                  />
-                </Stack.Navigator>
-
-                {showNavBar && (
-                  <View style={globalStyles.navBarWrapper}>
-                    {navBarVariant === 1 ? (
-                      <MainNavBar
-                        variant={1}
-                        text={navBarText}
-                        iconPath={navBarIcon}
-                        onPress={() => {
-                          navigationRef.isReady() && navigationRef.navigate("AvailableRidesScreen", { fromLocation: "", toLocation: "" });
-                          setNavBarVariant(0);
-                          setNavBarText("");
-                          setNavBarIcon(require("./assets/wallet.png"));
-                          setNavBarItems(bottomNavItems);
-                        }}
-                      />
-                    ) : navBarVariant === 2 ? (
-                      <MainNavBar
-                        variant={2}
-                        text={navBarText}
-                        iconPath={navBarIcon}
-                        onPress={() => {
-                          navigationRef.isReady() && navigationRef.navigate("AvailableRidesSelectedScreen");
-                        }}
-                      />
-                    ) : (
-                      <MainNavBar
-                        variant={0}
-                        bottomNavItems={navBarItems}
-                        iconPath={navBarIcon}
-                      />
-                    )}
-                  </View>
-                )}
-              </View>
-            </NavigationContainer>
-          </View>
-        </LocationProvider>
-        </ApiProvider>
+              <AppContent />
+            </LocationProvider>
+          </ApiProvider>
         </ErrorProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
