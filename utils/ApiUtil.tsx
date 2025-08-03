@@ -80,10 +80,18 @@ export default class ApiUtil {
   ): Promise<T> {
     try {
       return await this.makeRequest<T>(method, endpoint, body, headers, timeout);
-    } catch (error) {
+    } catch (error: any) {
       console.log('Error caught in makeRequestWithErrorHandling:', error);
       
       if (error instanceof Error && error.message === "AUTHENTICATION_REDIRECT") {
+        throw error;
+      }
+      
+      if (
+        error?.response?.status === 404 &&
+        endpoint === "/user/details" &&
+        error?.response?.data?.message === "User not found in database, signup required"
+      ) {
         throw error;
       }
       
