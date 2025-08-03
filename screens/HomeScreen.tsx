@@ -553,8 +553,18 @@ const customMapStyle = [
         console.log("Notification response:", response);
         if (!response || !response.notification || !response.notification.request || !response.notification.request.content) return;
         const data = response.notification.request.content.data || {};
-        if (data.rideId && navigationRef.current) {
-          navigationRef.current.navigate("RideDetailsScreen", { ride: { id: data.rideId } });
+        
+        if (data.type === "chat_message" && data.ride_id && navigationRef.current) {
+          navigationRef.current.navigate("ChatMessages", { 
+            chatId: String(data.ride_id),
+            chatTitle: "Chat",
+            chatSubtitle: "Ride Chat",
+            isGroupChat: true
+          });
+        } else if (data.rideId && navigationRef.current) {
+          navigationRef.current.navigate("RideDetailsScreen", { ride: { id: String(data.rideId) } });
+        } else if (data.ride_id && navigationRef.current) {
+          navigationRef.current.navigate("RideDetailsScreen", { ride: { id: String(data.ride_id) } });
         }
       } catch (err) {
         console.error("Error in notification response listener:", err);

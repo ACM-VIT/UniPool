@@ -3,17 +3,33 @@ import ApiUtil from "./ApiUtil";
 import baseURL from "../config/urlconfig";
 
 export default class ChatService {
-  static async fetchMessages(apiUtil: ApiUtil, rideId: string): Promise<ChatMessage[]> {
-    const res = await apiUtil.get<{ messages: ChatMessage[] }>(`/chat/${rideId}/messages`);
+  static async fetchMessages(apiUtil: ApiUtil, roomId: string): Promise<ChatMessage[]> {
+    let endpoint: string;
+    
+    if (roomId.startsWith('dm_')) {
+      endpoint = `/dm/${roomId}/messages`;
+    } else {
+      endpoint = `/chat/${roomId}/messages`;
+    }
+    
+    const res = await apiUtil.get<{ messages: ChatMessage[] }>(endpoint);
     return res.messages || [];
   }
 
   static async sendMessage(
     apiUtil: ApiUtil,
-    rideId: string,
+    roomId: string,
     content: string,
   ): Promise<void> {
-    await apiUtil.post(`/chat/${rideId}/message`, { content });
+    let endpoint: string;
+    
+    if (roomId.startsWith('dm_')) {
+      endpoint = `/dm/${roomId}/message`;
+    } else {
+      endpoint = `/chat/${roomId}/message`;
+    }
+    
+    await apiUtil.post(endpoint, { content });
   }
 
   static openSocket(
