@@ -13,11 +13,15 @@ export type RootStackParamList = {
   PersonalInformationScreen: undefined;
   PassengersHistoryScreen: undefined;
   CreateRide: undefined;
-  AvailableRidesScreen: { fromLocation: string; toLocation: string };
+  AvailableRidesScreen: { 
+    fromLocation: string; 
+    toLocation: string;
+    fromCoordinates?: { latitude: number; longitude: number };
+    toCoordinates?: { latitude: number; longitude: number };
+  };
   AvailableRidesSelectedScreen: undefined;
   DefaultAddressScreen: undefined;
   AccountSettingsScreen: undefined;
-
   PassengerInfoScreen: undefined;
   ChatMessages: {
     chatId: string;
@@ -26,7 +30,5 @@ export type RootStackParamList = {
     isGroupChat: boolean;
   };
   TripsListScreen: undefined;
-
   RideDetailsScreen: { ride: any };
-
 };
