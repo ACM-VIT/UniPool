@@ -398,7 +398,7 @@ const BookingScreen: React.FC = () => {
                       destination={ride.end_location}
                       time={formatTime(ride.start_time)}
                       price={ride.total_price}
-                      seatsAvailable={`${ride.booked_seats}/${ride.total_seats}`}
+                      seatsAvailable={`${Math.max(ride.booked_seats - 1, 0)}/${ride.total_seats}`}
                       isSelected={true}
                       variant="inprogress"
                       onSelect={() => {
