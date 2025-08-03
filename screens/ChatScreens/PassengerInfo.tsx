@@ -113,7 +113,7 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
           <BrandInfo />
         </View>
 
-        <View style={passengerInfoStyles.chatHeader}>
+        <View style={[passengerInfoStyles.chatHeader, Platform.OS === 'ios' ? { paddingTop: 44 } : null]}>
           <Text style={passengerInfoStyles.chatTitle}>Chat</Text>
         </View>
 

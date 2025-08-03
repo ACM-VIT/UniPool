@@ -7,6 +7,7 @@ import {
   StatusBar,
   ScrollView,
   Image,
+  Platform,
 } from 'react-native';
 import { tripInfoStyles } from './ChatScreen.styles';
 import { TripInfoScreenProps, Ride } from './ChatScreen.types';
@@ -60,7 +61,7 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
           <BrandInfo />
         </View>
 
-        <View style={tripInfoStyles.chatHeader}>
+        <View style={[tripInfoStyles.chatHeader, Platform.OS === 'ios' ? { paddingTop: 44 } : null]}>
           <Text style={tripInfoStyles.chatTitle}>Chat</Text>
         </View>
 
