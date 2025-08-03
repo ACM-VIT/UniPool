@@ -7,6 +7,8 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
+  Platform,
+  StatusBar,
 } from "react-native";
 import { ProfileScreenProps } from "./ProfileScreen.types";
 import BrandInfo from "../../components/BrandInfo";
@@ -269,7 +271,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.brandInfoHeaderRow}>
+      <View style={[styles.brandInfoHeaderRow, Platform.OS === 'ios' ? { paddingTop: (StatusBar.currentHeight || 24) } : null]}>
         <BrandInfo />
       </View>
       
