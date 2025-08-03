@@ -141,11 +141,11 @@ const styles = StyleSheet.create({
   footerBranding: {
     position: 'relative',
     width: '100%',
-    height: 400,
+    height: 200,
   },
   footerTextContainer: {
     position: 'absolute',
-    top: 250,
+    top: 180,
     left: 0,
     right: 0,
     alignItems: "center",
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   },
   footerImageContainer: {
     position: 'absolute',
-    bottom: -42,
+    bottom: -28,
     left: 0,
     right: 0,
     width: '100%',
