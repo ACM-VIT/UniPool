@@ -11,6 +11,7 @@ import {
   Platform,
   StatusBar,
   Alert,
+  TouchableOpacity,
 } from "react-native";
 import RideCard from "../../components/RideCard";
 import styles from "./BookingScreen.styles";
@@ -18,6 +19,7 @@ import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import BrandInfo from "../../components/BrandInfo";
+import LottieView from "lottie-react-native";
 
 export interface RideData {
   id?: string;
@@ -215,6 +217,87 @@ const BookingScreen: React.FC = () => {
       ) : error ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <Text style={{ color: "red" }}>{error}</Text>
+        </View>
+      ) : upcomingRides.length === 0 && inProgressRides.length === 0 ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20 }}>
+          <View style={{ position: "relative", marginBottom: 20 }}>
+            <LottieView
+              source={require("../../assets/bookings.json")}
+              autoPlay
+              loop
+              resizeMode="cover"
+              style={{ width: 200, height: 200 }}
+            />
+            <View style={{
+              position: "absolute",
+              bottom: 0,
+              right: 0,
+              width: 53,
+              height: 20,
+              backgroundColor: AppColors.primaryLightGreen,
+            }} />
+          </View>
+          <Text style={{
+            fontSize: 24,
+            fontFamily: "NunitoSans_700Bold",
+            color: AppColors.basicBlack,
+            textAlign: "center",
+            marginBottom: 10
+          }}>
+            No Rides
+          </Text>
+          <Text style={{
+            fontSize: 16,
+            fontFamily: "NunitoSans_400Regular",
+            color: AppColors.basicBlack,
+            textAlign: "center",
+            marginBottom: 30
+          }}>
+            All dressed up, but nowhere to ride?
+          </Text>
+          <View style={{ flexDirection: "row", gap: 15 }}>
+            <TouchableOpacity
+              style={{
+                backgroundColor: AppColors.secondaryDarkGreen,
+                paddingHorizontal: 25,
+                paddingVertical: 12,
+                borderRadius: 25,
+                elevation: 2,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+              }}
+              onPress={() => navigation.navigate("HomeScreen")}
+            >
+              <Text style={{
+                color: "white",
+                fontSize: 16,
+                fontFamily: "NunitoSans_600SemiBold"
+              }}>
+                Book Ride
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                backgroundColor: AppColors.primaryLightGreen,
+                paddingHorizontal: 25,
+                paddingVertical: 12,
+                borderRadius: 25,
+                borderWidth: 2,
+                borderColor: AppColors.secondaryDarkGreen,
+              }}
+              onPress={() => navigation.navigate("CreateRide")}
+            >
+              <Text style={{
+                color: AppColors.secondaryDarkGreen,
+                fontSize: 16,
+                fontFamily: "NunitoSans_600SemiBold"
+              }}>
+                Create Ride
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent}>
