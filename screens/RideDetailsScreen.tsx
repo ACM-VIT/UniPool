@@ -235,7 +235,6 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     }
   };
 
-  // Location permission
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status === "granted") {
@@ -258,27 +257,22 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     }
   };
 
-  // Fetch ride details and determine if user is host
   useEffect(() => {
     const fetchRideDetails = async () => {
       setLoading(true);
       setError(null);
       
       try {
-        // Get current user info
         const userInfo = await apiUtil.get<UserResponse>("/user/details");
         const userId = userInfo?.user?.id || null;
         setCurrentUserId(userId);
 
-        // Get complete ride details including bookings
         const completeRideData = await apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
         setRideData(completeRideData);
         
-        // Use backend's determination of whether current user is the host
         const isUserHost = completeRideData.is_user_host || false;
         setIsHost(isUserHost);
         
-        // Set current user details if host
         if (isUserHost) {
           setCurrentUser({
             id: completeRideData.host?.id || userId,
@@ -288,7 +282,6 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
           });
         }
 
-        // Transform bookings for host management
         if (isUserHost && completeRideData.bookings) {
           const transformedBookings = completeRideData.bookings.map((booking: any) => ({
             id: booking.id,
@@ -339,7 +332,6 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     requestLocationPermission();
   }, [rideId, apiUtil]);
 
-  // Set up route coordinates when ride data is available
   useEffect(() => {
     if (rideData && isValidCoordinate(rideData.start_latitude, rideData.start_longitude) && 
         isValidCoordinate(rideData.end_latitude, rideData.end_longitude)) {
@@ -364,11 +356,9 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     }
   }, [rideData]);
 
-  // Action handlers
   const handleCancelRide = async () => {
     if (isActionLoading) return;
 
-    // For hosts: Delete the ride
     if (isHost) {
       Alert.alert(
         "Delete Ride",
@@ -425,7 +415,6 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             onPress: async () => {
               setIsActionLoading(true);
               try {
-                // Find current user's booking
                 const userBooking = requests.find(req => req.passenger_id === currentUserId);
                 if (userBooking) {
                   await apiUtil.delete(`/booking/delete/${userBooking.id}`);
@@ -452,7 +441,6 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
 
   const handleAddToCalendar = async () => {
     try {
-      // Request calendar permissions
       const { status } = await Calendar.requestCalendarPermissionsAsync();
       
       if (status !== 'granted') {
@@ -464,8 +452,6 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             { 
               text: "Open Settings", 
               onPress: () => {
-                // On iOS, this will open the app's settings page
-                // On Android, it will open the general settings
                 if (Platform.OS === 'ios') {
                   Linking.openURL('app-settings:');
                 } else {
@@ -478,7 +464,6 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         return;
       }
 
-      // Get available calendars
       const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
       console.log('Available calendars:', calendars.map(cal => ({ 
         id: cal.id, 
@@ -488,7 +473,6 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         allowsModifications: cal.allowsModifications 
       })));
       
-      // Find the best calendar to use
       let defaultCalendar = calendars.find(cal => cal.isPrimary && cal.allowsModifications);
       
       if (!defaultCalendar) {
@@ -522,14 +506,12 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         source: defaultCalendar.source.name
       });
 
-      // Parse the ride start time
       const startDate = new Date(rideData!.start_time);
       if (isNaN(startDate.getTime())) {
         Alert.alert("Error", "Invalid ride time format. Cannot add to calendar.");
         return;
       }
       
-      // Estimate end time based on estimated duration
       const endDate = new Date(startDate);
       if (estimatedDuration.includes('hour')) {
         const hours = parseInt(estimatedDuration.split(' ')[0]) || 1;
@@ -541,19 +523,11 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         const minutes = parseInt(estimatedDuration.split(' ')[0]) || 60;
         endDate.setMinutes(endDate.getMinutes() + minutes);
       } else {
-        // Default to 2 hours if we can't parse duration
         endDate.setHours(endDate.getHours() + 2);
       }
-
-      // Create detailed event description
-      const vehicleTypeText = rideData!.vehicle_type 
-        ? rideData!.vehicle_type.charAt(0).toUpperCase() + rideData!.vehicle_type.slice(1)
-        : 'Vehicle';
         
       const availableSeats = rideData!.total_seats - rideData!.booked_seats;
-      const genderPreference = rideData!.is_same_gender ? 'Same gender only' : 'Mixed gender';
 
-      // Create calendar event
       const eventDetails = {
         title: `🚗 ${rideData!.start_location} → ${rideData!.end_location}`,
         startDate: startDate,
@@ -566,17 +540,14 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
 👤 Host: ${rideData!.host_user_name || 'Host'}
 💰 Price: ₹${rideData!.total_price} per person
 🪑 Seats: ${availableSeats}/${rideData!.total_seats} available
-🚙 Vehicle: ${vehicleTypeText}
-👥 Preference: ${genderPreference}
-⏱️ Duration: ${estimatedDuration}
 
 🆔 Ride ID: ${rideId}
 
 📱 Open UniPool app for more details and updates.`,
-        timeZone: 'Asia/Kolkata', // Indian timezone
+        timeZone: 'Asia/Kolkata',
         alarms: [
-          { relativeOffset: -60 }, // 1 hour before
-          { relativeOffset: -15 }  // 15 minutes before
+          { relativeOffset: -60 },
+          { relativeOffset: -15 }
         ]
       };
 
@@ -588,12 +559,22 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
       });
 
       const eventId = await Calendar.createEventAsync(defaultCalendar.id, eventDetails);
-      
+
       if (eventId) {
         Alert.alert(
           "✅ Added to Calendar", 
           `Your ride has been added to "${defaultCalendar.title}" calendar.\n\nReminders are set for:\n• 1 hour before departure\n• 15 minutes before departure`,
-          [{ text: "Great!" }]
+          [
+            { text: "View in Calendar", onPress: () => {
+                if (Platform.OS === "ios") {
+                  Linking.openURL(`calshow:${startDate.getTime() / 1000}`);
+                } else {
+                  Linking.openURL("content://com.android.calendar/time/" + startDate.getTime());
+                }
+              }
+            },
+            { text: "Great!" }
+          ]
         );
       } else {
         Alert.alert("Error", "Failed to create calendar event. Please try again.");
@@ -757,7 +738,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
               time={formatTime(rideData.start_time)}
               date={formatDate(rideData.start_time)}
               price={rideData.total_price}
-              seatsAvailable={`${(rideData.total_seats || 0) - ((rideData.booked_seats || 0) + 1)}/${rideData.total_seats || 0}`}
+              seatsAvailable={`${rideData.total_seats - rideData.booked_seats}/${rideData.total_seats}`}
               isSelected={true}
               variant={rideData.is_ongoing ? "inprogress" : "upcoming"}
             />
