@@ -40,24 +40,67 @@ const CreateRide: React.FC = () => {
 
   const [rideDateTime, setRideDateTime] = useState<Date>(new Date());
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | undefined>(undefined);
-  useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          console.warn("Location permission not granted");
-          return;
-        }
-        const { coords } = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-        setUserLocation({ latitude: coords.latitude, longitude: coords.longitude });
-      } catch (err) {
-        console.warn("Error fetching user location in CreateRide:", err);
+  const [hasPermission, setHasPermission] = useState(false);
+
+  const requestLocationPermission = async () => {
+    try {
+      console.log("[CreateRide] Requesting location permission...");
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        console.log("[CreateRide] Location permission granted");
+        setHasPermission(true);
+        await getUserLocation();
+      } else {
+        setHasPermission(false);
+        console.warn("[CreateRide] Location permission denied, using fallback");
+        setUserLocation({ latitude: 13.0827, longitude: 80.2707 });
       }
-    })();
+    } catch (error) {
+      console.error("[CreateRide] Error requesting location permission:", error);
+      setUserLocation({ latitude: 13.0827, longitude: 80.2707 });
+    }
+  };
+
+  const getUserLocation = async () => {
+    if (userLocation) {
+      console.log("[CreateRide] User location already available, skipping fetch");
+      return;
+    }
+    try {
+      console.log("[CreateRide] Attempting to get user location...");
+      const { coords } = await Location.getCurrentPositionAsync({ 
+        accuracy: Location.Accuracy.High,
+      });
+      const { latitude, longitude } = coords;
+      const location = { latitude, longitude };
+      console.log("[CreateRide] User location fetched successfully:", location);
+      setUserLocation(location);
+    } catch (error) {
+      console.error("[CreateRide] Error fetching user location:", error);
+      console.log("[CreateRide] Using fallback location");
+      setUserLocation({ latitude: 13.0827, longitude: 80.2707 });
+    }
+  };
+
+  useEffect(() => {
+    console.log("[CreateRide] Component mounted, requesting location permission...");
+    requestLocationPermission();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    console.log("[CreateRide] User location changed:", userLocation);
+    if (userLocation) {
+      console.log("[CreateRide] Valid user location available:", userLocation.latitude, userLocation.longitude);
+    } else {
+      console.log("[CreateRide] No user location available yet");
+    }
+  }, [userLocation]);
   const [passengerCount, setPassengerCount] = useState<number>(3);
   const [fromLocation, setFromLocation] = useState<string>("");
   const [toLocation, setToLocation] = useState<string>("");
+  const [fromCoordinates, setFromCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [toCoordinates, setToCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [costPerPerson, setCostPerPerson] = useState<number>(100);
   const [isEditingCost, setIsEditingCost] = useState<boolean>(false);
@@ -75,11 +118,15 @@ const CreateRide: React.FC = () => {
     from: string;
     to: string;
     date: Date;
+    fromCoordinates?: { latitude: number; longitude: number };
+    toCoordinates?: { latitude: number; longitude: number };
   }) => {
     console.log("Submitted ride details:", details);
     setFromLocation(details.from);
     setToLocation(details.to);
     setRideDateTime(details.date);
+    setFromCoordinates(details.fromCoordinates || null);
+    setToCoordinates(details.toCoordinates || null);
   };
 
   const handleCreateRide = async () => {
@@ -103,6 +150,10 @@ const CreateRide: React.FC = () => {
         total_price: costPerPerson,
         is_ongoing: 0,
         is_same_gender: 0,
+        start_latitude: fromCoordinates?.latitude || null,
+        start_longitude: fromCoordinates?.longitude || null,
+        end_latitude: toCoordinates?.latitude || null,
+        end_longitude: toCoordinates?.longitude || null,
       };
       console.log("Creating ride with data:", rideData);
 

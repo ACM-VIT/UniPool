@@ -175,7 +175,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [mapRegion, setMapRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
-  const [rideDetails, setRideDetails] = useState<{ from: string; to: string; date: Date } | null>(null);
+  const [rideDetails, setRideDetails] = useState<{ 
+    from: string; 
+    to: string; 
+    date: Date;
+    fromCoordinates?: { latitude: number; longitude: number };
+    toCoordinates?: { latitude: number; longitude: number };
+  } | null>(null);
   const [pushToken, setPushToken] = useState<string | null>(null);
 
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
@@ -597,7 +603,13 @@ const customMapStyle = [
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleRideSubmit = async (details: { from: string; to: string; date: Date }) => {
+  const handleRideSubmit = async (details: { 
+    from: string; 
+    to: string; 
+    date: Date;
+    fromCoordinates?: { latitude: number; longitude: number };
+    toCoordinates?: { latitude: number; longitude: number };
+  }) => {
     setRideDetails(details);
     if (!details.from || !details.to) return;
 
@@ -631,6 +643,8 @@ const customMapStyle = [
           navigation.navigate("AvailableRidesScreen", {
             fromLocation: rideDetails.from,
             toLocation: rideDetails.to,
+            fromCoordinates: rideDetails.fromCoordinates,
+            toCoordinates: rideDetails.toCoordinates,
           });
         }
       };
