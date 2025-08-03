@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
 import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
 import { useNavigation } from '@react-navigation/native';
+import LoadingComponent from '../components/LoadingComponent';
 
 interface User {
   name: string;
@@ -42,10 +43,7 @@ const PersonalInformationScreen: React.FC = () => {
           <Text style={styles.headerTitle}>Personal Information</Text>
         </View>
       </View>
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={styles.headerTitle.color} />
-        <Text style={styles.loadingText}>Loading info...</Text>
-      </View>
+      <LoadingComponent />
     </View>
   );
   if (error) return (

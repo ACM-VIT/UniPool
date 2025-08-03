@@ -2,10 +2,11 @@ import React from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet, Platform, StatusBar } from "react-native";
 import AppColors from "../design_systems/colors";
 import RideCard from "../components/RideCard";
-import BrandInfo from "../components/BrandInfo";
+import LoadingComponent from "../components/LoadingComponent";
 import ChevronBack from "../components/ChevronBack";
 import SlideToCreate from "../components/SlideToCreate";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import BrandInfo from "../components/BrandInfo";
 
 const RideDetailsScreen: React.FC = () => {
   const [showSlide, setShowSlide] = React.useState<null | 'accept' | 'reject' | 'remove'>(null);
@@ -71,7 +72,7 @@ const RideDetailsScreen: React.FC = () => {
             setIsHost(completeRideData.is_user_host);
             console.log('User is host:', completeRideData.is_user_host);
 
-            const transformedBookings = completeRideData.bookings.map((booking: any) => ({
+            const transformedBookings = (completeRideData.bookings || []).map((booking: any) => ({
               id: booking.id,
               passenger_id: booking.passenger_id,
               request_status: booking.request_status,
@@ -173,9 +174,7 @@ const RideDetailsScreen: React.FC = () => {
           <ChevronBack onPress={() => navigation.goBack()} style={{ marginRight: 8 }} />
           <Text style={styles.rideDetailsSubHeader}>Ride Details</Text>
         </View>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading ride details...</Text>
-        </View>
+        <LoadingComponent />
       </View>
     );
   }
@@ -267,7 +266,9 @@ const RideDetailsScreen: React.FC = () => {
       </Text> */}
       
       {requestsLoading ? (
-        <Text style={styles.loadingText}>Loading {isHost ? "requests" : "passengers"}...</Text>
+        <View style={styles.inlineLoadingContainer}>
+          <LoadingComponent />
+        </View>
       ) : requestsError ? (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{requestsError}</Text>
@@ -348,7 +349,7 @@ const RideDetailsScreen: React.FC = () => {
                       // After successful action, refresh the complete ride data
                       const completeRideData = await apiUtil.get(`/ride/details/${rideId}`);
                       if (completeRideData) {
-                        const transformedBookings = completeRideData.bookings.map((booking: any) => ({
+                        const transformedBookings = (completeRideData.bookings || []).map((booking: any) => ({
                           id: booking.id,
                           passenger_id: booking.passenger_id,
                           request_status: booking.request_status,
@@ -515,6 +516,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,
+  },
+  inlineLoadingContainer: {
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 16,
   },
   loadingText: {
     color: AppColors.basicBlack,

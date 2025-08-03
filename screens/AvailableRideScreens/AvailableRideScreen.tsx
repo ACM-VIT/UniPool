@@ -11,6 +11,7 @@ import { useNavigation, useIsFocused, useRoute } from "@react-navigation/native"
 import BrandInfo from "../../components/BrandInfo";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import RideCard from "../../components/RideCard";
+import LoadingComponent from "../../components/LoadingComponent";
 
 import { useApi } from "../../utils/ApiUtil";
 import bottomNavItems from "../../data/BottomNavigationItems";
