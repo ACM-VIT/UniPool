@@ -20,7 +20,7 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
   sliderIcon,
   endIcon,
   showEndIcon = true,
-  emojiIcon, // <-- new prop
+  emojiIcon,
   containerStyle,
   sliderStyle,
   textStyle,
@@ -33,6 +33,7 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
 }) => {
   const [sliderWidth, setSliderWidth] = useState(0);
   const translateX = useRef(new Animated.Value(0)).current;
+  const textOpacity = useRef(new Animated.Value(1)).current;
   const [isSliding, setIsSliding] = useState(false);
 
   const dynamicStyles = {
@@ -58,13 +59,25 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
       useNativeDriver: false,
       listener: (event: any) => {
         const { translationX } = event.nativeEvent;
-        const maxTranslation = sliderWidth - 64; // Account for button width (60) + small padding (4)
+        const maxTranslation = sliderWidth - 60; // Account for button width (56) + padding (4)
+        
         // Prevent sliding beyond boundaries
         if (translationX < 0) {
           translateX.setValue(0);
         } else if (translationX > maxTranslation) {
           translateX.setValue(maxTranslation);
         }
+
+        const fadeStartPoint = maxTranslation * 0.2;
+        const fadeEndPoint = maxTranslation * 0.6;
+        
+        let opacity = 1;
+        if (translationX > fadeStartPoint) {
+          const fadeProgress = (translationX - fadeStartPoint) / (fadeEndPoint - fadeStartPoint);
+          opacity = Math.max(0, 1 - fadeProgress);
+        }
+        
+        textOpacity.setValue(opacity);
       }
     }
   );
@@ -73,7 +86,7 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
     const { state, translationX } = event.nativeEvent;
     
     if (state === State.END) {
-      const maxTranslation = sliderWidth - 64; // Account for button width + padding
+      const maxTranslation = sliderWidth - 60;
       const threshold = maxTranslation * 0.8; // 80% of the available slide distance
       
       if (translationX >= threshold && !disabled) {
@@ -85,18 +98,31 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
           onSlideComplete();
           // Reset after completion
           setTimeout(() => {
-            Animated.spring(translateX, {
-              toValue: 0,
-              useNativeDriver: false,
-            }).start();
+            Animated.parallel([
+              Animated.spring(translateX, {
+                toValue: 0,
+                useNativeDriver: false,
+              }),
+              Animated.timing(textOpacity, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: false,
+              })
+            ]).start();
           }, 100);
         });
       } else {
-        // Slide back to start
-        Animated.spring(translateX, {
-          toValue: 0,
-          useNativeDriver: false,
-        }).start();
+        Animated.parallel([
+          Animated.spring(translateX, {
+            toValue: 0,
+            useNativeDriver: false,
+          }),
+          Animated.timing(textOpacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: false,
+          })
+        ]).start();
       }
       setIsSliding(false);
     } else if (state === State.BEGAN) {
@@ -138,8 +164,13 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
         ]}
         onLayout={onLayout}
       >
-        {/* Background Text */}
-        <View style={styles.customSlideTextContainer}>
+        {/* Background Text with Animated Opacity */}
+        <Animated.View 
+          style={[
+            styles.customSlideTextContainer,
+            { opacity: textOpacity }
+          ]}
+        >
           <Text style={[
             styles.customSlideText,
             dynamicStyles.text,
@@ -159,7 +190,8 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
               style={styles.endIcon}
             />
           )}
-        </View>
+        </Animated.View>
+        
         <PanGestureHandler
           onGestureEvent={onGestureEvent}
           onHandlerStateChange={onHandlerStateChange}
