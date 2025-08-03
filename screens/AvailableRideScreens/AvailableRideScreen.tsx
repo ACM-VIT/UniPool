@@ -11,6 +11,7 @@ import { useNavigation, useIsFocused, useRoute } from "@react-navigation/native"
 import BrandInfo from "../../components/BrandInfo";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import RideCard from "../../components/RideCard";
+import LoadingComponent from "../../components/LoadingComponent";
 
 import { useApi } from "../../utils/ApiUtil";
 import bottomNavItems from "../../data/BottomNavigationItems";
@@ -40,12 +41,21 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
 
 let fromLocation = "";
 let toLocation = "";
+let fromCoordinates: { latitude: number; longitude: number } | undefined;
+let toCoordinates: { latitude: number; longitude: number } | undefined;
+
 if (route.params && typeof route.params === "object") {
   if ("fromLocation" in route.params && typeof (route.params as any).fromLocation === "string") {
     fromLocation = (route.params as any).fromLocation;
   }
   if ("toLocation" in route.params && typeof (route.params as any).toLocation === "string") {
     toLocation = (route.params as any).toLocation;
+  }
+  if ("fromCoordinates" in route.params && (route.params as any).fromCoordinates) {
+    fromCoordinates = (route.params as any).fromCoordinates;
+  }
+  if ("toCoordinates" in route.params && (route.params as any).toCoordinates) {
+    toCoordinates = (route.params as any).toCoordinates;
   }
   if ((route.params as any).params) {
     const nested = (route.params as any).params;
@@ -54,6 +64,12 @@ if (route.params && typeof route.params === "object") {
     }
     if (typeof nested.toLocation === "string") {
       toLocation = nested.toLocation;
+    }
+    if (nested.fromCoordinates) {
+      fromCoordinates = nested.fromCoordinates;
+    }
+    if (nested.toCoordinates) {
+      toCoordinates = nested.toCoordinates;
     }
   }
 }
@@ -74,7 +90,12 @@ if (!fromLocation || !toLocation) {
   } catch (e) {
   }
 }
-console.log("AvailableRideScreen params:", { fromLocation, toLocation });
+console.log("AvailableRideScreen params:", { 
+  fromLocation, 
+  toLocation, 
+  fromCoordinates, 
+  toCoordinates 
+});
 
   useEffect(() => {
     if (!isFocused) return;
@@ -85,9 +106,19 @@ console.log("AvailableRideScreen params:", { fromLocation, toLocation });
     setNavBarItems(bottomNavItems);
     if (fromLocation && toLocation) {
       setLoading(true);
-      console.log("Fetching rides for:", { fromLocation, toLocation });
+      console.log("Fetching rides for:", { fromLocation, toLocation, fromCoordinates, toCoordinates });
+      
+      let queryParams = `start_location=${encodeURIComponent(fromLocation)}&end_location=${encodeURIComponent(toLocation)}`;
+      
+      if (fromCoordinates) {
+        queryParams += `&start_lat=${fromCoordinates.latitude}&start_lon=${fromCoordinates.longitude}`;
+      }
+      if (toCoordinates) {
+        queryParams += `&end_lat=${toCoordinates.latitude}&end_lon=${toCoordinates.longitude}`;
+      }
+      
       apiUtil
-        .get<any[]>(`/ride/search?start_location=${encodeURIComponent(fromLocation)}&end_location=${encodeURIComponent(toLocation)}`)
+        .get<any[]>(`/ride/search?${queryParams}`)
         .then((data) => {
           console.log("API response:", data);
           setRides(Array.isArray(data) ? data : []);
