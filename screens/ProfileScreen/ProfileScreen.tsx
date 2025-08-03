@@ -3,7 +3,6 @@ import {
   View,
   Text,
   Image,
-  ActivityIndicator,
   Alert,
   SafeAreaView,
   ScrollView,
@@ -13,6 +12,7 @@ import { ProfileScreenProps } from "./ProfileScreen.types";
 import BrandInfo from "../../components/BrandInfo";
 import styles from "./ProfileScreen.styles";
 import AppColors from "../../design_systems/colors";
+import LoadingComponent from "../../components/LoadingComponent";
 import { useApi } from "../../utils/ApiUtil";
 import bottomNavItems from "../../data/BottomNavigationItems";
 
@@ -249,10 +249,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={AppColors.secondaryDarkGreen} />
-          <Text style={styles.loadingText}>Loading profile...</Text>
-        </View>
+        <LoadingComponent />
       </SafeAreaView>
     );
   }

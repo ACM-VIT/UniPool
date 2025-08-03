@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Dimensions,
   Platform,
-  Alert,
   PixelRatio,
   PanResponder,
   Animated,
@@ -16,7 +15,6 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import { useNavigation, useIsFocused } from "@react-navigation/native";
-import { navigationRef } from "../navigation/navigationRef";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { useApi } from "../utils/ApiUtil";
@@ -26,8 +24,6 @@ import PreviousTripsSection from "../components/PreviousTripsSection";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { RootStackParamList } from "../navigation/RootStackParamList";
 import BrandInfo from "../components/BrandInfo";
-import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -62,92 +58,6 @@ const BOTTOM_SHEET_MIN_HEIGHT = screenHeight * 0.35;
 const SNAP_POINTS = [BOTTOM_SHEET_MIN_HEIGHT, BOTTOM_SHEET_MAX_HEIGHT];
 const DRAG_THRESHOLD = 10;
 
-async function sendTokenToBackend(token: string, apiUtil: any): Promise<boolean> {
-  try {
-    await apiUtil.post("/users/me/token", {
-      token,
-      platform: Platform.OS,
-      deviceId: Device.osInternalBuildId,
-    });
-
-    console.log("Token successfully sent to backend");
-    return true;
-  } catch (error) {
-    console.error("Failed to send token to backend:", error);
-    return false;
-  }
-}
-
-async function sendFCMNotification(
-  apiUtil: any,
-  targetToken: string, 
-  title: string, 
-  body: string, 
-  data?: Record<string, string>
-): Promise<boolean> {
-  try {
-    await apiUtil.post("/notifications/send", {
-      targetToken,
-      notification: {
-        title,
-        body,
-      },
-      data: data || {},
-      platform: Platform.OS,
-    });
-
-    console.log("FCM notification sent successfully via backend");
-    return true;
-  } catch (error) {
-    console.error("Failed to send FCM notification:", error);
-    return false;
-  }
-}
-
-async function registerForPushNotificationsAsync(): Promise<string | null> {
-  let token = null;
-
-  if (Device.isDevice) {
-    try {
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync("default", {
-          name: "default",
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: "#FF231F7C",
-        });
-      }
-
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-
-      if (existingStatus !== "granted") {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-
-      if (finalStatus !== "granted") {
-        Alert.alert(
-          "Permission Required",
-          "Push notifications are needed to receive ride updates and alerts."
-        );
-        return null;
-      }
-
-      const tokenData = await Notifications.getDevicePushTokenAsync();
-      token = tokenData.data;
-      console.log("Native Push Token (FCM/APNs):", token);
-    } catch (error) {
-      console.error("Error getting push token:", error);
-      return null;
-    }
-  } else {
-    console.log("Must use physical device for Push Notifications");
-  }
-
-  return token;
-}
-
 interface HomeScreenProps {
   setNavBarVariant: (variant: 0 | 1 | 2) => void;
   setNavBarText: (text: string) => void;
@@ -175,8 +85,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [mapRegion, setMapRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
-  const [rideDetails, setRideDetails] = useState<{ from: string; to: string; date: Date } | null>(null);
-  const [pushToken, setPushToken] = useState<string | null>(null);
+  const [rideDetails, setRideDetails] = useState<{ 
+    from: string; 
+    to: string; 
+    date: Date;
+    fromCoordinates?: { latitude: number; longitude: number };
+    toCoordinates?: { latitude: number; longitude: number };
+  } | null>(null);
 
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
   const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
@@ -184,7 +99,46 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const bottomSheetY = useRef(new Animated.Value(BOTTOM_SHEET_MAX_HEIGHT)).current;
   const lastGestureY = useRef(BOTTOM_SHEET_MAX_HEIGHT);
 
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
 
+  const generateCurvedRoute = (startLat: number, startLon: number, endLat: number, endLon: number) => {
+    const numPoints = 15;
+    const coordinates = [];
+    
+    const midLat = (startLat + endLat) / 2;
+    const midLon = (startLon + endLon) / 2;
+    
+    const distance = calculateDistance(startLat, startLon, endLat, endLon);
+    const arcHeight = distance * 0.15;
+    
+    const deltaLat = endLat - startLat;
+    const deltaLon = endLon - startLon;
+    const perpLat = -deltaLon * arcHeight / distance;
+    const perpLon = deltaLat * arcHeight / distance;
+    
+    for (let i = 0; i <= numPoints; i++) {
+      const t = i / numPoints;
+      
+      const curveFactor = 4 * t * (1 - t);
+      
+      const lat = startLat + t * deltaLat + curveFactor * perpLat;
+      const lon = startLon + t * deltaLon + curveFactor * perpLon;
+      
+      coordinates.push({ latitude: lat, longitude: lon });
+    }
+    
+    return coordinates;
+  };
 
 const customMapStyle = [
   {
@@ -533,71 +487,17 @@ const customMapStyle = [
   };
 
   useEffect(() => {
-    registerForPushNotificationsAsync().then(async (token) => {
-      if (token && !pushToken) {
-        setPushToken(token);
-        await sendTokenToBackend(token, apiUtil);
-      }
-    });
-
-    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      try {
-        console.log("Notification received:", notification);
-      } catch (err) {
-        console.error("Error in notification received listener:", err);
-      }
-    });
-
-    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      try {
-        console.log("Notification response:", response);
-        if (!response || !response.notification || !response.notification.request || !response.notification.request.content) return;
-        const data = response.notification.request.content.data || {};
-        
-        if (data.type === "chat_message" && data.ride_id && navigationRef.current) {
-          navigationRef.current.navigate("ChatMessages", { 
-            chatId: String(data.ride_id),
-            chatTitle: "Chat",
-            chatSubtitle: "Ride Chat",
-            isGroupChat: true
-          });
-        } else if (data.rideId && navigationRef.current) {
-          navigationRef.current.navigate("RideDetailsScreen", { ride: { id: String(data.rideId) } });
-        } else if (data.ride_id && navigationRef.current) {
-          navigationRef.current.navigate("RideDetailsScreen", { ride: { id: String(data.ride_id) } });
-        }
-      } catch (err) {
-        console.error("Error in notification response listener:", err);
-      }
-    });
-
-    return () => {
-      notificationListener.remove();
-      responseListener.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!pushToken || !apiUtil) return;
-    
-    const interval = setInterval(async () => {
-      const newToken = await registerForPushNotificationsAsync();
-      if (newToken && newToken !== pushToken) {
-        console.log("Token refreshed after 24 hours");
-        setPushToken(newToken);
-        await sendTokenToBackend(newToken, apiUtil);
-      }
-    }, 24 * 60 * 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, [pushToken]);
-
-  useEffect(() => {
     requestLocationPermission();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleRideSubmit = async (details: { from: string; to: string; date: Date }) => {
+  const handleRideSubmit = async (details: { 
+    from: string; 
+    to: string; 
+    date: Date;
+    fromCoordinates?: { latitude: number; longitude: number };
+    toCoordinates?: { latitude: number; longitude: number };
+  }) => {
     setRideDetails(details);
     if (!details.from || !details.to) return;
 
@@ -631,6 +531,8 @@ const customMapStyle = [
           navigation.navigate("AvailableRidesScreen", {
             fromLocation: rideDetails.from,
             toLocation: rideDetails.to,
+            fromCoordinates: rideDetails.fromCoordinates,
+            toCoordinates: rideDetails.toCoordinates,
           });
         }
       };
@@ -666,7 +568,7 @@ const customMapStyle = [
 
   const getPolylineCoordinates = () => {
     if (!fromCoords || !toCoords) return [];
-    return [fromCoords, toCoords];
+    return generateCurvedRoute(fromCoords.latitude, fromCoords.longitude, toCoords.latitude, toCoords.longitude);
   };
 
   const isMapLoaded = location && mapRegion && hasPermission;
@@ -725,8 +627,10 @@ const customMapStyle = [
               <Polyline
                 coordinates={getPolylineCoordinates()}
                 strokeColor={AppColors.secondaryDarkGreen || "#2d5016"}
-                strokeWidth={4}
-                lineDashPattern={[1, 1]}
+                strokeWidth={3}
+                lineDashPattern={[0]}
+                lineJoin="round"
+                lineCap="round"
               />
             )}
           </MapView>

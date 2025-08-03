@@ -6,13 +6,13 @@ import {
   SafeAreaView,
   StatusBar,
   Platform,
-  ActivityIndicator,
   ScrollView,
 } from 'react-native';
 import { passengerInfoStyles } from './ChatScreen.styles';
 import { PassengerInfoScreenProps, User } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
 import BrandInfo from '../../components/BrandInfo';
+import LoadingComponent from '../../components/LoadingComponent';
 import { useApi } from '../../utils/ApiUtil';
 import RideService from '../../utils/RideService';
 
@@ -130,7 +130,9 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
         </View>
 
         {loading ? (
-          <ActivityIndicator size="large" color={AppColors.primaryLightGreen} style={{ marginTop: 32 }} />
+          <View style={{ flex: 1 }}>
+            <LoadingComponent />
+          </View>
         ) : (
           passengers.length === 0 ? (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>

@@ -46,6 +46,50 @@ import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithCredential }
 
 import { LocationProvider } from "./contexts/location-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
+import { Platform } from "react-native";
+
+async function registerForPushNotificationsAsync(): Promise<string | null> {
+  let token = null;
+
+  if (Device.isDevice) {
+    try {
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "default",
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: "#FF231F7C",
+        });
+      }
+
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== "granted") {
+        console.log("Push notification permission not granted");
+        return null;
+      }
+
+      const tokenData = await Notifications.getDevicePushTokenAsync();
+      token = tokenData.data;
+      console.log("Push Token obtained:", token?.substring(0, 20) + "...");
+    } catch (error) {
+      console.error("Error getting push token:", error);
+      return null;
+    }
+  } else {
+    console.log("Must use physical device for Push Notifications");
+  }
+
+  return token;
+}
 
 const globalStyles = StyleSheet.create({
   navBarWrapper: {
@@ -75,6 +119,7 @@ const App = () => {
   const [loading, setLoading] = useState(true);
   const [showCustomSplash, setShowCustomSplash] = useState(true);
   const [authStateResolved, setAuthStateResolved] = useState(false);
+  const [pushToken, setPushToken] = useState<string | null>(null);
 
   const [fontsLoaded] = useFonts({
     NunitoSans_400Regular,
@@ -92,6 +137,46 @@ const App = () => {
   const [navBarItems, setNavBarItems] = useState(bottomNavItems);
 
   const [navStateVersion, setNavStateVersion] = useState(0);
+
+  // Helper function to handle notification navigation
+  const handleNotificationNavigation = (data: any) => {
+    if (!navigationRef.current) return;
+
+    if (data?.type === "chat_message") {
+      if (data.ride_id) {
+        navigationRef.current.navigate("ChatMessages", {
+          chatId: String(data.ride_id),
+          chatTitle: String(data.chat_title || "Chat"),
+          chatSubtitle: String(data.chat_subtitle || "Ride Chat"),
+          isGroupChat: true
+        });
+      }
+    } else if (data?.type === "ride_request_approved") {
+      if (data.ride_id) {
+        navigationRef.current.navigate("RideDetailsScreen", {
+          ride: { id: String(data.ride_id) }
+        });
+      }
+    } else if (data?.type === "ride_request_received") {
+      if (data.ride_id) {
+        navigationRef.current.navigate("RideDetailsScreen", {
+          ride: { id: String(data.ride_id) }
+        });
+      }
+    } else if (data?.type === "ride_reminder") {
+      if (data.ride_id) {
+        navigationRef.current.navigate("RideDetailsScreen", {
+          ride: { id: String(data.ride_id) }
+        });
+      }
+    } else if (data?.ride_id || data?.rideId) {
+      // Fallback for generic ride notifications
+      const rideId = data.ride_id || data.rideId;
+      navigationRef.current.navigate("RideDetailsScreen", {
+        ride: { id: String(rideId) }
+      });
+    }
+  };
 
   useEffect(() => {
     SplashScreen.preventAutoHideAsync();
@@ -200,13 +285,60 @@ const App = () => {
         setAuthStateResolved(true);
         setLoading(false);
       }
-    }, 5000); // Increased timeout to 5 seconds
+    }, 5000);
     
     return () => {
       unsubscribe();
       if (authCheckTimeout) {
         clearTimeout(authCheckTimeout);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    registerForPushNotificationsAsync().then((token) => {
+      if (token) {
+        setPushToken(token);
+        console.log("Push token set in App.tsx");
+      }
+    });
+
+    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log("🔔 Notification received:", notification);
+    });
+
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log("🔔 Notification response:", response);
+      
+      const data = response.notification.request.content.data as any;
+      
+      if (!navigationRef.current) {
+        console.log("Navigation ref not ready");
+        return;
+      }
+
+      // Handle different notification types using helper function
+      handleNotificationNavigation(data);
+    });
+
+    // Check if app was opened from a notification (background/killed state)
+    Notifications.getLastNotificationResponseAsync().then(response => {
+      if (response) {
+        console.log("🔔 App opened from notification:", response);
+        const data = response.notification.request.content.data as any;
+        
+        // Wait a bit for navigation to be ready
+        setTimeout(() => {
+          if (navigationRef.current) {
+            handleNotificationNavigation(data);
+          }
+        }, 1000);
+      }
+    });
+
+    return () => {
+      notificationListener.remove();
+      responseListener.remove();
     };
   }, []);
 

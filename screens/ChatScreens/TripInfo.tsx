@@ -7,7 +7,6 @@ import {
   StatusBar,
   ScrollView,
   Image,
-  ActivityIndicator,
 } from 'react-native';
 import { tripInfoStyles } from './ChatScreen.styles';
 import { TripInfoScreenProps, Ride } from './ChatScreen.types';
@@ -15,6 +14,7 @@ import AppColors from '../../design_systems/colors';
 import BrandInfo from '../../components/BrandInfo';
 import { useApi } from '../../utils/ApiUtil';
 import RideService from '../../utils/RideService';
+import LoadingComponent from '../../components/LoadingComponent';
 
 
 const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, setNavBarVariant }) => {
@@ -77,7 +77,9 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
         </View>
 
         {loading ? (
-          <ActivityIndicator size="large" color={AppColors.primaryLightGreen} />
+          <View style={{ flex: 1 }}>
+            <LoadingComponent />
+          </View>
         ) : (
           rides.length === 0 ? (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, StyleSheet, Dimensions, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Dimensions } from "react-native";
 import PreviousTripsCompressed from "../components/PreviousTripsCompressed";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootStackParamList';
 import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
+import LoadingComponent from "./LoadingComponent";
 
 interface UserRideData {
     ride_id: string;
@@ -143,10 +144,7 @@ const PreviousTripsSection: React.FC = () => {
             </View>
 
             {loading ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={AppColors.secondaryDarkGreen} />
-                    <Text style={styles.loadingText}>Loading your trips...</Text>
-                </View>
+                <LoadingComponent />
             ) : error ? (
                 <View style={styles.errorContainer}>
                     <Text style={styles.errorText}>{error}</Text>

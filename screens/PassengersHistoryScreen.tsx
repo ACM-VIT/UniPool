@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, FlatList, ListRenderItem, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, ListRenderItem, TouchableOpacity } from 'react-native';
 import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
 import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
 import { useNavigation } from '@react-navigation/native';
+import LoadingComponent from '../components/LoadingComponent';
 
 interface Passenger {
   id: string;
@@ -43,10 +44,7 @@ const PassengersHistoryScreen: React.FC = () => {
           <Text style={styles.headerTitle}>Passengers History</Text>
         </View>
       </View>
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={styles.headerTitle.color} />
-        <Text style={styles.loadingText}>Loading passengers...</Text>
-      </View>
+      <LoadingComponent />
     </View>
   );
   if (error) {

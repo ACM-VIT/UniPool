@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, FlatList, ListRenderItem, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, ListRenderItem, TouchableOpacity } from 'react-native';
 import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
 import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
 import { useNavigation } from '@react-navigation/native';
+import LoadingComponent from '../components/LoadingComponent';
 
 interface Booking {
   id: string;
@@ -59,19 +60,7 @@ const BookingsScreen: React.FC = () => {
         </View>
       </View>
       <View style={styles.newSection}>
-        <View style={{
-          minHeight: 120,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 32,
-          backgroundColor: styles.menuContainer.backgroundColor,
-          borderRadius: styles.menuContainer.borderRadius,
-        }}>
-          <ActivityIndicator size="large" color={styles.headerTitle.color} />
-          <Text style={{ fontSize: 16, color: styles.headerTitle.color, textAlign: 'center', marginTop: 16, fontFamily: 'NunitoSans_400Regular' }}>
-            Loading bookings...
-          </Text>
-        </View>
+        <LoadingComponent />
       </View>
     </View>
   );

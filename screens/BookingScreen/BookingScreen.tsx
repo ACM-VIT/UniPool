@@ -7,7 +7,6 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Dimensions,
-  ActivityIndicator,
   Platform,
   StatusBar,
   Alert,
@@ -20,6 +19,7 @@ import { useApi } from "../../utils/ApiUtil";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import BrandInfo from "../../components/BrandInfo";
 import LottieView from "lottie-react-native";
+import LoadingComponent from "../../components/LoadingComponent";
 
 export interface RideData {
   id?: string;
@@ -211,9 +211,7 @@ const BookingScreen: React.FC = () => {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={AppColors.secondaryDarkGreen} />
-        </View>
+        <LoadingComponent />
       ) : error ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <Text style={{ color: "red" }}>{error}</Text>
