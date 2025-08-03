@@ -862,7 +862,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                               setShowSlide(null);
                               setSelectedRequest(null);
                             }}
-                            sliderIcon={require("../assets/slide.png")}
+                            sliderIcon={showSlide === "reject" ? require("../assets/red-slider.png") : require("../assets/slide.png")}
                             backgroundColor={AppColors.basicWhite}
                             sliderButtonColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : "#FF3B30"}
                             textColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : "#FF3B30"}
