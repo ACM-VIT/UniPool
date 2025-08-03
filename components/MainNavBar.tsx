@@ -7,12 +7,14 @@ import {
   Image,
   ImageSourcePropType,
   Dimensions,
+  Platform,
 } from "react-native";
 import {
   useNavigation,
   useNavigationState,
   NavigationState,
 } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../design_systems/colors";
 
 const { width, height } = Dimensions.get("window");
@@ -62,6 +64,7 @@ function getActiveRouteName(state?: NavigationState): string | undefined {
 const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
   const navigation = useNavigation();
   const navState = useNavigationState((s) => s);
+  const insets = useSafeAreaInsets();
   const fromState = getActiveRouteName(navState);
   const activeRouteName = (fromState || DEFAULT_ACTIVE_SCREEN).toLowerCase();
 
@@ -77,7 +80,13 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
   };
 
   return (
-    <View style={styles.bottomNavContainer}>
+    <View style={[
+      styles.bottomNavContainer,
+      Platform.OS === 'ios' && {
+        paddingBottom: Math.max(insets.bottom - 10, 10),
+        bottom: 0,
+      }
+    ]}>
       {items.map((item, index) => {
         const mapping = ROUTE_MAP[item.route] ?? item.route;
         const screenNames = Array.isArray(mapping) ? mapping : [mapping];
@@ -129,27 +138,40 @@ const SingleBar: React.FC<SingleBarProps> = ({
   iconPath,
   onPress,
   showSwitchIcon = false,
-}) => (
-  <TouchableOpacity style={styles.singleBarContainer} onPress={onPress}>
-    <View style={styles.singleBarContent}>
-      <Text style={styles.singleBarText}>{text}</Text>
-      <View style={styles.iconsContainer}>
-        <Image
-          source={iconPath}
-          style={[styles.icon, { tintColor: AppColors.primaryLightGreen }]}
-          resizeMode="contain"
-        />
-        {showSwitchIcon && (
+}) => {
+  const insets = useSafeAreaInsets();
+  
+  return (
+    <TouchableOpacity 
+      style={[
+        styles.singleBarContainer,
+        Platform.OS === 'ios' && {
+          paddingBottom: Math.max(insets.bottom - 10, 10),
+          bottom: 0,
+        }
+      ]} 
+      onPress={onPress}
+    >
+      <View style={styles.singleBarContent}>
+        <Text style={styles.singleBarText}>{text}</Text>
+        <View style={styles.iconsContainer}>
           <Image
-            source={require("../assets/switch-1.png")}
-            style={[styles.switchIcon, { tintColor: AppColors.primaryLightGreen }]}
+            source={iconPath}
+            style={[styles.icon, { tintColor: AppColors.primaryLightGreen }]}
             resizeMode="contain"
           />
-        )}
+          {showSwitchIcon && (
+            <Image
+              source={require("../assets/switch-1.png")}
+              style={[styles.switchIcon, { tintColor: AppColors.primaryLightGreen }]}
+              resizeMode="contain"
+            />
+          )}
+        </View>
       </View>
-    </View>
-  </TouchableOpacity>
-);
+    </TouchableOpacity>
+  );
+};
 
 const MainNavBar: React.FC<MainNavBarProps> = ({
   variant,
