@@ -19,7 +19,13 @@ import RideService from '../../utils/RideService';
 const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, route, setNavBarVariant }) => {
   const [passengers, setPassengers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
   const { apiUtil } = useApi();
+
+  const generateDMRoomId = (userId1: string, userId2: string): string => {
+    const sortedIds = [userId1, userId2].sort();
+    return `dm_${sortedIds[0]}_${sortedIds[1]}`;
+  };
 
   useEffect(() => {
     if (setNavBarVariant) {
@@ -33,7 +39,8 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
         const involvedRides = await RideService.getInvolvedRides(apiUtil);
         
         const currentUserResponse = await apiUtil.get<{user: {id: string, name: string}}>("/user/details");
-        const currentUserId = currentUserResponse.user.id;
+        const fetchedCurrentUserId = currentUserResponse.user.id;
+        setCurrentUserId(fetchedCurrentUserId);
         
         const allPeople: User[] = [];
         const uniquePeopleMap = new Map<string, User>();
@@ -56,7 +63,7 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
               }>;
             }>(`/ride/details/${ride.id}`);
             
-            if (rideDetails.host.id !== currentUserId) {
+            if (rideDetails.host.id !== fetchedCurrentUserId) {
               uniquePeopleMap.set(rideDetails.host.id, {
                 id: rideDetails.host.id,
                 name: rideDetails.host.name,
@@ -65,7 +72,7 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
             }
             
             rideDetails.bookings
-              .filter(booking => booking.request_status === 'accepted' && booking.passenger_id !== currentUserId)
+              .filter(booking => booking.request_status === 'accepted' && booking.passenger_id !== fetchedCurrentUserId)
               .forEach(booking => {
                 uniquePeopleMap.set(booking.passenger_id, {
                   id: booking.passenger_id,
@@ -133,20 +140,24 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
             </View>
           ) : (
             <View style={passengerInfoStyles.destinationsList}>
-              {passengers.map((passenger) => (
-                <TouchableOpacity 
-                  key={passenger.id} 
-                  style={passengerInfoStyles.destinationItem}
-                  onPress={() => navigation?.navigate('ChatMessages' as never, {
-                    chatId: passenger.id,
-                    chatTitle: `Chat with ${passenger.name}`,
-                    chatSubtitle: ``,
-                    isGroupChat: false,
-                  })}
-                >
-                  <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
-                </TouchableOpacity>
-              ))}
+              {passengers.map((passenger) => {
+                const dmRoomId = generateDMRoomId(currentUserId, passenger.id);
+                return (
+                  <TouchableOpacity 
+                    key={passenger.id} 
+                    style={passengerInfoStyles.destinationItem}
+                    onPress={() => navigation?.navigate('ChatMessages' as never, {
+                      chatId: dmRoomId,
+                      chatTitle: `Chat with ${passenger.name}`,
+                      chatSubtitle: ``,
+                      isGroupChat: false,
+                      otherUserId: passenger.id,
+                    })}
+                  >
+                    <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )
         )}

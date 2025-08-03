@@ -38,10 +38,11 @@ interface RideDetails {
   date: string;
   time: string;
   price?: string;
-  vehicle?: string;
   driverName?: string;
   totalSeats?: number;
   availableSeats?: number;
+  hostUserId?: string;
+  isUserHost?: boolean;
 }
 
 const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
@@ -60,7 +61,12 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
   const [notificationsMuted, setNotificationsMuted] = useState(false);
   const [editingChatName, setEditingChatName] = useState(false);
   const [newChatName, setNewChatName] = useState('');
+  const [typingUsers, setTypingUsers] = useState<{[userId: string]: {name: string, timeout: NodeJS.Timeout}}>({});
+  const [isTyping, setIsTyping] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollViewRef = useRef<ScrollView | null>(null);
 
   type ChatRouteParams = {
     chatId?: string;
@@ -68,6 +74,8 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     chatTitle?: string;
     chatSubtitle?: string;
     userId?: string;
+    isGroupChat?: boolean;
+    otherUserId?: string;
   };
 
   const chatParams = (route?.params as ChatRouteParams) ?? {};
@@ -76,15 +84,22 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
 
   useEffect(() => {
     setNavBarVariant?.(0);
-    apiUtil.get<{user: {id: string}}>("/user/details")
+    apiUtil.get<{user: {id: string, name: string}}>("/user/details")
       .then((resp) => {
         setUserUuid(resp.user.id);
-        console.log('[Chat] fetched user uuid', resp.user.id);
+        setUserProfiles(prev => ({
+          ...prev, 
+          [resp.user.id]: { 
+            name: resp.user.name || 'You', 
+            avatar: undefined 
+          }
+        }));
+        console.log('[Chat] fetched user details', resp.user);
       })
-      .catch((e) => console.warn('[Chat] failed to fetch user uuid', e));
+      .catch((e) => console.warn('[Chat] failed to fetch user details', e));
   }, [apiUtil, setNavBarVariant]);
 
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = async (userId: string): Promise<{name: string, avatar?: string}> => {
     if (userProfiles[userId]) return userProfiles[userId];
     
     try {
@@ -97,110 +112,392 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
       return profile;
     } catch (error) {
       console.warn('[Chat] Failed to fetch user profile for', userId, error);
-      const fallbackProfile = { name: 'Unknown User' };
+      const fallbackProfile = { name: 'Unknown User', avatar: undefined };
       setUserProfiles(prev => ({...prev, [userId]: fallbackProfile}));
       return fallbackProfile;
     }
   };
 
+  const markMessageAsRead = (messageId: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const payload = {
+        type: 'message_status',
+        message_id: messageId,
+        status: 'seen',
+        user_id: userUuid,
+        timestamp: new Date().toISOString(),
+      };
+      wsRef.current.send(JSON.stringify(payload));
+      
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, status: 'seen', readBy: [...(msg.readBy || []), userUuid!] }
+          : msg
+      ));
+    }
+  };
+
+  const sendMessageStatus = (messageId: string, status: 'delivered' | 'seen') => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const payload = {
+        type: 'message_status',
+        message_id: messageId,
+        status,
+        user_id: userUuid,
+        timestamp: new Date().toISOString(),
+      };
+      wsRef.current.send(JSON.stringify(payload));
+    }
+  };
+
+  const sendTypingIndicator = (isTyping: boolean) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && userUuid) {
+      const payload = {
+        type: 'typing',
+        user_id: userUuid,
+        is_typing: isTyping,
+        timestamp: new Date().toISOString(),
+      };
+      wsRef.current.send(JSON.stringify(payload));
+      console.log('[WebSocket] Sent typing indicator:', { is_typing: isTyping });
+    }
+  };
+
+  const sendTypingIndicatorDebounced = (isTyping: boolean) => {
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+    }
+    
+    if (isTyping) {
+      sendTypingIndicator(true);
+    } else {
+      typingDebounceRef.current = setTimeout(() => {
+        sendTypingIndicator(false);
+      }, 100);
+    }
+  };
+
+  const handleTypingStart = () => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
+    if (!isTyping) {
+      setIsTyping(true);
+      sendTypingIndicatorDebounced(true);
+    }
+    
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+      sendTypingIndicatorDebounced(false);
+      typingTimeoutRef.current = null;
+    }, 3000);
+  };
+
+  const handleTypingStop = () => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    
+    if (isTyping) {
+      setIsTyping(false);
+      sendTypingIndicatorDebounced(false);
+    }
+  };
+
+  const addTypingUser = (userId: string, userName: string) => {
+    if (userId === userUuid) return;
+    
+    setTypingUsers(prev => {
+      const newTypingUsers = { ...prev };
+      
+      if (newTypingUsers[userId]?.timeout) {
+        clearTimeout(newTypingUsers[userId].timeout);
+      }
+      
+      newTypingUsers[userId] = {
+        name: userName,
+        timeout: setTimeout(() => {
+          setTypingUsers(current => {
+            const updated = { ...current };
+            delete updated[userId];
+            return updated;
+          });
+        }, 5000)
+      };
+      
+      return newTypingUsers;
+    });
+  };
+
+  const removeTypingUser = (userId: string) => {
+    setTypingUsers(prev => {
+      const newTypingUsers = { ...prev };
+      if (newTypingUsers[userId]?.timeout) {
+        clearTimeout(newTypingUsers[userId].timeout);
+      }
+      delete newTypingUsers[userId];
+      return newTypingUsers;
+    });
+  };
+
   const fetchChatDetails = async (rideId: string) => {
     try {
-      const rideResponse = await apiUtil.get<{ride: RideDetails}>(`/ride/fetch/${rideId}`);
-      setRideDetails(rideResponse.ride);
-
-      const bookingsResponse = await apiUtil.get<{bookings: any[]}>(`/booking/ride/${rideId}`);
-      const participants: Participant[] = bookingsResponse.bookings.map((booking: any) => {
-        const passenger = booking.RideDetails?.Passenger || booking.Passenger || {};
-        return {
-          id: passenger.id || booking.passenger_id || '',
-          name: passenger.name || 'Unknown',
-          avatar: passenger.avatar,
-          isOnline: false,
-          role: 'member',
+      const rideResponse = await apiUtil.get<{
+        id: string;
+        host_user_id: string;
+        host_user_name: string;
+        start_location: string;
+        end_location: string;
+        start_time: string;
+        total_price: number;
+        total_seats: number;
+        booked_seats: number;
+        is_ongoing: boolean;
+        created_at: string;
+        is_user_host: boolean;
+        host: {
+          id: string;
+          name: string;
+          email: string;
+          profile_picture_url: string;
+          contact_number: string;
         };
-      });
-      setParticipants(participants);
+        bookings: Array<{
+          id: string;
+          passenger_id: string;
+          request_status: string;
+          booking_created_at: string;
+          passenger_name: string;
+          passenger_email: string;
+          passenger_profile_picture_url: string;
+          passenger_contact_number: string;
+        }>;
+      }>(`/ride/details/${rideId}`);
 
-      const settingsResponse = await apiUtil.get<{muted: boolean}>(`/ride/fetch/${rideId}/settings`);
-      setNotificationsMuted(settingsResponse.muted);
+      const rideData = rideResponse;
+      
+      setRideDetails({
+        id: rideData.id,
+        title: `${rideData.start_location} to ${rideData.end_location}`,
+        subtitle: `${rideData.booked_seats + 1} participants`, // +1 for host
+        destination: rideData.end_location,
+        departure: rideData.start_location,
+        date: new Date(rideData.start_time).toLocaleDateString(),
+        time: new Date(rideData.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        price: `₹${rideData.total_price}`,
+        driverName: rideData.host.name,
+        totalSeats: rideData.total_seats,
+        availableSeats: rideData.total_seats - (rideData.booked_seats + 1), // -1 for host seat
+        hostUserId: rideData.host_user_id,
+        isUserHost: rideData.is_user_host
+      });
+
+      const participants: Participant[] = [];
+      
+      participants.push({
+        id: rideData.host.id,
+        name: rideData.host.name,
+        avatar: rideData.host.profile_picture_url,
+        isOnline: false,
+        role: 'admin',
+      });
+      console.log('[Chat] Added host participant:', { id: rideData.host.id, name: rideData.host.name });
+
+      rideData.bookings
+        .filter(booking => booking.request_status === 'accepted')
+        .forEach(booking => {
+          participants.push({
+            id: booking.passenger_id,
+            name: booking.passenger_name,
+            avatar: booking.passenger_profile_picture_url,
+            isOnline: false,
+            role: 'member',
+          });
+          console.log('[Chat] Added passenger participant:', { id: booking.passenger_id, name: booking.passenger_name });
+        });
+
+      setParticipants(participants);
+      console.log('[Chat] Set participants:', participants.map(p => ({ id: p.id, name: p.name, role: p.role })));
+
+      const totalOccupiedSeats = rideData.booked_seats + 1; // +1 for host
+      const remainingSeats = rideData.total_seats - totalOccupiedSeats;
+      
+      setRideDetails(prevDetails => ({
+        ...prevDetails!,
+        availableSeats: Math.max(0, remainingSeats),
+        subtitle: `${participants.length} participants`
+      }));
+
+      try {
+        const settingsResponse = await apiUtil.get<{settings: {chat_name?: string, notifications_muted?: boolean}}>(`/ride/${rideId}/settings`);
+        setNotificationsMuted(settingsResponse.settings?.notifications_muted || false);
+        if (settingsResponse.settings?.chat_name) {
+          setChatTitle(settingsResponse.settings.chat_name);
+        }
+      } catch (settingsError) {
+        console.warn('[Chat] Failed to fetch ride settings, using default', settingsError);
+        setNotificationsMuted(false);
+      }
     } catch (error) {
       console.warn('[Chat] Failed to fetch chat details', error);
       setRideDetails({
         id: rideId,
         title: chatTitle,
         subtitle: chatSubtitle,
-        destination: 'Chennai Central',
-        departure: 'Vellore',
-        date: '2025-07-31',
-        time: '09:30 AM',
-        price: '₹250',
-        vehicle: 'Maruti Suzuki Swift',
-        driverName: 'Bhallaldeva',
+        destination: 'Unknown Destination',
+        departure: 'Unknown Departure',
+        date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        price: '₹0',
+        driverName: 'Unknown Host',
         totalSeats: 4,
         availableSeats: 1
       });
       setParticipants([
-        { id: userUuid || '1', name: 'You', role: 'member', isOnline: true },
-        { id: '2', name: 'Bhallaldeva', role: 'admin', isOnline: true },
-        { id: '3', name: 'Kattappa', role: 'member', isOnline: false },
-        { id: '4', name: 'Sivagami', role: 'member', isOnline: true },
-        { id: '5', name: 'Devasena', role: 'member', isOnline: false },
+        { 
+          id: userUuid || '1', 
+          name: userProfiles[userUuid || '1']?.name || 'You', 
+          role: 'member', 
+          isOnline: true 
+        },
       ]);
+      console.log('[Chat] Set fallback participants, userUuid:', userUuid, 'userProfiles:', userProfiles);
     }
   };
 
   useEffect(() => {
     if (!userUuid) return;
     setNavBarVariant?.(0);
-    const rideId = chatParams.chatRoom?.id || chatParams.chatId;
+    const chatId = chatParams.chatRoom?.id || chatParams.chatId;
     const userId: string = chatParams.userId || userUuid;
-    if (!rideId) return;
+    const isGroupChat = chatParams.isGroupChat !== false; // Default to true for backward compatibility
+    if (!chatId) return;
 
-    fetchChatDetails(rideId);
+    if (isGroupChat) {
+      // For group chats, chatId is the ride ID
+      fetchChatDetails(chatId);
+    } else {
+      // For DMs, chatId is the room ID (dm_userId1_userId2)
+      // Set up a simple chat with just the current user and the other user
+      setRideDetails(null); // No ride details for DMs
+      
+      // Fetch the other user's profile for better display
+      const otherUserId = chatParams.otherUserId;
+      if (otherUserId) {
+        fetchUserProfile(otherUserId).then(otherUserProfile => {
+          setParticipants([
+            { 
+              id: userUuid, 
+              name: userProfiles[userUuid]?.name || 'You', 
+              role: 'member', 
+              isOnline: true 
+            },
+            { 
+              id: otherUserId, 
+              name: otherUserProfile.name || 'Other User', 
+              role: 'member', 
+              isOnline: false 
+            }
+          ]);
+        });
+      } else {
+        // Fallback if otherUserId is not provided
+        setParticipants([
+          { 
+            id: userUuid, 
+            name: userProfiles[userUuid]?.name || 'You', 
+            role: 'member', 
+            isOnline: true 
+          },
+          { 
+            id: 'unknown', 
+            name: chatParams.chatTitle?.replace('Chat with ', '') || 'Other User', 
+            role: 'member', 
+            isOnline: false 
+          }
+        ]);
+      }
+      console.log('[Chat] Set DM participants for room:', chatId, 'with other user:', otherUserId);
+    }
 
-    ChatService.fetchMessages(apiUtil, rideId)
-      .then((msgs) => {
+    ChatService.fetchMessages(apiUtil, chatId)
+      .then(async (msgs) => {
         console.log('[Chat] fetched messages', msgs);
         const transformed = msgs.map((m: any): ChatMessage => {
           let senderName = 'Unknown User';
           let senderAvatar = undefined;
+          
           if (m.sender && typeof m.sender === 'object') {
             senderName = m.sender.name || m.sender_name || 'Unknown User';
-            senderAvatar = m.sender.profile_picture_url;
+            senderAvatar = m.sender.profile_picture_url || m.sender.avatar;
           } else if (m.sender_name) {
             senderName = m.sender_name;
           }
+          
           return {
             id: m.id,
             text: m.content || m.text || '',
             sender: m.sender_id === userUuid ? 'user' : 'other',
             senderId: m.sender_id,
             senderName,
+            senderAvatar,
             timestamp: new Date(m.created_at || m.timestamp || Date.now()),
+            status: m.sender_id === userUuid ? (m.status || 'sent') : undefined,
+            readBy: m.read_by || [],
           };
         });
         setMessages(transformed);
       })
-      .catch(console.error);
+      .catch((error) => {
+        if (!isGroupChat) {
+          // For DMs, if message fetching fails, start with empty messages
+          // This is expected until backend supports DM message storage
+          console.log('[Chat] DM message fetching not yet supported, starting with empty messages');
+          setMessages([]);
+        } else {
+          console.error('[Chat] Failed to fetch messages:', error);
+        }
+      });
 
-    const ws = ChatService.openSocket(userId, rideId, (e) => {
+    const ws = ChatService.openSocket(userId, chatId, (e) => {
       console.log('[WebSocket] message received raw', e.data);
       try {
-        const data = JSON.parse(e.data);
-        if (data.type === 'message') {
-          let senderName = 'Unknown User';
-          let senderAvatar = undefined;
-          if (data.sender && typeof data.sender === 'object') {
-            senderName = data.sender.name || data.sender_name || 'Unknown User';
-            senderAvatar = data.sender.profile_picture_url;
-          } else if (data.sender_name) {
-            senderName = data.sender_name;
-          }
-          setMessages(prev => {
-            if (prev.some(m => m.id === data.message_id)) return prev;
-            return [
-              ...prev,
-              {
+        const rawData = e.data.trim();
+        
+        const messages = rawData.split('\n').filter((line: string) => line.trim());
+        
+        for (const messageStr of messages) {
+          try {
+            const data = JSON.parse(messageStr);
+            
+            if (data.type === 'message') {
+              if (data.temp_id) {
+                console.log('[WebSocket] Received temp_id confirmation:', data.temp_id, '→', data.message_id);
+                setMessages(prev => {
+                  const updated = prev.map(msg => 
+                    msg.id === data.temp_id 
+                      ? { ...msg, id: data.message_id, status: 'sent' as const }
+                      : msg
+                  );
+                  console.log('[WebSocket] Updated message with real ID, total messages:', updated.length);
+                  return updated;
+                });
+                continue;
+              }
+              
+              let senderName = 'Unknown User';
+              let senderAvatar = undefined;
+              
+              if (data.sender && typeof data.sender === 'object') {
+                senderName = data.sender.name || data.sender_name || 'Unknown User';
+                senderAvatar = data.sender.profile_picture_url || data.sender.avatar;
+              } else if (data.sender_name) {
+                senderName = data.sender_name;
+              }
+              
+              const newMessage: ChatMessage = {
                 id: data.message_id,
                 text: data.content,
                 sender: data.sender_id === userId ? 'user' : 'other',
@@ -208,12 +505,72 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
                 senderName,
                 senderAvatar,
                 timestamp: new Date(data.timestamp),
-              },
-            ];
-          });
+                status: data.sender_id === userId ? 'sent' : undefined,
+              };
+              
+              console.log('[WebSocket] Processing new message:', {
+                id: newMessage.id,
+                content: newMessage.text,
+                sender: newMessage.sender,
+                senderId: newMessage.senderId,
+                currentUserId: userId
+              });
+              
+              setMessages(prev => {
+                if (prev.some(m => m.id === data.message_id)) {
+                  console.log('[WebSocket] Duplicate message ignored:', data.message_id);
+                  return prev;
+                }
+                
+                console.log('[WebSocket] Adding new message to UI:', data.content, 'from:', senderName);
+                const updated = [...prev, newMessage];
+                console.log('[WebSocket] New messages array length:', updated.length);
+                
+                if (data.sender_id !== userId) {
+                  setTimeout(() => {
+                    sendMessageStatus(data.message_id, 'delivered');
+                    setTimeout(() => {
+                      sendMessageStatus(data.message_id, 'seen');
+                    }, 500);
+                  }, 100);
+                }
+                
+                return updated;
+              });
+            } else if (data.type === 'message_status') {
+              setMessages(prev => prev.map(msg => {
+                if (msg.id === data.message_id) {
+                  let updatedReadBy = msg.readBy || [];
+                  if (data.status === 'seen' && data.user_id && !updatedReadBy.includes(data.user_id)) {
+                    updatedReadBy = [...updatedReadBy, data.user_id];
+                  }
+                  return {
+                    ...msg,
+                    status: data.status,
+                    readBy: updatedReadBy
+                  };
+                }
+                return msg;
+              }));
+            } else if (data.type === 'user_joined' || data.type === 'user_left') {
+              console.log(`[Chat] User ${data.type}: ${data.user_name || data.user_id}`);
+            } else if (data.type === 'typing') {
+              console.log(`[Chat] ${data.user_name || data.user_id} is typing: ${data.is_typing}`);
+              if (data.user_id && data.user_name && data.user_id !== userUuid) {
+                if (data.is_typing) {
+                  addTypingUser(data.user_id, data.user_name);
+                } else {
+                  removeTypingUser(data.user_id);
+                }
+              }
+            }
+          } catch (parseError) {
+            console.warn('[WebSocket] JSON parse error for message:', messageStr);
+            console.warn('[WebSocket] Parse error details:', parseError);
+          }
         }
       } catch (err) {
-        console.warn(err);
+        console.warn('[WebSocket] Error processing WebSocket message:', err);
       }
     });
     console.log('[WebSocket] Initializing connection to:', ws.url);
@@ -223,40 +580,113 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     
     wsRef.current = ws;
     return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      
+      if (typingDebounceRef.current) {
+        clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = null;
+      }
+      
+      if (isTyping && ws.readyState === WebSocket.OPEN) {
+        sendTypingIndicator(false);
+      }
+      
+      Object.values(typingUsers).forEach(user => {
+        if (user.timeout) {
+          clearTimeout(user.timeout);
+        }
+      });
+      
       ws.close();
     };
   }, [route?.params, setNavBarVariant, userUuid]);
 
+  useEffect(() => {
+    if (!userUuid || messages.length === 0) return;
+    
+    const unreadMessages = messages.filter(msg => 
+      msg.sender === 'other' && 
+      (!msg.readBy || !msg.readBy.includes(userUuid))
+    );
+    
+    unreadMessages.forEach(msg => {
+      markMessageAsRead(msg.id);
+    });
+  }, [messages, userUuid]);
+
+  useEffect(() => {
+    console.log('[Chat] Messages state updated, count:', messages.length, 'messages:', messages.map(m => ({ id: m.id, text: m.text.substring(0, 20) })));
+    if (messages.length > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages]);
+
   const sendMessage = () => {
-    const rideId = chatParams.chatRoom?.id || chatParams.chatId;
+    const chatId = chatParams.chatRoom?.id || chatParams.chatId;
     if (!userUuid) { console.warn('[Chat] userUuid not ready'); return; }
     const userId: string = chatParams.userId || userUuid;
-    if (!newMessage.trim() || !rideId) return;
+    if (!newMessage.trim() || !chatId) return;
+
+    handleTypingStop();
+
+    const tempMessageId = `temp_${Date.now()}_${Math.random()}`;
+    const messageText = newMessage.trim();
+    
+    const optimisticMessage: ChatMessage = {
+      id: tempMessageId,
+      text: messageText,
+      sender: 'user',
+      senderId: userId,
+      senderName: 'You',
+      timestamp: new Date(),
+      status: 'sending'
+    };
+    
+    console.log('[Chat] Adding optimistic message:', optimisticMessage);
+    setMessages(prev => {
+      const updated = [...prev, optimisticMessage];
+      console.log('[Chat] Total messages after optimistic add:', updated.length);
+      return updated;
+    });
+    setNewMessage('');
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       const payload = {
         type: 'message',
-        room_id: rideId,
+        room_id: chatId,
         sender_id: userId,
-        content: newMessage,
+        content: messageText,
         timestamp: new Date().toISOString(),
+        temp_id: tempMessageId,
       };
       console.log('[WebSocket] sending', payload);
       wsRef.current.send(JSON.stringify(payload));
-      setNewMessage('');
     } else {
       console.warn('[WebSocket] Not connected, cannot send message');
+      setMessages(prev => prev.map(msg => 
+        msg.id === tempMessageId 
+          ? { ...msg, status: 'failed' as any }
+          : msg
+      ));
     }
   };
 
   const handleMuteToggle = async (value: boolean) => {
     try {
-      const rideId = chatParams.chatRoom?.id || chatParams.chatId;
-      await apiUtil.post(`/rides/${rideId}/settings`, { muted: value });
+      const chatId = chatParams.chatRoom?.id || chatParams.chatId;
+      const isGroupChat = chatParams.isGroupChat !== false;
+      
+      if (isGroupChat) {
+        await apiUtil.put(`/ride/${chatId}/settings`, { notifications_muted: value });
+      }
       setNotificationsMuted(value);
     } catch (error) {
       console.warn('[Chat] Failed to update notification settings', error);
-      // For demo, just update the state
       setNotificationsMuted(value);
     }
   };
@@ -268,14 +698,17 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     }
 
     try {
-      const rideId = chatParams.chatRoom?.id || chatParams.chatId;
-      await apiUtil.put(`/rides/${rideId}`, { title: newChatName });
+      const chatId = chatParams.chatRoom?.id || chatParams.chatId;
+      const isGroupChat = chatParams.isGroupChat !== false;
+      
+      if (isGroupChat) {
+        await apiUtil.put(`/ride/${chatId}/settings`, { chat_name: newChatName });
+      }
       setChatTitle(newChatName);
       setEditingChatName(false);
       setNewChatName('');
     } catch (error) {
       console.warn('[Chat] Failed to rename chat', error);
-      // For demo, just update the state
       setChatTitle(newChatName);
       setEditingChatName(false);
       setNewChatName('');
@@ -283,6 +716,14 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
   };
 
   const handleLeaveRide = () => {
+    const isGroupChat = chatParams.isGroupChat !== false;
+    
+    if (!isGroupChat) {
+      // For DMs, just go back (no need to "leave")
+      navigation.goBack();
+      return;
+    }
+    
     Alert.alert(
       "Leave Ride",
       "Are you sure you want to leave this ride? You won't be able to rejoin unless invited again.",
@@ -293,8 +734,8 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
           style: "destructive",
           onPress: async () => {
             try {
-              const rideId = chatParams.chatRoom?.id || chatParams.chatId;
-              await apiUtil.delete(`/rides/${rideId}/participants/${userUuid}`);
+              const chatId = chatParams.chatRoom?.id || chatParams.chatId;
+              await apiUtil.delete(`/rides/${chatId}/participants/${userUuid}`);
               navigation.goBack();
             } catch (error) {
               console.warn('[Chat] Failed to leave ride', error);
@@ -303,6 +744,53 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
           }
         }
       ]
+    );
+  };
+
+  const renderMessageStatus = (msg: ChatMessage) => {
+    if (msg.sender !== 'user') return null;
+    
+    const { status } = msg;
+    
+    let statusText = '';
+    let statusColor = '#999';
+    
+    switch (status) {
+      case 'sending':
+        statusText = '○';
+        statusColor = '#999';
+        break;
+      case 'sent':
+        statusText = '✓';
+        statusColor = '#999';
+        break;
+      case 'delivered':
+        statusText = '✓✓';
+        statusColor = '#999';
+        break;
+      case 'seen':
+        statusText = '✓✓';
+        statusColor = AppColors.secondaryDarkGreen || '#4CAF50';
+        break;
+      case 'failed':
+        statusText = '!';
+        statusColor = '#f44336';
+        break;
+      default:
+        statusText = '✓';
+        statusColor = '#999';
+    }
+    
+    return (
+      <Text style={{ 
+        fontSize: 10, 
+        color: statusColor, 
+        marginLeft: 4,
+        fontWeight: status === 'seen' ? 'bold' : 'normal',
+        fontFamily: 'monospace', 
+      }}>
+        {statusText}
+      </Text>
     );
   };
 
@@ -335,33 +823,44 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
           {msg.text}
         </Text>
         
-        <Text
-          style={
-            isUserMessage
-              ? chatMessagesStyles.messageTimeSent
-              : chatMessagesStyles.messageTime
-          }
-        >
-          {msg.timestamp
-            ? (() => {
-                try {
-                  const d = new Date(msg.timestamp);
-                  if (isNaN(d.getTime())) return '';
-                  return d.toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  });
-                } catch {
-                  return '';
-                }
-              })()
-            : ''}
-        </Text>
+        <View style={{ 
+          flexDirection: 'row', 
+          alignItems: 'center', 
+          justifyContent: isUserMessage ? 'flex-end' : 'flex-start',
+          marginTop: 2
+        }}>
+          <Text
+            style={
+              isUserMessage
+                ? chatMessagesStyles.messageTimeSent
+                : chatMessagesStyles.messageTime
+            }
+          >
+            {msg.timestamp
+              ? (() => {
+                  try {
+                    const d = new Date(msg.timestamp);
+                    if (isNaN(d.getTime())) return '';
+                    return d.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
+                  } catch {
+                    return '';
+                  }
+                })()
+              : ''}
+          </Text>
+          {renderMessageStatus(msg)}
+        </View>
       </View>
     );
   };
 
-  const renderSettingsModal = () => (
+  const renderSettingsModal = () => {
+    const isGroupChat = chatParams.isGroupChat !== false;
+    
+    return (
     <Modal
       visible={showSettings}
       animationType="slide"
@@ -382,11 +881,11 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
             <View style={chatMessagesStyles.chatInfoHeader}>
               <View style={chatMessagesStyles.chatAvatarContainer}>
                 <Text style={chatMessagesStyles.chatAvatarText}>
-                  {chatTitle.charAt(0).toUpperCase()}
+                  {(chatTitle || 'C').charAt(0).toUpperCase()}
                 </Text>
               </View>
               <View style={chatMessagesStyles.chatInfoDetails}>
-                {editingChatName ? (
+                {editingChatName && isGroupChat ? (
                   <View style={chatMessagesStyles.editNameContainer}>
                     <TextInput
                       style={chatMessagesStyles.editNameInput}
@@ -401,12 +900,12 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  <TouchableOpacity onPress={() => {
+                  <TouchableOpacity onPress={isGroupChat ? () => {
                     setEditingChatName(true);
                     setNewChatName(chatTitle);
-                  }}>
+                  } : undefined}>
                     <Text style={chatMessagesStyles.chatTitleLarge}>{chatTitle}</Text>
-                    <Text style={chatMessagesStyles.tapToEdit}>Tap to edit</Text>
+                    {isGroupChat && <Text style={chatMessagesStyles.tapToEdit}>Tap to edit</Text>}
                   </TouchableOpacity>
                 )}
                 <Text style={chatMessagesStyles.participantCount}>
@@ -418,11 +917,20 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
 
           <View style={chatMessagesStyles.settingsSection}>
             <Text style={chatMessagesStyles.sectionTitle}>Participants</Text>
-            {participants.map((participant) => (
-              <View key={participant.id} style={chatMessagesStyles.participantItem}>
+            {participants.map((participant, index) => (
+              <View key={`participant-${index}-${participant.id}`} style={chatMessagesStyles.participantItem}>
                 <View style={chatMessagesStyles.participantAvatar}>
                   <Text style={chatMessagesStyles.participantAvatarText}>
-                    {participant.name.charAt(0).toUpperCase()}
+                    {(() => {
+                      if (participant.id === userUuid) {
+                        const userName = userProfiles[userUuid]?.name || participant.name;
+                        return (userName && userName !== 'Unknown User' ? userName : 'Y').charAt(0).toUpperCase();
+                      }
+                      const name = participant.name && participant.name.trim() !== '' && participant.name !== 'Unknown User'
+                        ? participant.name
+                        : 'U';
+                      return name.charAt(0).toUpperCase();
+                    })()}
                   </Text>
                   {participant.isOnline && (
                     <View style={chatMessagesStyles.onlineIndicator} />
@@ -430,11 +938,22 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
                 </View>
                 <View style={chatMessagesStyles.participantInfo}>
                   <Text style={chatMessagesStyles.participantName}>
-                    {participant.name}
-                    {participant.id === userUuid && ' (You)'}
+                    {(() => {
+                      if (participant.id === userUuid) {
+                        // For current user, prioritize stored user profile name
+                        const userName = userProfiles[userUuid]?.name || participant.name;
+                        return userName && userName !== 'Unknown User' 
+                          ? `${userName} (You)` 
+                          : 'You';
+                      }
+                      // For other participants, use participant name with fallback
+                      return participant.name && participant.name.trim() !== '' && participant.name !== 'Unknown User' 
+                        ? participant.name 
+                        : 'Unknown User';
+                    })()}
                   </Text>
                   <Text style={chatMessagesStyles.participantRole}>
-                    {participant.role === 'admin' ? 'Driver' : 'Passenger'}
+                    {isGroupChat ? (participant.role === 'admin' ? 'Host' : 'Passenger') : 'Contact'}
                     {participant.isOnline ? ' • Online' : ' • Offline'}
                   </Text>
                 </View>
@@ -442,7 +961,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
             ))}
           </View>
 
-          {rideDetails && (
+          {rideDetails && isGroupChat && (
             <View style={chatMessagesStyles.settingsSection}>
               <Text style={chatMessagesStyles.sectionTitle}>Ride Details</Text>
               <View style={chatMessagesStyles.rideDetailItem}>
@@ -463,22 +982,16 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
                   <Text style={chatMessagesStyles.rideDetailValue}>{rideDetails.price}</Text>
                 </View>
               )}
-              {rideDetails.vehicle && (
-                <View style={chatMessagesStyles.rideDetailItem}>
-                  <Text style={chatMessagesStyles.rideDetailLabel}>Vehicle</Text>
-                  <Text style={chatMessagesStyles.rideDetailValue}>{rideDetails.vehicle}</Text>
-                </View>
-              )}
               {rideDetails.driverName && (
                 <View style={chatMessagesStyles.rideDetailItem}>
-                  <Text style={chatMessagesStyles.rideDetailLabel}>Driver</Text>
+                  <Text style={chatMessagesStyles.rideDetailLabel}>Host</Text>
                   <Text style={chatMessagesStyles.rideDetailValue}>{rideDetails.driverName}</Text>
                 </View>
               )}
               <View style={chatMessagesStyles.rideDetailItem}>
                 <Text style={chatMessagesStyles.rideDetailLabel}>Seats</Text>
                 <Text style={chatMessagesStyles.rideDetailValue}>
-                  {rideDetails.availableSeats}/{rideDetails.totalSeats} available
+                  {((rideDetails.totalSeats || 0) - (rideDetails.availableSeats || 0))}/{rideDetails.totalSeats || 0} occupied • {rideDetails.availableSeats || 0} available
                 </Text>
               </View>
             </View>
@@ -498,20 +1011,23 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
             </View>
           </View>
 
-          <View style={chatMessagesStyles.settingsSection}>            
-            <TouchableOpacity
-              style={[chatMessagesStyles.actionButton, chatMessagesStyles.destructiveButton]}
-              onPress={handleLeaveRide}
-            >
-              <Text style={[chatMessagesStyles.actionButtonText, chatMessagesStyles.destructiveButtonText]}>
-                Leave Ride
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {isGroupChat && (
+            <View style={chatMessagesStyles.settingsSection}>            
+              <TouchableOpacity
+                style={[chatMessagesStyles.actionButton, chatMessagesStyles.destructiveButton]}
+                onPress={handleLeaveRide}
+              >
+                <Text style={[chatMessagesStyles.actionButtonText, chatMessagesStyles.destructiveButtonText]}>
+                  Leave Ride
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
       </SafeAreaView>
     </Modal>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={chatMessagesStyles.container}>
@@ -588,9 +1104,44 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
         </View>
       </View>
 
-      <ScrollView style={chatMessagesStyles.messagesContainer}>
-        {messages.map(renderMessage)}
+      <ScrollView 
+        ref={scrollViewRef}
+        style={chatMessagesStyles.messagesContainer}
+        onContentSizeChange={() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }}
+        key={`messages-${messages.length}`}
+      >
+        {messages.map((msg, index) => (
+          <View key={`msg-${index}-${msg.id}`}>
+            {renderMessage(msg)}
+          </View>
+        ))}
       </ScrollView>
+
+      {Object.keys(typingUsers).length > 0 && (
+        <View style={{
+          paddingHorizontal: 16,
+          paddingVertical: 8,
+          backgroundColor: 'rgba(168, 216, 168, 0.1)',
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(168, 216, 168, 0.3)',
+        }}>
+          <Text style={{
+            color: '#666',
+            fontSize: 14,
+            fontFamily: 'Nunito Sans',
+            fontStyle: 'italic'
+          }}>
+            {Object.values(typingUsers).length === 1 
+              ? `${Object.values(typingUsers)[0].name} is typing...`
+              : Object.values(typingUsers).length === 2
+              ? `${Object.values(typingUsers)[0].name} and ${Object.values(typingUsers)[1].name} are typing...`
+              : `${Object.values(typingUsers)[0].name} and ${Object.values(typingUsers).length - 1} others are typing...`
+            }
+          </Text>
+        </View>
+      )}
 
       <View style={chatMessagesStyles.typingBarContainer}>
         <TextInput
@@ -601,7 +1152,22 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
           placeholder="Start typing..."
           placeholderTextColor="#000"
           value={newMessage}
-          onChangeText={setNewMessage}
+          onChangeText={(text) => {
+            setNewMessage(text);
+            if (text.trim().length > 0) {
+              handleTypingStart();
+            } else {
+              handleTypingStop();
+            }
+          }}
+          onBlur={handleTypingStop}
+          onEndEditing={handleTypingStop}
+          onSubmitEditing={() => {
+            handleTypingStop();
+            if (newMessage.trim()) {
+              sendMessage();
+            }
+          }}
         />
         <TouchableOpacity
           onPress={sendMessage}
