@@ -181,6 +181,18 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     return `YOB: 2004`;
   };
 
+  const getVehicleIcon = (totalSeats: number) => {
+    if (totalSeats <= 2) {
+      return require("../assets/motorcycle.png");
+    } else if (totalSeats <= 4) {
+      return require("../assets/racer.png");
+    } else if (totalSeats <= 6) {
+      return require("../assets/wagon.png");
+    } else {
+      return require("../assets/foodvan.png");
+    }
+  };
+
   const isValidCoordinate = (lat: number | null | undefined, lon: number | null | undefined): boolean => {
     return lat !== null && lat !== undefined && lon !== null && lon !== undefined && 
            !isNaN(lat) && !isNaN(lon) && 
@@ -975,7 +987,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
               </View>
               
               <View style={styles.scooterContainer}>
-                <Image source={require('../assets/Beep Beep Motorcycle.png')} style={styles.scooterImage} resizeMode="contain" />
+                <Image source={getVehicleIcon(rideData.total_seats)} style={styles.scooterImage} resizeMode="contain" />
               </View>
             </View>
             
