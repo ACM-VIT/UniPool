@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Image, Alert, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, Image, Alert, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithCredential,
-} from "@react-native-firebase/auth";
+import { getAuth, GoogleAuthProvider, AppleAuthProvider, signInWithCredential } from "@react-native-firebase/auth";
+let appleAuth: any = null;
+if (Platform.OS === 'ios') {
+  appleAuth = require("@invertase/react-native-apple-authentication").appleAuth;
+}
 import LottieView from 'lottie-react-native';
 import { AuthScreenProps } from "./AuthScreen.types";
 import styles from "./AuthScreen.styles";
@@ -88,6 +88,51 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
     }
   };
 
+  const handleAppleSignIn = async () => {
+    if (Platform.OS !== 'ios' || !appleAuth) {
+      Alert.alert("Error", "Apple Sign In is only available on iOS");
+      return;
+    }
+    
+    try {
+      // Start the sign-in request for Apple
+      const appleAuthRequestResponse = await appleAuth.performRequest({
+        requestedOperation: appleAuth.Operation.LOGIN,
+        requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
+      });
+  
+      if (!appleAuthRequestResponse.identityToken) {
+        throw new Error('Apple Sign-In failed - no identify token returned');
+      }
+  
+      const { identityToken, nonce } = appleAuthRequestResponse;
+      const appleCredential = AppleAuthProvider.credential(identityToken, nonce);
+  
+      await signInWithCredential(getAuth(), appleCredential);
+      
+      try {
+        await apiUtil.get("/user/details");
+        navigation.navigate("HomeScreen");
+      } catch (err: any) {
+        if (err.response?.status === 404 && err.response?.data?.newUser) {
+          navigation.navigate("SignUpScreen", { newUser: err.response.data.newUser });
+        } else if (err.response?.status === 400) {
+          Alert.alert("Error", err.response?.data?.message || "Unknown error");
+        } else if (err.response?.status === 404) {
+          Alert.alert("Sign-Up Required", "User not found. Please sign up.");
+        } else {
+          Alert.alert("Sign-In Failed", err.message || "An unknown error occurred");
+        }
+      }
+    } catch (error: any) {
+      if (error.code === 'ERR_REQUEST_CANCELED') {
+        return; // User canceled, don't show error
+      }
+      const message = error instanceof Error ? error.message : "An unknown error occurred";
+      Alert.alert("Apple Sign-In Failed", message);
+    }
+  };
+  
   return (
     <View style={styles.container}>
       <Text style={styles.greeting}>Hello!</Text>
@@ -120,6 +165,15 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
             {isSigningIn ? "Signing In..." : "Sign In with Google"}
           </Text>
         </TouchableOpacity>
+        
+        {Platform.OS === 'ios' && (
+          <TouchableOpacity 
+            style={[styles.button, isSigningIn && styles.buttonDisabled, { marginTop: 10 }]} 
+            onPress={handleAppleSignIn} 
+            disabled={isSigningIn}>
+              <Text style={styles.text}>Sign In with Apple</Text>
+          </TouchableOpacity>
+        )}
       </View>
       <Image source={require("../../assets/ramp.png")} style={styles.image} />
     </View>
