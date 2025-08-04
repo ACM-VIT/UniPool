@@ -344,6 +344,14 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         
       } catch (err: any) {
         console.error("Error fetching ride details:", err);
+        
+        // Handle user not found error gracefully - redirect to signup without showing error modal
+        if (err.status === 404 && err.message && err.message.includes("User not found")) {
+          console.log("User not found, redirecting to signup");
+          navigation.navigate('Signup' as never);
+          return;
+        }
+        
         setError(err.message || "Failed to fetch ride details");
       } finally {
         setLoading(false);

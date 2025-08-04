@@ -142,7 +142,20 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
           [resp.user.id]: { name: resp.user.name || 'You', avatar: undefined },
         }));
       })
-      .catch(e => console.warn('[Chat] fetch user failed', e));
+      .catch((e: any) => {
+        if (e?.message === "AUTHENTICATION_REDIRECT") {
+          console.log("Authentication redirect in ChatMessages");
+          return;
+        }
+        
+        if (e?.response?.status === 404 && 
+            e?.response?.data?.message === "User not found in database, signup required") {
+          console.log("User not found in database - redirect to signup handled by ApiUtil");
+          return;
+        }
+        
+        console.warn('[Chat] fetch user failed', e);
+      });
   }, [apiUtil, setNavBarVariant]);
 
   const fetchUserProfile = async (uid: string) => {
