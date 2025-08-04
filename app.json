@@ -17,6 +17,7 @@
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "bundleIdentifier": "com.carpoolitapp",
       "statusBarStyle": "dark",
       "config": {
