@@ -332,17 +332,14 @@ const AppContent = () => {
         return;
       }
 
-      // Handle different notification types using helper function
       handleNotificationNavigation(data);
     });
 
-    // Check if app was opened from a notification (background/killed state)
     Notifications.getLastNotificationResponseAsync().then(response => {
       if (response) {
         console.log("🔔 App opened from notification:", response);
         const data = response.notification.request.content.data as any;
         
-        // Wait a bit for navigation to be ready
         setTimeout(() => {
           if (navigationRef.current) {
             handleNotificationNavigation(data);
@@ -385,7 +382,8 @@ const AppContent = () => {
     currentRouteName !== "SignUpScreen" && 
     currentRouteName !== "CreateRide" && 
     currentRouteName !== "AvailableRidesSelectedScreen" &&
-    currentRouteName !== "ChatMessages";
+    currentRouteName !== "ChatMessages" &&
+    currentRouteName !== "RideDetailsScreen"
   
   return (
     <View style={{ flex: 1 }}>
