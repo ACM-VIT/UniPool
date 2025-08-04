@@ -26,7 +26,6 @@ import PassengersHistoryScreen from "./screens/PassengersHistoryScreen";
 import AccountSettingsScreen from "./screens/AccountSettingsScreen";
 import AvailableRideScreenSelected from "./screens/AvailableRideScreens/AvailableRideScreenSelected";
 
-// Chat Screens
 import { PassengerInfoScreen, ChatConversationScreen, TripsListScreen } from "./screens/ChatScreens";
 
 import MainNavBar from "./components/MainNavBar";
@@ -140,7 +139,6 @@ const AppContent = () => {
 
   const [navStateVersion, setNavStateVersion] = useState(0);
 
-  // Helper function to handle notification navigation
   const handleNotificationNavigation = (data: any) => {
     if (!navigationRef.current) return;
 
@@ -172,7 +170,6 @@ const AppContent = () => {
         });
       }
     } else if (data?.ride_id || data?.rideId) {
-      // Fallback for generic ride notifications
       const rideId = data.ride_id || data.rideId;
       navigationRef.current.navigate("RideDetailsScreen", {
         ride: { id: String(rideId) }
@@ -337,7 +334,7 @@ const AppContent = () => {
 
     Notifications.getLastNotificationResponseAsync().then(response => {
       if (response) {
-        console.log("🔔 App opened from notification:", response);
+        console.log("App opened from notification:", response);
         const data = response.notification.request.content.data as any;
         
         setTimeout(() => {
