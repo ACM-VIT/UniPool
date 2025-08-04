@@ -41,7 +41,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
   }, [navigation, apiUtil]);
 
   const handleGoogleSignIn = async () => {
-    // Prevent multiple simultaneous sign-in attempts
     if (isSigningIn) {
       return;
     }
@@ -56,7 +55,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
       
-      if (!idToken) throw new Error("No ID token from Google");
+      if (!idToken) {
+        Alert.alert("Sign-In Failed", "Unable to complete sign-in. Please try again.");
+        return;
+      }
       
       const googleCredential = GoogleAuthProvider.credential(idToken);
       await signInWithCredential(getAuth(), googleCredential);
