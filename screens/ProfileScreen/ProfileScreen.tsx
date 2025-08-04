@@ -77,6 +77,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     fetchUserData();
+    
   }, [apiUtil]);
 
   const calculateAge = (yob: number): number => {
@@ -88,19 +89,43 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       id: "bookings",
       title: "Bookings",
-      onPress: () => navigation.navigate("BookingsScreen"),
+      onPress: () => {
+        console.log("Navigating to BookingsScreen");
+        try {
+          navigation.navigate("BookingsScreen");
+        } catch (error) {
+          console.error("Navigation error:", error);
+          Alert.alert("Navigation Error", "Unable to navigate to Bookings screen");
+        }
+      },
     },
     {
       id: "personal_info",
       title: "Personal Information",
       hasCheckmark: true,
-      onPress: () => navigation.navigate("PersonalInformationScreen"),
+      onPress: () => {
+        console.log("Navigating to PersonalInformationScreen");
+        try {
+          navigation.navigate("PersonalInformationScreen");
+        } catch (error) {
+          console.error("Navigation error:", error);
+          Alert.alert("Navigation Error", "Unable to navigate to Personal Information screen");
+        }
+      },
     },
     {
       id: "passengers",
       title: "Passengers travelled with",
       hasCheckmark: true,
-      onPress: () => navigation.navigate("PassengersHistoryScreen"),
+      onPress: () => {
+        console.log("Navigating to PassengersHistoryScreen");
+        try {
+          navigation.navigate("PassengersHistoryScreen");
+        } catch (error) {
+          console.error("Navigation error:", error);
+          Alert.alert("Navigation Error", "Unable to navigate to Passengers History screen");
+        }
+      },
     },
   ];
 
@@ -108,7 +133,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       id: "default_address",
       title: "Default Start Address",
-      onPress: () => navigation.navigate("DefaultAddressScreen"),
+      onPress: () => {
+        console.log("Navigating to DefaultAddressScreen");
+        try {
+          navigation.navigate("DefaultAddressScreen");
+        } catch (error) {
+          console.error("Navigation error:", error);
+          Alert.alert("Navigation Error", "Unable to navigate to Default Address screen");
+        }
+      },
     },
     // {
     //   id: "currency",
@@ -120,7 +153,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       id: "notifications",
       title: "Notifications",
       hasCheckmark: true,
-      onPress: () => navigation.navigate("NotificationSettings"),
+      onPress: () => {
+        console.log("Notifications pressed - this screen may not be implemented yet");
+        Alert.alert("Coming Soon", "Notifications settings will be available in a future update");
+      },
     },
   ];
 
@@ -155,6 +191,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   };
 
   const handleLogout = () => {
+    console.log("Logout button pressed");
     Alert.alert(
       "Logout",
       "Are you sure you want to log out?",
@@ -164,18 +201,30 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           text: "Logout",
           style: "destructive",
           onPress: async () => {
+            console.log("User confirmed logout");
             try {
               const { getAuth, signOut } = await import('@react-native-firebase/auth');
               const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
-              
+        
+              console.log("Starting logout process...");
               const auth = getAuth();
               await signOut(auth);
+              console.log("Firebase signout completed");
               
               await AsyncStorage.removeItem('unipool_start_address');
               await AsyncStorage.removeItem('defaultAddress');
+              console.log("AsyncStorage cleared");
               
               setUserData(null);
-              navigation.reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
+              console.log("Navigating to AuthScreen...");
+              
+              if (navigation && navigation.reset) {
+                navigation.reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
+                console.log("Navigation reset completed");
+              } else {
+                console.error("Navigation or reset method not available");
+                Alert.alert("Logout Error", "Navigation is not available. Please restart the app.");
+              }
             } catch (e) {
               console.error('Logout error:', e);
               Alert.alert('Logout Failed', 'An error occurred while logging out.');
@@ -214,7 +263,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       id: "account_settings",
       title: "Account Settings",
       hasCheckmark: true,
-      onPress: () => navigation.navigate("AccountSettingsScreen"),
+      onPress: () => {
+        console.log("Navigating to AccountSettingsScreen");
+        try {
+          if (navigation && navigation.navigate) {
+            navigation.navigate("AccountSettingsScreen");
+            console.log("Navigation to AccountSettingsScreen completed");
+          } else {
+            console.error("Navigation object or navigate method not available");
+            Alert.alert("Navigation Error", "Unable to navigate to Account Settings");
+          }
+        } catch (error) {
+          console.error("Navigation error:", error);
+          Alert.alert("Navigation Error", "Unable to navigate to Account Settings");
+        }
+      },
     },
     {
       id: "logout",
@@ -223,25 +286,38 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     },
   ];
 
-  const renderMenuItem = (item: MenuItem) => (
-    <TouchableOpacity
-      key={item.id}
-      style={styles.menuItem}
-      onPress={item.onPress}
-      activeOpacity={0.7}
-    >
-      <Text style={styles.menuItemText}>{item.title}</Text>
-      {item.hasCheckmark && (
-        <Image
-          source={require("../../assets/favicon.png")}
-          style={styles.checkmarkIcon}
-          resizeMode="contain"
-        />
-      )}
-    </TouchableOpacity>
-  );
+  const renderMenuItem = (item: MenuItem) => {
+    // Higher z-index for help, account settings, and logout items
+    const isHighPriorityItem = ['help', 'account_settings', 'logout'].includes(item.id);
+    const itemStyle = isHighPriorityItem 
+      ? [styles.menuItem, { zIndex: 3000, elevation: 3000, position: 'relative' as const }] 
+      : styles.menuItem;
 
-  const renderStatsCard = (value: string, label: string, unit?: string) => (
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={itemStyle}
+        onPress={() => {
+          console.log(`Menu item pressed: ${item.title} (${item.id})`);
+          if (item.onPress) {
+            item.onPress();
+          } else {
+            console.warn(`No onPress handler for item: ${item.title}`);
+          }
+        }}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.menuItemText}>{item.title}</Text>
+        {item.hasCheckmark && (
+          <Image
+            source={require("../../assets/favicon.png")}
+            style={styles.checkmarkIcon}
+            resizeMode="contain"
+          />
+        )}
+      </TouchableOpacity>
+    );
+  };  const renderStatsCard = (value: string, label: string, unit?: string) => (
     <View style={styles.statsCard}>
       <Text style={styles.statsValue}>{value}</Text>
       <Text style={styles.statsLabel}>{label}</Text>
@@ -336,12 +412,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>More</Text>
-          <View style={styles.menuContainer}>
+          <View style={[styles.menuContainer, { zIndex: 2000, elevation: 2000, position: 'relative' }]}>
             {moreItems.map(renderMenuItem)}
           </View>
         </View>
 
-        <View style={styles.footerBranding}>
+        <View style={[styles.footerBranding, { zIndex: 1 }]}>
           <Text style={styles.footerSubtitle}>Viva la Vida!</Text>
           <View style={styles.footerImageContainer}>
             <Image
