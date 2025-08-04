@@ -28,7 +28,20 @@ const PersonalInformationScreen: React.FC = () => {
   useEffect(() => {
     apiUtil.get<UserResponse>('/user/details')
       .then((data: UserResponse) => setUser(data.user))
-      .catch(() => setError('Failed to load user info'))
+      .catch((err: any) => {
+        if (err?.message === "AUTHENTICATION_REDIRECT") {
+          console.log("Authentication redirect in PersonalInformationScreen");
+          return;
+        }
+        
+        if (err?.response?.status === 404 && 
+            err?.response?.data?.message === "User not found in database, signup required") {
+          console.log("User not found in database - redirect to signup handled by ApiUtil");
+          return;
+        }
+        
+        setError('Failed to load user info');
+      })
       .finally(() => setLoading(false));
   }, [apiUtil]);
 

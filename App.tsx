@@ -241,17 +241,65 @@ const AppContent = () => {
         console.log("User UID:", user.uid);
         console.log("User email:", user.email);
         console.log("Last sign in:", user.metadata.lastSignInTime);
-        console.log("Token refresh time:", user.metadata.lastSignInTime);
         
         try {
           const tokenResult = await user.getIdTokenResult(false);
-          console.log("🎟️ Token valid until:", new Date(tokenResult.expirationTime));
+          console.log("Token valid until:", new Date(tokenResult.expirationTime));
+          
+          const now = new Date();
+          const expirationTime = new Date(tokenResult.expirationTime);
+          if (expirationTime > now) {
+            console.log("Token is valid, checking user details in database...");
+            
+            try {
+              await apiUtil.get("/user/details");
+              console.log("User details found in database, setting route to HomeScreen");
+              setInitialRoute("HomeScreen");
+            } catch (userDetailsError: any) {
+              if (userDetailsError.status === 404 && 
+                  userDetailsError.message && 
+                  userDetailsError.message.includes("User not found")) {
+                console.log("User not found in database, redirecting to signup");
+                setInitialRoute("SignUpScreen");
+              } else {
+                console.error("Error checking user details:", userDetailsError);
+                console.log("Redirecting to AuthScreen due to user details error");
+                setInitialRoute("AuthScreen");
+              }
+            }
+          } else {
+            console.log("Token is expired, forcing refresh...");
+            const freshToken = await user.getIdTokenResult(true);
+            console.log("Fresh token obtained, checking user details in database...");
+            
+            // Check if user exists in database before proceeding to HomeScreen
+            try {
+              await apiUtil.get("/user/details");
+              console.log("User details found in database, setting route to HomeScreen");
+              setInitialRoute("HomeScreen");
+            } catch (userDetailsError: any) {
+              if (userDetailsError.status === 404 && 
+                  userDetailsError.message && 
+                  userDetailsError.message.includes("User not found")) {
+                console.log("User not found in database, redirecting to signup");
+                setInitialRoute("SignUpScreen");
+              } else {
+                console.error("Error checking user details:", userDetailsError);
+                console.log("Redirecting to AuthScreen due to user details error");
+                setInitialRoute("AuthScreen");
+              }
+            }
+          }
         } catch (tokenError) {
           console.error("Token validation error:", tokenError);
+          console.log("Redirecting to AuthScreen due to token error");
+          setInitialRoute("AuthScreen");
         }
+      } else {
+        console.log("No user, setting route to AuthScreen");
+        setInitialRoute("AuthScreen");
       }
       
-      setInitialRoute(user ? "HomeScreen" : "AuthScreen");
       setLoading(false);
     });
     
@@ -272,7 +320,24 @@ const AppContent = () => {
           try {
             const tokenResult = await manualCurrentUser.getIdTokenResult(true); // Force refresh
             console.log("Token refreshed and valid until:", new Date(tokenResult.expirationTime));
-            setInitialRoute("HomeScreen");
+            
+            // Check if user exists in database before proceeding to HomeScreen
+            try {
+              await apiUtil.get("/user/details");
+              console.log("User details found in database, setting route to HomeScreen");
+              setInitialRoute("HomeScreen");
+            } catch (userDetailsError: any) {
+              if (userDetailsError.status === 404 && 
+                  userDetailsError.message && 
+                  userDetailsError.message.includes("User not found")) {
+                console.log("User not found in database, redirecting to signup");
+                setInitialRoute("SignUpScreen");
+              } else {
+                console.error("Error checking user details:", userDetailsError);
+                console.log("Redirecting to AuthScreen due to user details error");
+                setInitialRoute("AuthScreen");
+              }
+            }
           } catch (tokenError: any) {
             console.error("Token refresh failed:", tokenError);
             setInitialRoute("AuthScreen");
@@ -301,7 +366,6 @@ const AppContent = () => {
         setPushToken(token);
         console.log("Push token obtained, sending to backend...");
         
-        // Send token to backend only if user is authenticated
         if (authStateResolved && initialRoute === "HomeScreen") {
           try {
             await apiUtil.post("/users/me/token", { token });
@@ -316,11 +380,11 @@ const AppContent = () => {
     setupNotifications();
 
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log("🔔 Notification received:", notification);
+      console.log("Notification received:", notification);
     });
 
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log("🔔 Notification response:", response);
+      console.log("Notification response:", response);
       
       const data = response.notification.request.content.data as any;
       

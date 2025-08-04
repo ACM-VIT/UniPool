@@ -87,7 +87,19 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
         
         const uniquePeople = Array.from(uniquePeopleMap.values());
         setPassengers(uniquePeople);
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.message === "AUTHENTICATION_REDIRECT") {
+          console.log("Authentication redirect in PassengerInfo");
+          return;
+        }
+        
+        // Handle user not found - should redirect to signup (handled by ApiUtil)
+        if (error?.response?.status === 404 && 
+            error?.response?.data?.message === "User not found in database, signup required") {
+          console.log("User not found in database - redirect to signup handled by ApiUtil");
+          return;
+        }
+        
         console.error("Failed to fetch passengers:", error);
       } finally {
         setLoading(false);

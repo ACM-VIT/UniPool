@@ -117,6 +117,16 @@ const BookingScreen: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
+        const auth = require('@react-native-firebase/auth').getAuth();
+        const currentUser = auth.currentUser;
+        
+        if (!currentUser) {
+          console.log("Unauthenticated user found in BookingScreen");
+          setError("Please sign in to view your rides");
+          return;
+        }
+
+        console.log("User authenticated, fetching rides...");
         const bookings = await apiUtil.get<any>("/user/rides");
         const upcoming: RideData[] = [];
         const inProgress: RideData[] = [];
@@ -182,9 +192,12 @@ const BookingScreen: React.FC = () => {
         setUpcomingRides(upcoming);
         setInProgressRides(inProgress);
       } catch (err: any) {
-        if (err.message !== "AUTHENTICATION_REDIRECT") {
-          setError(err.message || "Failed to fetch rides");
+        console.log('Error fetching user rides:', err);
+        if (err.message === "AUTHENTICATION_REDIRECT") {
+          console.log('Authentication redirect in BookingScreen - not showing error');
+          return;
         }
+        setError(err.message || "Failed to fetch rides");
       } finally {
         setLoading(false);
       }

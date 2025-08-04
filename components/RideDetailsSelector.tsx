@@ -104,7 +104,17 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         setDefaultStartAddress(cached);
         return;
       }
+      
       try {
+        const auth = require('@react-native-firebase/auth').getAuth();
+        const currentUser = auth.currentUser;
+        
+        if (!currentUser) {
+          console.log("No authenticated user found in RideDetailsSelector");
+          return;
+        }
+
+        console.log("User authenticated, fetching default address...");
         const res = await apiUtil.get("/user/default-address");
         if (typeof res === "object" && res !== null && "address" in res && typeof (res as any).address === "string") {
           setDefaultStartAddress((res as any).address);
@@ -113,7 +123,11 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           } catch (e) {
           }
         }
-      } catch (err) {}
+      } catch (err: any) {
+        if (err?.message !== "AUTHENTICATION_REDIRECT") {
+          console.log("Error fetching default address:", err);
+        }
+      }
     }
     fetchDefaultAddress();
   }, [apiUtil]);

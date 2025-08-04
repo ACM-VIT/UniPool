@@ -8,7 +8,9 @@ import {
   Alert,
   TouchableOpacity,
   Text,
+  ScrollView,
 } from "react-native";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SignUpScreenProps } from "./SignUpScreen.types";
 import HeaderText from "../../components/HeaderText";
 import CustomInput from "../../components/CustomInput";
@@ -18,6 +20,7 @@ import styles from "./SignUpScreen.styles";
 
 const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
   const { apiUtil } = useApi();
+  const insets = useSafeAreaInsets();
   const newUser = route?.params?.newUser;
 
   const [contactNumber, setContactNumber] = useState("");
@@ -130,51 +133,64 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        <View style={styles.contentContainer}>
-          <HeaderText>Complete Your Profile</HeaderText>
-          <HeaderText>
-            To make it easier for us to find you a ride, please provide us with the
-            following information:
-          </HeaderText>
-          <HeaderText>Contact Number</HeaderText>
-          <CustomInput
-            placeholder="Do not prefix with 0"
-            value={contactNumber}
-            onChangeText={setContactNumber}
-            keyboardType="numeric"
-            maxLength={10}
-          />
-          <HeaderText>Year of Birth</HeaderText>
-          <CustomInput
-            placeholder="YYYY"
-            value={yob}
-            onChangeText={setYob}
-            keyboardType="numeric"
-            maxLength={4}
-          />
-          <HeaderText>Gender</HeaderText>
-          <View style={styles.genderContainer}>
-            <GenderSelector value={gender} onChange={setGender} />
-          </View>
+        <ScrollView 
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            styles.scrollContentContainer,
+            { paddingBottom: Math.max(insets.bottom + 30, 50) }
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.contentContainer}>
+            <View style={{ flex: 1 }}>
+              <HeaderText>
+                To make it easier for us to find you a ride, please provide us with the
+                following information:
+              </HeaderText>
+              <HeaderText>Contact Number</HeaderText>
+              <CustomInput
+                placeholder="Do not prefix with 0"
+                value={contactNumber}
+                onChangeText={setContactNumber}
+                keyboardType="numeric"
+                maxLength={10}
+              />
+              <HeaderText>Year of Birth</HeaderText>
+              <CustomInput
+                placeholder="YYYY"
+                value={yob}
+                onChangeText={setYob}
+                keyboardType="numeric"
+                maxLength={4}
+              />
+              <HeaderText>Gender</HeaderText>
+              <View style={styles.genderContainer}>
+                <GenderSelector value={gender} onChange={setGender} />
+              </View>
+            </View>
 
-          <TouchableOpacity
-            style={[
-              styles.completeButton,
-              (!contactNumber.trim() || !yob.trim() || !gender || loading) && styles.completeButtonDisabled
-            ]}
-            onPress={handleProfileCompletion}
-            disabled={!contactNumber.trim() || !yob.trim() || !gender || loading}
-            activeOpacity={0.8}
-          >
-            <Text style={[
-              styles.completeButtonText,
-              (!contactNumber.trim() || !yob.trim() || !gender || loading) && styles.completeButtonTextDisabled
-            ]}>
-              {loading ? "Completing Profile..." : "Complete Profile"}
-            </Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={[
+                styles.completeButton,
+                (!contactNumber.trim() || !yob.trim() || !gender || loading) && styles.completeButtonDisabled
+              ]}
+              onPress={handleProfileCompletion}
+              disabled={!contactNumber.trim() || !yob.trim() || !gender || loading}
+              activeOpacity={0.8}
+            >
+              <Text style={[
+                styles.completeButtonText,
+                (!contactNumber.trim() || !yob.trim() || !gender || loading) && styles.completeButtonTextDisabled
+              ]}>
+                {loading ? "Completing Profile..." : "Complete Profile"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
       <Image
         source={require("../../assets/Warning2.png")}

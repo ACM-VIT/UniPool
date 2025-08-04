@@ -60,10 +60,34 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const fetchUserData = async () => {
     try {
       setLoading(true);
+      
+      // Check if user is authenticated before making API calls
+      const auth = require('@react-native-firebase/auth').getAuth();
+      const currentUser = auth.currentUser;
+      
+      if (!currentUser) {
+        console.log("❌ No authenticated user found in ProfileScreen");
+        setError("Please sign in to view your profile");
+        setLoading(false);
+        return;
+      }
+
+      console.log("✅ User authenticated, fetching profile data...");
       const response = await apiUtil.get<ApiResponse>("/user/details");
       setUserData(response.user);
       console.log("User data fetched successfully:", response);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.message === "AUTHENTICATION_REDIRECT") {
+        console.log("Authentication redirect in ProfileScreen - not showing error");
+        return;
+      }
+      
+      if (error?.response?.status === 404 && 
+          error?.response?.data?.message === "User not found in database, signup required") {
+        console.log("User not found in database - redirect to signup handled by ApiUtil");
+        return;
+      }
+      
       const errorMessage =
         typeof error === "object" && error !== null && "message" in error
           ? String((error as { message?: unknown }).message)

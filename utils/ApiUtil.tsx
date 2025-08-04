@@ -12,6 +12,7 @@ export default class ApiUtil {
   private baseUrl: string;
   private navigationRef?: any;
   private showError?: (error: any, retryAction?: () => void) => void;
+  private isAppInitialized: boolean = false;
 
   constructor(baseUrl: string, navigationRef?: any) {
     this.baseUrl = baseUrl;
@@ -20,6 +21,7 @@ export default class ApiUtil {
 
   setNavigationRef(navigationRef: any) {
     this.navigationRef = navigationRef;
+    this.isAppInitialized = true; // Mark as initialized when navigation is set
   }
 
   setErrorHandler(showError: (error: any, retryAction?: () => void) => void) {
@@ -28,19 +30,42 @@ export default class ApiUtil {
 
   private async handleAuthenticationFailure(): Promise<void> {
     try {
+      console.log("Authentication failure - signing out user");
       const authInstance = getAuth();
       await signOut(authInstance);
       
-      if (this.navigationRef && this.navigationRef.isReady && this.navigationRef.isReady()) {
-        this.navigationRef.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: 'AuthScreen' }],
-          })
-        );
-      } else {
-        console.log("Navigation ref not available for automatic redirect");
+      try {
+        const GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
+        await GoogleSignin.signOut();
+        console.log("Google sign out completed");
+      } catch (googleError) {
+        console.log("Google sign out error (might not be signed in):", googleError);
       }
+      
+      setTimeout(() => {
+        if (this.navigationRef && this.navigationRef.isReady && this.navigationRef.isReady()) {
+          console.log("Navigating to AuthScreen");
+          this.navigationRef.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: 'AuthScreen' }],
+            })
+          );
+        } else {
+          console.warn("Navigation ref not available for automatic redirect");
+          setTimeout(() => {
+            if (this.navigationRef && this.navigationRef.isReady && this.navigationRef.isReady()) {
+              this.navigationRef.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [{ name: 'AuthScreen' }],
+                })
+              );
+            }
+          }, 1000);
+        }
+      }, 100);
+      
     } catch (error) {
       console.error("Error during authentication failure handling:", error);
     }
@@ -87,20 +112,44 @@ export default class ApiUtil {
         throw error;
       }
       
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        console.log('Authentication/Authorization error - handling gracefully');
+        throw error;
+      }
+      
+      if (error?.message?.includes('Unauthorized') || 
+          error?.message?.includes('JSON Parse error: Unexpected character: U')) {
+        console.log('Unauthorized response detected - handling as auth error');
+        await this.handleAuthenticationFailure();
+        throw new Error("AUTHENTICATION_REDIRECT");
+      }
+      
       if (
         error?.response?.status === 404 &&
         endpoint === "/user/details" &&
         error?.response?.data?.message === "User not found in database, signup required"
       ) {
+        console.log('User not found in database - redirecting to signup screen');
+        setTimeout(() => {
+          if (this.navigationRef && this.navigationRef.isReady && this.navigationRef.isReady()) {
+            this.navigationRef.navigate('SignUpScreen', {
+              newUser: error.response.data.newUser
+            });
+          }
+        }, 100);
         throw error;
       }
       
-      if (this.showError && retryAction) {
+      if (this.showError && retryAction && this.isAppInitialized &&
+          error?.response?.status !== 401 && 
+          error?.response?.status !== 403 &&
+          error?.response?.status !== 404 &&
+          !error?.message?.includes('AUTHENTICATION_REDIRECT')) {
         console.log('Showing error modal for:', error);
         this.showError(error, retryAction);
         throw error;
       } else {
-        console.log('No error handler available, error handler exists:', !!this.showError);
+        console.log('No error handler needed - auth error, signup redirect, or app not initialized yet');
       }
       
       throw error;
@@ -120,15 +169,26 @@ export default class ApiUtil {
     const authInstance = getAuth();
     const currentUser = authInstance.currentUser;
     if (!currentUser) {
-      console.warn("No authenticated user found - redirecting to auth");
+      console.warn("❌ No authenticated user found - redirecting to auth");
       await this.handleAuthenticationFailure();
       throw new Error("AUTHENTICATION_REDIRECT");
     }
     
     let token: string;
     try {
-      const tokenResult = await getIdTokenResult(currentUser);
+      const tokenResult = await getIdTokenResult(currentUser, true);
       token = tokenResult.token;
+      
+      const expirationTime = new Date(tokenResult.expirationTime);
+      const now = new Date();
+      const minutesUntilExpiry = (expirationTime.getTime() - now.getTime()) / (1000 * 60);
+      
+      if (minutesUntilExpiry < 5) {
+        console.log("Token expires soon, forcing refresh...");
+        const freshTokenResult = await getIdTokenResult(currentUser, true);
+        token = freshTokenResult.token;
+      }
+      
     } catch (tokenError) {
       console.error("Failed to get authentication token:", tokenError);
       await this.handleAuthenticationFailure();
@@ -162,26 +222,32 @@ export default class ApiUtil {
           throw new Error("Empty response");
         }
         
-        if (responseText.includes('\ufffd') || responseText.includes('�')) {
+        if (responseText.trim() === 'Unauthorized' || responseText.trim() === 'Forbidden') {
+          console.log("Detected unauthorized text response");
+          responseBody = { error: responseText.trim() };
+        } else if (responseText.includes('\ufffd') || responseText.includes('�')) {
           console.error("Response contains invalid characters (encoding issue):", responseText.substring(0, 100));
           throw new Error("Response contains invalid characters - possible encoding issue");
+        } else {
+          responseBody = JSON.parse(responseText);
         }
-        
-        responseBody = JSON.parse(responseText);
       } catch (parseError) {
         console.error("JSON Parse Error:", parseError);
         console.error("Raw response text:", responseText.substring(0, 200));
         
-        if (parseError instanceof SyntaxError) {
+        if (responseText.trim() === 'Unauthorized' || responseText.trim() === 'Forbidden') {
+          console.log("Unauthorized response detected during JSON parse error");
+          responseBody = { error: responseText.trim() };
+        } else if (parseError instanceof SyntaxError) {
           throw new Error(`Invalid JSON response: ${parseError.message}`);
+        } else {
+          responseBody = responseText;
         }
-        
-        responseBody = responseText;
       }
 
       if (!response.ok) {
         console.error(`HTTP ${method} ${url} error ${response.status}:`, responseBody);
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 403) {
           console.warn("User authentication failed - signing out and redirecting to auth");
           await this.handleAuthenticationFailure();
           throw new Error("AUTHENTICATION_REDIRECT");
@@ -223,18 +289,26 @@ export const ApiProvider = ({ children, navigationRef }: { children: React.React
   const [revalidate, setRevalidate] = useState(false);
   const [apiUtil] = useState(() => {
     const util = new ApiUtil(baseURL);
-    if (navigationRef) {
-      util.setNavigationRef(navigationRef.current);
-    }
     return util;
   });
 
   // Update navigation ref when it changes
   React.useEffect(() => {
     if (navigationRef?.current) {
+      console.log("🔗 Setting navigation ref in ApiUtil");
       apiUtil.setNavigationRef(navigationRef.current);
     }
   }, [navigationRef?.current, apiUtil]);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      if (navigationRef?.current && navigationRef.current.isReady && navigationRef.current.isReady()) {
+        apiUtil.setNavigationRef(navigationRef.current);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [navigationRef, apiUtil]);
 
   const triggerRevalidation = () => {
     setRevalidate(true);
@@ -252,6 +326,8 @@ export const ApiProvider = ({ children, navigationRef }: { children: React.React
 
 const ApiErrorHandler: React.FC<{ children: React.ReactNode; apiUtil: ApiUtil }> = ({ children, apiUtil }) => {
   let errorContext: any = null;
+  const [isInitialized, setIsInitialized] = useState(false);
+  
   try {
     errorContext = useErrorContext();
   } catch (error) {
@@ -259,12 +335,17 @@ const ApiErrorHandler: React.FC<{ children: React.ReactNode; apiUtil: ApiUtil }>
   }
 
   React.useEffect(() => {
-    if (errorContext?.showError) {
-      console.log('Setting up error handler in ApiUtil');
-      apiUtil.setErrorHandler(errorContext.showError);
-    } else {
-      console.log('Error context not available yet');
-    }
+    const timer = setTimeout(() => {
+      if (errorContext?.showError) {
+        console.log('Setting up error handler in ApiUtil (delayed)');
+        apiUtil.setErrorHandler(errorContext.showError);
+        setIsInitialized(true);
+      } else {
+        console.log('Error context not available yet');
+      }
+    }, 3000);
+
+    return () => clearTimeout(timer);
   }, [apiUtil, errorContext?.showError]);
 
   return <>{children}</>;
