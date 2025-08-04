@@ -196,7 +196,8 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
   const isValidCoordinate = (lat: number | null | undefined, lon: number | null | undefined): boolean => {
     return lat !== null && lat !== undefined && lon !== null && lon !== undefined && 
            !isNaN(lat) && !isNaN(lon) && 
-           lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+           lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 &&
+           lat !== 0 && lon !== 0;
   };
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -235,6 +236,10 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
   };
 
   const calculateEstimatedDuration = (distance: number): string => {
+    if (!distance || distance <= 0 || isNaN(distance)) {
+      return '2 hours 30 minutes';
+    }
+    
     const avgSpeed = 60;
     const durationHours = distance / avgSpeed;
     const hours = Math.floor(durationHours);
@@ -330,6 +335,12 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         console.log("Ride details:", completeRideData);
         console.log("Current user ID:", userId);
         console.log("Is host:", isUserHost);
+        console.log("Coordinates:", {
+          start_lat: completeRideData.start_latitude,
+          start_lon: completeRideData.start_longitude,
+          end_lat: completeRideData.end_latitude,
+          end_lon: completeRideData.end_longitude
+        });
         
       } catch (err: any) {
         console.error("Error fetching ride details:", err);
@@ -345,26 +356,32 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
   }, [rideId, apiUtil]);
 
   useEffect(() => {
-    if (rideData && isValidCoordinate(rideData.start_latitude, rideData.start_longitude) && 
-        isValidCoordinate(rideData.end_latitude, rideData.end_longitude)) {
+    if (rideData) {
+      setEstimatedDuration('2 hours 30 minutes');
       
-      const distance = calculateDistance(
-        rideData.start_latitude!,
-        rideData.start_longitude!,
-        rideData.end_latitude!,
-        rideData.end_longitude!
-      );
-      
-      const duration = calculateEstimatedDuration(distance);
-      setEstimatedDuration(duration);
-      
-      const dynamicRoute = generateRouteCoordinates(
-        rideData.start_latitude!,
-        rideData.start_longitude!,
-        rideData.end_latitude!,
-        rideData.end_longitude!
-      );
-      setRouteCoordinates(dynamicRoute);
+      if (isValidCoordinate(rideData.start_latitude, rideData.start_longitude) && 
+          isValidCoordinate(rideData.end_latitude, rideData.end_longitude)) {
+        
+        const distance = calculateDistance(
+          rideData.start_latitude!,
+          rideData.start_longitude!,
+          rideData.end_latitude!,
+          rideData.end_longitude!
+        );
+        
+        const duration = calculateEstimatedDuration(distance);
+        setEstimatedDuration(duration);
+        
+        const dynamicRoute = generateRouteCoordinates(
+          rideData.start_latitude!,
+          rideData.start_longitude!,
+          rideData.end_latitude!,
+          rideData.end_longitude!
+        );
+        setRouteCoordinates(dynamicRoute);
+      } else {
+        console.log('Invalid or missing coordinates, using fallback duration');
+      }
     }
   }, [rideData]);
 
@@ -1021,7 +1038,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
           </View>
 
           <View style={styles.mapSection}>
-            {hasPermission && isValidCoordinate(rideData.start_latitude, rideData.start_longitude) && 
+            {isValidCoordinate(rideData.start_latitude, rideData.start_longitude) && 
              isValidCoordinate(rideData.end_latitude, rideData.end_longitude) ? (
               <MapView
                 provider={PROVIDER_GOOGLE}
@@ -1053,18 +1070,23 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                   pinColor={AppColors.secondaryDarkGreen || "#273B33"}
                 />
                 
-                <Polyline
-                  coordinates={routeCoordinates}
-                  strokeColor={AppColors.secondaryDarkGreen || "#273B33"}
-                  strokeWidth={3}
-                  lineDashPattern={[0]}
-                  lineJoin="round"
-                  lineCap="round"
-                />
+                {routeCoordinates.length > 0 && (
+                  <Polyline
+                    coordinates={routeCoordinates}
+                    strokeColor={AppColors.secondaryDarkGreen || "#273B33"}
+                    strokeWidth={3}
+                    lineDashPattern={[0]}
+                    lineJoin="round"
+                    lineCap="round"
+                  />
+                )}
               </MapView>
             ) : (
               <View style={styles.mapPlaceholder}>
-                <Text style={styles.loadingText}>Loading map...</Text>
+                <Image source={require('../assets/location-pin.png')} style={styles.mapPlaceholderIcon} />
+                <Text style={styles.mapPlaceholderTitle}>Route Map</Text>
+                <Text style={styles.loadingText}>{rideData.start_location} → {rideData.end_location}</Text>
+                <Text style={styles.mapPlaceholderSubtext}>Map coordinates not available</Text>
               </View>
             )}
           </View>
@@ -1324,11 +1346,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f0f0f0',
+    padding: 20,
+  },
+  mapPlaceholderIcon: {
+    width: 24,
+    height: 24,
+    tintColor: AppColors.secondaryDarkGreen,
+    marginBottom: 8,
+  },
+  mapPlaceholderTitle: {
+    color: AppColors.secondaryDarkGreen,
+    fontSize: 16,
+    fontFamily: 'NunitoSans_600SemiBold',
+    marginBottom: 4,
+  },
+  mapPlaceholderSubtext: {
+    color: '#666666',
+    fontSize: 12,
+    fontFamily: 'NunitoSans_400Regular',
+    textAlign: 'center',
   },
   loadingText: {
     color: AppColors.basicBlack,
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'NunitoSans_400Regular',
+    textAlign: 'center',
+    marginBottom: 4,
   },
   bottomContainer: {
     backgroundColor: AppColors.primaryLightGreen,
