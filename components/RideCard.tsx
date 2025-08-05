@@ -20,6 +20,25 @@ import AppColors from "../design_systems/colors";
 
 const { width, height } = Dimensions.get("window");
 
+const isSmallDevice = width < 350;
+const isMediumDevice = width >= 350 && width < 400;
+const isLargeDevice = width >= 400;
+
+const wp = (percentage: number) => (width * percentage) / 100;
+const hp = (percentage: number) => (height * percentage) / 100;
+
+const getFontSize = (small: number, medium: number, large: number) => {
+  if (isSmallDevice) return small;
+  if (isMediumDevice) return medium;
+  return large;
+};
+
+const getIconSize = (small: number, medium: number, large: number) => {
+  if (isSmallDevice) return small;
+  if (isMediumDevice) return medium;
+  return large;
+};
+
 interface RideCardProps {
   id: string;
   origin?: string;
@@ -34,6 +53,16 @@ interface RideCardProps {
   variant?: "upcoming" | "inprogress";
   date?: string;
 }
+
+// Format time to add colon between hours (e.g., '1700 hrs' -> '17:00 hrs')
+const formatTime = (rawTime: string) => {
+  // Match '1700 hrs', '0900 hrs', etc.
+  const match = rawTime.match(/^(\d{2})(\d{2})\s*hrs$/);
+  if (match) {
+    return `${match[1]}:${match[2]} hrs`;
+  }
+  return rawTime;
+};
 
 const RideCard: React.FC<RideCardProps> = ({
   id = "01",
@@ -55,15 +84,13 @@ const RideCard: React.FC<RideCardProps> = ({
 
   const maxSeats = typeof totalSeats === "number" ? totalSeats : parseInt(seatsAvailable.split("/")[1]) || 0;
   const getVehicleIcon = (): ImageSourcePropType => {
-    if (maxSeats <= 2) {
-      return require("../assets/motorcycle.png");
-    } else if (maxSeats <= 4) {
-      return require("../assets/racer.png");
-    } else if (maxSeats <= 6) {
-      return require("../assets/wagon.png");
-    } else {
-      return require("../assets/foodvan.png");
-    }
+    if (maxSeats < 3) return require("../assets/motorcycle.png");
+    if (maxSeats === 3) return require("../assets/Taxi.png");
+    if (maxSeats === 4) return require("../assets/racer.png");
+    if (maxSeats < 8) return require("../assets/wagon.png");
+    if (maxSeats < 11) return require("../assets/foodvan.png");
+    if (maxSeats < 20) return require("../assets/Bus.png");
+    return require("../assets/UFO.png");
   };
 
   return (
@@ -74,12 +101,23 @@ const RideCard: React.FC<RideCardProps> = ({
       <View style={styles.topContainer}>
         <View style={styles.routeContainer}>
           <View style={styles.locationContainer}>
-          <Image
-            source={locationPinIcon}
-            style={[styles.icon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 20, height: 20 }]}
-            resizeMode="contain"
-          />
-            <Text style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}>
+            <Image
+              source={locationPinIcon}
+              style={[
+                styles.icon,
+                {
+                  tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
+                  width: getIconSize(16, 18, 20),
+                  height: getIconSize(16, 18, 20),
+                },
+              ]}
+              resizeMode="contain"
+            />
+            <Text
+              style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {origin}
             </Text>
           </View>
@@ -91,10 +129,21 @@ const RideCard: React.FC<RideCardProps> = ({
           <View style={styles.locationContainer}>
             <Image
               source={navigationIcon}
-              style={[styles.icon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 20, height: 20 }]}
+              style={[
+                styles.icon,
+                {
+                  tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
+                  width: getIconSize(16, 18, 20),
+                  height: getIconSize(16, 18, 20),
+                },
+              ]}
               resizeMode="contain"
             />
-            <Text style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}>
+            <Text
+              style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {destination}
             </Text>
           </View>
@@ -103,17 +152,31 @@ const RideCard: React.FC<RideCardProps> = ({
           <View style={styles.timeContainer}>
             <Image
               source={clockIcon}
-              style={[styles.timeIcon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 16, height: 16 }]}
+              style={[
+                styles.timeIcon,
+                {
+                  tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
+                  width: getIconSize(14, 16, 16),
+                  height: getIconSize(14, 16, 16),
+                },
+              ]}
               resizeMode="contain"
             />
             <Text style={[styles.detailText, isSelected ? styles.selectedDetailText : styles.unselectedDetailText]}>
-              {time}
+              {formatTime(time)}
             </Text>
           </View>
           <View style={styles.priceContainer}>
             <Image
               source={walletIcon}
-              style={[styles.priceIcon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 16, height: 16 }]}
+              style={[
+                styles.priceIcon,
+                {
+                  tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
+                  width: getIconSize(14, 16, 16),
+                  height: getIconSize(14, 16, 16),
+                },
+              ]}
               resizeMode="contain"
             />
             <Text style={[styles.detailText, isSelected ? styles.selectedDetailText : styles.unselectedDetailText]}>
@@ -132,7 +195,14 @@ const RideCard: React.FC<RideCardProps> = ({
         <View style={styles.seatsContainer}>
           <Image
             source={sofaIcon}
-            style={[styles.smallIcon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 18, height: 18 }]}
+            style={[
+              styles.smallIcon,
+              {
+                tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
+                width: getIconSize(16, 18, 18),
+                height: getIconSize(16, 18, 18),
+              },
+            ]}
             resizeMode="contain"
           />
           <Text style={[styles.seatsText, isSelected ? styles.selectedText : styles.unselectedText]}>
@@ -176,10 +246,10 @@ interface Styles {
 
 const styles = StyleSheet.create<Styles>({
   card: {
-    height: height * 0.22,
+    height: hp(22),
     width: "100%",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: wp(3),
+    padding: wp(4),
     flexDirection: "column",
     justifyContent: "space-between",
     position: "relative",
@@ -204,23 +274,34 @@ const styles = StyleSheet.create<Styles>({
   },
   routeContainer: {
     marginBottom: 0,
+    flex: 1,
+    marginRight: wp(2),
+    minHeight: hp(12),
   },
   locationContainer: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+    minHeight: hp(5),
+    paddingVertical: hp(0.5),
   },
   verticalLine: {
     width: 2,
-    height: "25%",
-    left: 9.5,
-    marginTop: 3.75,
+    height: hp(3),
+    left: wp(2.5),
+    marginTop: hp(0.5),
+    marginBottom: hp(0.5),
   },
   icon: {
-    marginRight: 8,
+    marginRight: wp(2),
   },
   locationText: {
-    fontSize: 16,
+    fontSize: getFontSize(14, 16, 18),
     fontFamily: "NunitoSans_400Regular",
+    flex: 1,
+    lineHeight: getFontSize(18, 20, 22),
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   selectedText: {
     color: AppColors.basicWhite,
@@ -231,13 +312,16 @@ const styles = StyleSheet.create<Styles>({
   seatsContainer: {
     flexDirection: "row",
     alignItems: "center",
+    minHeight: hp(4),
+    paddingVertical: hp(0.5),
   },
   smallIcon: {
-    marginRight: 6,
+    marginRight: wp(1.5),
   },
   seatsText: {
-    fontSize: 14,
+    fontSize: getFontSize(12, 14, 16),
     fontFamily: "NunitoSans_400Regular",
+    lineHeight: getFontSize(16, 18, 20),
   },
   detailsContainer: {
     flexDirection: "column",
@@ -272,7 +356,7 @@ const styles = StyleSheet.create<Styles>({
   vehicleImageContainer: {
     position: "absolute",
     right: 0,
-    bottom: 0,
+    bottom: 3,
     top: -1,
     width: "40%",
     height: "100%",

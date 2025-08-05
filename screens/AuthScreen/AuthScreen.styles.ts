@@ -25,6 +25,26 @@ const styles = StyleSheet.create({
     marginBottom: screenHeight * 0.15,
     fontFamily: "NunitoSans_600SemiBold",
   },
+  lottieContainer: {
+    width: 200,
+    height: 200,
+    alignSelf: 'center',
+    marginTop: -100,
+    position: 'relative',
+  },
+  lottieAnimation: {
+    width: '120%',
+    height: '120%',
+  },
+  watermarkHide: {
+    position: 'absolute',
+    bottom: screenHeight * 0.002,
+    left: screenWidth * 0.49,
+    width: screenWidth * 0.17,
+    height: screenHeight * 0.02, 
+    backgroundColor: AppColors.primaryLightGreen,
+    zIndex: 10,
+  },
   label: {
     fontSize: 22,
     fontWeight: "600",

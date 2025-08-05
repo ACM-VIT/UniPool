@@ -5,7 +5,6 @@ import styles from "./GenderSelector.styles";
 
 const options = [
   ["Male", "Female"],
-  ["Others", "PNS"],
 ];
 
 

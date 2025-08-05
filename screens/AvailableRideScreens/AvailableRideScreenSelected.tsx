@@ -580,7 +580,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
                 <View style={styles.locationContainer}>
                   <View style={styles.startLocationRow}>
                     <View style={styles.startDot} />
-                    <Text style={styles.locationText}>{ride.start_location}</Text>
+                    <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">{ride.start_location}</Text>
                   </View>
                   
                   <View style={styles.dottedPath}>
@@ -589,7 +589,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
                   
                   <View style={styles.endLocationRow}>
                     <Image source={require('../../assets/navigation-2.png')} style={styles.endLocationIcon} />
-                    <Text style={styles.locationText}>{ride.end_location}</Text>
+                    <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">{ride.end_location}</Text>
                   </View>
                 </View>
               </View>
@@ -609,7 +609,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
               </View>
             </View>
             
-            <Text style={styles.creatorText}>Ride Created by {ride.host_user_name || 'Yash Raj Singh'} on {formatDate(ride.start_time)}</Text>
+            <Text style={styles.creatorText} numberOfLines={1} ellipsizeMode="tail">Ride Created by {ride.host_user_name || 'Yash Raj Singh'} on {formatDate(ride.start_time)}</Text>
             <Text style={styles.yobText}>{getAgeText(ride.host_user_yob)}</Text>
             
             <View style={styles.dateTimeContainer}>
