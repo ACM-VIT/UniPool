@@ -33,6 +33,8 @@ export interface RideData {
   is_ongoing: number;
   is_same_gender: number;
   vehicle_type?: "scooter" | "van" | "car" | "suv";
+  host_user_id?: string;
+  is_user_host?: boolean;
 }
 
 const window = Dimensions.get("window");
@@ -62,6 +64,12 @@ const BookingScreen: React.FC = () => {
     } catch (error) {
       return timeString;
     }
+  };
+
+  const calculateAvailableSeats = (ride: RideData): string => {
+    const actualBookedSeats = ride.is_user_host ? ride.booked_seats + 1 : ride.booked_seats;
+    const availableSeats = ride.total_seats - actualBookedSeats;
+    return `${availableSeats}/${ride.total_seats}`;
   };
 
   const categorizeRide = (ride: RideData, currentTime: Date): 'upcoming' | 'inprogress' | 'completed' => {
@@ -337,7 +345,7 @@ const BookingScreen: React.FC = () => {
                       destination={ride.end_location}
                       time={formatTime(ride.start_time)}
                       price={ride.total_price}
-                      seatsAvailable={`${ride.booked_seats}/${ride.total_seats}`}
+                      seatsAvailable={calculateAvailableSeats(ride)}
                       totalSeats={ride.total_seats}
                       variant="upcoming"
                       date={ride.start_time ? new Date(ride.start_time).toLocaleDateString("en-GB") : ""}
@@ -413,7 +421,7 @@ const BookingScreen: React.FC = () => {
                       destination={ride.end_location}
                       time={formatTime(ride.start_time)}
                       price={ride.total_price}
-                      seatsAvailable={`${Math.max(ride.booked_seats - 1, 0)}/${ride.total_seats}`}
+                      seatsAvailable={calculateAvailableSeats(ride)}
                       totalSeats={ride.total_seats}
                       isSelected={true}
                       variant="inprogress"

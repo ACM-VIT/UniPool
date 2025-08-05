@@ -144,7 +144,9 @@ const PreviousTripsSection: React.FC = () => {
             </View>
 
             {loading ? (
-                <LoadingComponent />
+                <View style={styles.loadingContainer}>
+                    <Text style={styles.loadingText}>Loading...</Text>
+                </View>
             ) : error ? (
                 <View style={styles.errorContainer}>
                     <Text style={styles.errorText}>{error}</Text>

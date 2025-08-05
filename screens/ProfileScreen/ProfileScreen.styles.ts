@@ -10,7 +10,6 @@ const styles = StyleSheet.create({
   },
   brandInfoHeaderRow: {
     width: '100%',
-    paddingHorizontal: width * 0.051,
     paddingTop: height * 0.01,
     marginBottom: height * 0.01,
   },
@@ -31,7 +30,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.051,
     paddingBottom: height * 0.15,
   },
-  
   profileSection: {
     alignItems: "center",
     marginBottom: height * 0.03,
@@ -68,6 +66,11 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: width * 0.01,
     minHeight: height * 0.1,
+  },
+  statsIcon: {
+    width: width * 0.064,
+    height: width * 0.064,
+    marginBottom: height * 0.008,
   },
   statsValue: {
     fontSize: width * 0.051,
@@ -107,7 +110,8 @@ const styles = StyleSheet.create({
   menuContainer: {
     backgroundColor: AppColors.primaryLightGreen,
     borderRadius: width * 0.046,
-    borderWidth: width * 0.0064,
+    borderWidth: 1,
+    borderColor: AppColors.secondaryDarkGreen,
     marginBottom: height * 0.03,
     overflow: "hidden",
   },
@@ -118,14 +122,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.041,
     paddingVertical: height * 0.0175,
     backgroundColor: AppColors.primaryLightGreen,
-    borderBottomWidth: width * 0.0038,
+    borderBottomWidth: 0.5,
     borderBottomColor: AppColors.secondaryDarkGreen,
   },
   menuItemIcon: {
     width: width * 0.056,
     height: width * 0.056,
     marginRight: height * 0.015,
-    tintColor: AppColors.secondaryDarkGreen,
     resizeMode: 'contain',
   },
   menuItemText: {
@@ -136,7 +139,6 @@ const styles = StyleSheet.create({
   checkmarkIcon: {
     width: width * 0.041,
     height: width * 0.041,
-    tintColor: AppColors.primaryLightGreen,
   },
   footerBranding: {
     position: 'relative',

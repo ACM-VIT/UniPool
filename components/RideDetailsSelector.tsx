@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { X } from "lucide-react-native";
 import {
@@ -15,8 +15,10 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { format } from "date-fns";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  DateTimePickerEvent as AndroidDateTimePickerEvent,
+} from "@react-native-community/datetimepicker";import { format } from "date-fns";
 import AppColors from "../design_systems/colors";
 import { 
   searchLocationsWithFallback,
@@ -26,7 +28,8 @@ import {
   formatLocationName,
   POPULAR_LOCATIONS,
   UserLocation,
-  NearbyPlace
+  NearbyPlace,
+  getCoordinatesForLocation
 } from "../utils/LocationService";
 
 const { width, height } = Dimensions.get("window");
@@ -50,15 +53,7 @@ const getSpacing = (base: number) => {
   return base;
 };
 
-export const CommonLocationCoordinates = [
-  { location: "Chennai", latitude: 12.989196, longitude: 80.178799 },
-  { location: "Vellore", latitude: 12.968, longitude: 77.1559 },
-  { location: "Bangalore", latitude: 13.1985, longitude: 77.6665 },
-  { location: "Coimbatore", latitude: 11.0376, longitude: 77.0363 },
-  { location: "Salem", latitude: 11.6641, longitude: 78.1579 },
-  { location: "Madurai", latitude: 9.912, longitude: 78.1242 },
-  { location: "Pondicherry", latitude: 11.9352, longitude: 79.8082 },
-];
+const FORCE_IOS_PICKER_UI = false;
 
 interface LocationCoordinates {
   latitude: number;
@@ -135,7 +130,15 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const [fromLocation, setFromLocation] = useState<string>(externalFromLocation || "");
   const [hasClearedFrom, setHasClearedFrom] = useState(false);
   const [toLocation, setToLocation] = useState<string>(externalToLocation || "");
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  
+  const getInitialDate = () => {
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    now.setMinutes(0, 0, 0);
+    return now;
+  };
+  
+  const [selectedDate, setSelectedDate] = useState<Date | null>(getInitialDate());
   
   const [fromCoordinates, setFromCoordinates] = useState<LocationCoordinates | null>(null);
   const [toCoordinates, setToCoordinates] = useState<LocationCoordinates | null>(null);
@@ -151,8 +154,11 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
   const [showFromDropdown, setShowFromDropdown] = useState(false);
   const [showToDropdown, setShowToDropdown] = useState(false);
-  const [showPicker, setShowPicker] = useState(false);
+  const [showDateTimePicker, setShowDateTimePicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<"date" | "time">("date");
+  const [tempDate, setTempDate] = useState<Date | null>(null);
+  
+  const pickerModeRef = useRef<"date" | "time">("date");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<LocationResult[]>([]);
@@ -161,46 +167,21 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const [isLoadingPopular, setIsLoadingPopular] = useState(false);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  const getCoordinatesForLocation = (locationName: string, locationResult?: LocationResult): LocationCoordinates | null => {
-    if (locationResult && locationResult.lat && locationResult.lon) {
-      return {
-        latitude: parseFloat(locationResult.lat),
-        longitude: parseFloat(locationResult.lon)
-      };
-    }
-
-    const commonLocation = CommonLocationCoordinates.find(
-      loc => loc.location.toLowerCase().includes(locationName.toLowerCase()) ||
-             locationName.toLowerCase().includes(loc.location.toLowerCase())
-    );
-    
-    if (commonLocation) {
-      return {
-        latitude: commonLocation.latitude,
-        longitude: commonLocation.longitude
-      };
-    }
-
-    if (userLocation) {
-      const randomOffset = () => (Math.random() - 0.5) * 0.02;
-      return {
-        latitude: userLocation.latitude + randomOffset(),
-        longitude: userLocation.longitude + randomOffset(),
-      };
-    }
-
-    const randomOffset = () => (Math.random() - 0.5) * 0.02;
-    return {
-      latitude: 12.989196 + randomOffset(),
-      longitude: 80.178799 + randomOffset(),
-    };
-  };
-
   const submitRideDetails = (from: string, to: string, date: Date, fromCoords?: LocationCoordinates, toCoords?: LocationCoordinates) => {
+    // Only submit if all three fields are filled
+    if (!from || !to || !date) {
+      console.log('Not submitting - missing required fields:', { from: !!from, to: !!to, date: !!date });
+      return;
+    }
+    
+    // Use the provided date directly, no fallback to avoid state issues
+    console.log('submitRideDetails called with date:', date);
+    console.log('Current selectedDate state:', selectedDate);
+    
     const rideDetails: RideDetails = {
       from,
       to,
-      date,
+      date: date, // Use the passed date directly
       fromCoordinates: (fromCoords ?? fromCoordinates) ?? undefined,
       toCoordinates: (toCoords ?? toCoordinates) ?? undefined
     };
@@ -260,39 +241,61 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
   };
 
-  const handleLocationSelect = (location: string, isFrom: boolean, locationResult?: LocationResult) => {
+  const handleLocationSelect = async (location: string, isFrom: boolean, locationResult?: LocationResult) => {
     console.log('Location selected:', location, 'isFrom:', isFrom, 'locationResult:', locationResult);
     
-    const coordinates = getCoordinatesForLocation(location, locationResult);
-    console.log('Generated coordinates:', coordinates);
-    
-    if (isFrom) {
-      setFromLocation(location);
-      setFromCoordinates(coordinates);
-      setShowFromDropdown(false);
-    } else {
-      setToLocation(location);
-      setToCoordinates(coordinates);
-      setShowToDropdown(false);
-    }
-    
-    setSearchQuery("");
-    setSearchResults([]);
-    setPopularLocations([]);
-    
-    const updatedFrom = isFrom ? location : fromLocation;
-    const updatedTo = isFrom ? toLocation : location;
-    const updatedFromCoords = isFrom ? coordinates : fromCoordinates;
-    const updatedToCoords = isFrom ? toCoordinates : coordinates;
-    
-    if (updatedFrom && updatedTo) {
-      submitRideDetails(
-        updatedFrom,
-        updatedTo,
-        selectedDate,
-        updatedFromCoords ?? undefined,
-        updatedToCoords ?? undefined
-      );
+    try {
+      const coordinates = await getCoordinatesForLocation(location);
+      console.log('Generated coordinates:', coordinates);
+      
+      // Convert to the expected format
+      const locationCoords = coordinates ? {
+        latitude: coordinates.lat,
+        longitude: coordinates.lon
+      } : null;
+      
+      if (isFrom) {
+        setFromLocation(location);
+        setFromCoordinates(locationCoords);
+        setShowFromDropdown(false);
+      } else {
+        setToLocation(location);
+        setToCoordinates(locationCoords);
+        setShowToDropdown(false);
+      }
+      
+      setSearchQuery("");
+      setSearchResults([]);
+      setPopularLocations([]);
+      
+      const updatedFrom = isFrom ? location : fromLocation;
+      const updatedTo = isFrom ? toLocation : location;
+      const updatedFromCoords = isFrom ? locationCoords : fromCoordinates;
+      const updatedToCoords = isFrom ? toCoordinates : locationCoords;
+      
+      if (updatedFrom && updatedTo && selectedDate) {
+        submitRideDetails(
+          updatedFrom,
+          updatedTo,
+          selectedDate,
+          updatedFromCoords ?? undefined,
+          updatedToCoords ?? undefined
+        );
+      }
+    } catch (error) {
+      console.error('Error getting coordinates for location:', location, error);
+      // Continue without coordinates
+      if (isFrom) {
+        setFromLocation(location);
+        setShowFromDropdown(false);
+      } else {
+        setToLocation(location);
+        setShowToDropdown(false);
+      }
+      
+      setSearchQuery("");
+      setSearchResults([]);
+      setPopularLocations([]);
     }
   };
 
@@ -315,8 +318,8 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       setPopularLocations(popular);
     } catch (error) {
       console.error('Error getting popular locations:', error);
-      console.log('Using default fallback locations');
-      setPopularLocations(POPULAR_LOCATIONS.default);
+      console.log('Unable to get popular locations without user location');
+      setPopularLocations([]);
     } finally {
       setIsLoadingPopular(false);
     }
@@ -327,26 +330,139 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
   const handleDateTimeChange = (event: any, selected?: Date) => {
     if (selected) {
+      console.log('Date/time changed to:', selected);
       setSelectedDate(selected);
+      setTempDate(selected);
+      
       if (pickerMode === "date") {
         setPickerMode("time");
       } else {
-        setShowPicker(false);
+        setShowDateTimePicker(false);
         setPickerMode("date");
         
-        if (fromLocation && toLocation) {
+        if (fromLocation && toLocation && selected) {
+          console.log('Submitting with updated date:', selected);
           submitRideDetails(fromLocation, toLocation, selected, fromCoordinates ?? undefined, toCoordinates ?? undefined);
         }
       }
     } else {
-      setShowPicker(false);
+      setShowDateTimePicker(false);
       setPickerMode("date");
     }
   };
 
   const handleDateFieldClick = () => {
+    if (Platform.OS === "ios" || FORCE_IOS_PICKER_UI) {
+      console.log('Opening iOS-style picker modal');
+      const initialDate = selectedDate || getInitialDate();
+      setTempDate(initialDate);
+      setPickerMode("date");
+      pickerModeRef.current = "date";
+      setShowDateTimePicker(true);
+    } else {
+      console.log('Opening native Android picker');
+      setPickerMode("date");
+      pickerModeRef.current = "date";
+      const initialDate = selectedDate || getInitialDate();
+      DateTimePickerAndroid.open({
+        value: initialDate,
+        onChange: handleAndroidPickerChange,
+        mode: "date",
+        minimumDate: new Date(),
+      });
+    }
+  };
+
+   const handleAndroidPickerChange = (
+    event: AndroidDateTimePickerEvent,
+    date?: Date
+  ) => {
+    if (FORCE_IOS_PICKER_UI || showDateTimePicker) {
+      console.log('Ignoring Android picker event - iOS UI forced or modal showing');
+      return;
+    }
+    
+    if (event.type === "dismissed") {
+      if (pickerModeRef.current === "time") {
+        const finalDate = selectedDate || getInitialDate();
+        console.log('Time picker dismissed, using current date:', finalDate);
+        setPickerMode("date");
+        pickerModeRef.current = "date";
+        if (fromLocation && toLocation && finalDate) {
+          console.log('Submitting Android ride details after time dismissal:', finalDate);
+          submitRideDetails(
+            fromLocation,
+            toLocation,
+            finalDate,
+            fromCoordinates ?? undefined,
+            toCoordinates ?? undefined
+          );
+        }
+      } else {
+        setPickerMode("date");
+        pickerModeRef.current = "date";
+      }
+      return;
+    }
+    
+    const current = date || selectedDate || getInitialDate();
+    console.log('Android picker changed:', current, 'mode:', pickerModeRef.current);
+
+    if (pickerModeRef.current === "date") {
+      console.log('Date selected, updating state and opening time picker');
+      setSelectedDate(current);
+      setTempDate(current);
+      setPickerMode("time");
+      pickerModeRef.current = "time";
+      
+      DateTimePickerAndroid.open({
+        value: current,
+        onChange: handleAndroidPickerChange,
+        mode: "time",
+      });
+    } else if (pickerModeRef.current === "time") {
+      console.log('Final Android date/time selected:', current);
+      setSelectedDate(current);
+      setTempDate(current);
+      setPickerMode("date");
+      pickerModeRef.current = "date";
+      if (fromLocation && toLocation && current) {
+        console.log('Submitting Android ride details with date:', current);
+        submitRideDetails(
+          fromLocation,
+          toLocation,
+          current,
+          fromCoordinates ?? undefined,
+          toCoordinates ?? undefined
+        );
+      }
+    }
+  };
+
+  const handleDateTimeConfirm = () => {
+    const finalDate = tempDate || selectedDate || getInitialDate();
+    console.log('iOS date/time confirmed:', finalDate);
+    setSelectedDate(finalDate);
+    setShowDateTimePicker(false);
     setPickerMode("date");
-    setShowPicker(true);
+    
+    if (fromLocation && toLocation && finalDate) {
+      console.log('Submitting iOS ride details with date:', finalDate);
+      submitRideDetails(
+        fromLocation,
+        toLocation,
+        finalDate,
+        fromCoordinates ?? undefined,
+        toCoordinates ?? undefined
+      );
+    }
+  };
+
+  const handleDateTimeCancel = () => {
+    console.log('iOS date/time picker cancelled');
+    setTempDate(selectedDate);
+    setShowDateTimePicker(false);
+    setPickerMode("date");
   };
 
   const handleLocationSwap = () => {
@@ -362,7 +478,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       onLocationSwap();
     }
 
-    if (toLocation && tempLocation) {
+    if (toLocation && tempLocation && selectedDate) {
       submitRideDetails(
         toLocation,
         tempLocation,
@@ -392,12 +508,18 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   };
 
   const setToToday = () => {
-    setSelectedDate(new Date());
+    const today = new Date();
+    today.setHours(today.getHours() + 1);
+    today.setMinutes(0, 0, 0);
+    console.log('Setting to today:', today);
+    setSelectedDate(today);
+    setTempDate(today);
     if (fromLocation && toLocation) {
+      console.log('Submitting today ride details with date:', today);
       submitRideDetails(
         fromLocation,
         toLocation,
-        new Date(),
+        today,
         fromCoordinates ?? undefined,
         toCoordinates ?? undefined
       );
@@ -407,8 +529,12 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const setToTomorrow = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0);
+    console.log('Setting to tomorrow:', tomorrow);
     setSelectedDate(tomorrow);
+    setTempDate(tomorrow);
     if (fromLocation && toLocation) {
+      console.log('Submitting tomorrow ride details with date:', tomorrow);
       submitRideDetails(
         fromLocation,
         toLocation,
@@ -422,16 +548,46 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   useEffect(() => {
     if (externalFromLocation !== undefined) {
       setFromLocation(externalFromLocation);
-      const coords = getCoordinatesForLocation(externalFromLocation);
-      setFromCoordinates(coords);
+      
+      // Handle async coordinate fetching
+      const fetchCoords = async () => {
+        try {
+          const coords = await getCoordinatesForLocation(externalFromLocation);
+          if (coords) {
+            setFromCoordinates({
+              latitude: coords.lat,
+              longitude: coords.lon
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching coordinates for external from location:', error);
+        }
+      };
+      
+      fetchCoords();
     }
   }, [externalFromLocation]);
 
   useEffect(() => {
     if (externalToLocation !== undefined) {
       setToLocation(externalToLocation);
-      const coords = getCoordinatesForLocation(externalToLocation);
-      setToCoordinates(coords);
+      
+      // Handle async coordinate fetching
+      const fetchCoords = async () => {
+        try {
+          const coords = await getCoordinatesForLocation(externalToLocation);
+          if (coords) {
+            setToCoordinates({
+              latitude: coords.lat,
+              longitude: coords.lon
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching coordinates for external to location:', error);
+        }
+      };
+      
+      fetchCoords();
     }
   }, [externalToLocation]);
 
@@ -693,14 +849,70 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         </KeyboardAvoidingView>
       </Modal>
 
-      {showPicker && (
-        <DateTimePicker
-          value={selectedDate}
-          mode={pickerMode}
-          display="default"
-          onChange={handleDateTimeChange}
-          minimumDate={new Date()}
-        />
+      {(Platform.OS === 'ios' || FORCE_IOS_PICKER_UI) && (
+        <Modal
+          visible={showDateTimePicker}
+          transparent
+          animationType="slide"
+        >
+          <View style={styles.dateTimeModalContainer}>
+            <View style={styles.dateTimeModalContent}>
+              <View style={styles.dateTimeHeader}>
+                <TouchableOpacity onPress={handleDateTimeCancel}>
+                  <Text style={styles.dateTimeButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={styles.dateTimeTitle}>Select Date & Time</Text>
+                <TouchableOpacity onPress={handleDateTimeConfirm}>
+                  <Text style={styles.dateTimeButtonText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.dateTimePickerContainer}>
+                <DateTimePicker
+                  value={tempDate || selectedDate || getInitialDate()}
+                  mode="datetime"
+                  display="spinner"
+                  onChange={(event, date) => {
+                    if (date) {
+                      setTempDate(date);
+                    }
+                  }}
+                  minimumDate={new Date()}
+                  textColor={AppColors.basicBlack}
+                  accentColor={AppColors.primaryLightGreen}
+                  style={styles.dateTimePicker}
+                />
+              </View>
+              
+              <View style={styles.quickSelectContainer}>
+                <TouchableOpacity
+                  style={styles.quickSelectButton}
+                  onPress={() => {
+                    const today = new Date();
+                    today.setHours(today.getHours() + 1);
+                    today.setMinutes(0, 0, 0);
+                    console.log('Quick select today:', today);
+                    setTempDate(today);
+                  }}
+                >
+                  <Text style={styles.quickSelectText}>Today</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickSelectButton}
+                  onPress={() => {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    tomorrow.setHours(9, 0, 0, 0); // Set to 9 AM tomorrow
+                    console.log('Quick select tomorrow:', tomorrow);
+                    setTempDate(tomorrow);
+                  }}
+                >
+                  <Text style={styles.quickSelectText}>Tomorrow</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       )}
     </View>
   );
@@ -931,5 +1143,66 @@ const styles = StyleSheet.create({
     minHeight: hp(4),
     minWidth: wp(6),
     paddingHorizontal: wp(1),
+  },
+  dateTimeModalContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  dateTimeModalContent: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderTopLeftRadius: wp(5),
+    borderTopRightRadius: wp(5),
+    paddingBottom: Platform.OS === 'ios' ? hp(4) : hp(2),
+    maxHeight: hp(70),
+  },
+  dateTimeHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: wp(5),
+    paddingVertical: hp(2),
+    borderBottomWidth: 1,
+    borderBottomColor: AppColors.basicBlack + "20",
+  },
+  dateTimeTitle: {
+    fontSize: getFontSize(16, 17, 18),
+    fontFamily: "NunitoSans_600SemiBold",
+    color: AppColors.basicBlack,
+  },
+  dateTimeButtonText: {
+    fontSize: getFontSize(14, 15, 16),
+    fontFamily: "NunitoSans_600SemiBold",
+    color: AppColors.primaryLightGreen,
+  },
+  dateTimePickerContainer: {
+    paddingHorizontal: wp(5),
+    paddingVertical: hp(2),
+    alignItems: "center",
+  },
+  dateTimePicker: {
+    width: "100%",
+    height: hp(25),
+  },
+  quickSelectContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingHorizontal: wp(5),
+    paddingVertical: hp(2),
+    borderTopWidth: 1,
+    borderTopColor: AppColors.basicBlack + "20",
+  },
+  quickSelectButton: {
+    paddingHorizontal: wp(6),
+    paddingVertical: hp(1.5),
+    backgroundColor: AppColors.primaryLightGreen + "20",
+    borderRadius: wp(3),
+    borderWidth: 1,
+    borderColor: AppColors.primaryLightGreen,
+  },
+  quickSelectText: {
+    fontSize: getFontSize(13, 14, 15),
+    fontFamily: "NunitoSans_600SemiBold",
+    color: AppColors.primaryLightGreen,
   },
 });

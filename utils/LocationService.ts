@@ -1,37 +1,8 @@
-function debounce<
-  T extends (...args: any[]) => Promise<any>
->(func: T, wait = 300): (...args: Parameters<T>) => Promise<ReturnType<T>> {
-  let timeoutId: number | undefined
-  let lastArgs: Parameters<T>
-  let pending: Promise<ReturnType<T>> | null = null
+import * as Location from "expo-location";
 
-  return (...args: Parameters<T>): Promise<ReturnType<T>> => {
-    lastArgs = args
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId)
-    }
-    if (!pending) {
-      pending = new Promise<ReturnType<T>>(resolve => {
-        timeoutId = window.setTimeout(async () => {
-          const result = await func(...lastArgs)
-          resolve(result)
-          pending = null
-        }, wait)
-      })
-    }
-    return pending
-  }
-}
-
-const searchCache = new Map<string, LocationResult[]>()
-const nearbyPlacesCache = new Map<string, NearbyPlace[]>()
-const popularLocationsCache = new Map<string, string[]>()
-
-export const USE_TEST_LOCATION = false // change to false for production
-export const TEST_LOCATION: UserLocation = {
-  latitude: 12.9165,
-  longitude: 79.1325
-}
+// -----------------------------------------------------------------------------
+// Interfaces and Types
+// -----------------------------------------------------------------------------
 
 export interface LocationResult {
   display_name: string
@@ -1010,25 +981,58 @@ export const POPULAR_LOCATIONS = {
     "Shyampet",
     "Hunter Road",
     "Parkal"
-  ],
-  default: [
-    "Railway Station",
-    "Bus Stand",
-    "Airport",
-    "City Center",
-    "Shopping Mall",
-    "Hospital",
-    "University",
-    "IT Park",
-    "Government Office",
-    "Market"
   ]
 };
 
 
 // -----------------------------------------------------------------------------
-// helper: pick test vs real
+// Configuration
 // -----------------------------------------------------------------------------
+
+export const USE_TEST_LOCATION = false // change to false for production
+export const TEST_LOCATION: UserLocation = {
+  latitude: 12.9165,
+  longitude: 79.1325
+}
+
+// -----------------------------------------------------------------------------
+// Caching
+// -----------------------------------------------------------------------------
+
+const searchCache = new Map<string, LocationResult[]>()
+const nearbyPlacesCache = new Map<string, NearbyPlace[]>()
+const popularLocationsCache = new Map<string, string[]>()
+const geocodingCache = new Map<string, {lat: number, lon: number}>()
+
+// -----------------------------------------------------------------------------
+// Utility Functions
+// -----------------------------------------------------------------------------
+
+function debounce<T extends (...args: any[]) => Promise<any>>(
+  func: T, 
+  wait = 300
+): (...args: Parameters<T>) => Promise<ReturnType<T>> {
+  let timeoutId: number | undefined
+  let lastArgs: Parameters<T>
+  let pending: Promise<ReturnType<T>> | null = null
+
+  return (...args: Parameters<T>): Promise<ReturnType<T>> => {
+    lastArgs = args
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId)
+    }
+    if (!pending) {
+      pending = new Promise<ReturnType<T>>(resolve => {
+        timeoutId = window.setTimeout(async () => {
+          const result = await func(...lastArgs)
+          resolve(result)
+          pending = null
+        }, wait)
+      })
+    }
+    return pending
+  }
+}
 
 export const getEffectiveLocation = (
   userLocation?: UserLocation
@@ -1042,7 +1046,412 @@ export const getEffectiveLocation = (
 }
 
 // -----------------------------------------------------------------------------
-// getNearbyPopularPlaces (with caching)
+// Core Coordinate Resolution Functions
+// -----------------------------------------------------------------------------
+
+/**
+ * Primary coordinate resolution using device's native geocoding
+ * with OpenStreetMap as fallback
+ */
+export const getCoordinatesForLocation = async (
+  locationName: string
+): Promise<{lat: number, lon: number} | null> => {
+  console.log(`🔍 Getting coordinates for: "${locationName}"`)
+  
+  const cacheKey = locationName.toLowerCase().trim()
+  
+  // Check cache first
+  if (geocodingCache.has(cacheKey)) {
+    console.log(`💾 Using cached coordinates for: ${locationName}`)
+    return geocodingCache.get(cacheKey)!
+  }
+  
+  // 1. Try native device geocoding first (primary method)
+  try {
+    console.log(`📱 Trying native geocoding for: "${locationName}"`)
+    const results = await Location.geocodeAsync(`${locationName}, India`)
+    
+    if (results && results.length > 0) {
+      const { latitude, longitude } = results[0]
+      
+      // Validate that coordinates are within India's bounds
+      const isInIndiaBounds = latitude >= 6 && latitude <= 37 && longitude >= 68 && longitude <= 97
+      
+      if (isInIndiaBounds) {
+        const coords = { lat: latitude, lon: longitude }
+        console.log(`✅ Native geocoding success for "${locationName}": (${latitude}, ${longitude})`)
+        
+        // Cache the result
+        geocodingCache.set(cacheKey, coords)
+        return coords
+      } else {
+        console.warn(`⚠️ Native geocoding returned coordinates outside India for "${locationName}": (${latitude}, ${longitude})`)
+      }
+    } else {
+      console.log(`❌ No results from native geocoding for: "${locationName}"`)
+    }
+  } catch (error) {
+    console.warn(`❌ Native geocoding failed for "${locationName}":`, error)
+  }
+  
+  // 2. Fallback to OpenStreetMap (Nominatim API)
+  try {
+    console.log(`🌍 Trying OpenStreetMap fallback for: "${locationName}"`)
+    const osmResults = await searchLocations(locationName, "India", 1)
+    
+    if (osmResults.length > 0) {
+      const result = osmResults[0]
+      const lat = parseFloat(result.lat)
+      const lon = parseFloat(result.lon)
+      
+      // Validate bounds again
+      const isInIndiaBounds = lat >= 6 && lat <= 37 && lon >= 68 && lon <= 97
+      
+      if (isInIndiaBounds) {
+        const coords = { lat, lon }
+        console.log(`✅ OpenStreetMap fallback success for "${locationName}": (${lat}, ${lon})`)
+        
+        // Cache the result
+        geocodingCache.set(cacheKey, coords)
+        return coords
+      } else {
+        console.warn(`⚠️ OpenStreetMap returned coordinates outside India for "${locationName}": (${lat}, ${lon})`)
+      }
+    } else {
+      console.log(`❌ No results from OpenStreetMap for: "${locationName}"`)
+    }
+  } catch (error) {
+    console.warn(`❌ OpenStreetMap fallback failed for "${locationName}":`, error)
+  }
+  
+  // 3. Last resort: Use known city coordinates for major Indian cities
+  const knownCoords = getCityCoordinates(locationName)
+  if (knownCoords.lat !== 12.9716 || knownCoords.lon !== 77.5946) {
+    // If it's not the default fallback, we found a match
+    console.log(`🏙️ Using known city coordinates for "${locationName}": (${knownCoords.lat}, ${knownCoords.lon})`)
+    geocodingCache.set(cacheKey, knownCoords)
+    return knownCoords
+  }
+  
+  console.error(`❌ All coordinate resolution methods failed for: "${locationName}"`)
+  return null
+}
+
+/**
+ * Known coordinates for major Indian cities
+ */
+export const getCityCoordinates = (cityName: string): {lat: number, lon: number} => {
+  const normalizedCity = cityName.toLowerCase().trim()
+  
+  const cityCoordinates: Record<string, {lat: number, lon: number}> = {
+    // Major metros
+    mumbai: { lat: 19.0760, lon: 72.8777 },
+    delhi: { lat: 28.6139, lon: 77.2090 },
+    "new delhi": { lat: 28.6139, lon: 77.2090 },
+    bangalore: { lat: 12.9716, lon: 77.5946 },
+    bengaluru: { lat: 12.9716, lon: 77.5946 },
+    hyderabad: { lat: 17.3850, lon: 78.4867 },
+    chennai: { lat: 13.0827, lon: 80.2707 },
+    kolkata: { lat: 22.5726, lon: 88.3639 },
+    pune: { lat: 18.5204, lon: 73.8567 },
+    ahmedabad: { lat: 23.0225, lon: 72.5714 },
+    
+    // Tier 2 cities
+    jaipur: { lat: 26.9124, lon: 75.7873 },
+    surat: { lat: 21.1702, lon: 72.8311 },
+    lucknow: { lat: 26.8467, lon: 80.9462 },
+    kanpur: { lat: 26.4499, lon: 80.3319 },
+    nagpur: { lat: 21.1458, lon: 79.0882 },
+    indore: { lat: 22.7196, lon: 75.8577 },
+    thane: { lat: 19.2183, lon: 72.9781 },
+    bhopal: { lat: 23.2599, lon: 77.4126 },
+    visakhapatnam: { lat: 17.6868, lon: 83.2185 },
+    pimpri: { lat: 18.6298, lon: 73.8073 },
+    patna: { lat: 25.5941, lon: 85.1376 },
+    vadodara: { lat: 22.3072, lon: 73.1812 },
+    ghaziabad: { lat: 28.6692, lon: 77.4538 },
+    ludhiana: { lat: 30.9010, lon: 75.8573 },
+    agra: { lat: 27.1767, lon: 78.0081 },
+    nashik: { lat: 19.9975, lon: 73.7898 },
+    faridabad: { lat: 28.4089, lon: 77.3178 },
+    meerut: { lat: 28.9845, lon: 77.7064 },
+    rajkot: { lat: 23.2156, lon: 70.6369 },
+    kalyan: { lat: 19.2437, lon: 73.1355 },
+    vasai: { lat: 19.4559, lon: 72.8136 },
+    varanasi: { lat: 25.3176, lon: 82.9739 },
+    srinagar: { lat: 34.0837, lon: 74.7973 },
+    aurangabad: { lat: 19.8762, lon: 75.3433 },
+    dhanbad: { lat: 23.7957, lon: 86.4304 },
+    amritsar: { lat: 31.6340, lon: 74.8723 },
+    "navi mumbai": { lat: 19.0330, lon: 73.0297 },
+    allahabad: { lat: 25.4358, lon: 81.8463 },
+    prayagraj: { lat: 25.4358, lon: 81.8463 },
+    ranchi: { lat: 23.3441, lon: 85.3096 },
+    howrah: { lat: 22.5958, lon: 88.2636 },
+    coimbatore: { lat: 11.0168, lon: 76.9558 },
+    jabalpur: { lat: 23.1815, lon: 79.9864 },
+    gwalior: { lat: 26.2183, lon: 78.1828 },
+    vijayawada: { lat: 16.5062, lon: 80.6480 },
+    jodhpur: { lat: 26.2389, lon: 73.0243 },
+    madurai: { lat: 9.9252, lon: 78.1198 },
+    raipur: { lat: 21.2514, lon: 81.6296 },
+    kota: { lat: 25.2138, lon: 75.8648 },
+    chandigarh: { lat: 30.7333, lon: 76.7794 },
+    guwahati: { lat: 26.1445, lon: 91.7362 },
+    salem: { lat: 11.6643, lon: 78.1460 },
+    "jammu": { lat: 32.7266, lon: 74.8570 },
+    noida: { lat: 28.5355, lon: 77.3910 },
+    gurgaon: { lat: 28.4595, lon: 77.0266 },
+    gurugram: { lat: 28.4595, lon: 77.0266 },
+    
+    // Educational hub cities
+    vellore: { lat: 12.9165, lon: 79.1325 },
+    "vit vellore": { lat: 12.9165, lon: 79.1325 },
+    "vit university": { lat: 12.9165, lon: 79.1325 },
+    manipal: { lat: 13.3409, lon: 74.7421 },
+    pilani: { lat: 28.3670, lon: 75.5836 },
+    "bits pilani": { lat: 28.3670, lon: 75.5836 },
+    kharagpur: { lat: 22.3460, lon: 87.2320 },
+    "iit kharagpur": { lat: 22.3460, lon: 87.2320 },
+    roorkee: { lat: 29.8543, lon: 77.8880 },
+    "iit roorkee": { lat: 29.8543, lon: 77.8880 },
+    "nit trichy": { lat: 10.7905, lon: 78.7047 },
+    tiruchirappalli: { lat: 10.7905, lon: 78.7047 },
+    trichy: { lat: 10.7905, lon: 78.7047 },
+    warangal: { lat: 18.0095, lon: 79.5378 },
+    "nit warangal": { lat: 18.0095, lon: 79.5378 },
+    
+    // South Indian cities
+    trivandrum: { lat: 8.5241, lon: 76.9366 },
+    thiruvananthapuram: { lat: 8.5241, lon: 76.9366 },
+    kochi: { lat: 9.9312, lon: 76.2673 },
+    cochin: { lat: 9.9312, lon: 76.2673 },
+    kozhikode: { lat: 11.2588, lon: 75.7804 },
+    calicut: { lat: 11.2588, lon: 75.7804 },
+    mysore: { lat: 12.2958, lon: 76.6394 },
+    mysuru: { lat: 12.2958, lon: 76.6394 },
+    mangalore: { lat: 12.9141, lon: 74.8560 },
+    hubli: { lat: 15.3647, lon: 75.1240 },
+    belgaum: { lat: 15.8497, lon: 74.4977 },
+    pondicherry: { lat: 11.9416, lon: 79.8083 },
+    puducherry: { lat: 11.9416, lon: 79.8083 },
+    
+    // North-East
+    shillong: { lat: 25.5788, lon: 91.8933 },
+    imphal: { lat: 24.8170, lon: 93.9368 },
+    aizawl: { lat: 23.7271, lon: 92.7176 },
+    agartala: { lat: 23.8315, lon: 91.2868 },
+    gangtok: { lat: 27.3389, lon: 88.6065 },
+    kohima: { lat: 25.6751, lon: 94.1086 },
+    itanagar: { lat: 27.0844, lon: 93.6053 },
+    dispur: { lat: 26.1445, lon: 91.7362 },
+    
+    // Other important cities
+    aligarh: { lat: 27.8974, lon: 78.0880 },
+    bareilly: { lat: 28.3670, lon: 79.4304 },
+    moradabad: { lat: 28.8386, lon: 78.7733 },
+    siliguri: { lat: 26.7271, lon: 88.3953 },
+    durgapur: { lat: 23.5204, lon: 87.3119 },
+    bhubaneswar: { lat: 20.2961, lon: 85.8245 },
+    cuttack: { lat: 20.4625, lon: 85.8828 }
+  }
+  
+  // Try exact match first
+  if (cityCoordinates[normalizedCity]) {
+    return cityCoordinates[normalizedCity]
+  }
+  
+  // Try partial match
+  for (const [key, coords] of Object.entries(cityCoordinates)) {
+    if (key.includes(normalizedCity) || normalizedCity.includes(key)) {
+      return coords
+    }
+  }
+  
+  // Default fallback (Bangalore)
+  return { lat: 12.9716, lon: 77.5946 }
+}
+
+// -----------------------------------------------------------------------------
+// OpenStreetMap (Nominatim) API Functions
+// -----------------------------------------------------------------------------
+
+export const searchLocations = async (
+  query: string,
+  region = "India",
+  limit = 10
+): Promise<LocationResult[]> => {
+  const cacheKey = `${query}_${region}_${limit}`
+  if (searchCache.has(cacheKey)) {
+    return searchCache.get(cacheKey)!
+  }
+
+  try {
+    const encodedQuery = encodeURIComponent(query)
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedQuery}&countrycodes=in&limit=${limit}&addressdetails=1&extratags=1`
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Unipool-App/1.0',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const results: LocationResult[] = data.map((item: any) => ({
+      display_name: item.display_name,
+      lat: item.lat,
+      lon: item.lon,
+      place_id: item.place_id,
+      name: item.name || item.display_name?.split(',')[0],
+    }))
+
+    searchCache.set(cacheKey, results)
+    return results
+  } catch (error) {
+    console.error("Error searching locations:", error)
+    return []
+  }
+}
+
+export const debouncedSearchLocations = debounce(searchLocations, 300)
+
+export const searchLocationsWithFallback = async (
+  query: string,
+  region = "India",
+  limit = 10
+): Promise<LocationResult[]> => {
+  try {
+    // Primary search
+    const results = await searchLocations(query, region, limit)
+    if (results.length > 0) {
+      return results
+    }
+
+    // If no results, try a broader search
+    const broaderQuery = query.split(',')[0].trim()
+    if (broaderQuery !== query) {
+      const broaderResults = await searchLocations(broaderQuery, region, limit)
+      if (broaderResults.length > 0) {
+        return broaderResults
+      }
+    }
+
+    return []
+  } catch (error) {
+    console.error("Error in searchLocationsWithFallback:", error)
+    return []
+  }
+}
+
+export const debouncedSearchLocationsWithFallback = debounce(searchLocationsWithFallback, 300)
+
+// -----------------------------------------------------------------------------
+// Popular Locations Data
+// -----------------------------------------------------------------------------
+
+
+export const getPopularLocations = async (
+  searchQuery: string,
+  userLocation?: UserLocation
+): Promise<string[]> => {
+  const cacheKey = `${searchQuery}_${userLocation?.latitude}_${userLocation?.longitude}`
+  
+  if (popularLocationsCache.has(cacheKey)) {
+    return popularLocationsCache.get(cacheKey)!
+  }
+
+  try {
+    if (!userLocation) {
+      console.warn("No user location provided for getting popular locations")
+      return []
+    }
+    
+    const cityName = await getNearestCity(userLocation)
+    const cityLocations = POPULAR_LOCATIONS[cityName as keyof typeof POPULAR_LOCATIONS]
+    
+    if (!cityLocations) {
+      console.warn(`No popular locations found for city: ${cityName}`)
+      return []
+    }
+    
+    if (searchQuery.trim() === "") {
+      popularLocationsCache.set(cacheKey, cityLocations)
+      return cityLocations
+    }
+    
+    const filtered = cityLocations.filter(location =>
+      location.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    
+    popularLocationsCache.set(cacheKey, filtered)
+    return filtered
+  } catch (error) {
+    console.error("Error getting popular locations:", error)
+    return []
+  }
+}
+
+export const getPopularLocationsFallback = (searchQuery: string): string[] => {
+  console.warn("getPopularLocationsFallback called - this should not be used anymore without user location")
+  return []
+}
+
+export const getPopularLocationsByCity = (cityName: string): string[] => {
+  const normalizedCity = cityName.toLowerCase().trim()
+  const locations = POPULAR_LOCATIONS[normalizedCity as keyof typeof POPULAR_LOCATIONS]
+  
+  if (!locations) {
+    console.warn(`No popular locations found for city: ${cityName}`)
+    return []
+  }
+  
+  return locations
+}
+
+export const getNearestCity = async (userLocation: UserLocation): Promise<string> => {
+  try {
+    const results = await Location.reverseGeocodeAsync({
+      latitude: userLocation.latitude,
+      longitude: userLocation.longitude,
+    })
+
+    if (results.length > 0) {
+      const result = results[0]
+      const city = result.city || result.subregion || result.region
+      
+      if (city) {
+        const normalizedCity = city.toLowerCase().trim()
+        
+        // Check if we have popular locations for this exact city
+        if (POPULAR_LOCATIONS[normalizedCity as keyof typeof POPULAR_LOCATIONS]) {
+          return normalizedCity
+        }
+        
+        // Try to find a partial match in our city list
+        const cityKeys = Object.keys(POPULAR_LOCATIONS)
+        for (const cityKey of cityKeys) {
+          if (cityKey.includes(normalizedCity) || normalizedCity.includes(cityKey)) {
+            return cityKey
+          }
+        }
+        
+        console.warn(`City "${city}" not found in popular locations database`)
+      }
+    }
+  } catch (error) {
+    console.error("Error getting nearest city:", error)
+  }
+  
+  // If all else fails, we can't determine the city
+  throw new Error("Unable to determine nearest city from user location")
+}
+
+// -----------------------------------------------------------------------------
+// Nearby Places Functions
 // -----------------------------------------------------------------------------
 
 export const getNearbyPopularPlaces = async (
@@ -1050,7 +1459,7 @@ export const getNearbyPopularPlaces = async (
   radius = 25,
   categories = [
     "amenity=hospital",
-    "amenity=university",
+    "amenity=university", 
     "aeroway=aerodrome",
     "railway=station",
     "amenity=bus_station",
@@ -1064,661 +1473,111 @@ export const getNearbyPopularPlaces = async (
 
   const cacheKey = `${effectiveLocation.latitude},${effectiveLocation.longitude}`
   if (nearbyPlacesCache.has(cacheKey)) {
-    console.log("→ Returning cached nearby places for:", cacheKey)
     return nearbyPlacesCache.get(cacheKey)!
   }
-
-  console.log("Starting API calls for location:", effectiveLocation)
 
   try {
     const places: NearbyPlace[] = []
     const priorityCategories = [
       "amenity=university",
-      "railway=station",
+      "railway=station", 
       "amenity=hospital"
     ]
 
     const overallController = new AbortController()
     const overallTimeoutId = setTimeout(() => {
-      console.log(
-        "Overall API timeout reached, aborting all requests…"
-      )
       overallController.abort()
     }, overallTimeoutMs)
 
-    for (const category of priorityCategories) {
-      if (overallController.signal.aborted) {
-        console.log("Skipping remaining categories due to timeout")
-        break
-      }
-      try {
-        console.log(`Searching for category: ${category}`)
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&${category}&limit=2&lat=${effectiveLocation.latitude}&lon=${effectiveLocation.longitude}&bounded=1&viewbox=${
-            effectiveLocation.longitude - 0.2
-          },${effectiveLocation.latitude + 0.2},${
-            effectiveLocation.longitude + 0.2
-          },${effectiveLocation.latitude - 0.2}`,
-          {
-            headers: {
-              "User-Agent": "Unipool-App/1.0"
-            },
-            signal: overallController.signal
-          }
-        )
-
-        if (response.ok) {
-          const data = await response.json()
-          console.log(`📍 ${category} results:`, data?.length || 0)
-
-          const categoryPlaces = (data as any[]).map(item => ({
-            name:
-              item.name || item.display_name.split(",")[0],
-            category: getCategoryName(category),
-            lat: parseFloat(item.lat),
-            lon: parseFloat(item.lon),
-            distance: calculateDistance(
-              effectiveLocation.latitude,
-              effectiveLocation.longitude,
-              parseFloat(item.lat),
-              parseFloat(item.lon)
-            )
-          }))
-          .filter(
-            (place: NearbyPlace) =>
-              place.name && place.distance! <= radius
-          )
-
-          places.push(...categoryPlaces)
-        } else {
-          console.warn(
-            `API response not OK for ${category}:`,
-            response.status
-          )
-        }
-
-        // tiny pause to avoid hammering the API
-        await new Promise(r => setTimeout(r, 100))
-      } catch (err: any) {
-        if (err.name === "AbortError") {
-          console.log(`${category} request timed out`)
-        } else {
-          console.warn(`Error fetching ${category}:`, err)
-        }
+    try {
+      // Fetch priority categories first
+      for (const category of priorityCategories) {
         if (overallController.signal.aborted) break
+        
+        try {
+          const categoryPlaces = await fetchPlacesForCategory(
+            effectiveLocation, 
+            category, 
+            radius, 
+            overallController.signal
+          )
+          places.push(...categoryPlaces.slice(0, 2))
+        } catch (error) {
+          if (!overallController.signal.aborted) {
+            console.warn(`Failed to fetch ${category}:`, error)
+          }
+        }
       }
+
+      nearbyPlacesCache.set(cacheKey, places)
+    } finally {
+      clearTimeout(overallTimeoutId)
     }
 
-    clearTimeout(overallTimeoutId)
-
-    const uniquePlaces = places.filter(
-      (p, i, a) =>
-        i ===
-        a.findIndex(
-          pp =>
-            pp.name.toLowerCase() === p.name.toLowerCase()
-        )
-    )
-
-    const sortedPlaces = uniquePlaces
-      .sort((a, b) => (a.distance! - b.distance!))
-      .slice(0, 10)
-
-    console.log("Final nearby places:", sortedPlaces)
-
-    // cache for next time
-    nearbyPlacesCache.set(cacheKey, sortedPlaces)
-    return sortedPlaces
+    return places
   } catch (error) {
-    console.error("❌ Error fetching nearby places:", error)
+    console.error("Error fetching nearby places:", error)
     return []
   }
 }
 
-// -----------------------------------------------------------------------------
-// distance + category name helpers (unchanged)
-// -----------------------------------------------------------------------------
+const fetchPlacesForCategory = async (
+  location: UserLocation,
+  category: string,
+  radius: number,
+  signal: AbortSignal
+): Promise<NearbyPlace[]> => {
+  const { latitude, longitude } = location
+  const url = `https://overpass-api.de/api/interpreter?data=[out:json][timeout:5];(node[${category}](around:${radius * 1000},${latitude},${longitude}););out geom;`
 
-const calculateDistance = (
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number => {
-  const R = 6371 // km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180
-  const dLon = ((lon2 - lon1) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  const response = await fetch(url, { 
+    signal,
+    headers: {
+      'User-Agent': 'Unipool-App/1.0',
+    }
+  })
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return data.elements?.map((element: any) => ({
+    name: element.tags?.name || `${category.split('=')[1]}`,
+    category: category.split('=')[1],
+    lat: element.lat,
+    lon: element.lon,
+    distance: calculateDistance(latitude, longitude, element.lat, element.lon)
+  })) || []
+}
+
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
   return R * c
 }
 
-const getCategoryName = (category: string): string => {
-  const categoryMap: Record<string, string> = {
-    "amenity=hospital": "Hospital",
-    "amenity=university": "University",
-    "aeroway=aerodrome": "Airport",
-    "railway=station": "Railway Station",
-    "amenity=bus_station": "Bus Station",
-    "shop=mall": "Shopping Mall",
-    "tourism=attraction": "Tourist Attraction"
+// -----------------------------------------------------------------------------
+// Utility Functions
+// -----------------------------------------------------------------------------
+
+export const formatLocationName = (locationResult: LocationResult): string => {
+  const parts = locationResult.display_name.split(',')
+  if (parts.length >= 2) {
+    return `${parts[0].trim()}, ${parts[1].trim()}`
   }
-  return categoryMap[category] || "Location"
-}
-
-// -----------------------------------------------------------------------------
-// getNearestCity (unchanged)
-// -----------------------------------------------------------------------------
-
-export const getNearestCity = async (
-  userLocation: UserLocation
-): Promise<string> => {
-  const effectiveLocation = getEffectiveLocation(userLocation)
-  if (!effectiveLocation) return "default"
-
-  try {
-    const resp = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${effectiveLocation.latitude}&lon=${effectiveLocation.longitude}&zoom=10&addressdetails=1`,
-      {
-        headers: { "User-Agent": "Unipool-App/1.0" }
-      }
-    )
-    if (!resp.ok) throw new Error(resp.statusText)
-    const data = await resp.json()
-    const address = data.address || {}
-    const city =
-      address.city ||
-      address.town ||
-      address.village ||
-      address.state_district ||
-      address.county ||
-      "Unknown"
-    return city.toLowerCase()
-  } catch (err) {
-    console.error("Error getting nearest city:", err)
-    return "default"
-  }
-}
-
-// -----------------------------------------------------------------------------
-// searchLocations (with caching) + debounced wrapper
-// -----------------------------------------------------------------------------
-
-export const searchLocations = async (
-  query: string,
-  region = "India",
-  limit = 10
-): Promise<LocationResult[]> => {
-  if (!query || query.length < 2) return []
-
-  const encodedQuery = encodeURIComponent(`${query}, ${region}`)
-
-  // check cache
-  if (searchCache.has(encodedQuery)) {
-    console.log("→ Returning cached search for:", query)
-    return searchCache.get(encodedQuery)!
-  }
-
-  console.log("Searching for:", query)
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => {
-    console.log("Search API timeout, aborting…")
-    controller.abort()
-  }, 5000)
-
-  try {
-    const resp = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodedQuery}&limit=${limit}&addressdetails=1&countrycodes=in`,
-      {
-        headers: { "User-Agent": "Unipool-App/1.0" },
-        signal: controller.signal
-      }
-    )
-    clearTimeout(timeoutId)
-    if (!resp.ok)
-      throw new Error(`HTTP error! status: ${resp.status}`)
-    const data = (await resp.json()) as any[]
-    console.log("Search results found:", data.length)
-
-    const results: LocationResult[] = data.map(item => ({
-      display_name: item.display_name,
-      lat: item.lat,
-      lon: item.lon,
-      place_id: item.place_id,
-      name: item.name || item.display_name.split(",")[0]
-    }))
-
-    // cache it
-    searchCache.set(encodedQuery, results)
-    return results
-  } catch (err: any) {
-    if (err.name === "AbortError") {
-      console.log("Search request timed out")
-    } else {
-      console.error("Location search error:", err)
-    }
-    return []
-  }
-}
-
-// debounced version (300 ms)
-export const debouncedSearchLocations = debounce(
-  searchLocations,
-  300
-)
-
-// -----------------------------------------------------------------------------
-// searchLocationsWithFallback (unchanged, uses searchLocations cache)
-// -----------------------------------------------------------------------------
-
-export const searchLocationsWithFallback = async (
-  query: string,
-  region = "India",
-  limit = 10
-): Promise<LocationResult[]> => {
-  if (!query || query.length < 2) return []
-
-  const lowerQuery = query.toLowerCase()
-  const localResults: LocationResult[] = []
-
-  Object.entries(POPULAR_LOCATIONS).forEach(([cityKey, locations]) => {
-    if (cityKey === "default") return
-
-    locations.forEach(location => {
-      if (location.toLowerCase().includes(lowerQuery)) {
-        const { lat, lon } = getCityCoordinates(cityKey)
-        localResults.push({
-          display_name: `${location}, ${
-            cityKey[0].toUpperCase() + cityKey.slice(1)
-          }, India`,
-          lat: lat.toString(),
-          lon: lon.toString(),
-          place_id: `local_${cityKey}_${location.replace(
-            /\s+/g,
-            "_"
-          )}`,
-          name: location
-        })
-      }
-    })
-  })
-
-  Object.entries(POPULAR_LOCATIONS).forEach(([cityKey, locations]) => {
-    if (cityKey === "default") return
-    
-    if (cityKey.includes(lowerQuery) || lowerQuery.includes(cityKey)) {
-      const { lat, lon } = getCityCoordinates(cityKey)
-      
-      localResults.unshift({
-        display_name: `${
-          cityKey[0].toUpperCase() + cityKey.slice(1)
-        }, India`,
-        lat: lat.toString(),
-        lon: lon.toString(),
-        place_id: `local_city_${cityKey}`,
-        name: cityKey[0].toUpperCase() + cityKey.slice(1)
-      })
-      
-      locations.slice(0, 8).forEach((location, index) => {
-        const randomOffset = () => (Math.random() - 0.5) * 0.01;
-        localResults.push({
-          display_name: `${location}, ${
-            cityKey[0].toUpperCase() + cityKey.slice(1)
-          }, India`,
-          lat: (lat + randomOffset()).toString(),
-          lon: (lon + randomOffset()).toString(),
-          place_id: `local_${cityKey}_${location.replace(
-            /\s+/g,
-            "_"
-          )}_${index}`,
-          name: location
-        })
-      })
-    }
-  })
-
-  if (localResults.length > 0) {
-    console.log("→ Found local results:", localResults.length)
-    const uniqueResults = localResults.filter(
-      (result, index, arr) => arr.findIndex(r => r.name === result.name) === index
-    )
-    return uniqueResults.slice(0, limit)
-  }
-
-  console.log("→ No local results, trying API search…")
-  try {
-    const apiResults = await searchLocations(
-      query,
-      region,
-      limit
-    )
-    if (apiResults.length > 0) return apiResults
-  } catch {
-    console.log("API search failed, using fallback locations")
-  }
-
-  // fallback popular - return consistent locations
-  const fallback = getPopularLocationsFallback(query)
-  if (fallback.length === 0) {
-    console.log("No fallback locations available")
-    return []
-  }
-  return fallback.slice(0, 4).map((loc, i) => ({
-    display_name: `${loc}, India`,
-    lat: "12.9716",
-    lon: "77.5946",
-    place_id: `fallback_${i}`,
-    name: loc
-  }))
-}
-
-// debounced version
-export const debouncedSearchLocationsWithFallback = debounce(
-  searchLocationsWithFallback,
-  300
-)
-
-// -----------------------------------------------------------------------------
-// small helpers for fallback (unchanged)
-// -----------------------------------------------------------------------------
-
-const getStablePopularLocations = (
-  locations: string[],
-  count = 4
-): string[] => {
-  return locations.slice(0, count)
-}
-
-const getCityCoordinates = (
-  cityKey: string
-): { lat: number; lon: number } => {
-  const cityCoords: Record<string, { lat: number; lon: number }> = {
-    chennai: { lat: 13.0827, lon: 80.2707 },
-    bangalore: { lat: 12.9716, lon: 77.5946 },
-    hyderabad: { lat: 17.385, lon: 78.4867 },
-    vellore: { lat: 12.9165, lon: 79.1325 },
-    coimbatore: { lat: 11.0168, lon: 76.9558 },
-    madurai: { lat: 9.9252, lon: 78.1198 },
-    salem: { lat: 11.6643, lon: 78.146 },
-    pondicherry: { lat: 11.9416, lon: 79.8083 }
-  }
-  return (
-    cityCoords[cityKey] || {
-      lat: 12.9716,
-      lon: 77.5946
-    }
-  )
-}
-
-// -----------------------------------------------------------------------------
-// getPopularLocations (with caching)
-// -----------------------------------------------------------------------------
-
-export const getPopularLocations = async (
-  searchQuery: string,
-  userLocation?: UserLocation
-): Promise<string[]> => {
-  console.log("getPopularLocations:", {
-    searchQuery,
-    userLocation
-  })
-
-  const effectiveLocation = getEffectiveLocation(userLocation)
-  if (
-    !effectiveLocation ||
-    !effectiveLocation.latitude ||
-    !effectiveLocation.longitude
-  ) {
-    console.warn("→ No valid user location, cannot fetch popular locations.")
-    return [];
-  }
-
-  // cache key = lat,long + query
-  const cacheKey = `${effectiveLocation.latitude},${effectiveLocation.longitude}_${searchQuery}`
-  if (popularLocationsCache.has(cacheKey)) {
-    console.log(
-      "→ Returning cached popular locations for:",
-      cacheKey
-    )
-    return popularLocationsCache.get(cacheKey)!
-  }
-
-  try {
-    // try nearby first
-    console.log("→ Fetching nearby places…")
-    const nearbyPromise = getNearbyPopularPlaces(
-      effectiveLocation,
-      25,
-      undefined,
-      2000
-    )
-    const timeoutPromise = new Promise<NearbyPlace[]>(res =>
-      setTimeout(() => {
-        console.log("⏱️ Nearby API timeout, using fallback")
-        res([])
-      }, 2000)
-    )
-
-    const nearbyPlaces = await Promise.race([
-      nearbyPromise,
-      timeoutPromise
-    ])
-    console.log("→ Nearby places:", nearbyPlaces)
-
-    if (nearbyPlaces.length > 0) {
-      const names = nearbyPlaces.map(p => p.name)
-      popularLocationsCache.set(cacheKey, names)
-      console.log("✅ Returning nearby names:", names)
-      return names
-    }
-
-    // no nearby: fallback to city list
-    if (USE_TEST_LOCATION) {
-      console.log("→ Test mode: returning Vellore list")
-      const list = getStablePopularLocations(
-        POPULAR_LOCATIONS.vellore,
-        4
-      )
-      popularLocationsCache.set(cacheKey, list)
-      return list
-    }
-
-    const nearestCity = await getNearestCity(effectiveLocation)
-    console.log("→ Nearest city:", nearestCity)
-
-    if (
-      nearestCity !== "default" &&
-      POPULAR_LOCATIONS[nearestCity as keyof typeof POPULAR_LOCATIONS]
-    ) {
-      const cityList =
-        POPULAR_LOCATIONS[
-          nearestCity as keyof typeof POPULAR_LOCATIONS
-        ]
-      const pick = getStablePopularLocations(cityList, 4)
-      popularLocationsCache.set(cacheKey, pick)
-      console.log("Returning city list:", pick)
-      return pick
-    }
-  } catch (err) {
-    console.error(
-      "Error getting location-based popular places:",
-      err
-    )
-  }
-
-  console.log("→ String fallback for query:", searchQuery)
-  const q = searchQuery.toLowerCase()
-  let fallbackList: string[] = []
-  if (q.includes("chennai"))
-    fallbackList = getStablePopularLocations(
-      POPULAR_LOCATIONS.chennai,
-      4
-    )
-  else if (q.includes("bangalore") || q.includes("bengaluru"))
-    fallbackList = getStablePopularLocations(
-      POPULAR_LOCATIONS.bangalore,
-      4
-    )
-  else if (q.includes("hyderabad"))
-    fallbackList = getStablePopularLocations(
-      POPULAR_LOCATIONS.hyderabad,
-      4
-    )
-  else if (q.includes("vellore"))
-    fallbackList = getStablePopularLocations(
-      POPULAR_LOCATIONS.vellore,
-      4
-    )
-  else if (q.includes("coimbatore"))
-    fallbackList = getStablePopularLocations(
-      POPULAR_LOCATIONS.coimbatore,
-      4
-    )
-  else if (q.includes("madurai"))
-    fallbackList = getStablePopularLocations(
-      POPULAR_LOCATIONS.madurai,
-      4
-    )
-  else if (q.includes("salem"))
-    fallbackList = getStablePopularLocations(
-      POPULAR_LOCATIONS.salem,
-      4
-    )
-  else if (q.includes("pondicherry") || q.includes("puducherry"))
-    fallbackList = getStablePopularLocations(
-      POPULAR_LOCATIONS.pondicherry,
-      4
-    )
-  else
-    fallbackList = []
-
-  if (fallbackList.length > 0) {
-    popularLocationsCache.set(
-      `${effectiveLocation.latitude},${effectiveLocation.longitude}_${searchQuery}`,
-      fallbackList
-    )
-    console.log("Returning fallback list:", fallbackList)
-    return fallbackList
-  }
-
-  console.log("No popular locations found")
-  return []
-}
-
-// -----------------------------------------------------------------------------
-// simple key‑based fallback (unchanged)
-// -----------------------------------------------------------------------------
-
-export const getPopularLocationsFallback = (
-  searchQuery: string
-): string[] => {
-  const q = searchQuery.toLowerCase()
-  if (q.includes("chennai"))
-    return getStablePopularLocations(
-      POPULAR_LOCATIONS.chennai,
-      4
-    )
-  if (q.includes("bangalore") || q.includes("bengaluru"))
-    return getStablePopularLocations(
-      POPULAR_LOCATIONS.bangalore,
-      4
-    )
-  if (q.includes("hyderabad"))
-    return getStablePopularLocations(
-      POPULAR_LOCATIONS.hyderabad,
-      4
-    )
-  if (q.includes("vellore"))
-    return getStablePopularLocations(
-      POPULAR_LOCATIONS.vellore,
-      4
-    )
-  if (q.includes("coimbatore"))
-    return getStablePopularLocations(
-      POPULAR_LOCATIONS.coimbatore,
-      4
-    )
-  if (q.includes("madurai"))
-    return getStablePopularLocations(
-      POPULAR_LOCATIONS.madurai,
-      4
-    )
-  if (q.includes("salem"))
-    return getStablePopularLocations(
-      POPULAR_LOCATIONS.salem,
-      4
-    )
-  if (q.includes("pondicherry") || q.includes("puducherry"))
-    return getStablePopularLocations(
-      POPULAR_LOCATIONS.pondicherry,
-      4
-    )
-  return []
-}
-
-// -----------------------------------------------------------------------------
-// by‑city lookup + format helpers (unchanged)
-// -----------------------------------------------------------------------------
-
-export const getPopularLocationsByCity = (
-  cityName: string
-): string[] => {
-  const city = cityName.toLowerCase()
-  if (
-    POPULAR_LOCATIONS[
-      city as keyof typeof POPULAR_LOCATIONS
-    ]
-  ) {
-    return getStablePopularLocations(
-      POPULAR_LOCATIONS[
-        city as keyof typeof POPULAR_LOCATIONS
-      ],
-      4
-    )
-  }
-  return []
-}
-
-export const formatLocationName = (
-  locationResult: LocationResult
-): string => {
-  return (
-    locationResult.name ||
-    locationResult.display_name.split(",")[0]
-  )
-}
-
-export const isLocationInIndia = (
-  locationResult: LocationResult
-): boolean => {
   return locationResult.display_name
-    .toLowerCase()
-    .includes("india")
 }
 
-// -----------------------------------------------------------------------------
-// default export
-// -----------------------------------------------------------------------------
-
-export default {
-  searchLocations,
-  debouncedSearchLocations,
-  searchLocationsWithFallback,
-  debouncedSearchLocationsWithFallback,
-  getPopularLocations,
-  getPopularLocationsFallback,
-  getPopularLocationsByCity,
-  getNearbyPopularPlaces,
-  getNearestCity,
-  getEffectiveLocation,
-  formatLocationName,
-  isLocationInIndia,
-  POPULAR_LOCATIONS,
-  USE_TEST_LOCATION,
-  TEST_LOCATION
+export const isLocationInIndia = (locationResult: LocationResult): boolean => {
+  const lat = parseFloat(locationResult.lat)
+  const lon = parseFloat(locationResult.lon)
+  
+  return lat >= 6 && lat <= 37 && lon >= 68 && lon <= 97
 }
