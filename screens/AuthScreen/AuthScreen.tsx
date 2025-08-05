@@ -95,7 +95,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
     }
     
     try {
-      // Start the sign-in request for Apple
       const appleAuthRequestResponse = await appleAuth.performRequest({
         requestedOperation: appleAuth.Operation.LOGIN,
         requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
@@ -126,7 +125,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
       }
     } catch (error: any) {
       if (error.code === 'ERR_REQUEST_CANCELED') {
-        return; // User canceled, don't show error
+        return;
       }
       const message = error instanceof Error ? error.message : "An unknown error occurred";
       Alert.alert("Apple Sign-In Failed", message);
@@ -136,13 +135,18 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Text style={styles.greeting}>Hello!</Text>
-      <Text style={styles.subtext}>Let's get you started with:</Text>
-      <LottieView
-        source={require("../../assets/artboard.json")}
-        autoPlay
-        loop
-        style={{ width: 200, height: 200, alignSelf: 'center', marginTop: -50 }}
-      />
+      <Text style={styles.subtext}>Let's get you started:</Text>
+      
+      <View style={styles.lottieContainer}>
+        <LottieView
+          source={require("../../assets/artboard.json")}
+          autoPlay
+          loop
+          style={styles.lottieAnimation}
+        />
+        <View style={styles.watermarkHide} />
+      </View>
+      
       <View>
         <Text style={styles.label}>Authentication</Text>
         <TouchableOpacity 
