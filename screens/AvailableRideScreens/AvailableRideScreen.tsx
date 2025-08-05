@@ -81,6 +81,12 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const [showFilters, setShowFilters] = useState(false);
   const [searchMeta, setSearchMeta] = useState<ApiResponse['meta'] | null>(null);
   
+  // State for locations and coordinates
+  const [fromLocation, setFromLocation] = useState("");
+  const [toLocation, setToLocation] = useState("");
+  const [fromCoordinates, setFromCoordinates] = useState<{ latitude: number; longitude: number } | undefined>(undefined);
+  const [toCoordinates, setToCoordinates] = useState<{ latitude: number; longitude: number } | undefined>(undefined);
+  
   const [filters, setFilters] = useState<SearchFilters>({
     maxPrice: '',
     minSeats: '',
@@ -90,60 +96,69 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     date: '',
   });
 
-  // Extract route parameters
-  let fromLocation = "";
-  let toLocation = "";
-  let fromCoordinates: { latitude: number; longitude: number } | undefined;
-  let toCoordinates: { latitude: number; longitude: number } | undefined;
+  // Extract and update route parameters when they change
+  useEffect(() => {
+    let newFromLocation = "";
+    let newToLocation = "";
+    let newFromCoordinates: { latitude: number; longitude: number } | undefined;
+    let newToCoordinates: { latitude: number; longitude: number } | undefined;
 
-  if (route.params && typeof route.params === "object") {
-    if ("fromLocation" in route.params && typeof (route.params as any).fromLocation === "string") {
-      fromLocation = (route.params as any).fromLocation;
-    }
-    if ("toLocation" in route.params && typeof (route.params as any).toLocation === "string") {
-      toLocation = (route.params as any).toLocation;
-    }
-    if ("fromCoordinates" in route.params && (route.params as any).fromCoordinates) {
-      fromCoordinates = (route.params as any).fromCoordinates;
-    }
-    if ("toCoordinates" in route.params && (route.params as any).toCoordinates) {
-      toCoordinates = (route.params as any).toCoordinates;
-    }
-    if ((route.params as any).params) {
-      const nested = (route.params as any).params;
-      if (typeof nested.fromLocation === "string") {
-        fromLocation = nested.fromLocation;
+    if (route.params && typeof route.params === "object") {
+      if ("fromLocation" in route.params && typeof (route.params as any).fromLocation === "string") {
+        newFromLocation = (route.params as any).fromLocation;
       }
-      if (typeof nested.toLocation === "string") {
-        toLocation = nested.toLocation;
+      if ("toLocation" in route.params && typeof (route.params as any).toLocation === "string") {
+        newToLocation = (route.params as any).toLocation;
       }
-      if (nested.fromCoordinates) {
-        fromCoordinates = nested.fromCoordinates;
+      if ("fromCoordinates" in route.params && (route.params as any).fromCoordinates) {
+        newFromCoordinates = (route.params as any).fromCoordinates;
       }
-      if (nested.toCoordinates) {
-        toCoordinates = nested.toCoordinates;
+      if ("toCoordinates" in route.params && (route.params as any).toCoordinates) {
+        newToCoordinates = (route.params as any).toCoordinates;
       }
-    }
-  }
-
-  if (!fromLocation || !toLocation) {
-    try {
-      const navState = (navigation as any).getState?.();
-      if (navState && navState.routes) {
-        const currentRoute = navState.routes[navState.index ?? 0];
-        if (currentRoute && currentRoute.params) {
-          if (typeof currentRoute.params.fromLocation === "string") {
-            fromLocation = currentRoute.params.fromLocation;
-          }
-          if (typeof currentRoute.params.toLocation === "string") {
-            toLocation = currentRoute.params.toLocation;
-          }
+      if ((route.params as any).params) {
+        const nested = (route.params as any).params;
+        if (typeof nested.fromLocation === "string") {
+          newFromLocation = nested.fromLocation;
+        }
+        if (typeof nested.toLocation === "string") {
+          newToLocation = nested.toLocation;
+        }
+        if (nested.fromCoordinates) {
+          newFromCoordinates = nested.fromCoordinates;
+        }
+        if (nested.toCoordinates) {
+          newToCoordinates = nested.toCoordinates;
         }
       }
-    } catch (e) {
-      // Silent catch
     }
-  }
+
+    if (!newFromLocation || !newToLocation) {
+      try {
+        const navState = (navigation as any).getState?.();
+        if (navState && navState.routes) {
+          const currentRoute = navState.routes[navState.index ?? 0];
+          if (currentRoute && currentRoute.params) {
+            if (typeof currentRoute.params.fromLocation === "string") {
+              newFromLocation = currentRoute.params.fromLocation;
+            }
+            if (typeof currentRoute.params.toLocation === "string") {
+              newToLocation = currentRoute.params.toLocation;
+            }
+          }
+        }
+      } catch (e) {
+        // Silent catch
+      }
+    }
+
+    console.log('Route params updated:', { newFromLocation, newToLocation, newFromCoordinates, newToCoordinates });
+    
+    setFromLocation(newFromLocation);
+    setToLocation(newToLocation);
+    setFromCoordinates(newFromCoordinates);
+    setToCoordinates(newToCoordinates);
+  }, [route.params, navigation]);
 
   const buildQueryParams = () => {
     let queryParams = `start_location=${encodeURIComponent(fromLocation)}&end_location=${encodeURIComponent(toLocation)}`;
@@ -228,7 +243,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       setNavBarIcon(require("../../assets/wallet.png"));
       setNavBarItems(bottomNavItems);
     };
-  }, [isFocused, fromLocation, toLocation]);
+  }, [isFocused, fromLocation, toLocation, fromCoordinates, toCoordinates]);
 
   useEffect(() => {
     if (!isFocused) return;

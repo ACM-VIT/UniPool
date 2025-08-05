@@ -112,9 +112,15 @@ export default class ApiUtil {
         throw error;
       }
       
-      if (error?.response?.status === 401 || error?.response?.status === 403) {
-        console.log('Authentication/Authorization error - handling gracefully');
-        throw error;
+      if (error?.response?.status === 401) {
+        console.log('Authentication error (401) - user needs to log in again');
+        await this.handleAuthenticationFailure();
+        throw new Error("AUTHENTICATION_REDIRECT");
+      }
+      
+      if (error?.response?.status === 403) {
+        console.log('Authorization error (403) - user lacks permission but is authenticated');
+        throw error; // Don't sign out for permission errors
       }
       
       if (error?.message?.includes('Unauthorized') || 
@@ -219,11 +225,19 @@ export default class ApiUtil {
       
       try {
         if (!responseText.trim()) {
+          // For DELETE requests, an empty response might be acceptable
+          if (method === 'DELETE' && response.ok) {
+            console.log("DELETE request returned empty response but was successful (200/204)");
+            return {} as T; // Return empty object for successful DELETE with no content
+          }
           throw new Error("Empty response");
         }
         
-        if (responseText.trim() === 'Unauthorized' || responseText.trim() === 'Forbidden') {
+        if (responseText.trim() === 'Unauthorized') {
           console.log("Detected unauthorized text response");
+          responseBody = { error: responseText.trim() };
+        } else if (responseText.trim() === 'Forbidden') {
+          console.log("Detected forbidden text response");
           responseBody = { error: responseText.trim() };
         } else if (responseText.includes('\ufffd') || responseText.includes('�')) {
           console.error("Response contains invalid characters (encoding issue):", responseText.substring(0, 100));
@@ -235,8 +249,17 @@ export default class ApiUtil {
         console.error("JSON Parse Error:", parseError);
         console.error("Raw response text:", responseText.substring(0, 200));
         
-        if (responseText.trim() === 'Unauthorized' || responseText.trim() === 'Forbidden') {
+        // For DELETE requests that return empty content but are successful, don't treat as error
+        if (method === 'DELETE' && response.ok && !responseText.trim()) {
+          console.log("DELETE request had empty response but was successful - treating as success");
+          return {} as T;
+        }
+        
+        if (responseText.trim() === 'Unauthorized') {
           console.log("Unauthorized response detected during JSON parse error");
+          responseBody = { error: responseText.trim() };
+        } else if (responseText.trim() === 'Forbidden') {
+          console.log("Forbidden response detected during JSON parse error");
           responseBody = { error: responseText.trim() };
         } else if (parseError instanceof SyntaxError) {
           throw new Error(`Invalid JSON response: ${parseError.message}`);
@@ -247,10 +270,14 @@ export default class ApiUtil {
 
       if (!response.ok) {
         console.error(`HTTP ${method} ${url} error ${response.status}:`, responseBody);
-        if (response.status === 401 || response.status === 403) {
-          console.warn("User authentication failed - signing out and redirecting to auth");
+        if (response.status === 401) {
+          console.warn("User authentication failed (401) - signing out and redirecting to auth");
           await this.handleAuthenticationFailure();
           throw new Error("AUTHENTICATION_REDIRECT");
+        }
+        if (response.status === 403) {
+          console.warn("User authorization failed (403) - user lacks permission but is authenticated");
+          // Don't sign out for permission errors, just throw the error
         }
         // Throw a custom error object with status and responseBody
         const error: any = new Error(`HTTP ${response.status}`);

@@ -118,8 +118,8 @@ const DefaultAddressScreen: React.FC = () => {
       const popular = await getPopularLocations("", undefined);
       setPopularLocations(popular);
     } catch {
-      const { POPULAR_LOCATIONS } = require("../utils/LocationService");
-      setPopularLocations(POPULAR_LOCATIONS.default);
+      console.log('Unable to get popular locations without user location');
+      setPopularLocations([]);
     } finally {
       setIsLoadingPopular(false);
     }

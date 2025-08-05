@@ -459,6 +459,7 @@ const CreateRide: React.FC = () => {
         <SlideToCreate
           onSlideComplete={handleCreateRide}
           isLoading={isCreating}
+          disabled={!fromLocation || !toLocation || isCreating}
           text="Slide to create ride"
           loadingText="Creating ride..."
           sliderIcon={require("../assets/slide.png")}

@@ -62,6 +62,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [rideDetails, setRideDetails] = useState<RideDetails | null>(null);
   const [notificationsMuted, setNotificationsMuted] = useState(false);
+  const [hasSettingsPermission, setHasSettingsPermission] = useState(true);
   const [editingChatName, setEditingChatName] = useState(false);
   const [newChatName, setNewChatName] = useState('');
   const [typingUsers, setTypingUsers] = useState<{ [k: string]: { name: string; timeout: NodeJS.Timeout } }>({});
@@ -148,11 +149,11 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
           return;
         }
         
-        if (e?.response?.status === 404 && 
-            e?.response?.data?.message === "User not found in database, signup required") {
-          console.log("User not found in database - redirect to signup handled by ApiUtil");
-          return;
-        }
+        // if (e?.response?.status === 404 && 
+        //     e?.response?.data?.message === "User not found in database, signup required") {
+        //   console.log("User not found in database - redirect to signup handled by ApiUtil");
+        //   return;
+        // }
         
         console.warn('[Chat] fetch user failed', e);
       });
@@ -295,7 +296,19 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
         const s = await apiUtil.get<{ settings: { chat_name?: string; notifications_muted?: boolean } }>(`/ride/${rideId}/settings`);
         s.settings.chat_name && setChatTitle(s.settings.chat_name);
         setNotificationsMuted(!!s.settings.notifications_muted);
-      } catch { setNotificationsMuted(false); }
+        setHasSettingsPermission(true);
+      } catch (error: any) { 
+        console.log('[Chat] Settings fetch failed (user may not have permission):', error?.response?.status);
+        // Don't treat 403 (forbidden) as an auth error - user just doesn't have permission to view/edit settings
+        if (error?.response?.status === 403) {
+          console.log('[Chat] User not authorized to view ride settings - using defaults');
+          setNotificationsMuted(false);
+          setHasSettingsPermission(false);
+        } else {
+          setNotificationsMuted(false);
+          setHasSettingsPermission(true); // Assume permission for other errors
+        }
+      }
     } catch (e) {
       console.warn('[Chat] fetchChatDetails error', e);
       setRideDetails({
@@ -486,10 +499,16 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
       const chatId = chatParams.chatRoom?.id || chatParams.chatId;
       if (chatParams.isGroupChat!==false && chatId) {
         await apiUtil.put(`/ride/${chatId}/settings`, { notifications_muted: val });
+        setNotificationsMuted(val);
+      } else {
+        setNotificationsMuted(val);
       }
-      setNotificationsMuted(val);
-    } catch {
-      console.warn('[Chat] mute toggle failed');
+    } catch (error: any) {
+      console.warn('[Chat] mute toggle failed:', error?.response?.status);
+      if (error?.response?.status === 403) {
+        Alert.alert('Permission Denied', 'You do not have permission to change settings for this ride.');
+        return; 
+      }
       setNotificationsMuted(val);
     }
   };
@@ -503,10 +522,18 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
       const chatId = chatParams.chatRoom?.id || chatParams.chatId;
       if (chatParams.isGroupChat!==false && chatId) {
         await apiUtil.put(`/ride/${chatId}/settings`, { chat_name: newChatName });
+        setChatTitle(newChatName);
+      } else {
+        setChatTitle(newChatName);
       }
-      setChatTitle(newChatName);
-    } catch {
-      console.warn('[Chat] rename failed');
+    } catch (error: any) {
+      console.warn('[Chat] rename failed:', error?.response?.status);
+      if (error?.response?.status === 403) {
+        Alert.alert('Permission Denied', 'You do not have permission to rename this chat.');
+        setEditingChatName(false);
+        setNewChatName('');
+        return;
+      }
       setChatTitle(newChatName);
     } finally {
       setEditingChatName(false);
@@ -658,16 +685,17 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
                     </View>
                   ) : (
                     <TouchableOpacity
-                      disabled={!isGroup}
+                      disabled={!isGroup || !hasSettingsPermission}
                       onPress={()=>{
-                        if(isGroup){
+                        if(isGroup && hasSettingsPermission){
                           setEditingChatName(true);
                           setNewChatName(chatTitle);
                         }
                       }}
                     >
                       <Text style={chatMessagesStyles.chatTitleLarge}>{chatTitle}</Text>
-                      {isGroup && <Text style={chatMessagesStyles.tapToEdit}>Tap to edit</Text>}
+                      {isGroup && hasSettingsPermission && <Text style={chatMessagesStyles.tapToEdit}>Tap to edit</Text>}
+                      {isGroup && !hasSettingsPermission && <Text style={[chatMessagesStyles.tapToEdit, {opacity: 0.5}]}>View only</Text>}
                     </TouchableOpacity>
                   )}
                   <Text style={chatMessagesStyles.participantCount}>
@@ -751,11 +779,17 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
                 <Text style={chatMessagesStyles.settingLabel}>Mute Notifications</Text>
                 <Switch
                   value={notificationsMuted}
-                  onValueChange={handleMuteToggle}
+                  onValueChange={hasSettingsPermission ? handleMuteToggle : undefined}
+                  disabled={!hasSettingsPermission}
                   trackColor={{ false: '#767577', true: AppColors.secondaryDarkGreen }}
                   thumbColor={notificationsMuted ? AppColors.primaryLightGreen : '#f4f3f4'}
                 />
               </View>
+              {!hasSettingsPermission && (
+                <Text style={[chatMessagesStyles.settingLabel, {fontSize: 12, opacity: 0.6, marginTop: 4}]}>
+                  You don't have permission to change settings
+                </Text>
+              )}
             </View>
 
             {chatParams.isGroupChat !== false && (
