@@ -7,8 +7,10 @@ const { width } = Dimensions.get("window");
 
 const HeaderText: React.FC<HeaderTextProps> = ({
   children,
-  size = 18,
+  size = 22,
   paddingTop = width * 0.06,
+  paddingBottom = width * 0.03,
+  
 }) => (
   <Text style={[styles.header, { fontSize: size, paddingTop }]}>
     {children}

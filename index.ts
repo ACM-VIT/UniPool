@@ -1,3 +1,19 @@
+import * as Notifications from 'expo-notifications';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+Notifications.addNotificationResponseReceivedListener(response => {
+  console.log('Background notification response:', response);
+});
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';

@@ -1,22 +1,18 @@
-import React, { useState } from "react";
+import React, { useEffect } from "react";
 import { View, Image } from "react-native";
 import { RideCreateScreenProps } from "./RideCreatedScreen.types";
 import styles from "./RideCreatedScreen.styles";
-import MainNavBar from "../../components/MainNavBar";
-import bottomNavItems from "../../data/BottomNavigationItems";
-const RideCreatedScreen: React.FC<RideCreateScreenProps> = () => {
-  const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
+
+
+const RideCreatedScreen: React.FC<RideCreateScreenProps & { setNavBarVariant?: (v: 0 | 1 | 2) => void }> = (props) => {
+  useEffect(() => {
+    if (props.setNavBarVariant) {
+      props.setNavBarVariant(0);
+    }
+  }, [props.setNavBarVariant]);
   return (
     <View style={styles.container}>
-      <Image source={require("../../assets/create.png")} style={styles.create} />
-      <View style={styles.navBarView}>
-        <MainNavBar
-          variant={navBarVariant}
-          bottomNavItems={bottomNavItems}
-          iconPath={require("../../assets/wallet.png")}
-          text="View Details"
-        />
-      </View>
+      <Image source={require("../../assets/create.png")} style={styles.create} resizeMode="contain" />
     </View>
   );
 };

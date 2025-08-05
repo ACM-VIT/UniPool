@@ -1,29 +1,44 @@
 {
   "expo": {
-    "name": "unipool-new-frontend",
-    "slug": "unipool-new-frontend",
-    "version": "1.0.0",
+    "name": "UniPool",
+    "slug": "UniPool",
+    "version": "2.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/appicons/Assets.xcassets/AppIcon.appiconset/1024.png",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "statusBarStyle": "dark",
+    "statusBarBackgroundColor": "#A8D8A8",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash-screen.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
-      "bundleIdentifier": "com.carpoolitapp"
+      "usesAppleSignIn": true,
+      "bundleIdentifier": "com.carpoolitapp",
+      "statusBarStyle": "dark",
+      "config": {
+        "googleMapsApiKey": "$GOOGLE_MAPS_API_KEY_IOS"
+      }
     },
     "android": {
       "googleServicesFile": "./google-services.json",
+      "edgeToEdgeEnabled": false,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/appicons/android/mipmap-xxxhdpi/ic_launcher.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.carpoolitapp"
+      "package": "com.carpoolitapp",
+      "statusBarStyle": "dark",
+      "statusBarBackgroundColor": "#A8D8A8",
+      "config": {
+        "googleMaps": {
+          "apiKey": "$GOOGLE_MAPS_API_KEY_ANDROID"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,6 +47,30 @@
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-google-signin/google-signin",
+      "expo-splash-screen",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#ffffff",
+          "sounds": [
+            "./assets/notification.mp3"
+          ]
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow $(PRODUCT_NAME) to access your calendar to add ride events.",
+          "remindersPermission": "Allow $(PRODUCT_NAME) to access your reminders to set ride alerts."
+        }
+      ],
       [
         "expo-build-properties",
         {

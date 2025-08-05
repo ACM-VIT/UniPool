@@ -1,2 +1,2 @@
-const baseURL = "https://your-api-url.com/api/v1/";
+const baseURL = "https://unipool-new-backend-290309531485.asia-south1.run.app";
 export default baseURL;

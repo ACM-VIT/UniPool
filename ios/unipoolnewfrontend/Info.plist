@@ -51,11 +51,21 @@
       <true/>
     </dict>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <string>Allow $(PRODUCT_NAME) to use your location.</string>
     <key>NSLocationAlwaysUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <key>UIAppFonts</key>
+    <array>
+      <string>Trap-Black.otf</string>
+      <string>Trap-Bold.otf</string>
+      <string>Trap-ExtraBold.otf</string>
+      <string>Trap-Light.otf</string>
+      <string>Trap-Medium.otf</string>
+      <string>Trap-Regular.otf</string>
+      <string>Trap-SemiBold.otf</string>
+    </array>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>
