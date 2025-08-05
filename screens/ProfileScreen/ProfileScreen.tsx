@@ -178,8 +178,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       title: "Notifications",
       hasCheckmark: true,
       onPress: () => {
-        console.log("Notifications pressed - this screen may not be implemented yet");
-        Alert.alert("Coming Soon", "Notifications settings will be available in a future update");
+        console.log("Navigating to NotificationsScreen");
+        try {
+          navigation.navigate("NotificationsScreen");
+        } catch (error) {
+          console.error("Navigation error:", error);
+          Alert.alert("Navigation Error", "Unable to navigate to Notifications screen");
+        }
       },
     },
   ];

@@ -460,6 +460,11 @@ const AppContent = () => {
               options={{ headerShown: false }}
             />
             <Stack.Screen
+              name="NotificationsScreen"
+              component={require("./screens/NotificationsScreen").default}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
               name="AccountSettingsScreen"
               component={AccountSettingsScreen}
               options={{ headerShown: false }}
