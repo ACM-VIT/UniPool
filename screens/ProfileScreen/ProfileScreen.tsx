@@ -53,7 +53,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [calculatedStats, setCalculatedStats] = useState<{
     totalDistance: number;
     co2Saved: number;
-  }>({ totalDistance: 0, co2Saved: 0 });
+    completedTrips: number;
+  }>({ totalDistance: 0, co2Saved: 0, completedTrips: 0 });
   const { apiUtil } = useApi();
 
   const profileScreenNavItems = bottomNavItems.map((item, index) => ({
@@ -88,15 +89,23 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         return;
       }
 
-      console.log("Fetching user rides for stats calculation...");
-      const rides = await apiUtil.get<any>("/user/rides");
+      console.log("Fetching user rides and bookings for stats calculation...");
       
-      if (Array.isArray(rides)) {
-        let totalDistance = 0;
-        let rideCount = 0;
+      const [hostedRidesResponse, bookingsResponse] = await Promise.allSettled([
+        apiUtil.get<any>("/user/rides"),
+        apiUtil.get<any>("/booking/list")
+      ]);
+      
+      let totalDistance = 0;
+      let completedRideCount = 0;
+      const now = new Date();
 
-        for (const ride of rides) {
-          if (ride.start_location && ride.end_location) {
+      if (hostedRidesResponse.status === 'fulfilled' && Array.isArray(hostedRidesResponse.value)) {
+        for (const ride of hostedRidesResponse.value) {
+          const startTime = new Date(ride.start_time);
+          const isCompleted = ride.is_ongoing !== 1 && startTime <= now;
+          
+          if (isCompleted && ride.start_location && ride.end_location) {
             try {
               let rideDistance = 0;
               
@@ -108,7 +117,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   ride.end_latitude,
                   ride.end_longitude
                 );
-                console.log(`Calculated distance using coordinates: ${rideDistance.toFixed(2)}km for ride ${ride.ride_id}`);
+                console.log(`Calculated distance for completed hosted ride: ${rideDistance.toFixed(2)}km for ride ${ride.ride_id}`);
               } else {
                 const basePrice = ride.total_price || 0;
                 const estimatedDistanceFromPrice = basePrice ? (basePrice / 10) : 0;
@@ -116,36 +125,91 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 const locationDistance = estimateDistanceFromLocations(ride.start_location, ride.end_location);
                 
                 rideDistance = Math.max(estimatedDistanceFromPrice, locationDistance);
-                console.log(`Estimated distance: ${rideDistance.toFixed(2)}km for ride ${ride.ride_id} (price: ₹${basePrice})`);
+                console.log(`Estimated distance for completed hosted ride: ${rideDistance.toFixed(2)}km for ride ${ride.ride_id} (price: ₹${basePrice})`);
               }
               
               if (rideDistance > 0 && rideDistance < 300) {
                 totalDistance += rideDistance;
-                rideCount++;
+                completedRideCount++;
               } else if (rideDistance >= 300) {
-                console.warn(`Unusually long distance (${rideDistance.toFixed(2)}km) for ride ${ride.ride_id}, capping at 100km`);
+                console.warn(`Unusually long distance (${rideDistance.toFixed(2)}km) for hosted ride ${ride.ride_id}, capping at 100km`);
                 totalDistance += 100;
-                rideCount++;
+                completedRideCount++;
               }
             } catch (error) {
-              console.warn("Error calculating distance for ride:", ride, error);
+              console.warn("Error calculating distance for hosted ride:", ride, error);
             }
+          } else if (!isCompleted) {
+            console.log(`Skipping hosted ride ${ride.ride_id} - not completed (is_ongoing: ${ride.is_ongoing}, start_time: ${ride.start_time})`);
           }
         }
-
-        const co2Saved = calculateCO2Savings(totalDistance, rideCount);
-        
-        setCalculatedStats({
-          totalDistance: Math.round(totalDistance),
-          co2Saved: co2Saved
-        });
-
-        console.log(`Calculated stats: ${totalDistance.toFixed(1)}km traveled, ${co2Saved}kg CO2 saved from ${rideCount} rides`);
       }
+
+      // Process bookings (rides as passenger)
+      if (bookingsResponse.status === 'fulfilled' && bookingsResponse.value?.bookings) {
+        for (const booking of bookingsResponse.value.bookings) {
+          // Check if booking is accepted and ride is completed
+          const isAccepted = booking.request_status === 'accepted';
+          const startTime = new Date(booking.ride_details?.start_time || booking.ride?.start_time);
+          const isRideCompleted = (booking.ride_details?.is_ongoing !== 1 || booking.ride?.is_ongoing !== 1) && startTime <= now;
+          
+          if (isAccepted && isRideCompleted) {
+            const rideDetails = booking.ride_details || booking.ride;
+            
+            if (rideDetails?.start_location && rideDetails?.end_location) {
+              try {
+                let rideDistance = 0;
+                
+                if (rideDetails.start_latitude && rideDetails.start_longitude && 
+                    rideDetails.end_latitude && rideDetails.end_longitude) {
+                  rideDistance = calculateDistance(
+                    rideDetails.start_latitude,
+                    rideDetails.start_longitude,
+                    rideDetails.end_latitude,
+                    rideDetails.end_longitude
+                  );
+                  console.log(`Calculated distance for completed booking: ${rideDistance.toFixed(2)}km for booking ${booking.id}`);
+                } else {
+                  const basePrice = rideDetails.total_price || 0;
+                  const estimatedDistanceFromPrice = basePrice ? (basePrice / 10) : 0;
+                  
+                  const locationDistance = estimateDistanceFromLocations(rideDetails.start_location, rideDetails.end_location);
+                  
+                  rideDistance = Math.max(estimatedDistanceFromPrice, locationDistance);
+                  console.log(`Estimated distance for completed booking: ${rideDistance.toFixed(2)}km for booking ${booking.id} (price: ₹${basePrice})`);
+                }
+                
+                if (rideDistance > 0 && rideDistance < 300) {
+                  totalDistance += rideDistance;
+                  completedRideCount++;
+                } else if (rideDistance >= 300) {
+                  console.warn(`Unusually long distance (${rideDistance.toFixed(2)}km) for booking ${booking.id}, capping at 100km`);
+                  totalDistance += 100;
+                  completedRideCount++;
+                }
+              } catch (error) {
+                console.warn("Error calculating distance for booking:", booking, error);
+              }
+            }
+          } else {
+            console.log(`Skipping booking ${booking.id} - not completed (status: ${booking.request_status}, is_ongoing: ${booking.ride_details?.is_ongoing || booking.ride?.is_ongoing}, start_time: ${booking.ride_details?.start_time || booking.ride?.start_time})`);
+          }
+        }
+      }
+
+      const co2Saved = calculateCO2Savings(totalDistance, completedRideCount);
+      
+      setCalculatedStats({
+        totalDistance: Math.round(totalDistance),
+        co2Saved: co2Saved,
+        completedTrips: completedRideCount
+      });
+
+      console.log(`Calculated stats from COMPLETED trips only: ${totalDistance.toFixed(1)}km traveled, ${co2Saved}kg CO2 saved from ${completedRideCount} completed trips`);
     } catch (error) {
       console.warn("Error fetching ride stats:", error);
       // Set default values if calculation fails
-      setCalculatedStats({ totalDistance: 0, co2Saved: 0 });
+      setCalculatedStats({ totalDistance: 0, co2Saved: 0, completedTrips: 0 });
     }
   };
 
@@ -201,7 +265,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         return;
       }
 
-      console.log("✅ User authenticated, fetching profile data...");
+      console.log("User authenticated, fetching profile data...");
       const response = await apiUtil.get<ApiResponse>("/user/details");
       setUserData(response.user);
       console.log("User data fetched successfully:", response);
@@ -233,10 +297,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     fetchRideStats();
   }, [apiUtil]);
 
-  const calculateAge = (yob: number): number => {
-    const currentYear = new Date().getFullYear();
-    return currentYear - yob;
-  };
 
   const myDetailsItems: MenuItem[] = [
     {
@@ -445,7 +505,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   ];
 
   const renderMenuItem = (item: MenuItem) => {
-    // Higher z-index for help, account settings, and logout items
     const isHighPriorityItem = ['help', 'account_settings', 'logout'].includes(item.id);
     const itemStyle = isHighPriorityItem 
       ? [styles.menuItem, { zIndex: 3000, elevation: 3000, position: 'relative' as const }] 
@@ -535,11 +594,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
         <View style={styles.statsContainer}>
           {renderStatsCard(
-            (() => {
-              const bookings = userData.total_bookings ?? 0;
-              const hosted = userData.total_hosted_rides ?? 0;
-              return (bookings + hosted).toString();
-            })(),
+            calculatedStats.completedTrips > 0 
+              ? calculatedStats.completedTrips.toString()
+              : (() => {
+                  const bookings = userData.total_bookings ?? 0;
+                  const hosted = userData.total_hosted_rides ?? 0;
+                  return (bookings + hosted).toString();
+                })(),
             "trips"
           )}
           {renderStatsCard(
