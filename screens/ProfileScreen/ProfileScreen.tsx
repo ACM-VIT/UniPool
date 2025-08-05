@@ -50,12 +50,84 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [calculatedStats, setCalculatedStats] = useState<{
+    totalDistance: number;
+    co2Saved: number;
+  }>({ totalDistance: 0, co2Saved: 0 });
   const { apiUtil } = useApi();
 
   const profileScreenNavItems = bottomNavItems.map((item, index) => ({
     ...item,
     isActive: index === 3,
   }));
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  const calculateCO2Savings = (distanceKm: number, numberOfRides: number): number => {
+    const avgEmissionPerKm = 0.12; // kg CO2 per km
+    const carpoolSavingRate = 0.7; // 70% saving
+    return Math.round(distanceKm * avgEmissionPerKm * carpoolSavingRate);
+  };
+
+  const fetchRideStats = async () => {
+    try {
+      const auth = require('@react-native-firebase/auth').getAuth();
+      const currentUser = auth.currentUser;
+      
+      if (!currentUser) {
+        return;
+      }
+
+      console.log("Fetching user rides for stats calculation...");
+      const rides = await apiUtil.get<any>("/user/rides");
+      
+      if (Array.isArray(rides)) {
+        let totalDistance = 0;
+        let rideCount = 0;
+
+        for (const ride of rides) {
+          if (ride.start_location && ride.end_location) {
+            try {
+              // For now, we'll use a simplified distance calculation
+              // In a real app, you'd want to use actual coordinates or route distances
+              // Estimate based on ride price (rough approximation: ₹10-15 per km)
+              const estimatedDistance = ride.total_price ? (ride.total_price / 12) : 0;
+              
+              if (estimatedDistance > 0 && estimatedDistance < 200) { 
+                totalDistance += estimatedDistance;
+                rideCount++;
+              }
+            } catch (error) {
+              console.warn("Error calculating distance for ride:", ride, error);
+            }
+          }
+        }
+
+        const co2Saved = calculateCO2Savings(totalDistance, rideCount);
+        
+        setCalculatedStats({
+          totalDistance: Math.round(totalDistance),
+          co2Saved: co2Saved
+        });
+
+        console.log(`Calculated stats: ${totalDistance.toFixed(1)}km traveled, ${co2Saved}kg CO2 saved from ${rideCount} rides`);
+      }
+    } catch (error) {
+      console.warn("Error fetching ride stats:", error);
+      // Set default values if calculation fails
+      setCalculatedStats({ totalDistance: 0, co2Saved: 0 });
+    }
+  };
 
   const fetchUserData = async () => {
     try {
@@ -66,7 +138,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       const currentUser = auth.currentUser;
       
       if (!currentUser) {
-        console.log("❌ No authenticated user found in ProfileScreen");
+        console.log("No authenticated user found in ProfileScreen");
         setError("Please sign in to view your profile");
         setLoading(false);
         return;
@@ -101,7 +173,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     fetchUserData();
-    
+    fetchRideStats(); // Calculate stats from rides
   }, [apiUtil]);
 
   const calculateAge = (yob: number): number => {
@@ -414,12 +486,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             "trips"
           )}
           {renderStatsCard(
-            userData.distance_travelled?.toString() || "9876", 
+            calculatedStats.totalDistance > 0 
+              ? calculatedStats.totalDistance.toString()
+              : (userData.distance_travelled?.toString() || "0"), 
             "km", 
             "travelled"
           )}
           {renderStatsCard(
-            userData.weight_saved?.toString() || "900", 
+            calculatedStats.co2Saved > 0
+              ? calculatedStats.co2Saved.toString()
+              : (userData.weight_saved?.toString() || "0"), 
             "kg", 
             "CO₂ saved"
           )}
