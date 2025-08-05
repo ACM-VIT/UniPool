@@ -8,20 +8,19 @@ const options = [
   ["Others", "PNS"],
 ];
 
-const GenderSelector: React.FC<GenderSelectorProps> = () => {
-  const [selectedGender, setSelectedGender] = useState<string | null>(null);
 
+const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange }) => {
   return (
     <View style={styles.container}>
       {options.map((row, rowIndex) => (
         <View key={rowIndex} style={styles.row}>
           {row.map((option, index) => {
-            const isSelected = selectedGender === option;
+            const isSelected = value === option;
             return (
               <TouchableOpacity
                 key={index}
                 style={[styles.button, isSelected && styles.selectedButton]}
-                onPress={() => setSelectedGender(option)}
+                onPress={() => onChange(option)}
               >
                 <Text style={[styles.text, isSelected && styles.selectedText]}>
                   {option}

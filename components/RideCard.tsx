@@ -11,13 +11,11 @@ import {
   TextStyle,
   ViewStyle,
 } from "react-native";
-import {
-  MapPin,
-  Navigation,
-  Clock,
-  CreditCard,
-  Users,
-} from "lucide-react-native";
+const locationPinIcon = require("../assets/location-pin.png");
+const navigationIcon = require("../assets/navigation-2.png");
+const clockIcon = require("../assets/clock.png");
+const walletIcon = require("../assets/wallet.png");
+const sofaIcon = require("../assets/sofa.png");
 import AppColors from "../design_systems/colors";
 
 const { width, height } = Dimensions.get("window");
@@ -30,8 +28,11 @@ interface RideCardProps {
   price?: number;
   isSelected?: boolean;
   seatsAvailable?: string;
+  totalSeats?: number;
   onSelect?: (id: string) => void;
   pricePerPerson?: boolean;
+  variant?: "upcoming" | "inprogress";
+  date?: string;
 }
 
 const RideCard: React.FC<RideCardProps> = ({
@@ -42,23 +43,23 @@ const RideCard: React.FC<RideCardProps> = ({
   price = 500,
   isSelected = false,
   seatsAvailable = "1/2",
+  totalSeats,
   onSelect = () => {},
   pricePerPerson = false,
+  variant = "upcoming",
+  date = "",
 }) => {
   const handleSelect = () => {
     onSelect(id);
   };
 
-  // Extract the first number from seats available to determine vehicle type
-  const totalSeats = parseInt(seatsAvailable.split("/")[1]) || 0;
-
-  // Get vehicle icon based on seat capacity
+  const maxSeats = typeof totalSeats === "number" ? totalSeats : parseInt(seatsAvailable.split("/")[1]) || 0;
   const getVehicleIcon = (): ImageSourcePropType => {
-    if (totalSeats <= 2) {
+    if (maxSeats <= 2) {
       return require("../assets/motorcycle.png");
-    } else if (totalSeats <= 4) {
+    } else if (maxSeats <= 4) {
       return require("../assets/racer.png");
-    } else if (totalSeats <= 6) {
+    } else if (maxSeats <= 6) {
       return require("../assets/wagon.png");
     } else {
       return require("../assets/foodvan.png");
@@ -67,151 +68,85 @@ const RideCard: React.FC<RideCardProps> = ({
 
   return (
     <TouchableOpacity
-      style={[
-        styles.card,
-        {
-          backgroundColor: isSelected
-            ? AppColors.secondaryDarkGreen
-            : AppColors.basicWhite,
-        },
-      ]}
+      style={[styles.card, { backgroundColor: isSelected ? AppColors.secondaryDarkGreen : AppColors.basicWhite }]}
       onPress={handleSelect}
     >
       <View style={styles.topContainer}>
         <View style={styles.routeContainer}>
           <View style={styles.locationContainer}>
-            <MapPin
-              size={20}
-              color={
-                isSelected
-                  ? AppColors.primaryLightGreen
-                  : AppColors.secondaryDarkGreen
-              }
-              style={styles.icon}
-            />
-            <Text
-              style={[
-                styles.locationText,
-                isSelected ? styles.selectedText : styles.unselectedText,
-              ]}
-            >
+          <Image
+            source={locationPinIcon}
+            style={[styles.icon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 20, height: 20 }]}
+            resizeMode="contain"
+          />
+            <Text style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}>
               {origin}
             </Text>
           </View>
-
           {isSelected ? (
-            <Image
-              source={require("../assets/dotted_line_green.png")}
-              style={styles.verticalLine}
-            />
+            <Image source={require("../assets/dotted_line_green.png")} style={styles.verticalLine} />
           ) : (
-            <Image
-              source={require("../assets/dotted_line.png")}
-              style={styles.verticalLine}
-            />
+            <Image source={require("../assets/dotted_line.png")} style={styles.verticalLine} />
           )}
-
           <View style={styles.locationContainer}>
-            <Navigation
-              size={20}
-              color={
-                isSelected
-                  ? AppColors.primaryLightGreen
-                  : AppColors.secondaryDarkGreen
-              }
-              style={styles.icon}
+            <Image
+              source={navigationIcon}
+              style={[styles.icon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 20, height: 20 }]}
+              resizeMode="contain"
             />
-            <Text
-              style={[
-                styles.locationText,
-                isSelected ? styles.selectedText : styles.unselectedText,
-              ]}
-            >
+            <Text style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}>
               {destination}
             </Text>
           </View>
         </View>
-
         <View style={styles.detailsContainer}>
           <View style={styles.timeContainer}>
-            <Clock
-              size={16}
-              color={
-                isSelected
-                  ? AppColors.primaryLightGreen
-                  : AppColors.secondaryDarkGreen
-              }
-              style={styles.timeIcon}
+            <Image
+              source={clockIcon}
+              style={[styles.timeIcon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 16, height: 16 }]}
+              resizeMode="contain"
             />
-            <Text
-              style={[
-                styles.detailText,
-                isSelected
-                  ? styles.selectedDetailText
-                  : styles.unselectedDetailText,
-              ]}
-            >
+            <Text style={[styles.detailText, isSelected ? styles.selectedDetailText : styles.unselectedDetailText]}>
               {time}
             </Text>
           </View>
-
           <View style={styles.priceContainer}>
-            <CreditCard
-              size={16}
-              color={
-                isSelected
-                  ? AppColors.primaryLightGreen
-                  : AppColors.secondaryDarkGreen
-              }
-              style={styles.priceIcon}
+            <Image
+              source={walletIcon}
+              style={[styles.priceIcon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 16, height: 16 }]}
+              resizeMode="contain"
             />
-            <Text
-              style={[
-                styles.detailText,
-                isSelected
-                  ? styles.selectedDetailText
-                  : styles.unselectedDetailText,
-              ]}
-            >
+            <Text style={[styles.detailText, isSelected ? styles.selectedDetailText : styles.unselectedDetailText]}>
               {price} pp
             </Text>
           </View>
         </View>
       </View>
-
-      <View style={styles.seatsContainer}>
-        <Users
-          size={18}
-          color={
-            isSelected
-              ? AppColors.primaryLightGreen
-              : AppColors.secondaryDarkGreen
-          }
-          style={styles.smallIcon}
-        />
-        <Text
-          style={[
-            styles.seatsText,
-            isSelected ? styles.selectedText : styles.unselectedText,
-          ]}
-        >
-          {seatsAvailable} seat
-          {parseInt(seatsAvailable.split("/")[0]) !== 1 ? "s" : ""} available
-        </Text>
-      </View>
-
+      {variant === "upcoming" ? (
+        <View style={styles.seatsContainer}>
+          <Text style={[styles.seatsText, isSelected ? styles.selectedText : styles.unselectedText]}>
+            {date}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.seatsContainer}>
+          <Image
+            source={sofaIcon}
+            style={[styles.smallIcon, { tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen, width: 18, height: 18 }]}
+            resizeMode="contain"
+          />
+          <Text style={[styles.seatsText, isSelected ? styles.selectedText : styles.unselectedText]}>
+            {seatsAvailable} seat{parseInt(seatsAvailable.split("/")[0]) !== 1 ? "s" : ""} available
+          </Text>
+        </View>
+      )}
       <View style={styles.vehicleImageContainer}>
-        <Image
-          source={getVehicleIcon()}
-          style={styles.vehicleImage}
-          resizeMode="contain"
-        />
+        <Image source={getVehicleIcon()} style={styles.vehicleImage} resizeMode="contain" />
       </View>
     </TouchableOpacity>
   );
 };
 
-// Define TypeScript types for styles
 interface Styles {
   card: ViewStyle;
   topContainer: ViewStyle;
@@ -220,18 +155,18 @@ interface Styles {
   routeContainer: ViewStyle;
   locationContainer: ViewStyle;
   verticalLine: ImageStyle;
-  icon: ViewStyle;
+  icon: ImageStyle;
   locationText: TextStyle;
   selectedText: TextStyle;
   unselectedText: TextStyle;
   seatsContainer: ViewStyle;
-  smallIcon: ViewStyle;
+  smallIcon: ImageStyle;
   seatsText: TextStyle;
   detailsContainer: ViewStyle;
   timeContainer: ViewStyle;
   priceContainer: ViewStyle;
-  timeIcon: ViewStyle;
-  priceIcon: ViewStyle;
+  timeIcon: ImageStyle;
+  priceIcon: ImageStyle;
   detailText: TextStyle;
   selectedDetailText: TextStyle;
   unselectedDetailText: TextStyle;
@@ -277,15 +212,15 @@ const styles = StyleSheet.create<Styles>({
   verticalLine: {
     width: 2,
     height: "25%",
-    left: "6.5%",
-    marginTop: 8,
+    left: 9.5,
+    marginTop: 3.75,
   },
   icon: {
     marginRight: 8,
   },
   locationText: {
     fontSize: 16,
-    fontWeight: "bold",
+    fontFamily: "NunitoSans_400Regular",
   },
   selectedText: {
     color: AppColors.basicWhite,
@@ -302,6 +237,7 @@ const styles = StyleSheet.create<Styles>({
   },
   seatsText: {
     fontSize: 14,
+    fontFamily: "NunitoSans_400Regular",
   },
   detailsContainer: {
     flexDirection: "column",
@@ -325,7 +261,7 @@ const styles = StyleSheet.create<Styles>({
   },
   detailText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontFamily: "NunitoSans_600SemiBold",
   },
   selectedDetailText: {
     color: AppColors.basicWhite,
@@ -337,12 +273,12 @@ const styles = StyleSheet.create<Styles>({
     position: "absolute",
     right: 0,
     bottom: 0,
+    top: -1,
     width: "40%",
     height: "100%",
   },
   vehicleImage: {
     width: "100%",
-    height: "100%",
   },
 });
 

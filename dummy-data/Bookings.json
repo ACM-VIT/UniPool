@@ -1,0 +1,90 @@
+[
+  {
+    "id": "ride_upcoming_01",
+    "start_location": "VIT Vellore",
+    "end_location": "Chennai Airport",
+    "start_time": "2025-04-20T07:30:00Z",
+    "total_seats": 4,
+    "booked_seats": 2,
+    "total_price": 350,
+    "is_ongoing": 0,
+    "is_same_gender": 0
+  },
+  {
+    "id": "ride_upcoming_02",
+    "start_location": "Katpadi",
+    "end_location": "VIT Vellore",
+    "start_time": "2025-04-21T18:45:00Z",
+    "total_seats": 2,
+    "booked_seats": 1,
+    "total_price": 120,
+    "is_ongoing": 0,
+    "is_same_gender": 1
+  },
+  {
+    "id": "ride_upcoming_03",
+    "start_location": "Katpadi",
+    "end_location": "VIT Vellore",
+    "start_time": "2025-04-21T18:45:00Z",
+    "total_seats": 2,
+    "booked_seats": 1,
+    "total_price": 120,
+    "is_ongoing": 0,
+    "is_same_gender": 1
+  },
+  {
+    "id": "ride_upcoming_04",
+    "start_location": "Katpadi",
+    "end_location": "VIT Vellore",
+    "start_time": "2025-04-21T18:45:00Z",
+    "total_seats": 2,
+    "booked_seats": 1,
+    "total_price": 120,
+    "is_ongoing": 0,
+    "is_same_gender": 1
+  },
+  {
+    "id": "ride_inprogress_01",
+    "start_location": "VIT Vellore",
+    "end_location": "Bangalore",
+    "start_time": "2025-04-17T15:00:00Z",
+    "total_seats": 4,
+    "booked_seats": 4,
+    "total_price": 500,
+    "is_ongoing": 1,
+    "is_same_gender": 0
+  },
+  {
+    "id": "ride_inprogress_02",
+    "start_location": "Katpadi",
+    "end_location": "Vellore Town",
+    "start_time": "2025-04-17T16:15:00Z",
+    "total_seats": 2,
+    "booked_seats": 2,
+    "total_price": 80,
+    "is_ongoing": 1,
+    "is_same_gender": 1
+  },
+  {
+    "id": "ride_inprogress_03",
+    "start_location": "Katpadi",
+    "end_location": "Vellore Town",
+    "start_time": "2025-04-17T16:15:00Z",
+    "total_seats": 2,
+    "booked_seats": 2,
+    "total_price": 80,
+    "is_ongoing": 1,
+    "is_same_gender": 1
+  },
+  {
+    "id": "ride_inprogress_04",
+    "start_location": "Katpadi",
+    "end_location": "Vellore Town",
+    "start_time": "2025-04-17T16:15:00Z",
+    "total_seats": 2,
+    "booked_seats": 2,
+    "total_price": 80,
+    "is_ongoing": 1,
+    "is_same_gender": 1
+  }
+]

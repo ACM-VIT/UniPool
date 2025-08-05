@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -6,223 +6,834 @@ import {
   SafeAreaView,
   StyleSheet,
   Dimensions,
+  Platform,
+  PixelRatio,
+  PanResponder,
+  Animated,
+  ScrollView,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
-import * as Location from "expo-location"; // Import Expo Location
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import * as Location from "expo-location";
+import { useNavigation, useIsFocused } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
+import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
-import MainNavBar from "../components/MainNavBar";
-import RideDetailsSelector from "../components/RideDetailsSelector";
+import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import PreviousTripsSection from "../components/PreviousTripsSection";
 import bottomNavItems from "../data/BottomNavigationItems";
-import { CommonLocationCoordinates } from "../components/RideDetailsSelector";
+import { RootStackParamList } from "../navigation/RootStackParamList";
+import BrandInfo from "../components/BrandInfo";
 
-const { width, height } = Dimensions.get("window");
+type HomeScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "HomeScreen"
+>;
 
-const HomeScreen: React.FC = () => {
-  const [location, setLocation] = useState<any>(null); // State for storing location
-  const [initialRegion, setInitialRegion] = useState<any>(null); // State for initial region
-  const [hasPermission, setHasPermission] = useState(false); // State for permission status
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const pixelRatio = PixelRatio.get();
+const fontScale = PixelRatio.getFontScale();
 
-  // Request location permissions
+const normalize = (size: number) => {
+  const scale = screenWidth / 375;
+  const newSize = size * scale;
+  
+  if (Platform.OS === 'ios') {
+    return Math.round(PixelRatio.roundToNearestPixel(newSize));
+  } else {
+    return Math.round(PixelRatio.roundToNearestPixel(newSize)) - 2;
+  }
+};
+
+const responsiveHeight = (percentage: number) => {
+  return (screenHeight * percentage) / 100;
+};
+
+const responsiveWidth = (percentage: number) => {
+  return (screenWidth * percentage) / 100;
+};
+
+const BOTTOM_SHEET_MAX_HEIGHT = screenHeight * 0.75;
+const BOTTOM_SHEET_MIN_HEIGHT = screenHeight * 0.35;
+const SNAP_POINTS = [BOTTOM_SHEET_MIN_HEIGHT, BOTTOM_SHEET_MAX_HEIGHT];
+const DRAG_THRESHOLD = 10;
+
+interface HomeScreenProps {
+  setNavBarVariant: (variant: 0 | 1 | 2) => void;
+  setNavBarText: (text: string) => void;
+  setNavBarIcon: (icon: any) => void;
+  setNavBarItems: (items: any[]) => void;
+}
+
+interface LocationCoords {
+  latitude: number;
+  longitude: number;
+}
+
+const HomeScreen: React.FC<HomeScreenProps> = ({
+  setNavBarVariant,
+  setNavBarText,
+  setNavBarIcon,
+  setNavBarItems,
+}) => {
+  const navigation = useNavigation<HomeScreenNavigationProp>();
+  const isFocused = useIsFocused();
+  const { apiUtil } = useApi();
+  const mapRef = useRef<MapView>(null);
+
+  const [location, setLocation] = useState<LocationCoords | null>(null);
+  const [initialRegion, setInitialRegion] = useState<any>(null);
+  const [mapRegion, setMapRegion] = useState<any>(null);
+  const [hasPermission, setHasPermission] = useState(false);
+  const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
+  const [rideDetails, setRideDetails] = useState<{ 
+    from: string; 
+    to: string; 
+    date: Date;
+    fromCoordinates?: { latitude: number; longitude: number };
+    toCoordinates?: { latitude: number; longitude: number };
+  } | null>(null);
+
+  const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
+  const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
+
+  const bottomSheetY = useRef(new Animated.Value(BOTTOM_SHEET_MAX_HEIGHT)).current;
+  const lastGestureY = useRef(BOTTOM_SHEET_MAX_HEIGHT);
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  const generateCurvedRoute = (startLat: number, startLon: number, endLat: number, endLon: number) => {
+    const numPoints = 15;
+    const coordinates = [];
+    
+    const midLat = (startLat + endLat) / 2;
+    const midLon = (startLon + endLon) / 2;
+    
+    const distance = calculateDistance(startLat, startLon, endLat, endLon);
+    const arcHeight = distance * 0.15;
+    
+    const deltaLat = endLat - startLat;
+    const deltaLon = endLon - startLon;
+    const perpLat = -deltaLon * arcHeight / distance;
+    const perpLon = deltaLat * arcHeight / distance;
+    
+    for (let i = 0; i <= numPoints; i++) {
+      const t = i / numPoints;
+      
+      const curveFactor = 4 * t * (1 - t);
+      
+      const lat = startLat + t * deltaLat + curveFactor * perpLat;
+      const lon = startLon + t * deltaLon + curveFactor * perpLon;
+      
+      coordinates.push({ latitude: lat, longitude: lon });
+    }
+    
+    return coordinates;
+  };
+
+const customMapStyle = [
+  {
+    featureType: "all",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f8f8f8"
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.text.fill",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.text.stroke",
+    stylers: [
+      {
+        color: "#ffffff"
+      },
+      {
+        weight: 2
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.icon",
+    stylers: [
+      {
+        visibility: "simplified"
+      }
+    ]
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#e0e0e0"
+      },
+      {
+        weight: 0.5
+      }
+    ]
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        weight: 2
+      }
+    ]
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#e0e0e0"
+      },
+      {
+        weight: 1
+      }
+    ]
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#b3d9ff"
+      }
+    ]
+  },
+  {
+    featureType: "landscape",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f8f8f8"
+      }
+    ]
+  },
+  {
+    featureType: "landscape.natural",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#e8f5e8"
+      }
+    ]
+  },
+  {
+    featureType: "poi",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f0f0f0"
+      }
+    ]
+  },
+  {
+    featureType: "poi.park",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        lightness: 20
+      }
+    ]
+  },
+  {
+    featureType: "poi.business",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f5f5f5"
+      }
+    ]
+  },
+  {
+    featureType: "poi.attraction",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        lightness: 40
+      }
+    ]
+  },
+  {
+    featureType: "transit",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  },
+  {
+    featureType: "transit.line",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      }
+    ]
+  },
+  {
+    featureType: "administrative",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#d0d0d0"
+      },
+      {
+        weight: 0.3
+      }
+    ]
+  },
+  {
+    featureType: "administrative.country",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#273B33"
+      },
+      {
+        weight: 1
+      }
+    ]
+  },
+  {
+    featureType: "administrative.locality",
+    elementType: "labels.text.fill",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  }
+];
+
+
+  const panResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (evt, gestureState) => {
+      return Math.abs(gestureState.dy) > DRAG_THRESHOLD;
+    },
+    onPanResponderGrant: () => {
+      // @ts-ignore: access private property for current value
+      lastGestureY.current = bottomSheetY['__getValue']();
+    },
+    onPanResponderMove: (evt, gestureState) => {
+      const newHeight = lastGestureY.current - gestureState.dy;
+      
+      if (newHeight < BOTTOM_SHEET_MIN_HEIGHT) {
+        const overscroll = BOTTOM_SHEET_MIN_HEIGHT - newHeight;
+        const resistedHeight = BOTTOM_SHEET_MIN_HEIGHT - overscroll * 0.3;
+        bottomSheetY.setValue(Math.max(resistedHeight, BOTTOM_SHEET_MIN_HEIGHT - 50));
+      } else if (newHeight > BOTTOM_SHEET_MAX_HEIGHT) {
+        const overscroll = newHeight - BOTTOM_SHEET_MAX_HEIGHT;
+        const resistedHeight = BOTTOM_SHEET_MAX_HEIGHT + overscroll * 0.3;
+        bottomSheetY.setValue(Math.min(resistedHeight, BOTTOM_SHEET_MAX_HEIGHT + 50));
+      } else {
+        bottomSheetY.setValue(newHeight);
+      }
+    },
+    onPanResponderRelease: (evt, gestureState) => {
+      const velocity = -gestureState.vy;
+      // @ts-ignore: access private property for current value
+      const currentHeight = bottomSheetY['__getValue']();
+      
+      let targetHeight = SNAP_POINTS.reduce((prev, curr) => {
+        return Math.abs(curr - currentHeight) < Math.abs(prev - currentHeight) ? curr : prev;
+      });
+      
+      if (Math.abs(velocity) > 500) {
+        if (velocity > 0) {
+          targetHeight = BOTTOM_SHEET_MAX_HEIGHT;
+        } else {
+          targetHeight = BOTTOM_SHEET_MIN_HEIGHT;
+        }
+      }
+      
+      Animated.spring(bottomSheetY, {
+        toValue: targetHeight,
+        velocity: velocity,
+        tension: 300,
+        friction: 30,
+        useNativeDriver: false,
+      }).start();
+    },
+  });
+
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status === "granted") {
-      getUserLocation();
-      setHasPermission(true);
+      if (!hasPermission) setHasPermission(true);
+      if (!location) await getUserLocation();
     } else {
-      setHasPermission(false);
+      if (hasPermission) setHasPermission(false);
       console.log("Location permission denied");
     }
   };
 
-  // Get user location
   const getUserLocation = async () => {
+    if (location) return;
     try {
       const { coords } = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
       const { latitude, longitude } = coords;
-      setLocation({ latitude, longitude });
-      setInitialRegion({
-        latitude,
+      const userLocation = { latitude, longitude };
+      setLocation(userLocation);
+
+      const latitudeDelta = 0.02;
+      const longitudeDelta = 0.02;
+
+      const latOffset = latitudeDelta * 0.45;
+
+      const region = {
+        latitude: latitude - latOffset,
         longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      });
+        latitudeDelta,
+        longitudeDelta,
+      };
+      setInitialRegion(region);
+      setMapRegion(region);
     } catch (error) {
       console.error("Error fetching location:", error);
     }
   };
 
+  const geocodeAddress = async (address: string): Promise<LocationCoords | null> => {
+    try {
+      const results = await Location.geocodeAsync(address);
+      if (results.length === 0) {
+        console.warn(`No geocoding results for "${address}"`);
+        return null;
+      }
+      const { latitude, longitude } = results[0];
+      return { latitude, longitude };
+    } catch (error) {
+      console.error("Geocoding error:", error);
+      return null;
+    }
+  };
+
+  const fitMapToWaypoints = (from: LocationCoords, to: LocationCoords, userLoc: LocationCoords) => {
+    if (!mapRef.current) return;
+
+    const coordinates = [from, to, userLoc];
+    
+    mapRef.current.fitToCoordinates(coordinates, {
+      edgePadding: {
+        top: screenHeight * 0.1,
+        right: screenWidth * 0.1,
+        bottom: screenHeight * 0.4,
+        left: screenWidth * 0.1,
+      },
+      animated: true,
+    });
+  };
+
   useEffect(() => {
-    requestLocationPermission(); // Request location permissions on component mount
+    requestLocationPermission();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleRideSubmit = (details: {
-    from: string;
-    to: string;
+  const handleRideSubmit = async (details: { 
+    from: string; 
+    to: string; 
     date: Date;
+    fromCoordinates?: { latitude: number; longitude: number };
+    toCoordinates?: { latitude: number; longitude: number };
   }) => {
-    console.log("Submitted ride details:", details);
+    setRideDetails(details);
+    if (!details.from || !details.to) return;
+
+    const [fromLocation, toLocation] = await Promise.all([
+      geocodeAddress(details.from),
+      geocodeAddress(details.to),
+    ]);
+
+    if (fromLocation && toLocation && location) {
+      setFromCoords(fromLocation);
+      setToCoords(toLocation);
+      fitMapToWaypoints(fromLocation, toLocation, location);
+    } else {
+      // Alert.alert(
+      //   "Could not find location",
+      //   "Please check your 'From' and 'To' addresses and try again."
+      // );
+    }
   };
+
+  // Don't change this code, state mgmt is crucial here
+  useEffect(() => {
+    if (!isFocused) return;
+    if (bothLocationsSelected) {
+      setNavBarVariant(1);
+      setNavBarText("Search Rides");
+      setNavBarIcon(require("../assets/cool-emoji.png"));
+      setNavBarItems(bottomNavItems);
+      (window as any).mainNavBarOnPress = () => {
+        if (rideDetails) {
+          navigation.navigate("AvailableRidesScreen", {
+            fromLocation: rideDetails.from,
+            toLocation: rideDetails.to,
+            fromCoordinates: rideDetails.fromCoordinates,
+            toCoordinates: rideDetails.toCoordinates,
+          });
+        }
+      };
+    } else {
+      setNavBarVariant(0);
+      setNavBarText("");
+      setNavBarIcon(require("../assets/wallet.png"));
+      setNavBarItems(bottomNavItems);
+      (window as any).mainNavBarOnPress = undefined;
+    }
+  }, [
+    isFocused,
+    bothLocationsSelected,
+    setNavBarVariant,
+    setNavBarText,
+    setNavBarIcon,
+    setNavBarItems,
+    rideDetails,
+    navigation,
+  ]);
+
+  const handleLocationSelectionChange = (hasFromAndTo: boolean) => {
+    setBothLocationsSelected(hasFromAndTo);
+
+    if (!hasFromAndTo) {
+      setFromCoords(null);
+      setToCoords(null);
+      if (initialRegion) {
+        setMapRegion(initialRegion);
+      }
+    }
+  };
+
+  const getPolylineCoordinates = () => {
+    if (!fromCoords || !toCoords) return [];
+    return generateCurvedRoute(fromCoords.latitude, fromCoords.longitude, toCoords.latitude, toCoords.longitude);
+  };
+
+  const isMapLoaded = location && mapRegion && hasPermission;
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.scrollView}>
-        {/* Map Section */}
-        <View style={styles.mapContainer}>
-          {hasPermission && initialRegion && location ? (
-            <MapView
-              style={styles.map}
-              initialRegion={initialRegion}
-              showsUserLocation={true}
-            >
-              {/* Place marker on user's current location */}
-              <Marker coordinate={location} />
-            </MapView>
-          ) : (
-            <Text>Loading location...</Text>
-          )}
-        </View>
-
-        {/* Main Content */}
-        <View style={styles.mainContent}>
-          {/* Popular Destinations */}
-          <View style={styles.InDemandSection}>
-            <Text style={styles.sectionTitle}>In-Demand Destinations</Text>
-            <View style={styles.destinationsContainer}>
-              {["Chennai", "Hyderabad", "Vellore", "Bengaluru"].map((city) => (
-                <TouchableOpacity key={city} style={styles.destinationButton}>
-                  <Text style={styles.destinationButtonText}>{city}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Previous Trips Section */}
-          <PreviousTripsSection />
-
-          {/* New Ride Section */}
-          <View style={styles.section}>
-            <View style={styles.createRideText}>
-              <Text style={styles.sectionTitle}>Where'd you like to go?</Text>
-              <TouchableOpacity style={styles.destinationButton}>
-                <Text style={styles.destinationButtonText}>Create Ride</Text>
-              </TouchableOpacity>
-            </View>
-            <RideDetailsSelector onSubmit={handleRideSubmit} />
-          </View>
-
-          {/* Navigation Bar */}
-          <View style={styles.navBarView}>
-            <MainNavBar
-              variant={0}
-              bottomNavItems={bottomNavItems}
-              iconPath={require("../assets/wallet.png")}
-            />
-          </View>
-        </View>
+      <View style={styles.brandInfoContainer}>
+        <BrandInfo />
       </View>
+
+      <View style={styles.mapContainer}>
+        {isMapLoaded ? (
+          <MapView
+            ref={mapRef}
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            initialRegion={initialRegion}
+            region={mapRegion}
+            showsUserLocation={true}
+            showsMyLocationButton={true}
+            toolbarEnabled={false}
+            customMapStyle={customMapStyle}
+            onMapReady={() => console.log("Map ready")}
+          >
+            <Marker 
+              coordinate={location}
+              title="Your Location"
+              pinColor={AppColors.secondaryDarkGreen || "#2d5016"}
+            />
+
+            {fromCoords && (
+              <Marker
+                coordinate={fromCoords}
+                title="From"
+                description={rideDetails?.from}
+                pinColor="#4CAF50"
+              />
+            )}
+
+            {toCoords && (
+              <Marker
+                coordinate={toCoords}
+                title="To"
+                description={rideDetails?.to}
+                pinColor="#FF5722"
+              />
+            )}
+
+            {fromCoords && toCoords && (
+              <Polyline
+                coordinates={getPolylineCoordinates()}
+                strokeColor={AppColors.secondaryDarkGreen || "#2d5016"}
+                strokeWidth={3}
+                lineDashPattern={[0]}
+                lineJoin="round"
+                lineCap="round"
+              />
+            )}
+          </MapView>
+        ) : (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.brandText}>
+              <Text style={styles.brandTextDark}>Uni</Text>
+              <Text style={styles.brandTextDark}>P</Text>
+              <Text style={styles.brandTextWhite}>oo</Text>
+              <Text style={styles.brandTextDark}>l</Text>
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <Animated.View 
+        style={[
+          styles.bottomSheet,
+          {
+            height: bottomSheetY,
+          }
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <View style={styles.dragHandle} />
+        
+        <View style={styles.bottomSheetContent}>
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollableContent}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            <View style={styles.previousTripsWrapper}>
+              <PreviousTripsSection />
+            </View>
+            
+            <View style={styles.section}>
+              <View style={styles.createRideText}>
+                <Text style={styles.sectionTitle}>Where'd you like to go?</Text>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.createRideButton}
+                onPress={() => {
+                  navigation.navigate("CreateRide");
+                }}
+              >
+                <Text style={styles.createRideButtonText}>Create Ride</Text>
+              </TouchableOpacity>
+              
+              <RideDetailsSelector
+                onSubmit={handleRideSubmit}
+                onLocationSelectionChange={handleLocationSelectionChange}
+                userLocation={location ?? undefined}
+              />
+            </View>
+          </ScrollView>
+        </View>
+      </Animated.View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: AppColors.basicWhite,
+    flex: 1,
   },
-  scrollView: {
-    width: "100%",
-    height: "100%",
+  brandInfoContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
   },
   mapContainer: {
-    width: "100%",
-    height: height * 0.25,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     zIndex: 1,
   },
   map: {
     flex: 1,
-    width: Dimensions.get("window").width,
-    height: height * 0.25,
+    width: "100%",
   },
-  mainContent: {
-    height: height * 0.8,
-    borderTopRightRadius: 20,
-    borderTopLeftRadius: 20,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: AppColors.primaryLightGreen,
-    padding: "2.5%",
-    justifyContent: "space-evenly",
+    paddingBottom: responsiveHeight(70),
+  },
+  loadingText: {
+    fontSize: normalize(16),
+    color: "#666",
+    fontFamily: "NunitoSans_400Regular",
+    textAlign: "center",
+  },
+  bottomSheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(181, 215, 80, 0.95)",
+    borderTopLeftRadius: normalize(32),
+    borderTopRightRadius: normalize(32),
+    zIndex: 10,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  dragHandle: {
+    width: 50,
+    height: 5,
+    backgroundColor: AppColors.basicBlack,
+    borderRadius: 3,
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 10,
+  },
+  bottomSheetContent: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollableContent: {
+    paddingHorizontal: responsiveWidth(2.5),
+    paddingBottom: Math.max(responsiveHeight(12), 50),
+    minHeight: BOTTOM_SHEET_MAX_HEIGHT - 60,
+  },
+  previousTripsWrapper: {
+    backgroundColor: "rgba(181, 215, 80, 0.6)",
+    borderRadius: normalize(16),
+    paddingVertical: responsiveHeight(0.2),
+    paddingHorizontal: responsiveWidth(1),
   },
   section: {
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
-    paddingBottom: "2.5%",
-  },
-  InDemandSection: {
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "flex-start",
-    padding: "2.5%",
-  },
-  YourTripsSection: {
-    width: "100%",
-    justifyContent: "center",
-    alignItems: "flex-start",
-    padding: "2.5%",
+    marginBottom: responsiveHeight(0.1),
+    backgroundColor: "rgba(181, 215, 80, 0.8)",
+    borderRadius: normalize(16),
+    paddingVertical: responsiveHeight(0.2),
+    paddingHorizontal: responsiveWidth(2),
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  destinationsContainer: {
-    paddingVertical: "2.5%",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  destinationButton: {
-    backgroundColor: AppColors.basicBlack,
-    paddingVertical: "2%",
-    paddingHorizontal: "4%",
-    borderRadius: 8,
-  },
-  destinationButtonText: {
-    color: AppColors.basicWhite,
-    fontSize: 12,
+    fontSize: normalize(20),
+    color: "#000",
+    fontFamily: "NunitoSans_400Regular",
+    textAlign: "center",
+    maxWidth: "90%",
   },
   createRideButton: {
-    backgroundColor: "#000000",
-    paddingVertical: "2%",
-    paddingHorizontal: "4%",
-    borderRadius: 8,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    paddingVertical: normalize(16),
+    paddingHorizontal: responsiveWidth(2.5),
+    borderRadius: normalize(12),
     alignItems: "center",
+    width: "100%",
+    maxWidth: 400,
+    marginTop: responsiveHeight(1),
+    marginBottom: responsiveHeight(2),
+    alignSelf: "center",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   createRideButtonText: {
     color: "#FFFFFF",
+    fontSize: normalize(18),
+    fontFamily: "NunitoSans_400Regular",
     fontWeight: "500",
-    fontSize: 16,
-  },
-  navBarView: {
-    width: "100%",
-    backgroundColor: AppColors.primaryLightGreen,
-    justifyContent: "center",
-    alignItems: "center",
   },
   createRideText: {
     width: "100%",
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
+    fontFamily: "NunitoSans_400Regular",
     alignItems: "center",
-    padding: "2.5%",
+    paddingHorizontal: responsiveWidth(2.5),
+    paddingVertical: responsiveHeight(1),
+  },
+  brandText: {
+    fontSize: normalize(32),
+    fontFamily: "Trap-Bold",
+    textAlign: "center",
+  },
+  brandTextDark: {
+    color: AppColors.secondaryDarkGreen,
+  },
+  brandTextWhite: {
+    color: AppColors.basicWhite,
   },
 });
-
-// Custom Map Style
-// const customMapStyle = [
-// ];
 
 export default HomeScreen;
