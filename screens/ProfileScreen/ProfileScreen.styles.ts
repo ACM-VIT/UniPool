@@ -30,7 +30,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.051,
     paddingBottom: height * 0.15,
   },
-  
   profileSection: {
     alignItems: "center",
     marginBottom: height * 0.03,
