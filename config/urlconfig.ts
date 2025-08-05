@@ -1,2 +1,2 @@
-const baseURL = "https://unipool.acm.today";
+const baseURL = "https://unibackend.acmvit.in";
 export default baseURL;
