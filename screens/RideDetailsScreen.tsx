@@ -29,23 +29,225 @@ const customMapStyle = [
   {
     featureType: "all",
     elementType: "geometry",
-    stylers: [{ color: "#f8f8f8" }]
+    stylers: [
+      {
+        color: "#f8f8f8"
+      }
+    ]
   },
   {
     featureType: "all",
     elementType: "labels.text.fill",
-    stylers: [{ color: "#273B33" }]
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.text.stroke",
+    stylers: [
+      {
+        color: "#ffffff"
+      },
+      {
+        weight: 2
+      }
+    ]
+  },
+  {
+    featureType: "all",
+    elementType: "labels.icon",
+    stylers: [
+      {
+        visibility: "simplified"
+      }
+    ]
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#e0e0e0"
+      },
+      {
+        weight: 0.5
+      }
+    ]
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
   },
   {
     featureType: "road.highway",
     elementType: "geometry.stroke",
-    stylers: [{ color: "#B5D750" }, { weight: 2 }]
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        weight: 2
+      }
+    ]
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#ffffff"
+      }
+    ]
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#e0e0e0"
+      },
+      {
+        weight: 1
+      }
+    ]
   },
   {
     featureType: "water",
     elementType: "geometry",
-    stylers: [{ color: "#b3d9ff" }]
+    stylers: [
+      {
+        color: "#b3d9ff"
+      }
+    ]
   },
+  {
+    featureType: "landscape",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f8f8f8"
+      }
+    ]
+  },
+  {
+    featureType: "landscape.natural",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#e8f5e8"
+      }
+    ]
+  },
+  {
+    featureType: "poi",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f0f0f0"
+      }
+    ]
+  },
+  {
+    featureType: "poi.park",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        lightness: 20
+      }
+    ]
+  },
+  {
+    featureType: "poi.business",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#f5f5f5"
+      }
+    ]
+  },
+  {
+    featureType: "poi.attraction",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      },
+      {
+        lightness: 40
+      }
+    ]
+  },
+  {
+    featureType: "transit",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  },
+  {
+    featureType: "transit.line",
+    elementType: "geometry",
+    stylers: [
+      {
+        color: "#B5D750"
+      }
+    ]
+  },
+  {
+    featureType: "administrative",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#d0d0d0"
+      },
+      {
+        weight: 0.3
+      }
+    ]
+  },
+  {
+    featureType: "administrative.country",
+    elementType: "geometry.stroke",
+    stylers: [
+      {
+        color: "#273B33"
+      },
+      {
+        weight: 1
+      }
+    ]
+  },
+  {
+    featureType: "administrative.locality",
+    elementType: "labels.text.fill",
+    stylers: [
+      {
+        color: "#273B33"
+      }
+    ]
+  }
 ];
 
 const CommonLocationCoordinates = [
@@ -174,6 +376,10 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
   const [error, setError] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  
+  // Passenger booking state
+  const [userBookingStatus, setUserBookingStatus] = useState<'none' | 'pending' | 'accepted' | 'rejected'>('none');
+  const [userBooking, setUserBooking] = useState<any>(null);
   
   // Host management state
   const [showSlide, setShowSlide] = useState<null | "accept" | "reject" | "remove">(null);
@@ -365,8 +571,8 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             },
           }));
           setRequests(transformedBookings);
-        } else if (!isUserHost && completeRideData.bookings) {
-          // For passengers, find their own booking
+        } else if (!isUserHost && completeRideData.bookings && userId) {
+          // For passengers, find their own booking and set user booking status
           const transformedBookings = completeRideData.bookings.map((booking: any) => ({
             id: booking.id,
             passenger_id: booking.passenger_id,
@@ -381,11 +587,27 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             },
           }));
           setRequests(transformedBookings);
+          
+          const currentUserBooking = transformedBookings.find(booking => booking.passenger_id === userId);
+          if (currentUserBooking) {
+            setUserBooking(currentUserBooking);
+            setUserBookingStatus(currentUserBooking.request_status as 'pending' | 'accepted' | 'rejected');
+            console.log(`Current user booking status: ${currentUserBooking.request_status}`);
+          } else {
+            setUserBookingStatus('none');
+            setUserBooking(null);
+          }
+        } else if (!isUserHost) {
+          setUserBookingStatus('none');
+          setUserBooking(null);
         }
         
         console.log("Ride details:", completeRideData);
         console.log("Current user ID:", userId);
         console.log("Is host:", isUserHost);
+        console.log("User booking status:", userBookingStatus);
+        console.log("User booking:", userBooking);
+        console.log("Bookings found:", completeRideData.bookings);
         console.log("Coordinates:", {
           start_lat: completeRideData.start_latitude,
           start_lon: completeRideData.start_longitude,
@@ -541,9 +763,23 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         ]
       );
     } else {
+      let alertTitle = "Cancel Booking";
+      let alertMessage = "Are you sure you want to cancel your booking for this ride?";
+      
+      if (userBookingStatus === 'pending') {
+        alertTitle = "Cancel Booking Request";
+        alertMessage = "Are you sure you want to cancel your pending booking request for this ride?";
+      } else if (userBookingStatus === 'accepted') {
+        alertTitle = "Cancel Confirmed Booking";
+        alertMessage = "Are you sure you want to cancel your confirmed booking for this ride? The host will be notified.";
+      } else if (userBookingStatus === 'rejected') {
+        alertTitle = "Remove Rejected Booking";
+        alertMessage = "Remove this rejected booking from your view?";
+      }
+      
       Alert.alert(
-        "Cancel Booking",
-        "Are you sure you want to cancel your booking for this ride?",
+        alertTitle,
+        alertMessage,
         [
           { text: "No", style: "cancel" },
           { 
@@ -552,7 +788,6 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             onPress: async () => {
               setIsActionLoading(true);
               try {
-                const userBooking = requests.find(req => req.passenger_id === currentUserId);
                 if (userBooking) {
                   console.log(`Attempting to cancel user booking: ${userBooking.id}`);
                   
@@ -1167,134 +1402,232 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         <View style={{ width: 24 }} />
       </View>
 
-      <View style={styles.mainContent}>
-        <View style={styles.combinedContainer}>
-          <View style={styles.rideCard}>
-            <View style={styles.routeSection}>
-              <View style={styles.routeDetails}>
-                <View style={styles.locationContainer}>
-                  <View style={styles.startLocationRow}>
-                    <View style={styles.startDot} />
-                    <Text style={styles.locationText}>{rideData.start_location}</Text>
-                  </View>
-                  
-                  <View style={styles.dottedPath}>
-                    <View style={styles.dottedLine} />
-                  </View>
-                  
-                  <View style={styles.endLocationRow}>
-                    <Image source={require('../assets/navigation-2.png')} style={styles.endLocationIcon} />
-                    <Text style={styles.locationText}>{rideData.end_location}</Text>
-                  </View>
-                </View>
-              </View>
-              
-              <View style={styles.scooterContainer}>
-                <Image source={getVehicleIcon(rideData.total_seats)} style={styles.scooterImage} resizeMode="contain" />
-              </View>
-            </View>
-            
-            <View style={styles.infoRow}>
-              <View style={styles.seatsInfo}>
-                <Image source={require('../assets/sofa.png')} style={styles.seatIcon} />
-                <Text style={styles.seatsText}>{getSeatsText(rideData.total_seats, rideData.booked_seats)}</Text>
-              </View>
-              <View style={styles.priceInfo}>
-                <Text style={styles.priceText}>{getPriceText(rideData.total_price)}</Text>
-              </View>
-            </View>
-            
-            <Text style={styles.creatorText}>
-              Ride Created by {rideData.host_user_name || 'Host'} on {formatDate(rideData.start_time)}
-            </Text>
-            <Text style={styles.yobText}>{getAgeText(rideData.host_user_yob)}</Text>
-            
-            <View style={styles.dateTimeContainer}>
-              <View style={styles.dateTimeBox}>
-                <Image source={require('../assets/calendar.png')} style={styles.calendarIcon} />
-                <Text style={styles.dateTimeText}>{formatDate(rideData.start_time)}</Text>
-              </View>
-              <View style={styles.dateTimeBox}>
-                <Image source={require('../assets/clock.png')} style={styles.clockIcon} />
-                <Text style={styles.dateTimeText}>{formatTime(rideData.start_time)}</Text>
-              </View>
-            </View>
-            
-            <Text style={styles.estimatedTripText}>Estimated Trip Length: {estimatedDuration}</Text>
-          </View>
-
-          <View style={styles.mapSection}>
-            {isValidCoordinate(rideData.start_latitude, rideData.start_longitude) && 
-             isValidCoordinate(rideData.end_latitude, rideData.end_longitude) ? (
-              <MapView
-                provider={PROVIDER_GOOGLE}
-                style={styles.mapView}
-                initialRegion={{
-                  latitude: (rideData.start_latitude! + rideData.end_latitude!) / 2,
-                  longitude: (rideData.start_longitude! + rideData.end_longitude!) / 2,
-                  latitudeDelta: Math.abs(rideData.end_latitude! - rideData.start_latitude!) * 1.5 + 0.5,
-                  longitudeDelta: Math.abs(rideData.end_longitude! - rideData.start_longitude!) * 1.5 + 0.5,
-                }}
-                scrollEnabled={false}
-                zoomEnabled={false}
-                pitchEnabled={false}
-                rotateEnabled={false}
-                showsUserLocation={false}
-                showsMyLocationButton={false}
-                toolbarEnabled={false}
-                customMapStyle={customMapStyle}
-              >
-                <Marker
-                  coordinate={{ latitude: rideData.start_latitude!, longitude: rideData.start_longitude! }}
-                  title={rideData.start_location}
-                  pinColor={AppColors.primaryLightGreen || "#B5D750"}
-                />
-                
-                <Marker
-                  coordinate={{ latitude: rideData.end_latitude!, longitude: rideData.end_longitude! }}
-                  title={rideData.end_location}
-                  pinColor={AppColors.secondaryDarkGreen || "#273B33"}
-                />
-                
-                {routeCoordinates.length > 0 && (
-                  <Polyline
-                    coordinates={routeCoordinates}
-                    strokeColor={AppColors.secondaryDarkGreen || "#273B33"}
-                    strokeWidth={3}
-                    lineDashPattern={[0]}
-                    lineJoin="round"
-                    lineCap="round"
-                  />
-                )}
-              </MapView>
-            ) : (
-              <View style={styles.mapPlaceholder}>
-                <Image source={require('../assets/location-pin.png')} style={styles.mapPlaceholderIcon} />
-                <Text style={styles.mapPlaceholderTitle}>Route Map</Text>
-                <Text style={styles.loadingText}>{rideData.start_location} → {rideData.end_location}</Text>
-                <Text style={styles.mapPlaceholderSubtext}>Map coordinates not available</Text>
-              </View>
-            )}
+      {/* Show fallback UI for pending and rejected bookings */}
+      {(userBookingStatus === 'pending' || userBookingStatus === 'rejected') ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20 }}>
+          <Image 
+            source={require("../assets/sad.png")} 
+            style={{ width: 200, height: 200, marginBottom: 20 }}
+            resizeMode="contain"
+          />
+          <Text style={{
+            fontSize: 24,
+            fontFamily: "NunitoSans_700Bold",
+            color: AppColors.basicBlack,
+            textAlign: "center",
+            marginBottom: 10
+          }}>
+            {userBookingStatus === 'pending' ? 'Request Pending' : 'Request Rejected'}
+          </Text>
+          <Text style={{
+            fontSize: 16,
+            fontFamily: "NunitoSans_400Regular",
+            color: AppColors.basicBlack,
+            textAlign: "center",
+            marginBottom: 30
+          }}>
+            {userBookingStatus === 'pending' 
+              ? 'Waiting for host confirmation. You\'ll be notified once the host responds.'
+              : 'Unfortunately, your booking request was not accepted by the host.'
+            }
+          </Text>
+          <View style={{ flexDirection: "row", gap: 15 }}>
+            <TouchableOpacity
+              style={{
+                backgroundColor: AppColors.secondaryDarkGreen,
+                paddingHorizontal: 25,
+                paddingVertical: 12,
+                borderRadius: 25,
+                elevation: 2,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+              }}
+              onPress={() => navigation.navigate("HomeScreen")}
+            >
+              <Text style={{
+                color: "white",
+                fontSize: 16,
+                fontFamily: "NunitoSans_600SemiBold"
+              }}>
+                Find Rides
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                backgroundColor: AppColors.primaryLightGreen,
+                paddingHorizontal: 25,
+                paddingVertical: 12,
+                borderRadius: 25,
+                borderWidth: 2,
+                borderColor: AppColors.secondaryDarkGreen,
+              }}
+              onPress={handleCancelRide}
+              disabled={isActionLoading}
+            >
+              <Text style={{
+                color: AppColors.secondaryDarkGreen,
+                fontSize: 16,
+                fontFamily: "NunitoSans_600SemiBold"
+              }}>
+                {isActionLoading 
+                  ? "Removing..." 
+                  : userBookingStatus === 'pending'
+                  ? "Cancel Request"
+                  : "Remove Booking"
+                }
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </View>
+      ) : (
+        <>
+          {/* Accepted booking status banner */}
+          {userBookingStatus === 'accepted' && (
+            <View style={styles.acceptedStatusBanner}>
+              <Image source={require('../assets/check.png')} style={styles.statusBannerIcon} />
+              <View style={styles.statusBannerContent}>
+                <Text style={styles.statusBannerTitle}>Booking Confirmed!</Text>
+                <Text style={styles.statusBannerText}>Your seat is reserved. See you on the ride!</Text>
+              </View>
+            </View>
+          )}
 
-      <View style={styles.bottomActionsContainer}>
-        <SlideToCreate
-          onSlideComplete={handleCancelRide}
-          text={isActionLoading ? "Cancelling..." : "Slide to cancel booking"}
-          disabled={isActionLoading}
-          sliderIcon={require("../assets/slide.png")}
-        />
-        
-        <TouchableOpacity 
-          style={styles.calendarButton}
-          onPress={handleAddToCalendar}
-        >
-          <Image source={require('../assets/calendar.png')} style={styles.calendarButtonIcon} />
-          <Text style={styles.calendarButtonText}>Add to calendar</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.mainContent}>
+            <View style={styles.combinedContainer}>
+              <View style={styles.rideCard}>
+                <View style={styles.routeSection}>
+                  <View style={styles.routeDetails}>
+                    <View style={styles.locationContainer}>
+                      <View style={styles.startLocationRow}>
+                        <View style={styles.startDot} />
+                        <Text style={styles.locationText}>{rideData.start_location}</Text>
+                      </View>
+                      
+                      <View style={styles.dottedPath}>
+                        <View style={styles.dottedLine} />
+                      </View>
+                      
+                      <View style={styles.endLocationRow}>
+                        <Image source={require('../assets/navigation-2.png')} style={styles.endLocationIcon} />
+                        <Text style={styles.locationText}>{rideData.end_location}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.scooterContainer}>
+                    <Image source={getVehicleIcon(rideData.total_seats)} style={styles.scooterImage} resizeMode="contain" />
+                  </View>
+                </View>
+                
+                <View style={styles.infoRow}>
+                  <View style={styles.seatsInfo}>
+                    <Image source={require('../assets/sofa.png')} style={styles.seatIcon} />
+                    <Text style={styles.seatsText}>{getSeatsText(rideData.total_seats, rideData.booked_seats)}</Text>
+                  </View>
+                  <View style={styles.priceInfo}>
+                    <Text style={styles.priceText}>{getPriceText(rideData.total_price)}</Text>
+                  </View>
+                </View>
+                
+                <Text style={styles.creatorText}>
+                  Ride Created by {rideData.host_user_name || 'Host'} on {formatDate(rideData.start_time)}
+                </Text>
+                <Text style={styles.yobText}>{getAgeText(rideData.host_user_yob)}</Text>
+                
+                <View style={styles.dateTimeContainer}>
+                  <View style={styles.dateTimeBox}>
+                    <Image source={require('../assets/calendar.png')} style={styles.calendarIcon} />
+                    <Text style={styles.dateTimeText}>{formatDate(rideData.start_time)}</Text>
+                  </View>
+                  <View style={styles.dateTimeBox}>
+                    <Image source={require('../assets/clock.png')} style={styles.clockIcon} />
+                    <Text style={styles.dateTimeText}>{formatTime(rideData.start_time)}</Text>
+                  </View>
+                </View>
+                
+                <Text style={styles.estimatedTripText}>Estimated Trip Length: {estimatedDuration}</Text>
+              </View>
+
+              <View style={styles.mapSection}>
+                {isValidCoordinate(rideData.start_latitude, rideData.start_longitude) && 
+                 isValidCoordinate(rideData.end_latitude, rideData.end_longitude) ? (
+                  <MapView
+                    provider={PROVIDER_GOOGLE}
+                    style={styles.mapView}
+                    initialRegion={{
+                      latitude: (rideData.start_latitude! + rideData.end_latitude!) / 2,
+                      longitude: (rideData.start_longitude! + rideData.end_longitude!) / 2,
+                      latitudeDelta: Math.abs(rideData.end_latitude! - rideData.start_latitude!) * 1.5 + 0.5,
+                      longitudeDelta: Math.abs(rideData.end_longitude! - rideData.start_longitude!) * 1.5 + 0.5,
+                    }}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                    pitchEnabled={false}
+                    rotateEnabled={false}
+                    showsUserLocation={false}
+                    showsMyLocationButton={false}
+                    toolbarEnabled={false}
+                    customMapStyle={customMapStyle}
+                  >
+                    <Marker
+                      coordinate={{ latitude: rideData.start_latitude!, longitude: rideData.start_longitude! }}
+                      title={rideData.start_location}
+                      pinColor={AppColors.primaryLightGreen || "#B5D750"}
+                    />
+                    
+                    <Marker
+                      coordinate={{ latitude: rideData.end_latitude!, longitude: rideData.end_longitude! }}
+                      title={rideData.end_location}
+                      pinColor={AppColors.secondaryDarkGreen || "#273B33"}
+                    />
+                    
+                    {routeCoordinates.length > 0 && (
+                      <Polyline
+                        coordinates={routeCoordinates}
+                        strokeColor={AppColors.secondaryDarkGreen || "#273B33"}
+                        strokeWidth={3}
+                        lineDashPattern={[0]}
+                        lineJoin="round"
+                        lineCap="round"
+                      />
+                    )}
+                  </MapView>
+                ) : (
+                  <View style={styles.mapPlaceholder}>
+                    <Image source={require('../assets/location-pin.png')} style={styles.mapPlaceholderIcon} />
+                    <Text style={styles.mapPlaceholderTitle}>Route Map</Text>
+                    <Text style={styles.loadingText}>{rideData.start_location} → {rideData.end_location}</Text>
+                    <Text style={styles.mapPlaceholderSubtext}>Map coordinates not available</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.bottomActionsContainer}>
+            <SlideToCreate
+              onSlideComplete={handleCancelRide}
+              text={
+                isActionLoading 
+                  ? "Cancelling..." 
+                  : "Slide to cancel booking"
+              }
+              disabled={isActionLoading}
+              sliderIcon={require("../assets/slide.png")}
+            />
+            
+            <TouchableOpacity 
+              style={styles.calendarButton}
+              onPress={handleAddToCalendar}
+            >
+              <Image source={require('../assets/calendar.png')} style={styles.calendarButtonIcon} />
+              <Text style={styles.calendarButtonText}>Add to calendar</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
     </SafeAreaView>
   );
 };
@@ -1748,6 +2081,38 @@ const styles = StyleSheet.create({
   sliderOnlyContainer: {
     marginHorizontal: 16,
     marginBottom: 12,
+  },
+  acceptedStatusBanner: {
+    backgroundColor: '#D4EDDA',
+    borderColor: '#C3E6CB',
+    borderWidth: 1,
+    borderRadius: 8,
+    margin: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusBannerIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 12,
+    tintColor: AppColors.basicBlack,
+  },
+  statusBannerContent: {
+    flex: 1,
+  },
+  statusBannerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'NunitoSans_600SemiBold',
+    color: AppColors.basicBlack,
+    marginBottom: 4,
+  },
+  statusBannerText: {
+    fontSize: 14,
+    fontFamily: 'NunitoSans_400Regular',
+    color: AppColors.basicBlack + 'CC',
+    lineHeight: 20,
   },
 });
 
