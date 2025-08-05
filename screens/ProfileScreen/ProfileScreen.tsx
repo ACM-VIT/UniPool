@@ -42,6 +42,7 @@ interface ApiResponse {
 interface MenuItem {
   id: string;
   title: string;
+  icon?: any;
   hasCheckmark?: boolean;
   onPress?: () => void;
 }
@@ -302,6 +303,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       id: "bookings",
       title: "Bookings",
+      icon: require("../../assets/calendar.png"),
       onPress: () => {
         console.log("Navigating to BookingsScreen");
         try {
@@ -315,6 +317,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       id: "personal_info",
       title: "Personal Information",
+      icon: require("../../assets/user-male.png"),
       hasCheckmark: true,
       onPress: () => {
         console.log("Navigating to PersonalInformationScreen");
@@ -329,6 +332,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       id: "passengers",
       title: "Passengers travelled with",
+      icon: require("../../assets/car.png"),
       hasCheckmark: true,
       onPress: () => {
         console.log("Navigating to PassengersHistoryScreen");
@@ -346,6 +350,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       id: "default_address",
       title: "Default Start Address",
+      icon: require("../../assets/location-pin-2.png"),
       onPress: () => {
         console.log("Navigating to DefaultAddressScreen");
         try {
@@ -365,6 +370,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       id: "notifications",
       title: "Notifications",
+      icon: require("../../assets/notification-icon.png"),
       hasCheckmark: true,
       onPress: () => {
         console.log("Navigating to NotificationsScreen");
@@ -457,29 +463,34 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       id: "share",
       title: "Share",
+      icon: require("../../assets/megaphone.png"),
       onPress: openShareDialog,
     },
     {
       id: "rate_app",
       title: "Rate App",
+      icon: require("../../assets/star.png"),
       hasCheckmark: true,
       onPress: openRateApp,
     },
     {
       id: "know_about",
       title: "Know about ACM-VIT",
+      icon: require("../../assets/acm.png"),
       hasCheckmark: true,
       onPress: openACMVITSite,
     },
     {
       id: "help",
       title: "Help",
+      icon: require("../../assets/question.png"),
       hasCheckmark: true,
       onPress: openHelpEmail,
     },
     {
       id: "account_settings",
       title: "Account Settings",
+      icon: require("../../assets/setting-3.png"),
       hasCheckmark: true,
       onPress: () => {
         console.log("Navigating to AccountSettingsScreen");
@@ -500,6 +511,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       id: "logout",
       title: "Logout",
+      icon: require("../../assets/arrow-square-left.png"),
       onPress: handleLogout,
     },
   ];
@@ -524,6 +536,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         }}
         activeOpacity={0.7}
       >
+        {item.icon && (
+          <Image
+            source={item.icon}
+            style={[
+              styles.menuItemIcon,
+              item.id === 'notifications' && { tintColor: AppColors.basicBlack }
+            ]}
+            resizeMode="contain"
+          />
+        )}
         <Text style={styles.menuItemText}>{item.title}</Text>
         {item.hasCheckmark && (
           <Image
@@ -534,8 +556,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         )}
       </TouchableOpacity>
     );
-  };  const renderStatsCard = (value: string, label: string, unit?: string) => (
+  };  const renderStatsCard = (value: string, label: string, unit?: string, icon?: any) => (
     <View style={styles.statsCard}>
+      {icon && (
+        <Image
+          source={icon}
+          style={styles.statsIcon}
+          resizeMode="contain"
+        />
+      )}
       <Text style={styles.statsValue}>{value}</Text>
       <Text style={styles.statsLabel}>{label}</Text>
       {unit && <Text style={styles.statsUnit}>{unit}</Text>}

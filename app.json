@@ -4,7 +4,7 @@
     "slug": "UniPool",
     "version": "2.0.0",
     "orientation": "portrait",
-    "icon": "./assets/appicons/Assets.xcassets/AppIcon.appiconset/1024.png",
+    "icon": "./assets/icon2.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "statusBarStyle": "dark",
@@ -28,7 +28,7 @@
       "googleServicesFile": "./google-services.json",
       "edgeToEdgeEnabled": false,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/appicons/android/mipmap-xxxhdpi/ic_launcher.png",
+        "foregroundImage": "./assets/icon2.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.carpoolitapp",
