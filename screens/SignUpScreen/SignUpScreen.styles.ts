@@ -22,7 +22,7 @@ const styles = StyleSheet.create({
   },
   genderContainer: {
     marginBottom: height * 0.02,
-    marginTop: height * 0.02,
+    marginTop: height * 0.002,
     zIndex: 1,
   },
   completeButton: {
