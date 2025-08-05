@@ -618,7 +618,9 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
               </TouchableOpacity>
             </View>
           ) : (
-            rides.map((ride: RideData) => (
+            rides
+              .filter((ride: RideData) => ride.total_seats > (ride.booked_seats + 1)) // Filter out full rides (accounting for ride creator)
+              .map((ride: RideData) => (
               <View key={ride.id} style={styles.rideCardWrapper}>
                 <RideCard
                   id={ride.id}

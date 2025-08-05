@@ -84,15 +84,13 @@ const RideCard: React.FC<RideCardProps> = ({
 
   const maxSeats = typeof totalSeats === "number" ? totalSeats : parseInt(seatsAvailable.split("/")[1]) || 0;
   const getVehicleIcon = (): ImageSourcePropType => {
-    if (maxSeats <= 2) {
-      return require("../assets/motorcycle.png");
-    } else if (maxSeats <= 4) {
-      return require("../assets/racer.png");
-    } else if (maxSeats <= 6) {
-      return require("../assets/wagon.png");
-    } else {
-      return require("../assets/foodvan.png");
-    }
+    if (maxSeats < 3) return require("../assets/motorcycle.png");
+    if (maxSeats === 3) return require("../assets/Taxi.png");
+    if (maxSeats === 4) return require("../assets/racer.png");
+    if (maxSeats < 8) return require("../assets/wagon.png");
+    if (maxSeats < 11) return require("../assets/foodvan.png");
+    if (maxSeats < 20) return require("../assets/Bus.png");
+    return require("../assets/UFO.png");
   };
 
   return (
