@@ -25,7 +25,6 @@ const AccountSettingsScreen: React.FC = () => {
             try {
               await apiUtil.delete('/user/delete');
               Alert.alert('Account Deleted', 'Your account has been deleted.');
-              // Add unauth logic here, e.g. navigation.reset to AuthScreen
               (navigation as any).reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
             } catch (err) {
               Alert.alert('Error', 'Failed to delete account. Please try again.');
