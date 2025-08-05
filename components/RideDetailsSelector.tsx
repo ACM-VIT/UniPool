@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { X } from "lucide-react-native";
 import {
@@ -157,6 +157,8 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const [showDateTimePicker, setShowDateTimePicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<"date" | "time">("date");
   const [tempDate, setTempDate] = useState<Date | null>(null);
+  
+  const pickerModeRef = useRef<"date" | "time">("date");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<LocationResult[]>([]);
@@ -172,13 +174,14 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       return;
     }
     
-    // Ensure we have a valid date - if not provided, use the current selected date or initial date
-    const finalDate = date || selectedDate || getInitialDate();
+    // Use the provided date directly, no fallback to avoid state issues
+    console.log('submitRideDetails called with date:', date);
+    console.log('Current selectedDate state:', selectedDate);
     
     const rideDetails: RideDetails = {
       from,
       to,
-      date: finalDate,
+      date: date, // Use the passed date directly
       fromCoordinates: (fromCoords ?? fromCoordinates) ?? undefined,
       toCoordinates: (toCoords ?? toCoordinates) ?? undefined
     };
@@ -354,10 +357,12 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       const initialDate = selectedDate || getInitialDate();
       setTempDate(initialDate);
       setPickerMode("date");
+      pickerModeRef.current = "date";
       setShowDateTimePicker(true);
     } else {
       console.log('Opening native Android picker');
       setPickerMode("date");
+      pickerModeRef.current = "date";
       const initialDate = selectedDate || getInitialDate();
       DateTimePickerAndroid.open({
         value: initialDate,
@@ -378,11 +383,11 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
     
     if (event.type === "dismissed") {
-      if (pickerMode === "time") {
-        // User dismissed time picker, use the current selectedDate as final
+      if (pickerModeRef.current === "time") {
         const finalDate = selectedDate || getInitialDate();
         console.log('Time picker dismissed, using current date:', finalDate);
         setPickerMode("date");
+        pickerModeRef.current = "date";
         if (fromLocation && toLocation && finalDate) {
           console.log('Submitting Android ride details after time dismissal:', finalDate);
           submitRideDetails(
@@ -395,29 +400,32 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         }
       } else {
         setPickerMode("date");
+        pickerModeRef.current = "date";
       }
       return;
     }
     
     const current = date || selectedDate || getInitialDate();
-    console.log('Android picker changed:', current, 'mode:', pickerMode);
+    console.log('Android picker changed:', current, 'mode:', pickerModeRef.current);
 
-    if (pickerMode === "date") {
-      // After picking date, open time
+    if (pickerModeRef.current === "date") {
+      console.log('Date selected, updating state and opening time picker');
       setSelectedDate(current);
       setTempDate(current);
       setPickerMode("time");
+      pickerModeRef.current = "time";
+      
       DateTimePickerAndroid.open({
         value: current,
         onChange: handleAndroidPickerChange,
         mode: "time",
       });
-    } else {
-      // After picking time, finalize
+    } else if (pickerModeRef.current === "time") {
       console.log('Final Android date/time selected:', current);
       setSelectedDate(current);
       setTempDate(current);
       setPickerMode("date");
+      pickerModeRef.current = "date";
       if (fromLocation && toLocation && current) {
         console.log('Submitting Android ride details with date:', current);
         submitRideDetails(
