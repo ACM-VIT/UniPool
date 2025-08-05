@@ -49,7 +49,7 @@ const BookingsScreen: React.FC = () => {
   }, [apiUtil]);
 
   if (loading) return (
-    <View style={styles.container}>
+    <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}> 
       <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -59,9 +59,7 @@ const BookingsScreen: React.FC = () => {
           <Text style={styles.headerTitle}>My Bookings</Text>
         </View>
       </View>
-      <View style={styles.newSection}>
-        <LoadingComponent />
-      </View>
+      <LoadingComponent />
     </View>
   );
 
