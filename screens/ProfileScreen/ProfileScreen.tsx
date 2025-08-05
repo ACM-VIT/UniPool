@@ -547,13 +547,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           />
         )}
         <Text style={styles.menuItemText}>{item.title}</Text>
-        {item.hasCheckmark && (
+        {/* {item.hasCheckmark && (
           <Image
             source={require("../../assets/favicon.png")}
             style={styles.checkmarkIcon}
             resizeMode="contain"
           />
-        )}
+        )} */}
       </TouchableOpacity>
     );
   };  const renderStatsCard = (value: string, label: string, unit?: string, icon?: any) => (
