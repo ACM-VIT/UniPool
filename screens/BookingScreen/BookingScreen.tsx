@@ -67,8 +67,15 @@ const BookingScreen: React.FC = () => {
   };
 
   const calculateAvailableSeats = (ride: RideData): string => {
-    const actualBookedSeats = ride.is_user_host ? ride.booked_seats + 1 : ride.booked_seats;
+    const auth = require('@react-native-firebase/auth').getAuth();
+    const currentUser = auth.currentUser;
+    const isHost = currentUser && ride.host_user_id === currentUser.uid;
+    
+    const actualBookedSeats = isHost ? ride.booked_seats + 1 : ride.booked_seats;
     const availableSeats = ride.total_seats - actualBookedSeats;
+    
+    console.log(`Seat calculation for ride ${ride.ride_id || ride.id}: isHost=${isHost}, booked=${ride.booked_seats}, total=${ride.total_seats}, available=${availableSeats}`);
+    
     return `${availableSeats}/${ride.total_seats}`;
   };
 
@@ -146,6 +153,9 @@ const BookingScreen: React.FC = () => {
             const rideId = ride.ride_id || ride.id;
             if (!rideId || seenIds.has(rideId)) return;
             seenIds.add(rideId);
+            
+            const isHost = currentUser && ride.host_user_id === currentUser.uid;
+            console.log(`Processing ride ${rideId}: host_user_id=${ride.host_user_id}, current_user_id=${currentUser?.uid}, is_host=${isHost}`);
             
             if (!ride.start_time || !ride.start_location || !ride.end_location) {
               console.warn("Skipping ride with missing required fields:", ride);

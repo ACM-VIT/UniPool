@@ -1483,8 +1483,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         </View>
       ) : (
         <>
-          {/* Accepted booking status banner */}
-          {userBookingStatus === 'accepted' && (
+          {/* {userBookingStatus === 'accepted' && (
             <View style={styles.acceptedStatusBanner}>
               <Image source={require('../assets/check.png')} style={styles.statusBannerIcon} />
               <View style={styles.statusBannerContent}>
@@ -1492,7 +1491,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                 <Text style={styles.statusBannerText}>Your seat is reserved. See you on the ride!</Text>
               </View>
             </View>
-          )}
+          )} */}
 
           <View style={styles.mainContent}>
             <View style={styles.combinedContainer}>
