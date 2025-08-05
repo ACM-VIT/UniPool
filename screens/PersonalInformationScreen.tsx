@@ -46,16 +46,7 @@ const PersonalInformationScreen: React.FC = () => {
   }, [apiUtil]);
 
   if (loading) return (
-    <View style={styles.container}>
-      <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
-      <View style={styles.headerRow}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <ChevronBack />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Personal Information</Text>
-        </View>
-      </View>
+    <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}> 
       <LoadingComponent />
     </View>
   );
