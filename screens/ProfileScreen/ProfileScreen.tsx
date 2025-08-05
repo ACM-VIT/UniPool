@@ -98,13 +98,33 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         for (const ride of rides) {
           if (ride.start_location && ride.end_location) {
             try {
-              // For now, we'll use a simplified distance calculation
-              // In a real app, you'd want to use actual coordinates or route distances
-              // Estimate based on ride price (rough approximation: ₹10-15 per km)
-              const estimatedDistance = ride.total_price ? (ride.total_price / 12) : 0;
+              let rideDistance = 0;
               
-              if (estimatedDistance > 0 && estimatedDistance < 200) { 
-                totalDistance += estimatedDistance;
+              if (ride.start_latitude && ride.start_longitude && 
+                  ride.end_latitude && ride.end_longitude) {
+                rideDistance = calculateDistance(
+                  ride.start_latitude,
+                  ride.start_longitude,
+                  ride.end_latitude,
+                  ride.end_longitude
+                );
+                console.log(`Calculated distance using coordinates: ${rideDistance.toFixed(2)}km for ride ${ride.ride_id}`);
+              } else {
+                const basePrice = ride.total_price || 0;
+                const estimatedDistanceFromPrice = basePrice ? (basePrice / 10) : 0;
+                
+                const locationDistance = estimateDistanceFromLocations(ride.start_location, ride.end_location);
+                
+                rideDistance = Math.max(estimatedDistanceFromPrice, locationDistance);
+                console.log(`Estimated distance: ${rideDistance.toFixed(2)}km for ride ${ride.ride_id} (price: ₹${basePrice})`);
+              }
+              
+              if (rideDistance > 0 && rideDistance < 300) {
+                totalDistance += rideDistance;
+                rideCount++;
+              } else if (rideDistance >= 300) {
+                console.warn(`Unusually long distance (${rideDistance.toFixed(2)}km) for ride ${ride.ride_id}, capping at 100km`);
+                totalDistance += 100;
                 rideCount++;
               }
             } catch (error) {
@@ -129,11 +149,48 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
+  const estimateDistanceFromLocations = (startLocation: string, endLocation: string): number => {
+    const start = startLocation.toLowerCase();
+    const end = endLocation.toLowerCase();
+    
+    if (start === end) return 2;
+    
+    const cityDistances: { [key: string]: number } = {
+      'vellore-chennai': 140,
+      'chennai-vellore': 140,
+      'vellore-bangalore': 220,
+      'bangalore-vellore': 220,
+      'delhi-gurgaon': 30,
+      'gurgaon-delhi': 30,
+      'mumbai-pune': 150,
+      'pune-mumbai': 150,
+    };
+    
+    const routeKey = `${start}-${end}`;
+    if (cityDistances[routeKey]) {
+      return cityDistances[routeKey];
+    }
+    
+    const similarity = calculateStringSimilarity(start, end);
+    if (similarity > 0.7) return 5;
+    if (similarity > 0.4) return 15;
+    return 25;
+  };
+
+  const calculateStringSimilarity = (str1: string, str2: string): number => {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+    
+    if (longer.length === 0) return 1.0;
+    
+    const matches = shorter.split('').filter(char => longer.includes(char)).length;
+    return matches / longer.length;
+  };
+
   const fetchUserData = async () => {
     try {
       setLoading(true);
       
-      // Check if user is authenticated before making API calls
       const auth = require('@react-native-firebase/auth').getAuth();
       const currentUser = auth.currentUser;
       
@@ -173,7 +230,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   useEffect(() => {
     fetchUserData();
-    fetchRideStats(); // Calculate stats from rides
+    fetchRideStats();
   }, [apiUtil]);
 
   const calculateAge = (yob: number): number => {
