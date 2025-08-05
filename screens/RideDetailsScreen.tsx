@@ -46,8 +46,59 @@ const customMapStyle = [
     elementType: "geometry",
     stylers: [{ color: "#b3d9ff" }]
   },
-  // Add other style properties as needed
 ];
+
+const CommonLocationCoordinates = [
+  { location: "Chennai", latitude: 12.989196, longitude: 80.178799 },
+  { location: "Vellore", latitude: 12.968, longitude: 77.1559 },
+  { location: "Bangalore", latitude: 13.1985, longitude: 77.6665 },
+  { location: "Coimbatore", latitude: 11.0376, longitude: 77.0363 },
+  { location: "Salem", latitude: 11.6641, longitude: 78.1579 },
+  { location: "Madurai", latitude: 9.912, longitude: 78.1242 },
+  { location: "Pondicherry", latitude: 11.9352, longitude: 79.8082 },
+  { location: "Varanasi", latitude: 25.3176, longitude: 82.9739 },
+  { location: "Kanpur", latitude: 26.4499, longitude: 80.3319 },
+  { location: "Kolkata", latitude: 22.5726, longitude: 88.3639 },
+  { location: "Bhopal", latitude: 23.2599, longitude: 77.4126 },
+  { location: "VIT University", latitude: 12.9716, longitude: 79.1594 },
+  { location: "Trivandrum", latitude: 8.5241, longitude: 76.9366 },
+  { location: "Thiruvananthapuram", latitude: 8.5241, longitude: 76.9366 },
+  { location: "Mumbai", latitude: 19.0760, longitude: 72.8777 },
+  { location: "Delhi", latitude: 28.7041, longitude: 77.1025 },
+  { location: "Pune", latitude: 18.5204, longitude: 73.8567 },
+  { location: "Hyderabad", latitude: 17.3850, longitude: 78.4867 },
+  { location: "Ahmedabad", latitude: 23.0225, longitude: 72.5714 },
+  { location: "Lucknow", latitude: 26.8467, longitude: 80.9462 },
+  { location: "Jaipur", latitude: 26.9124, longitude: 75.7873 },
+  { location: "Indore", latitude: 22.7196, longitude: 75.8577 },
+  { location: "Gwalior", latitude: 26.2183, longitude: 78.1828 },
+  { location: "Agra", latitude: 27.1767, longitude: 78.0081 },
+];
+
+const correctCoordinatesForLocation = (locationName: string, currentLat?: number, currentLon?: number): { latitude: number; longitude: number } | null => {
+  if (!currentLat || !currentLon) return null;
+  
+  const isInIndiaBounds = currentLat >= 6 && currentLat <= 37 && currentLon >= 68 && currentLon <= 97;
+  
+  if (isInIndiaBounds) {
+    return { latitude: currentLat, longitude: currentLon };
+  }
+  
+  const commonLocation = CommonLocationCoordinates.find(
+    loc => loc.location.toLowerCase().includes(locationName.toLowerCase()) ||
+           locationName.toLowerCase().includes(loc.location.toLowerCase())
+  );
+  
+  if (commonLocation) {
+    console.log(`Correcting coordinates for "${locationName}" from (${currentLat}, ${currentLon}) to (${commonLocation.latitude}, ${commonLocation.longitude})`);
+    return {
+      latitude: commonLocation.latitude,
+      longitude: commonLocation.longitude
+    };
+  }
+  
+  return { latitude: currentLat, longitude: currentLon };
+};
 
 interface RideData {
   id?: string;
@@ -367,31 +418,59 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     if (rideData) {
       setEstimatedDuration('2 hours 30 minutes');
       
-      if (isValidCoordinate(rideData.start_latitude, rideData.start_longitude) && 
-          isValidCoordinate(rideData.end_latitude, rideData.end_longitude)) {
-        
+      // Correct coordinates if they're wrong for known locations
+      const correctedStartCoords = correctCoordinatesForLocation(
+        rideData.start_location, 
+        rideData.start_latitude, 
+        rideData.start_longitude
+      );
+      const correctedEndCoords = correctCoordinatesForLocation(
+        rideData.end_location, 
+        rideData.end_latitude, 
+        rideData.end_longitude
+      );
+      
+      console.log('Original coordinates:', {
+        start: { lat: rideData.start_latitude, lon: rideData.start_longitude },
+        end: { lat: rideData.end_latitude, lon: rideData.end_longitude }
+      });
+      console.log('Corrected coordinates:', {
+        start: correctedStartCoords,
+        end: correctedEndCoords
+      });
+      
+      if (correctedStartCoords && correctedEndCoords) {
         const distance = calculateDistance(
-          rideData.start_latitude!,
-          rideData.start_longitude!,
-          rideData.end_latitude!,
-          rideData.end_longitude!
+          correctedStartCoords.latitude,
+          correctedStartCoords.longitude,
+          correctedEndCoords.latitude,
+          correctedEndCoords.longitude
         );
         
         const duration = calculateEstimatedDuration(distance);
         setEstimatedDuration(duration);
         
         const dynamicRoute = generateRouteCoordinates(
-          rideData.start_latitude!,
-          rideData.start_longitude!,
-          rideData.end_latitude!,
-          rideData.end_longitude!
+          correctedStartCoords.latitude,
+          correctedStartCoords.longitude,
+          correctedEndCoords.latitude,
+          correctedEndCoords.longitude
         );
         setRouteCoordinates(dynamicRoute);
+        
+        // Update rideData with corrected coordinates for map display
+        setRideData(prev => prev ? {
+          ...prev,
+          start_latitude: correctedStartCoords.latitude,
+          start_longitude: correctedStartCoords.longitude,
+          end_latitude: correctedEndCoords.latitude,
+          end_longitude: correctedEndCoords.longitude
+        } : null);
       } else {
         console.log('Invalid or missing coordinates, using fallback duration');
       }
     }
-  }, [rideData]);
+  }, [rideData?.id]); // Use rideData.id as dependency to avoid infinite loops
 
   const handleCancelRide = async () => {
     if (isActionLoading) return;
@@ -408,13 +487,34 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             onPress: async () => {
               setIsActionLoading(true);
               try {
-                await apiUtil.delete(`/ride/delete/${rideId}`);
-                Alert.alert("Success", "Ride deleted successfully", [
-                  { 
-                    text: "OK", 
-                    onPress: () => navigation.goBack() 
+                console.log(`Attempting to delete ride: ${rideId}`);
+                
+                try {
+                  const deleteResponse = await apiUtil.delete(`/ride/delete/${rideId}`);
+                  console.log("Delete ride response:", deleteResponse);
+                  
+                  Alert.alert("Success", "Ride deleted successfully", [
+                    { 
+                      text: "OK", 
+                      onPress: () => navigation.goBack() 
+                    }
+                  ]);
+                } catch (deleteError: any) {
+                  console.log("Delete ride error details:", deleteError);
+                  
+                  // If it's just an empty response error, treat as success since backend likely processed it
+                  if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
+                    console.log("Got empty response from delete ride - treating as success");
+                    Alert.alert("Success", "Ride deleted successfully", [
+                      { 
+                        text: "OK", 
+                        onPress: () => navigation.goBack() 
+                      }
+                    ]);
+                  } else {
+                    throw deleteError;
                   }
-                ]);
+                }
               } catch (error: any) {
                 console.error("Delete ride error:", error);
                 
@@ -454,17 +554,39 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
               try {
                 const userBooking = requests.find(req => req.passenger_id === currentUserId);
                 if (userBooking) {
-                  await apiUtil.delete(`/booking/delete/${userBooking.id}`);
-                  Alert.alert("Success", "Your booking has been cancelled successfully.", [
-                    { 
-                      text: "OK", 
-                      onPress: () => navigation.goBack() 
+                  console.log(`Attempting to cancel user booking: ${userBooking.id}`);
+                  
+                  try {
+                    const deleteResponse = await apiUtil.delete(`/booking/delete/${userBooking.id}`);
+                    console.log("Cancel booking response:", deleteResponse);
+                    
+                    Alert.alert("Success", "Your booking has been cancelled successfully.", [
+                      { 
+                        text: "OK", 
+                        onPress: () => navigation.goBack() 
+                      }
+                    ]);
+                  } catch (deleteError: any) {
+                    console.log("Cancel booking error details:", deleteError);
+                    
+                    // If it's just an empty response error, treat as success since backend likely processed it
+                    if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
+                      console.log("Got empty response from cancel booking - treating as success");
+                      Alert.alert("Success", "Your booking has been cancelled successfully.", [
+                        { 
+                          text: "OK", 
+                          onPress: () => navigation.goBack() 
+                        }
+                      ]);
+                    } else {
+                      throw deleteError;
                     }
-                  ]);
+                  }
                 } else {
                   Alert.alert("Error", "No booking found to cancel");
                 }
               } catch (error: any) {
+                console.error("Error cancelling booking:", error);
                 Alert.alert("Error", error.message || "Failed to cancel booking");
               } finally {
                 setIsActionLoading(false); 
@@ -636,7 +758,22 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     setIsActionLoading(true);
     setBookingError(null);
     try {
-      await apiUtil.put(`/bookings/accept/${bookingId}`, {});
+      console.log(`Attempting to accept booking: ${bookingId}`);
+      
+      try {
+        const acceptResponse = await apiUtil.put(`/bookings/accept/${bookingId}`, {});
+        console.log("Accept response:", acceptResponse);
+      } catch (acceptError: any) {
+        console.log("Accept error details:", acceptError);
+        
+        if (acceptError.message?.includes("Empty response") || acceptError.message?.includes("JSON Parse Error")) {
+          console.log("Got empty response from accept - will check if acceptance was successful by fetching updated data");
+        } else {
+          throw acceptError;
+        }
+      }
+      
+      console.log("Fetching updated ride data to verify acceptance...");
       const completeRideData = await apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
       if (completeRideData && completeRideData.bookings) {
         const transformedBookings = completeRideData.bookings.map((booking: any) => ({
@@ -652,10 +789,26 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             contact_number: booking.passenger_contact_number,
           },
         }));
-        setRequests(transformedBookings);
-        setRideData(prev => prev ? { ...prev, booked_seats: completeRideData.booked_seats } : null);
+        
+        // Check if the booking was actually accepted
+        const acceptedBooking = transformedBookings.find((booking: any) => 
+          booking.id === bookingId && booking.request_status === 'accepted'
+        );
+        
+        if (acceptedBooking) {
+          console.log("Booking successfully accepted - updating UI");
+          setRequests(transformedBookings);
+          setRideData(prev => prev ? { ...prev, booked_seats: completeRideData.booked_seats } : null);
+        } else {
+          console.error("Booking was not accepted - status may not have changed");
+          setBookingError("Failed to accept booking - status unchanged");
+        }
+      } else {
+        console.error("Failed to fetch updated ride data after acceptance");
+        setBookingError("Unable to verify booking acceptance - please refresh");
       }
     } catch (error: any) {
+      console.error("Error in handleAcceptBooking:", error);
       setBookingError(error.message || "Failed to accept booking");
     } finally {
       setIsActionLoading(false);
@@ -666,7 +819,23 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     setIsActionLoading(true);
     setBookingError(null);
     try {
-      await apiUtil.put(`/bookings/reject/${bookingId}`, {});
+      console.log(`Attempting to reject booking: ${bookingId}`);
+      
+      try {
+        const rejectResponse = await apiUtil.put(`/bookings/reject/${bookingId}`, {});
+        console.log("Reject response:", rejectResponse);
+      } catch (rejectError: any) {
+        console.log("Reject error details:", rejectError);
+        
+        // If it's just an empty response error, continue and check if rejection was successful
+        if (rejectError.message?.includes("Empty response") || rejectError.message?.includes("JSON Parse Error")) {
+          console.log("Got empty response from reject - will check if rejection was successful by fetching updated data");
+        } else {
+          throw rejectError;
+        }
+      }
+      
+      console.log("Fetching updated ride data to verify rejection...");
       const completeRideData = await apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
       if (completeRideData && completeRideData.bookings) {
         const transformedBookings = completeRideData.bookings.map((booking: any) => ({
@@ -682,9 +851,25 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             contact_number: booking.passenger_contact_number,
           },
         }));
-        setRequests(transformedBookings);
+        
+        // Check if the booking was actually rejected
+        const rejectedBooking = transformedBookings.find((booking: any) => 
+          booking.id === bookingId && booking.request_status === 'rejected'
+        );
+        
+        if (rejectedBooking) {
+          console.log("Booking successfully rejected - updating UI");
+          setRequests(transformedBookings);
+        } else {
+          console.error("Booking was not rejected - status may not have changed");
+          setBookingError("Failed to reject booking - status unchanged");
+        }
+      } else {
+        console.error("Failed to fetch updated ride data after rejection");
+        setBookingError("Unable to verify booking rejection - please refresh");
       }
     } catch (error: any) {
+      console.error("Error in handleRejectBooking:", error);
       setBookingError(error.message || "Failed to reject booking");
     } finally {
       setIsActionLoading(false);
@@ -695,8 +880,28 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     setIsActionLoading(true);
     setBookingError(null);
     try {
-      await apiUtil.delete(`/booking/delete/${bookingId}`);
+      console.log(`Attempting to delete booking: ${bookingId}`);
+      
+      try {
+        const deleteResponse = await apiUtil.delete(`/booking/delete/${bookingId}`);
+        console.log("Delete response:", deleteResponse);
+      } catch (deleteError: any) {
+        console.log("Delete error details:", deleteError);
+        
+        // If it's just an empty response error, we'll continue and check if the deletion was successful
+        // by fetching the updated ride data. The backend might have successfully deleted but returned empty response.
+        if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
+          console.log("Got empty response from delete - will check if deletion was successful by fetching updated data");
+        } else {
+          // For other errors, rethrow them
+          throw deleteError;
+        }
+      }
+      
+      // Always fetch updated ride data to see the current state
+      console.log("Fetching updated ride data to verify deletion...");
       const completeRideData = await apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
+      
       if (completeRideData && completeRideData.bookings) {
         const transformedBookings = completeRideData.bookings.map((booking: any) => ({
           id: booking.id,
@@ -711,10 +916,24 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             contact_number: booking.passenger_contact_number,
           },
         }));
-        setRequests(transformedBookings);
-        setRideData(prev => prev ? { ...prev, booked_seats: completeRideData.booked_seats } : null);
+        
+        // Check if the booking was actually deleted by seeing if it's still in the list
+        const bookingStillExists = transformedBookings.some((booking: any) => booking.id === bookingId);
+        
+        if (bookingStillExists) {
+          console.error("Booking still exists after delete request - deletion may have failed");
+          setBookingError("Failed to remove passenger - booking still exists");
+        } else {
+          console.log("Booking successfully removed - updating UI");
+          setRequests(transformedBookings);
+          setRideData(prev => prev ? { ...prev, booked_seats: completeRideData.booked_seats } : null);
+        }
+      } else {
+        console.error("Failed to fetch updated ride data after deletion");
+        setBookingError("Unable to verify passenger removal - please refresh");
       }
     } catch (error: any) {
+      console.error("Error in handleRemovePassenger:", error);
       setBookingError(error.message || "Failed to remove passenger");
     } finally {
       setIsActionLoading(false);
@@ -811,90 +1030,49 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                 displayName = `${passengerName} (Host)`;
               }
 
-              // Slide view for actions
               if (showSlide && selectedRequest?.id === req.id) {
                 return (
-                  <View key={req.id || idx} style={styles.pendingRequestCard}>
-                    <Text style={styles.pendingRequestName}>
-                      {isActionLoading
-                        ? showSlide === "accept"
-                          ? "Accepting..."
+                  <View key={req.id || idx} style={styles.sliderOnlyContainer}>
+                    <SlideToCreate
+                      text={
+                        isActionLoading
+                          ? showSlide === "accept"
+                            ? "Accepting..."
+                            : showSlide === "reject"
+                            ? "Rejecting..."
+                            : `Removing ${passengerName}...`
+                          : showSlide === "accept"
+                          ? "Slide to accept user"
                           : showSlide === "reject"
-                          ? "Rejecting..." 
-                          : `Removing ${passengerName}...`
-                        : displayName}
-                    </Text>
-
-                    <View style={styles.pendingRequestActions}>
-                      {showSlide !== "accept" && (
-                        <TouchableOpacity
-                          style={styles.rejectButton}
-                          onPress={() => {
-                            if (showSlide === "remove") {
-                              setShowSlide(null);
-                              setSelectedRequest(null);
-                              setBookingError(null);
-                              return;
-                            }
-                            setSelectedRequest(req);
-                            setShowSlide("reject");
-                          }}
-                        >
-                          <Image source={require("../assets/cross.png")} style={styles.actionIcon} />
-                          <Text style={styles.rejectLabel}>{showSlide === "remove" ? "Cancel" : "Reject"}</Text>
-                        </TouchableOpacity>
-                      )}
-
-                      <View style={styles.acceptButton}>
-                        <Image source={require("../assets/check.png")} style={styles.actionIconAccept} />
-                        <Text style={styles.acceptLabel}>
-                          {showSlide === "accept" ? "Accept" : showSlide === "reject" ? "Reject" : "Remove"}
-                        </Text>
-
-                        <View style={styles.integratedSliderContainer}>
-                          <SlideToCreate
-                            text={
-                              isActionLoading
-                                ? showSlide === "accept"
-                                  ? "Accepting..."
-                                  : showSlide === "reject"
-                                  ? "Rejecting..."
-                                  : `Removing ${passengerName}...`
-                                : showSlide === "accept"
-                                ? "Slide to accept user"
-                                : showSlide === "reject"
-                                ? "Slide to reject user"
-                                : `Slide to remove ${passengerName}`
-                            }
-                            onSlideComplete={async () => {
-                              const bookingId = req.id || req.booking_id;
-                              if (showSlide === "accept") {
-                                await handleAcceptBooking(bookingId);
-                              } else if (showSlide === "reject") {
-                                await handleRejectBooking(bookingId);
-                              } else if (showSlide === "remove") {
-                                if (!isHostBooking) {
-                                  await handleRemovePassenger(bookingId);
-                                }
-                              }
-                              setShowSlide(null);
-                              setSelectedRequest(null);
-                            }}
-                            sliderIcon={showSlide === "reject" ? require("../assets/red-slider.png") : require("../assets/slide.png")}
-                            backgroundColor={AppColors.basicWhite}
-                            sliderButtonColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : "#FF3B30"}
-                            textColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : "#FF3B30"}
-                            borderColor={AppColors.basicWhite}
-                          />
-                          {bookingError ? <Text style={styles.inlineErrorText}>{bookingError}</Text> : null}
-                        </View>
-                      </View>
-                    </View>
+                          ? "Slide to reject user"
+                          : `Slide to remove ${passengerName}`
+                      }
+                      onSlideComplete={async () => {
+                        const bookingId = req.id || req.booking_id;
+                        if (showSlide === "accept") {
+                          await handleAcceptBooking(bookingId);
+                        } else if (showSlide === "reject") {
+                          await handleRejectBooking(bookingId);
+                        } else if (showSlide === "remove") {
+                          if (!isHostBooking) {
+                            await handleRemovePassenger(bookingId);
+                          }
+                        }
+                        setShowSlide(null);
+                        setSelectedRequest(null);
+                      }}
+                      disabled={isActionLoading}
+                      sliderIcon={showSlide === "reject" ? require("../assets/red-slider.png") : require("../assets/slide.png")}
+                      backgroundColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : "#FF3B30"}
+                      sliderButtonColor={AppColors.basicWhite}
+                      textColor={AppColors.basicWhite}
+                      borderColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : "#FF3B30"}
+                    />
+                    {bookingError ? <Text style={styles.inlineErrorText}>{bookingError}</Text> : null}
                   </View>
                 );
               }
 
-              // Pending request
               if (req.request_status === "pending") {
                 return (
                   <View key={req.id || idx} style={styles.pendingRequestCard}>
@@ -1397,8 +1575,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: AppColors.secondaryDarkGreen,
     paddingVertical: 15,
-    borderRadius: 25,
-    marginTop: 12,
+    borderRadius: 14,
+    marginTop: -5,
   },
   calendarButtonIcon: {
     width: 20,
@@ -1490,7 +1668,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   integratedSliderContainer: {
-    width: 220,
+    flex: 1,
     marginTop: 8,
   },
   inlineErrorText: {
@@ -1566,6 +1744,10 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     tintColor: "#fff",
+  },
+  sliderOnlyContainer: {
+    marginHorizontal: 16,
+    marginBottom: 12,
   },
 });
 

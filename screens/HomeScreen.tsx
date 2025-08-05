@@ -86,6 +86,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [mapRegion, setMapRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
+  const [allFieldsSelected, setAllFieldsSelected] = useState(false);
   const [rideDetails, setRideDetails] = useState<{ 
     from: string; 
     to: string; 
@@ -500,12 +501,23 @@ const customMapStyle = [
     toCoordinates?: { latitude: number; longitude: number };
   }) => {
     setRideDetails(details);
+    setAllFieldsSelected(true);
+    
     if (!details.from || !details.to) return;
 
-    const [fromLocation, toLocation] = await Promise.all([
-      geocodeAddress(details.from),
-      geocodeAddress(details.to),
-    ]);
+    // Use coordinates provided by RideDetailsSelector if available, otherwise geocode
+    let fromLocation = details.fromCoordinates;
+    let toLocation = details.toCoordinates;
+    
+    // Only geocode if coordinates weren't provided
+    if (!fromLocation || !toLocation) {
+      const [geocodedFrom, geocodedTo] = await Promise.all([
+        !fromLocation ? geocodeAddress(details.from) : Promise.resolve(fromLocation),
+        !toLocation ? geocodeAddress(details.to) : Promise.resolve(toLocation),
+      ]);
+      fromLocation = geocodedFrom || undefined;
+      toLocation = geocodedTo || undefined;
+    }
 
     if (fromLocation && toLocation && location) {
       setFromCoords(fromLocation);
@@ -522,7 +534,7 @@ const customMapStyle = [
   // Don't change this code, state mgmt is crucial here
   useEffect(() => {
     if (!isFocused) return;
-    if (bothLocationsSelected) {
+    if (allFieldsSelected && rideDetails) {
       setNavBarVariant(1);
       setNavBarText("Search Rides");
       setNavBarIcon(require("../assets/cool-emoji.png"));
@@ -546,7 +558,7 @@ const customMapStyle = [
     }
   }, [
     isFocused,
-    bothLocationsSelected,
+    allFieldsSelected,
     setNavBarVariant,
     setNavBarText,
     setNavBarIcon,
@@ -559,6 +571,8 @@ const customMapStyle = [
     setBothLocationsSelected(hasFromAndTo);
 
     if (!hasFromAndTo) {
+      setAllFieldsSelected(false);
+      setRideDetails(null);
       setFromCoords(null);
       setToCoords(null);
       if (initialRegion) {
