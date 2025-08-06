@@ -367,21 +367,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     //   hasCheckmark: true,
     //   onPress: () => navigation.navigate("CurrencySettings"),
     // },
-    {
-      id: "notifications",
-      title: "Notifications",
-      icon: require("../../assets/notification-icon.png"),
-      hasCheckmark: true,
-      onPress: () => {
-        console.log("Navigating to NotificationsScreen");
-        try {
-          navigation.navigate("NotificationsScreen");
-        } catch (error) {
-          console.error("Navigation error:", error);
-          Alert.alert("Navigation Error", "Unable to navigate to Notifications screen");
-        }
-      },
-    },
+    // {
+    //   id: "notifications",
+    //   title: "Notifications",
+    //   icon: require("../../assets/notification-icon.png"),
+    //   hasCheckmark: true,
+    //   onPress: () => {
+    //     console.log("Navigating to NotificationsScreen");
+    //     try {
+    //       navigation.navigate("NotificationsScreen");
+    //     } catch (error) {
+    //       console.error("Navigation error:", error);
+    //       Alert.alert("Navigation Error", "Unable to navigate to Notifications screen");
+    //     }
+    //   },
+    // },
   ];
 
   const openACMVITSite = () => {
@@ -536,7 +536,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         }}
         activeOpacity={0.7}
       >
-        {item.icon && (
+        {/* {item.icon && (
           <Image
             source={item.icon}
             style={[
@@ -545,7 +545,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             ]}
             resizeMode="contain"
           />
-        )}
+        )} */}
         <Text style={styles.menuItemText}>{item.title}</Text>
         {/* {item.hasCheckmark && (
           <Image
