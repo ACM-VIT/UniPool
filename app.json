@@ -9,11 +9,8 @@
     "newArchEnabled": true,
     "statusBarStyle": "dark",
     "statusBarBackgroundColor": "#A8D8A8",
-    "splash": {
-      "image": "./assets/splash-screen.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
+
+
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
@@ -24,6 +21,7 @@
         "googleMapsApiKey": "$GOOGLE_MAPS_API_KEY_IOS"
       }
     },
+
     "android": {
       "googleServicesFile": "./google-services.json",
       "edgeToEdgeEnabled": false,
@@ -40,22 +38,21 @@
         }
       }
     },
+
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins":[
+
+    "plugins": [
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-google-signin/google-signin",
-      "expo-splash-screen",
       [
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
           "color": "#ffffff",
-          "sounds": [
-            "./assets/notification.mp3"
-          ]
+          "sounds": ["./assets/notification.mp3"]
         }
       ],
       [
@@ -74,7 +71,7 @@
       [
         "expo-build-properties",
         {
-          "ios":{
+          "ios": {
             "useFrameworks": "static"
           }
         }
