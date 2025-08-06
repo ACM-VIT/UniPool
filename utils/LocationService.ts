@@ -25,6 +25,2774 @@ export interface NearbyPlace {
   lon: number
 }
 
+export const POPULAR_LOCATIONS_WITH_COORDS = {
+  "ahmedabad": {
+    "Ahmedabad Junction": {
+      "lat": 23.0263312,
+      "lon": 72.601
+    },
+    "Sardar Vallabhbhai Patel Airport": {
+      "lat": 23.0759129,
+      "lon": 72.6305552
+    },
+    "CG Road": {
+      "lat": 23.026011,
+      "lon": 72.5567179
+    },
+    "SG Highway": {
+      "lat": 23.1124781,
+      "lon": 72.5356222
+    },
+    "Maninagar": {
+      "lat": 22.9986596,
+      "lon": 72.6114013
+    },
+    "Navrangpura": {
+      "lat": 23.0359998,
+      "lon": 72.5643429
+    },
+    "Ellis Bridge": {
+      "lat": 23.0224833,
+      "lon": 72.5753537
+    },
+    "Bodakdev": {
+      "lat": 23.0445921,
+      "lon": 72.517344
+    },
+    "Satellite": {
+      "lat": 23.0279564,
+      "lon": 72.5189752
+    },
+    "Prahlad Nagar": {
+      "lat": 22.9999369,
+      "lon": 72.5050111
+    },
+    "Bapunagar": {
+      "lat": 23.0324369,
+      "lon": 72.6313566
+    },
+    "Naroda": {
+      "lat": 23.0732586,
+      "lon": 72.6508299
+    },
+    "Paldi": {
+      "lat": 23.0145531,
+      "lon": 72.5635432
+    },
+    "Vastrapur": {
+      "lat": 23.0400861,
+      "lon": 72.5290418
+    },
+    "Drive-In Road": {
+      "lat": 23.0447735,
+      "lon": 72.543826
+    },
+    "Law Garden": {
+      "lat": 23.0263944,
+      "lon": 72.5610565
+    },
+    "Sabarmati Ashram": {
+      "lat": 23.0601651,
+      "lon": 72.5806382
+    },
+    "Gandhi Nagar": {
+      "lat": 23.060271,
+      "lon": 72.580985
+    },
+    "Vatva": {
+      "lat": 22.9589978,
+      "lon": 72.6297981
+    },
+    "Thaltej": {
+      "lat": 23.0485393,
+      "lon": 72.511742
+    }
+  },
+  "aligarh": {
+    "Aligarh Junction": {
+      "lat": 27.8888068,
+      "lon": 78.0747358
+    },
+    "Marris Road": {
+      "lat": 27.8956922,
+      "lon": 78.0834841
+    },
+    "Railway Road": {
+      "lat": 27.8890596,
+      "lon": 78.0752846
+    },
+    "Gandhi Park": {
+      "lat": 27.8847392,
+      "lon": 78.0738449
+    },
+    "Medical College": {
+      "lat": 27.9189601,
+      "lon": 78.0858006
+    }
+  },
+  "allahabad": {
+    "Allahabad Junction": {
+      "lat": 25.4455616,
+      "lon": 81.8287994
+    },
+    "Prayagraj Junction": {
+      "lat": 25.4454322,
+      "lon": 81.825958
+    },
+    "Civil Lines": {
+      "lat": 25.4523026,
+      "lon": 81.8329887
+    },
+    "Katra": {
+      "lat": 25.4656097,
+      "lon": 81.8520114
+    },
+    "Chowk": {
+      "lat": 25.4384419,
+      "lon": 81.8340224
+    },
+    "Triveni Sangam": {
+      "lat": 25.4222299,
+      "lon": 81.8923259
+    },
+    "Allahabad University": {
+      "lat": 25.4657873,
+      "lon": 81.8576436
+    },
+    "High Court": {
+      "lat": 25.4533136,
+      "lon": 81.8207936
+    },
+    "Naini": {
+      "lat": 25.3926726,
+      "lon": 81.8590806
+    },
+    "Jhunsi": {
+      "lat": 25.4298361,
+      "lon": 81.9052837
+    },
+    "Phaphamau": {
+      "lat": 25.5288334,
+      "lon": 81.856318
+    },
+    "Daraganj": {
+      "lat": 25.4430353,
+      "lon": 81.8804985
+    },
+    "Colonelganj": {
+      "lat": 25.4562632,
+      "lon": 81.8626414
+    },
+    "Govindpur": {
+      "lat": 25.483881,
+      "lon": 81.8759107
+    }
+  },
+  "bangalore": {
+    "Kempegowda International Airport": {
+      "lat": 13.1976048,
+      "lon": 77.7074856
+    },
+    "Majestic Bus Stand": {
+      "lat": 12.9781846,
+      "lon": 77.5721851
+    },
+    "M.G. Road": {
+      "lat": 12.9741954,
+      "lon": 77.6116653
+    },
+    "Brigade Road": {
+      "lat": 12.9673575,
+      "lon": 77.6064353
+    },
+    "Koramangala": {
+      "lat": 12.9357366,
+      "lon": 77.624081
+    },
+    "Indiranagar": {
+      "lat": 12.9732913,
+      "lon": 77.6404672
+    },
+    "Jayanagar": {
+      "lat": 12.9292731,
+      "lon": 77.5824229
+    },
+    "Malleshwaram": {
+      "lat": 13.0027353,
+      "lon": 77.5703253
+    },
+    "Whitefield": {
+      "lat": 12.9963995,
+      "lon": 77.7614229
+    },
+    "Electronic City": {
+      "lat": 12.8487599,
+      "lon": 77.648253
+    },
+    "HSR Layout": {
+      "lat": 12.9116225,
+      "lon": 77.6388622
+    },
+    "Basavanagudi": {
+      "lat": 12.9417261,
+      "lon": 77.5755021
+    },
+    "Sadashivanagar": {
+      "lat": 13.0110193,
+      "lon": 77.5808641
+    },
+    "Ulsoor": {
+      "lat": 12.9778793,
+      "lon": 77.6246697
+    },
+    "Richmond Town": {
+      "lat": 12.963555,
+      "lon": 77.6015856
+    },
+    "Banashankari": {
+      "lat": 12.9278196,
+      "lon": 77.556621
+    },
+    "Yelahanka": {
+      "lat": 13.1006982,
+      "lon": 77.5963454
+    },
+    "Marathahalli": {
+      "lat": 12.9552572,
+      "lon": 77.6984163
+    },
+    "BTM Layout": {
+      "lat": 12.9140008,
+      "lon": 77.6102821
+    }
+  },
+  "bhopal": {
+    "Bhopal Junction": {
+      "lat": 23.2664845,
+      "lon": 77.4130845
+    },
+    "Rani Kamlapati Railway Station (Habibganj)": {
+      "lat": 23.2208832,
+      "lon": 77.4393691
+    },
+    "New Market": {
+      "lat": 23.2352467,
+      "lon": 77.4002749
+    },
+    "MP Nagar": {
+      "lat": 23.1666795,
+      "lon": 77.4166773
+    },
+    "Arera Colony": {
+      "lat": 23.2208721,
+      "lon": 77.4293649
+    },
+    "BHEL Township": {
+      "lat": 23.2324031,
+      "lon": 77.4583924
+    },
+    "TT Nagar": {
+      "lat": 23.2363001,
+      "lon": 77.3943915
+    },
+    "Kolar Road": {
+      "lat": 23.1940627,
+      "lon": 77.4171433
+    },
+    "Shyamla Hills": {
+      "lat": 23.239184,
+      "lon": 77.3900841
+    },
+    "Vallabh Bhavan": {
+      "lat": 23.2373697,
+      "lon": 77.4181278
+    },
+    "Barkatullah University": {
+      "lat": 23.2018097,
+      "lon": 77.4526188
+    },
+    "Misrod": {
+      "lat": 23.1684964,
+      "lon": 77.4586234
+    },
+    "Govindpura": {
+      "lat": 23.2460198,
+      "lon": 77.4467044
+    },
+    "Berasia Road": {
+      "lat": 23.2816456,
+      "lon": 77.4020961
+    },
+    "Karond": {
+      "lat": 23.2974227,
+      "lon": 77.4025444
+    }
+  },
+  "bhubaneswar": {
+    "Bhubaneswar Railway Station": {
+      "lat": 20.2667774,
+      "lon": 85.8435592
+    },
+    "Biju Patnaik International Airport": {
+      "lat": 20.2522954,
+      "lon": 85.8134847
+    },
+    "Master Canteen Chowk": {
+      "lat": 20.2685112,
+      "lon": 85.8410902
+    },
+    "Saheed Nagar": {
+      "lat": 20.2886824,
+      "lon": 85.8488154
+    },
+    "Jayadev Vihar": {
+      "lat": 20.2953226,
+      "lon": 85.8248421
+    },
+    "Chandrasekharpur": {
+      "lat": 20.3421722,
+      "lon": 85.8201153
+    },
+    "Infocity": {
+      "lat": 20.3428436,
+      "lon": 85.8068018
+    },
+    "KIIT University": {
+      "lat": 20.3530675,
+      "lon": 85.8201467
+    },
+    "Old Town": {
+      "lat": 20.2383012,
+      "lon": 85.8316755
+    },
+    "Khandagiri": {
+      "lat": 20.2661224,
+      "lon": 85.7832241
+    },
+    "Nayapalli": {
+      "lat": 20.2831912,
+      "lon": 85.8186698
+    },
+    "Unit 1 Market": {
+      "lat": 20.26574,
+      "lon": 85.8325653
+    },
+    "Baramunda": {
+      "lat": 20.2731096,
+      "lon": 85.7953289
+    },
+    "Patia": {
+      "lat": 20.360451,
+      "lon": 85.8246128
+    },
+    "Forest Park": {
+      "lat": 20.2579538,
+      "lon": 85.8252953
+    }
+  },
+  "chandigarh": {
+    "Chandigarh Railway Station": {
+      "lat": 30.7021622,
+      "lon": 76.8214533
+    },
+    "Chandigarh Airport": {
+      "lat": 30.6741922,
+      "lon": 76.7909851
+    },
+    "Sector 22": {
+      "lat": 30.7334256,
+      "lon": 76.7713451
+    },
+    "Sector 35": {
+      "lat": 30.7261215,
+      "lon": 76.7598867
+    },
+    "Sector 7 (Madhya Marg)": {
+      "lat": 30.7325473,
+      "lon": 76.7994039
+    },
+    "Sector 8": {
+      "lat": 30.7417025,
+      "lon": 76.7994536
+    },
+    "Panjab University": {
+      "lat": 30.7602415,
+      "lon": 76.7664916
+    },
+    "PGI Chandigarh": {
+      "lat": 30.7614305,
+      "lon": 76.7749653
+    },
+    "Rock Garden": {
+      "lat": 30.7531959,
+      "lon": 76.8066302
+    },
+    "Sukhna Lake": {
+      "lat": 30.7419776,
+      "lon": 76.8176747
+    },
+    "Mohali": {
+      "lat": 30.6767354,
+      "lon": 76.7486214
+    },
+    "Panchkula": {
+      "lat": 30.6990536,
+      "lon": 76.8357208
+    },
+    "Industrial Area Phase I": {
+      "lat": 30.7054046,
+      "lon": 76.8009569
+    },
+    "Manimajra": {
+      "lat": 30.7127455,
+      "lon": 76.832944
+    },
+    "Daria": {
+      "lat": 30.6983838,
+      "lon": 76.8142779
+    },
+    "Hallomajra": {
+      "lat": 30.6922961,
+      "lon": 76.7999692
+    }
+  },
+  "chennai": {
+    "Chennai Central Railway Station": {
+      "lat": 13.0825901,
+      "lon": 80.2763077
+    },
+    "Chennai International Airport": {
+      "lat": 12.993374,
+      "lon": 80.1725867
+    },
+    "Anna Salai (Mount Road)": {
+      "lat": 13.0326834,
+      "lon": 80.2429056
+    },
+    "T. Nagar": {
+      "lat": 13.0294483,
+      "lon": 80.2309064
+    },
+    "Koyambedu": {
+      "lat": 13.0734496,
+      "lon": 80.1948363
+    },
+    "Velachery": {
+      "lat": 12.9801655,
+      "lon": 80.2228506
+    },
+    "Adyar": {
+      "lat": 13.00645,
+      "lon": 80.2577791
+    },
+    "Mylapore": {
+      "lat": 13.0316473,
+      "lon": 80.2700166
+    },
+    "Egmore": {
+      "lat": 13.0728321,
+      "lon": 80.2576906
+    },
+    "Tambaram": {
+      "lat": 12.9205184,
+      "lon": 80.1967752
+    },
+    "Porur": {
+      "lat": 13.052959,
+      "lon": 80.2346238
+    },
+    "Guindy": {
+      "lat": 13.0086685,
+      "lon": 80.2126063
+    },
+    "Nungambakkam": {
+      "lat": 13.0620626,
+      "lon": 80.240487
+    },
+    "Thiruvanmiyur": {
+      "lat": 12.9858948,
+      "lon": 80.2644215
+    },
+    "Perambur": {
+      "lat": 13.1121242,
+      "lon": 80.245022
+    },
+    "Old Mahabalipuram Road (OMR)": {
+      "lat": 12.9209254,
+      "lon": 80.2299723
+    },
+    "Sholinganallur": {
+      "lat": 12.9174426,
+      "lon": 80.2164902
+    },
+    "Sriperumbudur": {
+      "lat": 13.0217323,
+      "lon": 80.1452756
+    }
+  },
+  "coimbatore": {
+    "Coimbatore International Airport": {
+      "lat": 11.0329077,
+      "lon": 77.0427014
+    },
+    "Coimbatore Junction": {
+      "lat": 10.9975681,
+      "lon": 76.9663657
+    },
+    "Gandhipuram": {
+      "lat": 11.0182714,
+      "lon": 76.9677744
+    },
+    "RS Puram": {
+      "lat": 11.0080177,
+      "lon": 76.9501661
+    },
+    "Peelamedu": {
+      "lat": 11.0269577,
+      "lon": 76.9945813
+    },
+    "Saibaba Colony": {
+      "lat": 11.024334,
+      "lon": 76.9447875
+    },
+    "Race Course": {
+      "lat": 11.0010788,
+      "lon": 76.9779619
+    },
+    "Town Hall": {
+      "lat": 10.9967542,
+      "lon": 76.956623
+    },
+    "Ukkadam": {
+      "lat": 10.9895218,
+      "lon": 76.9561068
+    },
+    "Singanallur": {
+      "lat": 11.0124691,
+      "lon": 77.0391191
+    },
+    "Vadavalli": {
+      "lat": 11.0253387,
+      "lon": 76.9051251
+    },
+    "KK Pudur": {
+      "lat": 10.9610718,
+      "lon": 76.8040293
+    },
+    "Avinashi Road": {
+      "lat": 11.0484876,
+      "lon": 77.05559
+    },
+    "Brookefields Mall": {
+      "lat": 11.0088739,
+      "lon": 76.9593964
+    },
+    "Fun Republic Mall": {
+      "lat": 11.0243516,
+      "lon": 77.0106613
+    },
+    "Podanur": {
+      "lat": 10.9585609,
+      "lon": 76.988307
+    },
+    "Kalapatti": {
+      "lat": 11.0787684,
+      "lon": 77.0370419
+    },
+    "Thudiyalur": {
+      "lat": 11.0805532,
+      "lon": 76.9421498
+    },
+    "Perur": {
+      "lat": 10.976406,
+      "lon": 76.9141784
+    },
+    "Saravanampatti": {
+      "lat": 11.0747296,
+      "lon": 77.0027116
+    }
+  },
+  "delhi": {
+    "New Delhi Railway Station": {
+      "lat": 28.6402816,
+      "lon": 77.2204103
+    },
+    "Old Delhi Railway Station": {
+      "lat": 28.660932,
+      "lon": 77.2276494
+    },
+    "Indira Gandhi International Airport": {
+      "lat": 28.5549889,
+      "lon": 77.0846833
+    },
+    "Connaught Place": {
+      "lat": 28.6314022,
+      "lon": 77.2193791
+    },
+    "Chandni Chowk": {
+      "lat": 28.6559834,
+      "lon": 77.2321937
+    },
+    "Karol Bagh": {
+      "lat": 28.6529982,
+      "lon": 77.1890227
+    },
+    "Paharganj": {
+      "lat": 28.6414989,
+      "lon": 77.2140607
+    },
+    "Hauz Khas": {
+      "lat": 28.5498086,
+      "lon": 77.2077638
+    },
+    "Saket": {
+      "lat": 28.521168,
+      "lon": 77.2022237
+    },
+    "Lajpat Nagar": {
+      "lat": 28.5660924,
+      "lon": 77.2432851
+    },
+    "Dwarka": {
+      "lat": 28.6149362,
+      "lon": 77.0227628
+    },
+    "Rohini": {
+      "lat": 28.7162092,
+      "lon": 77.1170743
+    },
+    "Noida": {
+      "lat": 28.5896797,
+      "lon": 77.331223
+    },
+    "Gurgaon": {
+      "lat": 28.3996098,
+      "lon": 77.3364029
+    },
+    "Nehru Place": {
+      "lat": 28.5492574,
+      "lon": 77.2529526
+    },
+    "Janakpuri": {
+      "lat": 28.6219272,
+      "lon": 77.0874757
+    },
+    "Vasant Kunj": {
+      "lat": 28.5292495,
+      "lon": 77.1541335
+    },
+    "South Extension": {
+      "lat": 28.5685664,
+      "lon": 77.2205677
+    },
+    "Delhi University (North Campus)": {
+      "lat": 28.6848257,
+      "lon": 77.2084275
+    }
+  },
+  "dhanbad": {
+    "Dhanbad Junction": {
+      "lat": 23.7913021,
+      "lon": 86.4294782
+    },
+    "Katras": {
+      "lat": 23.7975156,
+      "lon": 86.2983397
+    },
+    "Jharia": {
+      "lat": 23.7407998,
+      "lon": 86.4145678
+    },
+    "Govindpur": {
+      "lat": 23.7981279,
+      "lon": 86.2827314
+    },
+    "Hirapur": {
+      "lat": 23.7991476,
+      "lon": 86.4403063
+    },
+    "Sindri": {
+      "lat": 23.6751544,
+      "lon": 86.4896289
+    },
+    "Barwadda": {
+      "lat": 23.8371712,
+      "lon": 86.4289738
+    },
+    "ISM (IIT Dhanbad)": {
+      "lat": 23.8148779,
+      "lon": 86.4425786
+    },
+    "Dhansar": {
+      "lat": 23.7797531,
+      "lon": 86.4139246
+    },
+    "Matkuria": {
+      "lat": 23.7886449,
+      "lon": 86.4122626
+    },
+    "Kusunda": {
+      "lat": 23.7696849,
+      "lon": 86.3821238
+    },
+    "Steel Gate": {
+      "lat": 23.8135358,
+      "lon": 86.4618207
+    },
+    "Bartand": {
+      "lat": 23.8059453,
+      "lon": 86.4311412
+    },
+    "Chirkunda": {
+      "lat": 23.7451314,
+      "lon": 86.7869794
+    }
+  },
+  "gurgaon": {
+    "MG Road (Gurugram)": {
+      "lat": 28.4769544,
+      "lon": 77.06624
+    },
+    "IFFCO Chowk": {
+      "lat": 28.4723277,
+      "lon": 77.0724222
+    },
+    "Cyber City": {
+      "lat": 28.4980613,
+      "lon": 77.0891604
+    },
+    "Udyog Vihar": {
+      "lat": 28.4917349,
+      "lon": 77.0819718
+    },
+    "Golf Course Road": {
+      "lat": 28.4500618,
+      "lon": 77.0991779
+    },
+    "Sohna Road": {
+      "lat": 28.3836554,
+      "lon": 77.0534279
+    },
+    "DLF Phase 1": {
+      "lat": 28.4714258,
+      "lon": 77.0939606
+    },
+    "Manesar": {
+      "lat": 28.3247096,
+      "lon": 76.9263787
+    },
+    "Sector 14": {
+      "lat": 28.473784,
+      "lon": 77.0471827
+    },
+    "Sushant Lok": {
+      "lat": 28.4706634,
+      "lon": 77.0798127
+    },
+    "Palam Vihar": {
+      "lat": 28.5054709,
+      "lon": 77.0381625
+    },
+    "Medanta (Sector 38)": {
+      "lat": 28.4389466,
+      "lon": 77.0402727
+    },
+    "Ambience Mall": {
+      "lat": 28.5042583,
+      "lon": 77.0972049
+    },
+    "Rajiv Chowk (Gurgaon)": {
+      "lat": 28.4477252,
+      "lon": 77.032607
+    },
+    "Sector 29": {
+      "lat": 28.4669197,
+      "lon": 77.0671306
+    },
+    "Dwarka Expressway": {
+      "lat": 28.4428678,
+      "lon": 76.9601665
+    },
+    "South City": {
+      "lat": 28.4597391,
+      "lon": 77.0612091
+    },
+    "Badshahpur": {
+      "lat": 28.3932757,
+      "lon": 77.0484201
+    }
+  },
+  "guwahati": {
+    "Guwahati Railway Station (Paltan Bazaar)": {
+      "lat": 26.1821371,
+      "lon": 91.7507423
+    },
+    "Paltan Bazaar": {
+      "lat": 26.1792275,
+      "lon": 91.7512716
+    },
+    "Pan Bazaar": {
+      "lat": 26.1853572,
+      "lon": 91.7472062
+    },
+    "Fancy Bazaar": {
+      "lat": 26.1799322,
+      "lon": 91.7362163
+    },
+    "Khanapara": {
+      "lat": 26.1161783,
+      "lon": 91.7972485
+    },
+    "Beltola": {
+      "lat": 26.1161783,
+      "lon": 91.7972485
+    },
+    "Maligaon": {
+      "lat": 26.1600453,
+      "lon": 91.6958086
+    },
+    "Chandmari": {
+      "lat": 26.1841165,
+      "lon": 91.7740906
+    },
+    "Six Mile": {
+      "lat": 26.1161377,
+      "lon": 91.7973256
+    },
+    "Ulubari": {
+      "lat": 26.175003,
+      "lon": 91.7576927
+    },
+    "Jalukbari": {
+      "lat": 26.1554983,
+      "lon": 91.671224
+    },
+    "Azara": {
+      "lat": 26.1385795,
+      "lon": 91.6350313
+    },
+    "Noonmati": {
+      "lat": 26.1979372,
+      "lon": 91.7998576
+    },
+    "Basistha": {
+      "lat": 26.0945317,
+      "lon": 91.7853471
+    }
+  },
+  "hyderabad": {
+    "Hyderabad Deccan (Nampally) Station": {
+      "lat": 17.3924223,
+      "lon": 78.4675956
+    },
+    "Secunderabad Junction": {
+      "lat": 17.4338199,
+      "lon": 78.5020402
+    },
+    "HITEC City": {
+      "lat": 17.4490055,
+      "lon": 78.3831376
+    },
+    "Gachibowli": {
+      "lat": 17.4436222,
+      "lon": 78.3519638
+    },
+    "Madhapur": {
+      "lat": 17.4408924,
+      "lon": 78.3916304
+    },
+    "Jubilee Hills": {
+      "lat": 17.4308362,
+      "lon": 78.4102882
+    },
+    "Banjara Hills": {
+      "lat": 17.4177464,
+      "lon": 78.4399014
+    },
+    "Somajiguda": {
+      "lat": 17.4255053,
+      "lon": 78.4585197
+    },
+    "Begumpet": {
+      "lat": 17.446195,
+      "lon": 78.463016
+    },
+    "Kondapur": {
+      "lat": 17.4587912,
+      "lon": 78.3730556
+    },
+    "Kukatpally": {
+      "lat": 17.4930841,
+      "lon": 78.4054408
+    },
+    "Charminar": {
+      "lat": 17.3616024,
+      "lon": 78.4746421
+    },
+    "Mehdipatnam": {
+      "lat": 17.3942627,
+      "lon": 78.4342514
+    },
+    "Abids": {
+      "lat": 17.3894783,
+      "lon": 78.477182
+    },
+    "L.B. Nagar": {
+      "lat": 17.3498286,
+      "lon": 78.5479138
+    },
+    "Dilsukhnagar": {
+      "lat": 17.3684307,
+      "lon": 78.5234283
+    },
+    "Necklace Road": {
+      "lat": 17.4233355,
+      "lon": 78.4631857
+    },
+    "Tank Bund": {
+      "lat": 17.4162548,
+      "lon": 78.485716
+    },
+    "Falaknuma": {
+      "lat": 17.3326604,
+      "lon": 78.4751984
+    }
+  },
+  "indore": {
+    "Indore Junction": {
+      "lat": 22.7170064,
+      "lon": 75.8684722
+    },
+    "Devi Ahilyabai Holkar Airport": {
+      "lat": 22.7203745,
+      "lon": 75.8032544
+    },
+    "Rajwada": {
+      "lat": 22.7184344,
+      "lon": 75.8547755
+    },
+    "Sarafa Bazaar": {
+      "lat": 22.7178947,
+      "lon": 75.8518582
+    },
+    "Vijay Nagar": {
+      "lat": 22.6948381,
+      "lon": 75.8539948
+    },
+    "Palasia": {
+      "lat": 22.7247478,
+      "lon": 75.8872048
+    },
+    "Bhanwarkuan": {
+      "lat": 22.6926536,
+      "lon": 75.8676588
+    },
+    "A.B. Road": {
+      "lat": 22.639302,
+      "lon": 75.8144443
+    },
+    "Bhawarkua": {
+      "lat": 19.688906,
+      "lon": 79.4106337
+    },
+    "Sudama Nagar": {
+      "lat": 22.6883222,
+      "lon": 75.8321475
+    },
+    "Navlakha": {
+      "lat": 22.6987158,
+      "lon": 75.8779002
+    },
+    "LIG Colony": {
+      "lat": 22.7377373,
+      "lon": 75.8867237
+    },
+    "Dwarkapuri": {
+      "lat": 22.6917778,
+      "lon": 75.8248064
+    },
+    "Khajrana": {
+      "lat": 22.7331833,
+      "lon": 75.9035394
+    },
+    "Rajendra Nagar": {
+      "lat": 22.6700186,
+      "lon": 75.8292229
+    },
+    "Mhow": {
+      "lat": 22.5586725,
+      "lon": 75.7686558
+    }
+  },
+  "jaipur": {
+    "Jaipur Junction": {
+      "lat": 26.9207888,
+      "lon": 75.7866539
+    },
+    "Jaipur International Airport": {
+      "lat": 26.8281087,
+      "lon": 75.8079888
+    },
+    "Bapu Bazaar": {
+      "lat": 26.9163742,
+      "lon": 75.8232007
+    },
+    "Hawa Mahal Road": {
+      "lat": 26.923932,
+      "lon": 75.8268652
+    },
+    "Sindhi Camp Bus Stand": {
+      "lat": 26.923305,
+      "lon": 75.8006345
+    },
+    "Vaishali Nagar": {
+      "lat": 26.9095703,
+      "lon": 75.7391732
+    },
+    "Mansarovar": {
+      "lat": 26.8756076,
+      "lon": 75.7509072
+    },
+    "Malviya Nagar": {
+      "lat": 26.8593667,
+      "lon": 75.8098088
+    },
+    "C-Scheme": {
+      "lat": 26.9140181,
+      "lon": 75.8067179
+    },
+    "Amer Fort": {
+      "lat": 26.9854705,
+      "lon": 75.8539676
+    },
+    "JLN Marg": {
+      "lat": 26.8886213,
+      "lon": 75.8135854
+    },
+    "Ajmeri Gate": {
+      "lat": 26.9153191,
+      "lon": 75.8169299
+    },
+    "Tonk Road": {
+      "lat": 26.8392776,
+      "lon": 75.7937325
+    },
+    "Bani Park": {
+      "lat": 26.9316554,
+      "lon": 75.7958012
+    },
+    "Raja Park": {
+      "lat": 26.8966396,
+      "lon": 75.8271072
+    },
+    "Shyam Nagar": {
+      "lat": 26.8964768,
+      "lon": 75.7706279
+    },
+    "Jawahar Circle": {
+      "lat": 26.8397772,
+      "lon": 75.8009153
+    },
+    "Gopalpura": {
+      "lat": 26.8738221,
+      "lon": 75.7780496
+    }
+  },
+  "kanpur": {
+    "Kanpur Central Railway Station": {
+      "lat": 26.4538613,
+      "lon": 80.3512433
+    },
+    "Kanpur Anwarganj Station": {
+      "lat": 26.4558434,
+      "lon": 80.3281028
+    },
+    "Kanpur Airport (Chakeri)": {
+      "lat": 26.4054757,
+      "lon": 80.41536
+    },
+    "IIT Kanpur": {
+      "lat": 26.5093058,
+      "lon": 80.2482323
+    },
+    "CSJM University": {
+      "lat": 26.4964612,
+      "lon": 80.2674068
+    },
+    "Kanpur Cantonment": {
+      "lat": 26.4487664,
+      "lon": 80.3650651
+    },
+    "Civil Lines": {
+      "lat": 26.4760088,
+      "lon": 80.3465098
+    },
+    "Naveen Market": {
+      "lat": 26.4740673,
+      "lon": 80.3454472
+    },
+    "The Mall (Mall Road)": {
+      "lat": 26.476497,
+      "lon": 80.3383406
+    },
+    "Govind Nagar": {
+      "lat": 26.4664972,
+      "lon": 80.3052854
+    },
+    "Kidwai Nagar": {
+      "lat": 26.4409888,
+      "lon": 80.3419876
+    },
+    "Panki": {
+      "lat": 26.4595614,
+      "lon": 80.2390699
+    },
+    "Kalpi Road": {
+      "lat": 26.4623531,
+      "lon": 80.3082989
+    },
+    "Shastri Nagar": {
+      "lat": 26.4672535,
+      "lon": 80.2977715
+    },
+    "Kakadeo": {
+      "lat": 26.4735503,
+      "lon": 80.2929783
+    },
+    "Kalyanpur": {
+      "lat": 26.5037165,
+      "lon": 80.2525473
+    }
+  },
+  "kharagpur": {
+    "Kharagpur Junction": {
+      "lat": 22.3399404,
+      "lon": 87.3250048
+    },
+    "Hijli": {
+      "lat": 22.3196993,
+      "lon": 87.3193294
+    },
+    "Inda": {
+      "lat": 22.3470285,
+      "lon": 87.3342063
+    },
+    "Kalaikunda": {
+      "lat": 22.3283629,
+      "lon": 87.2325182
+    },
+    "Gole Bazaar": {
+      "lat": 22.3418444,
+      "lon": 87.3170584
+    },
+    "Nimpura": {
+      "lat": 22.3257081,
+      "lon": 87.2653753
+    },
+    "Talbagicha": {
+      "lat": 22.3146566,
+      "lon": 87.2832656
+    }
+  },
+  "kolkata": {
+    "Sealdah Station": {
+      "lat": 22.5652881,
+      "lon": 88.3701979
+    },
+    "Park Street": {
+      "lat": 22.5551591,
+      "lon": 88.3501171
+    },
+    "Esplanade (Dharmatala)": {
+      "lat": 22.5641292,
+      "lon": 88.3502752
+    },
+    "Salt Lake City (Bidhannagar)": {
+      "lat": 22.5847892,
+      "lon": 88.4231722
+    },
+    "New Town (Rajarhat)": {
+      "lat": 22.6236298,
+      "lon": 88.45048
+    },
+    "Gariahat": {
+      "lat": 22.5194439,
+      "lon": 88.365148
+    },
+    "Tollygunge": {
+      "lat": 22.498636,
+      "lon": 88.3453908
+    },
+    "Jadavpur": {
+      "lat": 22.495499,
+      "lon": 88.3709006
+    },
+    "Behala": {
+      "lat": 22.501572,
+      "lon": 88.3209435
+    },
+    "College Street": {
+      "lat": 22.5672156,
+      "lon": 88.3601335
+    },
+    "Dum Dum": {
+      "lat": 22.6210988,
+      "lon": 88.3978255
+    },
+    "Shyambazar": {
+      "lat": 22.601335,
+      "lon": 88.3724974
+    },
+    "Kalighat": {
+      "lat": 22.5153313,
+      "lon": 88.3477052
+    },
+    "Alipore": {
+      "lat": 22.5264928,
+      "lon": 88.3323692
+    },
+    "Ballygunge": {
+      "lat": 22.5280337,
+      "lon": 88.3659084
+    },
+    "Howrah Maidan": {
+      "lat": 22.5850528,
+      "lon": 88.3469761
+    },
+    "EM Bypass": {
+      "lat": 22.4690721,
+      "lon": 88.3912838
+    }
+  },
+  "lucknow": {
+    "Charbagh Railway Station": {
+      "lat": 26.83242,
+      "lon": 80.9231122
+    },
+    "Chaudhary Charan Singh Airport (Amausi)": {
+      "lat": 26.7608025,
+      "lon": 80.8936031
+    },
+    "Hazratganj": {
+      "lat": 26.8475285,
+      "lon": 80.9432003
+    },
+    "Gomti Nagar": {
+      "lat": 26.8605833,
+      "lon": 81.0029055
+    },
+    "Alambagh": {
+      "lat": 26.8140101,
+      "lon": 80.9025123
+    },
+    "Aminabad": {
+      "lat": 26.8487,
+      "lon": 80.927
+    },
+    "Indira Nagar": {
+      "lat": 26.8823182,
+      "lon": 80.9900344
+    },
+    "Aliganj": {
+      "lat": 26.90515,
+      "lon": 80.9479913
+    },
+    "Chowk": {
+      "lat": 26.8677148,
+      "lon": 80.9042142
+    },
+    "Kaiserbagh": {
+      "lat": 26.8498749,
+      "lon": 80.9314544
+    },
+    "Thakurganj": {
+      "lat": 26.8793864,
+      "lon": 80.8905146
+    },
+    "Rajajipuram": {
+      "lat": 26.8410454,
+      "lon": 80.8525902
+    },
+    "Faizabad Road": {
+      "lat": 26.8863181,
+      "lon": 81.0510531
+    },
+    "Telibagh": {
+      "lat": 26.7778063,
+      "lon": 80.9429644
+    },
+    "Chinhat": {
+      "lat": 26.8751435,
+      "lon": 81.0355588
+    }
+  },
+  "madurai": {
+    "Madurai Airport": {
+      "lat": 9.8362608,
+      "lon": 78.0939177
+    },
+    "Madurai Junction": {
+      "lat": 9.9192715,
+      "lon": 78.1098809
+    },
+    "Meenakshi Amman Temple": {
+      "lat": 9.9195433,
+      "lon": 78.1188334
+    },
+    "Mattuthavani Bus Stand": {
+      "lat": 9.9440908,
+      "lon": 78.156043
+    },
+    "Periyar Bus Stand": {
+      "lat": 9.9160536,
+      "lon": 78.1111723
+    },
+    "K. Pudur": {
+      "lat": 9.9471571,
+      "lon": 78.1452905
+    },
+    "Goripalayam": {
+      "lat": 9.9292458,
+      "lon": 78.1294109
+    },
+    "Thirupparankundram": {
+      "lat": 9.8807772,
+      "lon": 78.0499917
+    },
+    "Avaniyapuram": {
+      "lat": 9.9286118,
+      "lon": 78.0981046
+    },
+    "Palanganatham": {
+      "lat": 9.9040093,
+      "lon": 78.0962583
+    },
+    "Arasaradi": {
+      "lat": 9.9276237,
+      "lon": 78.0997294
+    },
+    "Anna Nagar (Madurai)": {
+      "lat": 9.9223354,
+      "lon": 78.1493658
+    },
+    "KK Nagar (Madurai)": {
+      "lat": 9.9695421,
+      "lon": 78.1242879
+    },
+    "Simmakkal": {
+      "lat": 9.9249211,
+      "lon": 78.1210878
+    },
+    "Thirunagar": {
+      "lat": 9.9385046,
+      "lon": 78.0127284
+    },
+    "Tallakulam": {
+      "lat": 9.9334996,
+      "lon": 78.1388998
+    },
+    "Vilakkuthoon": {
+      "lat": 9.917784,
+      "lon": 78.1237595
+    },
+    "Melur": {
+      "lat": 10.0858443,
+      "lon": 78.3560235
+    },
+    "Thirumangalam": {
+      "lat": 9.7980095,
+      "lon": 77.9298426
+    },
+    "Othakadai": {
+      "lat": 9.9604223,
+      "lon": 78.1891222
+    }
+  },
+  "manipal": {
+    "Tiger Circle": {
+      "lat": 13.3524094,
+      "lon": 74.7872546
+    },
+    "Manipal Lake": {
+      "lat": 13.3422976,
+      "lon": 74.7856116
+    },
+    "End Point": {
+      "lat": 13.3700386,
+      "lon": 74.7848287
+    },
+    "Perampalli": {
+      "lat": 13.3533178,
+      "lon": 74.7840316
+    },
+    "Udupi Railway Station": {
+      "lat": 13.3360724,
+      "lon": 74.7708331
+    },
+    "KC Road": {
+      "lat": 13.3498438,
+      "lon": 74.7858476
+    }
+  },
+  "mangalore": {
+    "Mangalore Central Railway Station": {
+      "lat": 12.8634037,
+      "lon": 74.8432387
+    },
+    "Mangalore Junction (Kankanady)": {
+      "lat": 12.866628,
+      "lon": 74.8792308
+    },
+    "Mangalore International Airport": {
+      "lat": 12.9546178,
+      "lon": 74.8847182
+    },
+    "Hampankatta": {
+      "lat": 12.8691203,
+      "lon": 74.843432
+    },
+    "Kadri": {
+      "lat": 12.8897288,
+      "lon": 74.8501424
+    },
+    "Bejai": {
+      "lat": 12.8880652,
+      "lon": 74.8469598
+    },
+    "Kankanadi": {
+      "lat": 12.866628,
+      "lon": 74.8792308
+    },
+    "Balmatta": {
+      "lat": 12.8791877,
+      "lon": 74.8584005
+    },
+    "Car Street": {
+      "lat": 12.8702004,
+      "lon": 74.8366794
+    },
+    "Pandeshwar": {
+      "lat": 12.85684,
+      "lon": 74.8379984
+    },
+    "Surathkal": {
+      "lat": 12.9798673,
+      "lon": 74.8246658
+    },
+    "Panambur": {
+      "lat": 12.945576,
+      "lon": 74.8078986
+    },
+    "Kulur": {
+      "lat": 12.9243563,
+      "lon": 74.8293817
+    },
+    "Kudroli": {
+      "lat": 12.8765518,
+      "lon": 74.8302397
+    },
+    "Kavoor": {
+      "lat": 12.9180644,
+      "lon": 74.8593498
+    }
+  },
+  "mumbai": {
+    "Mumbai Central Station": {
+      "lat": 18.9695855,
+      "lon": 72.8193152
+    },
+    "Bandra": {
+      "lat": 19.0549792,
+      "lon": 72.8402203
+    },
+    "Andheri": {
+      "lat": 19.1196976,
+      "lon": 72.8464205
+    },
+    "Dadar": {
+      "lat": 19.0192269,
+      "lon": 72.8428479
+    },
+    "Colaba": {
+      "lat": 18.915091,
+      "lon": 72.8259691
+    },
+    "Nariman Point": {
+      "lat": 18.927089,
+      "lon": 72.8235859
+    },
+    "Marine Drive": {
+      "lat": 18.9344628,
+      "lon": 72.8239429
+    },
+    "Juhu": {
+      "lat": 19.1070215,
+      "lon": 72.8275275
+    },
+    "Bandra Kurla Complex (BKC)": {
+      "lat": 19.0602338,
+      "lon": 72.8549629
+    },
+    "Powai": {
+      "lat": 19.1187195,
+      "lon": 72.9073476
+    },
+    "Churchgate": {
+      "lat": 18.9354797,
+      "lon": 72.8271741
+    },
+    "Worli": {
+      "lat": 18.9988404,
+      "lon": 72.8170327
+    },
+    "Lower Parel": {
+      "lat": 18.99568,
+      "lon": 72.8302756
+    },
+    "Goregaon": {
+      "lat": 19.1648688,
+      "lon": 72.8495492
+    },
+    "Borivali": {
+      "lat": 19.229068,
+      "lon": 72.8573628
+    },
+    "Navi Mumbai": {
+      "lat": 19.1511011,
+      "lon": 72.9995356
+    },
+    "Thane": {
+      "lat": 19.1714006,
+      "lon": 72.9678207
+    },
+    "Mulund": {
+      "lat": 19.1721762,
+      "lon": 72.9562383
+    },
+    "Chembur": {
+      "lat": 19.054818,
+      "lon": 72.8979713
+    },
+    "Ghatkopar": {
+      "lat": 19.0856928,
+      "lon": 72.9083668
+    },
+    "Vashi": {
+      "lat": 19.0632481,
+      "lon": 72.9987966
+    }
+  },
+  "mysore": {
+    "Mysore Junction": {
+      "lat": 12.3169685,
+      "lon": 76.645346
+    },
+    "Mysore Airport (Mandakalli)": {
+      "lat": 12.230206,
+      "lon": 76.6526593
+    },
+    "Mysore Palace": {
+      "lat": 12.3052196,
+      "lon": 76.6553846
+    },
+    "Chamundi Hills": {
+      "lat": 12.29286,
+      "lon": 76.68275
+    },
+    "Jayalakshmipuram": {
+      "lat": 12.3224157,
+      "lon": 76.6217738
+    },
+    "Vijayanagar": {
+      "lat": 12.333285,
+      "lon": 76.6125598
+    },
+    "Gokulam": {
+      "lat": 12.3260989,
+      "lon": 76.628297
+    },
+    "Hebbal (Mysore)": {
+      "lat": 12.3579894,
+      "lon": 76.6105084
+    },
+    "Saraswathipuram": {
+      "lat": 12.2985576,
+      "lon": 76.628411
+    },
+    "Lashkar Mohalla": {
+      "lat": 12.3117808,
+      "lon": 76.6621332
+    },
+    "Nazarbad": {
+      "lat": 12.3093335,
+      "lon": 76.6657534
+    },
+    "Kuvempunagar": {
+      "lat": 12.2933904,
+      "lon": 76.6308591
+    },
+    "Krishnaraja Boulevard": {
+      "lat": 12.2980313,
+      "lon": 76.6386757
+    },
+    "Siddhartha Layout": {
+      "lat": 12.3075127,
+      "lon": 76.6826917
+    },
+    "Yadavagiri": {
+      "lat": 12.327919,
+      "lon": 76.6391525
+    },
+    "Hinkal": {
+      "lat": 12.3299639,
+      "lon": 76.6007405
+    }
+  },
+  "nagpur": {
+    "Nagpur Junction": {
+      "lat": 21.152255,
+      "lon": 79.0888669
+    },
+    "Dr. Babasaheb Ambedkar International Airport": {
+      "lat": 21.0909079,
+      "lon": 79.0546789
+    },
+    "Sitabuldi": {
+      "lat": 21.1414478,
+      "lon": 79.0824843
+    },
+    "Sadar": {
+      "lat": 21.1705078,
+      "lon": 79.0751299
+    },
+    "Civil Lines": {
+      "lat": 21.1549282,
+      "lon": 79.078932
+    },
+    "Dharampeth": {
+      "lat": 21.1409684,
+      "lon": 79.0624344
+    },
+    "Ramdaspeth": {
+      "lat": 21.1365853,
+      "lon": 79.0749872
+    },
+    "Itwari": {
+      "lat": 21.1569338,
+      "lon": 79.1102582
+    },
+    "MIHAN": {
+      "lat": 21.0616937,
+      "lon": 79.0460178
+    },
+    "Butibori": {
+      "lat": 20.9281928,
+      "lon": 79.0070802
+    },
+    "Wardha Road": {
+      "lat": 21.1138092,
+      "lon": 79.0710495
+    },
+    "Kamptee Road": {
+      "lat": 21.2115786,
+      "lon": 79.1601145
+    },
+    "Koradi": {
+      "lat": 21.2414464,
+      "lon": 79.1027747
+    },
+    "Mahal": {
+      "lat": 21.1429969,
+      "lon": 79.1101819
+    },
+    "Cotton Market": {
+      "lat": 21.1460074,
+      "lon": 79.0906452
+    },
+    "Ajni": {
+      "lat": 21.1269226,
+      "lon": 79.0825751
+    },
+    "Jaripatka": {
+      "lat": 21.1886888,
+      "lon": 79.0918769
+    },
+    "Manish Nagar": {
+      "lat": 21.0920801,
+      "lon": 79.0726499
+    },
+    "Shankar Nagar": {
+      "lat": 21.1362125,
+      "lon": 79.0616442
+    }
+  },
+  "navi mumbai": {
+    "Vashi": {
+      "lat": 19.0632481,
+      "lon": 72.9987966
+    },
+    "Nerul": {
+      "lat": 19.0335938,
+      "lon": 73.018164
+    },
+    "Belapur": {
+      "lat": 19.0051696,
+      "lon": 73.0282853
+    },
+    "Kharghar": {
+      "lat": 19.025773,
+      "lon": 73.0591845
+    },
+    "Panvel": {
+      "lat": 19.0416496,
+      "lon": 73.0284345
+    },
+    "Airoli": {
+      "lat": 19.1585147,
+      "lon": 72.9994019
+    },
+    "Kopar Khairane": {
+      "lat": 19.1056227,
+      "lon": 72.9988648
+    },
+    "Ghansoli": {
+      "lat": 19.1163796,
+      "lon": 73.0069928
+    },
+    "Sanpada": {
+      "lat": 19.0659774,
+      "lon": 73.0095329
+    },
+    "Seawoods": {
+      "lat": 19.0213683,
+      "lon": 73.018939
+    },
+    "CBD Belapur": {
+      "lat": 19.0190244,
+      "lon": 73.0390629
+    },
+    "Turbhe": {
+      "lat": 19.0761648,
+      "lon": 73.0176615
+    },
+    "Rabale": {
+      "lat": 19.1366355,
+      "lon": 73.0027824
+    },
+    "Mahape": {
+      "lat": 19.1093012,
+      "lon": 73.0235724
+    },
+    "Kalamboli": {
+      "lat": 19.0235062,
+      "lon": 73.1106092
+    },
+    "Kamothe": {
+      "lat": 19.0164338,
+      "lon": 73.0806552
+    },
+    "New Panvel": {
+      "lat": 18.9982037,
+      "lon": 73.1236641
+    },
+    "Digha": {
+      "lat": 19.179578,
+      "lon": 72.9964178
+    },
+    "Juinagar": {
+      "lat": 19.0559456,
+      "lon": 73.0182495
+    }
+  },
+  "noida": {
+    "Sector 62": {
+      "lat": 28.6211447,
+      "lon": 77.3643493
+    },
+    "Noida City Centre (Sector 32)": {
+      "lat": 28.5752887,
+      "lon": 77.3554229
+    },
+    "Film City (Sector 16A)": {
+      "lat": 28.5628133,
+      "lon": 77.316257
+    },
+    "Greater Noida": {
+      "lat": 28.503475,
+      "lon": 77.3987831
+    },
+    "Yamuna Expressway": {
+      "lat": 28.406404,
+      "lon": 77.520785
+    },
+    "Sector 15": {
+      "lat": 28.5827978,
+      "lon": 77.3102221
+    },
+    "Sector 37": {
+      "lat": 28.5609423,
+      "lon": 77.3360564
+    },
+    "Pari Chowk": {
+      "lat": 28.4631285,
+      "lon": 77.5080985
+    },
+    "Sector 50": {
+      "lat": 28.5711552,
+      "lon": 77.3674862
+    },
+    "Sector 135": {
+      "lat": 28.4980046,
+      "lon": 77.4000326
+    },
+    "Noida-Greater Noida Expressway": {
+      "lat": 28.4610024,
+      "lon": 77.4630568
+    },
+    "Sector 110": {
+      "lat": 28.5311931,
+      "lon": 77.3851697
+    },
+    "Sector 75": {
+      "lat": 28.4716932,
+      "lon": 77.5313411
+    },
+    "Botanical Garden": {
+      "lat": 28.5639434,
+      "lon": 77.3343995
+    },
+    "Okhla Bird Sanctuary": {
+      "lat": 28.5569866,
+      "lon": 77.3090031
+    },
+    "Sector 44": {
+      "lat": 28.5531837,
+      "lon": 77.3381716
+    }
+  },
+  "patna": {
+    "Patna Junction": {
+      "lat": 25.6032109,
+      "lon": 85.1376861
+    },
+    "Gandhi Maidan": {
+      "lat": 25.6172993,
+      "lon": 85.145078
+    },
+    "Fraser Road": {
+      "lat": 25.6129358,
+      "lon": 85.1411304
+    },
+    "Ashok Rajpath": {
+      "lat": 25.6304278,
+      "lon": 85.1188374
+    },
+    "Kankarbagh": {
+      "lat": 25.5978353,
+      "lon": 85.1528569
+    },
+    "Boring Road": {
+      "lat": 25.616517,
+      "lon": 85.1137693
+    },
+    "Bailey Road": {
+      "lat": 25.610627,
+      "lon": 85.1262786
+    },
+    "Danapur": {
+      "lat": 25.6358901,
+      "lon": 85.0474045
+    },
+    "Patna Sahib (Harmandir Takht)": {
+      "lat": 25.5958292,
+      "lon": 85.2297928
+    },
+    "Patna University": {
+      "lat": 25.5424381,
+      "lon": 84.8516072
+    },
+    "Rajendra Nagar": {
+      "lat": 25.6005216,
+      "lon": 85.1640085
+    },
+    "Phulwari Sharif": {
+      "lat": 25.5866072,
+      "lon": 85.0802796
+    },
+    "Saguna More": {
+      "lat": 25.6233883,
+      "lon": 85.0416756
+    },
+    "AIIMS Patna": {
+      "lat": 25.5615706,
+      "lon": 85.0422873
+    },
+    "Patliputra Colony": {
+      "lat": 25.6291729,
+      "lon": 85.1095929
+    },
+    "Anisabad": {
+      "lat": 25.5858278,
+      "lon": 85.0964126
+    },
+    "Agam Kuan": {
+      "lat": 25.6006564,
+      "lon": 85.1991882
+    }
+  },
+  "pilani": {
+    "CEERI Pilani": {
+      "lat": 28.3672358,
+      "lon": 75.5838129
+    }
+  },
+  "pondicherry": {
+    "Auroville": {
+      "lat": 12.0170697,
+      "lon": 79.8148229
+    },
+    "Paradise Beach": {
+      "lat": 11.869834,
+      "lon": 79.8198877
+    },
+    "Promenade Beach": {
+      "lat": 11.9321674,
+      "lon": 79.8360554
+    },
+    "Bharathi Park": {
+      "lat": 11.9335989,
+      "lon": 79.8347239
+    },
+    "Goubert Market": {
+      "lat": 11.9357919,
+      "lon": 79.8282948
+    },
+    "Botanical Garden": {
+      "lat": 11.9297545,
+      "lon": 79.8236771
+    },
+    "Aurobindo Ashram": {
+      "lat": 11.9368043,
+      "lon": 79.8342897
+    },
+    "Manakula Vinayagar Temple": {
+      "lat": 11.9358379,
+      "lon": 79.8335964
+    },
+    "Pondy Bazaar": {
+      "lat": 11.946103,
+      "lon": 79.8380746
+    },
+    "Lawspet": {
+      "lat": 11.9546226,
+      "lon": 79.8119343
+    },
+    "University of Pondicherry": {
+      "lat": 12.0330772,
+      "lon": 79.8589702
+    },
+    "Mission Street": {
+      "lat": 11.9352952,
+      "lon": 79.8310969
+    },
+    "Villiyanur": {
+      "lat": 11.9200257,
+      "lon": 79.7583485
+    },
+    "Thavalakuppam": {
+      "lat": 11.8613452,
+      "lon": 79.7922263
+    }
+  },
+  "pune": {
+    "Pune Junction": {
+      "lat": 18.5288773,
+      "lon": 73.8744146
+    },
+    "Pune International Airport (Lohegaon)": {
+      "lat": 18.5803749,
+      "lon": 73.9182265
+    },
+    "Hinjewadi": {
+      "lat": 18.5740718,
+      "lon": 73.6800349
+    },
+    "Viman Nagar": {
+      "lat": 18.5703877,
+      "lon": 73.9133336
+    },
+    "Koregaon Park": {
+      "lat": 18.5366225,
+      "lon": 73.8932738
+    },
+    "Aundh": {
+      "lat": 18.5618834,
+      "lon": 73.8101957
+    },
+    "Kalyani Nagar": {
+      "lat": 18.5481382,
+      "lon": 73.9025513
+    },
+    "Shivaji Nagar": {
+      "lat": 18.532172,
+      "lon": 73.8496602
+    },
+    "Deccan Gymkhana": {
+      "lat": 18.5158926,
+      "lon": 73.84116
+    },
+    "Swargate": {
+      "lat": 18.5004949,
+      "lon": 73.8529037
+    },
+    "Kothrud": {
+      "lat": 18.5038889,
+      "lon": 73.807673
+    },
+    "Magarpatta City": {
+      "lat": 18.5111545,
+      "lon": 73.9273823
+    },
+    "Kharadi": {
+      "lat": 18.5512763,
+      "lon": 73.9416575
+    },
+    "Hadapsar": {
+      "lat": 18.5007741,
+      "lon": 73.9379146
+    },
+    "Baner": {
+      "lat": 18.5642431,
+      "lon": 73.7768573
+    },
+    "Sinhagad Road": {
+      "lat": 18.4915372,
+      "lon": 73.8335232
+    },
+    "Bhosari": {
+      "lat": 18.6210093,
+      "lon": 73.8501298
+    },
+    "Bibwewadi": {
+      "lat": 18.4807346,
+      "lon": 73.8668072
+    }
+  },
+  "raipur": {
+    "Raipur Junction": {
+      "lat": 21.2577979,
+      "lon": 81.6302867
+    },
+    "Swami Vivekananda Airport": {
+      "lat": 21.1853629,
+      "lon": 81.7459285
+    },
+    "Naya Raipur (Atal Nagar)": {
+      "lat": 21.1290954,
+      "lon": 81.7656956
+    },
+    "Gudhiyari": {
+      "lat": 21.2665922,
+      "lon": 81.6320129
+    },
+    "Tatibandh": {
+      "lat": 21.2586323,
+      "lon": 81.5696355
+    },
+    "Devendra Nagar": {
+      "lat": 21.2563469,
+      "lon": 81.642101
+    },
+    "Shankar Nagar": {
+      "lat": 21.2484764,
+      "lon": 81.6609145
+    },
+    "Kachna": {
+      "lat": 21.2741643,
+      "lon": 81.6983496
+    },
+    "Mahoba Bazar": {
+      "lat": 21.2590243,
+      "lon": 81.5892076
+    },
+    "Mowa": {
+      "lat": 21.2684799,
+      "lon": 81.6718031
+    },
+    "Amanaka": {
+      "lat": 21.2520432,
+      "lon": 81.5980279
+    },
+    "GE Road": {
+      "lat": 21.2394691,
+      "lon": 81.626741
+    }
+  },
+  "roorkee": {
+    "Roorkee Railway Station": {
+      "lat": 29.8520559,
+      "lon": 77.8748206
+    },
+    "Civil Lines (Roorkee)": {
+      "lat": 29.8720849,
+      "lon": 77.8890695
+    },
+    "Ganeshpur": {
+      "lat": 29.8597206,
+      "lon": 77.8737863
+    },
+    "Bus Stand Roorkee": {
+      "lat": 29.8640351,
+      "lon": 77.8885689
+    },
+    "Roorkee Cantonment": {
+      "lat": 29.8507068,
+      "lon": 77.8958547
+    },
+    "Haridwar Road": {
+      "lat": 29.8528484,
+      "lon": 77.8757213
+    },
+    "Malviya Chowk": {
+      "lat": 29.8672464,
+      "lon": 77.8738589
+    }
+  },
+  "salem": {
+    "Salem Town Railway Station": {
+      "lat": 11.6600537,
+      "lon": 78.1619935
+    },
+    "Salem Junction": {
+      "lat": 11.6707553,
+      "lon": 78.1135427
+    },
+    "New Bus Stand (Salem)": {
+      "lat": 11.6696127,
+      "lon": 78.1401559
+    },
+    "Mettur": {
+      "lat": 11.7928257,
+      "lon": 77.8648624
+    },
+    "Yercaud": {
+      "lat": 11.7852074,
+      "lon": 78.2075392
+    },
+    "Attur": {
+      "lat": 11.5995411,
+      "lon": 78.5962711
+    },
+    "Sankagiri": {
+      "lat": 11.4760857,
+      "lon": 77.8704045
+    },
+    "Edappadi": {
+      "lat": 11.5838413,
+      "lon": 77.8347612
+    },
+    "Omalur": {
+      "lat": 11.7428538,
+      "lon": 78.0472667
+    },
+    "Karuppur": {
+      "lat": 11.7200276,
+      "lon": 78.092039
+    },
+    "Ammapet": {
+      "lat": 11.6588239,
+      "lon": 78.1809483
+    },
+    "Gorimedu": {
+      "lat": 11.6952767,
+      "lon": 78.1636545
+    },
+    "Hasthampatty": {
+      "lat": 11.6696705,
+      "lon": 78.1581874
+    },
+    "Steel Plant": {
+      "lat": 11.6589588,
+      "lon": 78.0361415
+    },
+    "Suramangalam": {
+      "lat": 11.6753878,
+      "lon": 78.1193157
+    },
+    "Seelanaickenpatti": {
+      "lat": 11.6225098,
+      "lon": 78.1441326
+    },
+    "Fairlands": {
+      "lat": 11.6758097,
+      "lon": 78.1432672
+    },
+    "Dadagapatti": {
+      "lat": 11.633611,
+      "lon": 78.152022
+    },
+    "Kannankurichi": {
+      "lat": 11.698129,
+      "lon": 78.1779462
+    }
+  },
+  "surat": {
+    "Surat Railway Station": {
+      "lat": 21.2050337,
+      "lon": 72.8407079
+    },
+    "Surat Diamond Bourse": {
+      "lat": 21.1098618,
+      "lon": 72.7950774
+    },
+    "Varachha": {
+      "lat": 21.2130113,
+      "lon": 72.8572587
+    },
+    "Adajan": {
+      "lat": 21.2651204,
+      "lon": 72.8499128
+    },
+    "Katargam": {
+      "lat": 21.2288221,
+      "lon": 72.8253083
+    },
+    "Udhna": {
+      "lat": 21.1704267,
+      "lon": 72.8509905
+    },
+    "Hazira": {
+      "lat": 21.0956055,
+      "lon": 72.6466021
+    },
+    "City Light": {
+      "lat": 21.1632182,
+      "lon": 72.7963597
+    },
+    "Nanpura": {
+      "lat": 21.1898932,
+      "lon": 72.815368
+    },
+    "Pal": {
+      "lat": 21.1967679,
+      "lon": 72.7782724
+    },
+    "Bhatar": {
+      "lat": 21.1640107,
+      "lon": 72.8160897
+    },
+    "Sachin GIDC": {
+      "lat": 21.0991939,
+      "lon": 72.8570816
+    }
+  },
+  "thane": {
+    "Thane Railway Station": {
+      "lat": 19.1846144,
+      "lon": 72.9710278
+    },
+    "Thane West": {
+      "lat": 19.2568987,
+      "lon": 73.1328761
+    },
+    "Thane East": {
+      "lat": 19.1848999,
+      "lon": 72.9766955
+    },
+    "Naupada": {
+      "lat": 19.1896853,
+      "lon": 72.9696845
+    },
+    "Panchpakhadi": {
+      "lat": 19.1953526,
+      "lon": 72.9646974
+    },
+    "Ghodbunder Road": {
+      "lat": 19.2722898,
+      "lon": 72.963141
+    },
+    "Majiwada": {
+      "lat": 19.2130251,
+      "lon": 72.9784852
+    },
+    "Kolshet": {
+      "lat": 19.2389025,
+      "lon": 72.9932692
+    },
+    "Vasant Vihar": {
+      "lat": 19.2224897,
+      "lon": 72.9663424
+    },
+    "Kopri": {
+      "lat": 19.1825941,
+      "lon": 72.9732621
+    },
+    "Louis Wadi": {
+      "lat": 19.1962955,
+      "lon": 72.9623222
+    },
+    "Wagle Estate": {
+      "lat": 19.1985175,
+      "lon": 72.9509778
+    },
+    "Balkum": {
+      "lat": 19.2216908,
+      "lon": 72.9844924
+    },
+    "Kalwa": {
+      "lat": 19.1953415,
+      "lon": 72.9967893
+    },
+    "Upvan": {
+      "lat": 19.2204256,
+      "lon": 72.9536489
+    },
+    "Hiranandani Estate": {
+      "lat": 19.2570093,
+      "lon": 72.9839263
+    },
+    "Kasarvadavali": {
+      "lat": 19.2753837,
+      "lon": 72.9688917
+    },
+    "Kopri Colony": {
+      "lat": 19.1770747,
+      "lon": 72.968098
+    },
+    "Ovala": {
+      "lat": 19.2744049,
+      "lon": 72.9605558
+    },
+    "Mumbra": {
+      "lat": 19.1899425,
+      "lon": 73.0230752
+    }
+  },
+  "tiruchirappalli": {
+    "Srirangam": {
+      "lat": 10.8573308,
+      "lon": 78.6930848
+    },
+    "Thillai Nagar": {
+      "lat": 10.822226,
+      "lon": 78.6834046
+    },
+    "Central Bus Stand (Trichy)": {
+      "lat": 10.7986731,
+      "lon": 78.6803703
+    },
+    "Chatram Bus Stand": {
+      "lat": 10.8314408,
+      "lon": 78.6936276
+    },
+    "Tiruchirappalli Cantonment": {
+      "lat": 10.8048887,
+      "lon": 78.6861204
+    },
+    "BHEL Township (Kailasapuram)": {
+      "lat": 10.7787583,
+      "lon": 78.7950236
+    },
+    "Golden Rock": {
+      "lat": 10.7915686,
+      "lon": 78.7104342
+    },
+    "Woraiyur": {
+      "lat": 10.8280539,
+      "lon": 78.6731113
+    },
+    "KK Nagar (Trichy)": {
+      "lat": 10.7687504,
+      "lon": 78.6836905
+    },
+    "Manapparai": {
+      "lat": 10.6082305,
+      "lon": 78.4231246
+    },
+    "Samayapuram": {
+      "lat": 10.9203885,
+      "lon": 78.7410027
+    },
+    "Gundur": {
+      "lat": 10.7311593,
+      "lon": 78.7196751
+    },
+    "Puthur": {
+      "lat": 10.8149173,
+      "lon": 78.6774838
+    },
+    "Ponmalai": {
+      "lat": 10.7915686,
+      "lon": 78.7104342
+    }
+  },
+  "trivandrum": {
+    "Thiruvananthapuram Central Station": {
+      "lat": 8.4870167,
+      "lon": 76.9526408
+    },
+    "Trivandrum International Airport": {
+      "lat": 8.4820416,
+      "lon": 76.919059
+    },
+    "East Fort": {
+      "lat": 8.4835572,
+      "lon": 76.9474606
+    },
+    "Statue Junction": {
+      "lat": 8.4976401,
+      "lon": 76.9485627
+    },
+    "Palayam": {
+      "lat": 8.5030538,
+      "lon": 76.9500997
+    },
+    "Technopark (Kazhakkoottam)": {
+      "lat": 8.5578269,
+      "lon": 76.8807437
+    },
+    "Kazhakoottam": {
+      "lat": 8.556815,
+      "lon": 76.8727534
+    },
+    "Medical College (Thiruvananthapuram)": {
+      "lat": 8.5209794,
+      "lon": 76.9226146
+    },
+    "Vellayambalam": {
+      "lat": 8.511472,
+      "lon": 76.9622965
+    },
+    "Kovalam": {
+      "lat": 8.3902593,
+      "lon": 76.9785152
+    },
+    "Thampanoor": {
+      "lat": 8.4876666,
+      "lon": 76.952434
+    },
+    "Ulloor": {
+      "lat": 8.5300054,
+      "lon": 76.928621
+    },
+    "Vazhuthacaud": {
+      "lat": 8.5017399,
+      "lon": 76.9595706
+    },
+    "Pattom": {
+      "lat": 8.5186064,
+      "lon": 76.9423829
+    },
+    "Nemom": {
+      "lat": 8.4538721,
+      "lon": 77.0104923
+    },
+    "Thirumala": {
+      "lat": 8.5018495,
+      "lon": 76.9920046
+    },
+    "Attingal": {
+      "lat": 8.6985965,
+      "lon": 76.8134401
+    },
+    "Neyyattinkara": {
+      "lat": 8.385843,
+      "lon": 77.0650429
+    },
+    "Vizhinjam": {
+      "lat": 8.3818216,
+      "lon": 76.9916058
+    }
+  },
+  "varanasi": {
+    "Lal Bahadur Shastri Airport": {
+      "lat": 25.4509975,
+      "lon": 82.8635994
+    },
+    "Kashi Vishwanath Temple": {
+      "lat": 25.3108218,
+      "lon": 83.0106679
+    },
+    "Assi Ghat": {
+      "lat": 25.2890417,
+      "lon": 83.0069736
+    },
+    "Godowlia": {
+      "lat": 25.3092414,
+      "lon": 83.0068406
+    },
+    "Banaras Hindu University (BHU)": {
+      "lat": 25.2663747,
+      "lon": 82.9904648
+    },
+    "Lanka": {
+      "lat": 25.2810922,
+      "lon": 82.9988377
+    },
+    "Sigra": {
+      "lat": 25.3112567,
+      "lon": 82.9852117
+    },
+    "Sarnath": {
+      "lat": 25.3776274,
+      "lon": 83.0275999
+    },
+    "Pandeypur": {
+      "lat": 25.3354626,
+      "lon": 82.9827056
+    },
+    "Mahmoorganj": {
+      "lat": 25.3059635,
+      "lon": 82.9837455
+    },
+    "Ramnagar": {
+      "lat": 25.2701522,
+      "lon": 83.0299258
+    },
+    "Maldahiya": {
+      "lat": 25.3251266,
+      "lon": 82.9951071
+    },
+    "Bhelupur": {
+      "lat": 25.2952296,
+      "lon": 82.9978359
+    },
+    "Chetganj": {
+      "lat": 25.3204867,
+      "lon": 83.0015206
+    }
+  },
+  "vellore": {
+    "VIT University": {
+      "lat": 12.9697279,
+      "lon": 79.1606943
+    },
+    "Katpadi Junction": {
+      "lat": 12.9721529,
+      "lon": 79.1376369
+    },
+    "Vellore New Bus Stand": {
+      "lat": 12.9346933,
+      "lon": 79.1369774
+    },
+    "CMC Hospital": {
+      "lat": 12.9255495,
+      "lon": 79.1333775
+    },
+    "Vellore Fort": {
+      "lat": 12.9204669,
+      "lon": 79.1281816
+    },
+    "Bagayam": {
+      "lat": 12.8817915,
+      "lon": 79.1353324
+    },
+    "Gandhi Nagar": {
+      "lat": 12.9489171,
+      "lon": 79.1375685
+    },
+    "Sripuram Golden Temple": {
+      "lat": 12.8738498,
+      "lon": 79.088265
+    },
+    "Sathuvachari": {
+      "lat": 12.9361096,
+      "lon": 79.1557785
+    },
+    "Walajapet": {
+      "lat": 12.9291275,
+      "lon": 79.3638137
+    },
+    "Arcot": {
+      "lat": 12.7864752,
+      "lon": 79.1947328
+    },
+    "Pennathur": {
+      "lat": 12.8380301,
+      "lon": 79.1276944
+    },
+    "Thiruvalam": {
+      "lat": 12.9857071,
+      "lon": 79.2638223
+    },
+    "Gudiyatham": {
+      "lat": 12.9485676,
+      "lon": 78.8705336
+    }
+  },
+  "vijayawada": {
+    "Vijayawada Junction": {
+      "lat": 16.5179683,
+      "lon": 80.6195724
+    },
+    "Pandit Nehru Bus Station (PNBS)": {
+      "lat": 16.5133305,
+      "lon": 80.7076296
+    },
+    "Benz Circle": {
+      "lat": 16.4979577,
+      "lon": 80.6539187
+    },
+    "MG Road (Bandar Road)": {
+      "lat": 16.5013955,
+      "lon": 80.6446125
+    },
+    "Eluru Road": {
+      "lat": 16.5137919,
+      "lon": 80.6288263
+    },
+    "Governorpet": {
+      "lat": 16.5124871,
+      "lon": 80.6207343
+    },
+    "Autonagar": {
+      "lat": 16.4906913,
+      "lon": 80.6711891
+    },
+    "One Town": {
+      "lat": 16.5029269,
+      "lon": 80.6418934
+    },
+    "Kanaka Durga Temple": {
+      "lat": 16.5154312,
+      "lon": 80.6062147
+    },
+    "Bhavanipuram": {
+      "lat": 16.5247607,
+      "lon": 80.59317
+    },
+    "Patamata": {
+      "lat": 16.4948783,
+      "lon": 80.662537
+    },
+    "Labbipet": {
+      "lat": 16.5041903,
+      "lon": 80.6418471
+    },
+    "Singhnagar": {
+      "lat": 16.5367769,
+      "lon": 80.6362628
+    },
+    "Poranki": {
+      "lat": 16.4764339,
+      "lon": 80.7066674
+    },
+    "Gollapudi": {
+      "lat": 16.5374528,
+      "lon": 80.5848974
+    },
+    "Gunadala": {
+      "lat": 16.5187985,
+      "lon": 80.6588887
+    }
+  },
+  "visakhapatnam": {
+    "Visakhapatnam Railway Station": {
+      "lat": 17.7219335,
+      "lon": 83.2912803
+    },
+    "Visakhapatnam International Airport": {
+      "lat": 17.7218283,
+      "lon": 83.2354276
+    },
+    "Dwaraka Nagar": {
+      "lat": 17.7285947,
+      "lon": 83.3092963
+    },
+    "Gajuwaka": {
+      "lat": 17.6813983,
+      "lon": 83.2130062
+    },
+    "MVP Colony": {
+      "lat": 17.7422648,
+      "lon": 83.3356865
+    },
+    "Siripuram": {
+      "lat": 17.7208185,
+      "lon": 83.3172191
+    },
+    "RK Beach (Beach Road)": {
+      "lat": 17.711361,
+      "lon": 83.3177678
+    },
+    "Arilova": {
+      "lat": 17.7651243,
+      "lon": 83.3154134
+    },
+    "Waltair Uplands": {
+      "lat": 17.7234741,
+      "lon": 83.3133914
+    },
+    "NAD Junction": {
+      "lat": 17.7447607,
+      "lon": 83.2334046
+    },
+    "Gopalapatnam": {
+      "lat": 17.7483718,
+      "lon": 83.2200109
+    },
+    "Simhachalam": {
+      "lat": 17.7453138,
+      "lon": 83.2207916
+    },
+    "Anakapalle": {
+      "lat": 17.6845257,
+      "lon": 83.0067163
+    },
+    "Yendada": {
+      "lat": 17.7829332,
+      "lon": 83.357981
+    },
+    "Murali Nagar": {
+      "lat": 17.7472651,
+      "lon": 83.2649209
+    }
+  },
+  "warangal": {
+    "Warangal Railway Station": {
+      "lat": 17.9732956,
+      "lon": 79.6056068
+    },
+    "Hanamkonda": {
+      "lat": 18.0041136,
+      "lon": 79.5567776
+    },
+    "NIT Warangal (Kazipet)": {
+      "lat": 17.9833537,
+      "lon": 79.5335163
+    },
+    "Warangal Fort": {
+      "lat": 17.9564946,
+      "lon": 79.6154251
+    },
+    "Narsampet Road": {
+      "lat": 17.9440194,
+      "lon": 79.9044398
+    },
+    "Chintal": {
+      "lat": 17.9816989,
+      "lon": 79.6128251
+    },
+    "Mulkanoor": {
+      "lat": 18.0898998,
+      "lon": 79.3689835
+    },
+    "Shyampet": {
+      "lat": 17.9238832,
+      "lon": 79.690361
+    },
+    "Hunter Road": {
+      "lat": 17.9758645,
+      "lon": 79.5873627
+    },
+    "Parkal": {
+      "lat": 18.2009179,
+      "lon": 79.7017765
+    }
+  }
+};
+
+
 export const POPULAR_LOCATIONS = {
   ahmedabad: [
     "Ahmedabad Junction",
@@ -989,10 +3757,10 @@ export const POPULAR_LOCATIONS = {
 // Configuration
 // -----------------------------------------------------------------------------
 
-export const USE_TEST_LOCATION = false // change to false for production
+export const USE_TEST_LOCATION = true
 export const TEST_LOCATION: UserLocation = {
-  latitude: 12.9165,
-  longitude: 79.1325
+  latitude: 28.7041,
+  longitude: 77.1025
 }
 
 // -----------------------------------------------------------------------------
@@ -1001,7 +3769,7 @@ export const TEST_LOCATION: UserLocation = {
 
 const searchCache = new Map<string, LocationResult[]>()
 const nearbyPlacesCache = new Map<string, NearbyPlace[]>()
-const popularLocationsCache = new Map<string, string[]>()
+const popularLocationsCache = new Map<string, LocationResult[]>()
 const geocodingCache = new Map<string, {lat: number, lon: number}>()
 
 // -----------------------------------------------------------------------------
@@ -1050,227 +3818,234 @@ export const getEffectiveLocation = (
 // -----------------------------------------------------------------------------
 
 /**
- * Primary coordinate resolution using device's native geocoding
- * with OpenStreetMap as fallback
+ * Get coordinates for a location, preferring hardcoded coordinates for popular locations
  */
 export const getCoordinatesForLocation = async (
-  locationName: string
+  locationName: string,
+  cityName?: string
 ): Promise<{lat: number, lon: number} | null> => {
-  console.log(`🔍 Getting coordinates for: "${locationName}"`)
+  console.log(`Getting coordinates for: "${locationName}"`)
   
   const cacheKey = locationName.toLowerCase().trim()
   
-  // Check cache first
   if (geocodingCache.has(cacheKey)) {
-    console.log(`💾 Using cached coordinates for: ${locationName}`)
+    console.log(`Using cached coordinates for: ${locationName}`)
     return geocodingCache.get(cacheKey)!
   }
   
-  // 1. Try native device geocoding first (primary method)
+  if (cityName) {
+    const cityCoords = POPULAR_LOCATIONS_WITH_COORDS[cityName as keyof typeof POPULAR_LOCATIONS_WITH_COORDS]
+    if (cityCoords) {
+      const locationCoords = cityCoords[locationName as keyof typeof cityCoords] as { lat: number, lon: number } | undefined
+      if (locationCoords) {
+        const coords = { lat: locationCoords.lat, lon: locationCoords.lon }
+        console.log(`Using hardcoded coordinates for "${locationName}": (${coords.lat}, ${coords.lon})`)
+        geocodingCache.set(cacheKey, coords)
+        return coords
+      }
+    }
+  }
+  
   try {
-    console.log(`📱 Trying native geocoding for: "${locationName}"`)
-    const results = await Location.geocodeAsync(`${locationName}, India`)
+    console.log(`Trying native geocoding for: "${locationName}"`)
+    const searchQuery = cityName ? `${locationName}, ${cityName}, India` : `${locationName}, India`
+    const results = await Location.geocodeAsync(searchQuery)
     
     if (results && results.length > 0) {
       const { latitude, longitude } = results[0]
       
-      // Validate that coordinates are within India's bounds
       const isInIndiaBounds = latitude >= 6 && latitude <= 37 && longitude >= 68 && longitude <= 97
       
       if (isInIndiaBounds) {
         const coords = { lat: latitude, lon: longitude }
-        console.log(`✅ Native geocoding success for "${locationName}": (${latitude}, ${longitude})`)
+        console.log(`Native geocoding success for "${locationName}": (${latitude}, ${longitude})`)
         
-        // Cache the result
         geocodingCache.set(cacheKey, coords)
         return coords
       } else {
-        console.warn(`⚠️ Native geocoding returned coordinates outside India for "${locationName}": (${latitude}, ${longitude})`)
+        console.warn(`Native geocoding returned coordinates outside India for "${locationName}": (${latitude}, ${longitude})`)
       }
     } else {
-      console.log(`❌ No results from native geocoding for: "${locationName}"`)
+      console.log(`No results from native geocoding for: "${locationName}"`)
     }
   } catch (error) {
-    console.warn(`❌ Native geocoding failed for "${locationName}":`, error)
+    console.warn(`Native geocoding failed for "${locationName}":`, error)
   }
   
-  // 2. Fallback to OpenStreetMap (Nominatim API)
   try {
-    console.log(`🌍 Trying OpenStreetMap fallback for: "${locationName}"`)
-    const osmResults = await searchLocations(locationName, "India", 1)
+    console.log(`Trying OpenStreetMap fallback for: "${locationName}"`)
+    const searchQuery = cityName ? `${locationName}, ${cityName}, India` : locationName
+    const osmResults = await searchLocations(searchQuery, "India", 1)
     
     if (osmResults.length > 0) {
       const result = osmResults[0]
       const lat = parseFloat(result.lat)
       const lon = parseFloat(result.lon)
       
-      // Validate bounds again
       const isInIndiaBounds = lat >= 6 && lat <= 37 && lon >= 68 && lon <= 97
       
       if (isInIndiaBounds) {
         const coords = { lat, lon }
-        console.log(`✅ OpenStreetMap fallback success for "${locationName}": (${lat}, ${lon})`)
+        console.log(`OpenStreetMap fallback success for "${locationName}": (${lat}, ${lon})`)
         
-        // Cache the result
         geocodingCache.set(cacheKey, coords)
         return coords
       } else {
-        console.warn(`⚠️ OpenStreetMap returned coordinates outside India for "${locationName}": (${lat}, ${lon})`)
+        console.warn(`OpenStreetMap returned coordinates outside India for "${locationName}": (${lat}, ${lon})`)
       }
     } else {
-      console.log(`❌ No results from OpenStreetMap for: "${locationName}"`)
+      console.log(`No results from OpenStreetMap for: "${locationName}"`)
     }
   } catch (error) {
-    console.warn(`❌ OpenStreetMap fallback failed for "${locationName}":`, error)
+    console.warn(`OpenStreetMap fallback failed for "${locationName}":`, error)
   }
   
-  // 3. Last resort: Use known city coordinates for major Indian cities
   const knownCoords = getCityCoordinates(locationName)
   if (knownCoords.lat !== 12.9716 || knownCoords.lon !== 77.5946) {
-    // If it's not the default fallback, we found a match
-    console.log(`🏙️ Using known city coordinates for "${locationName}": (${knownCoords.lat}, ${knownCoords.lon})`)
+    console.log(`Using known city coordinates for "${locationName}": (${knownCoords.lat}, ${knownCoords.lon})`)
     geocodingCache.set(cacheKey, knownCoords)
     return knownCoords
   }
   
-  console.error(`❌ All coordinate resolution methods failed for: "${locationName}"`)
+  console.error(`All coordinate resolution methods failed for: "${locationName}"`)
   return null
 }
 
 /**
  * Known coordinates for major Indian cities
  */
-export const getCityCoordinates = (cityName: string): {lat: number, lon: number} => {
-  const normalizedCity = cityName.toLowerCase().trim()
-  
-  const cityCoordinates: Record<string, {lat: number, lon: number}> = {
+export const getCityCoordinates = (cityName: string): { lat: number; lon: number } => {
+  const normalizedCity = cityName.toLowerCase().trim();
+
+  const cityCoordinates: Record<string, { lat: number; lon: number }> = {
+    delhi:        { lat: 28.704060, lon: 77.102493 },
+    "new delhi": { lat: 28.613890, lon: 77.208890 },
+
     // Major metros
-    mumbai: { lat: 19.0760, lon: 72.8777 },
-    delhi: { lat: 28.6139, lon: 77.2090 },
-    "new delhi": { lat: 28.6139, lon: 77.2090 },
-    bangalore: { lat: 12.9716, lon: 77.5946 },
-    bengaluru: { lat: 12.9716, lon: 77.5946 },
-    hyderabad: { lat: 17.3850, lon: 78.4867 },
-    chennai: { lat: 13.0827, lon: 80.2707 },
-    kolkata: { lat: 22.5726, lon: 88.3639 },
-    pune: { lat: 18.5204, lon: 73.8567 },
-    ahmedabad: { lat: 23.0225, lon: 72.5714 },
-    
+    mumbai:       { lat: 19.075984, lon: 72.877656 },
+    bangalore:   { lat: 12.971599, lon: 77.594563 },
+    bengaluru:   { lat: 12.971599, lon: 77.594563 },
+    hyderabad:   { lat: 17.385044, lon: 78.486671 },
+    chennai:     { lat: 13.082680, lon: 80.270718 },
+    kolkata:     { lat: 22.572646, lon: 88.363895 },
+    pune:        { lat: 18.520430, lon: 73.856743 },
+    ahmedabad:   { lat: 23.022505, lon: 72.571365 },
+
     // Tier 2 cities
-    jaipur: { lat: 26.9124, lon: 75.7873 },
-    surat: { lat: 21.1702, lon: 72.8311 },
-    lucknow: { lat: 26.8467, lon: 80.9462 },
-    kanpur: { lat: 26.4499, lon: 80.3319 },
-    nagpur: { lat: 21.1458, lon: 79.0882 },
-    indore: { lat: 22.7196, lon: 75.8577 },
-    thane: { lat: 19.2183, lon: 72.9781 },
-    bhopal: { lat: 23.2599, lon: 77.4126 },
-    visakhapatnam: { lat: 17.6868, lon: 83.2185 },
-    pimpri: { lat: 18.6298, lon: 73.8073 },
-    patna: { lat: 25.5941, lon: 85.1376 },
-    vadodara: { lat: 22.3072, lon: 73.1812 },
-    ghaziabad: { lat: 28.6692, lon: 77.4538 },
-    ludhiana: { lat: 30.9010, lon: 75.8573 },
-    agra: { lat: 27.1767, lon: 78.0081 },
-    nashik: { lat: 19.9975, lon: 73.7898 },
-    faridabad: { lat: 28.4089, lon: 77.3178 },
-    meerut: { lat: 28.9845, lon: 77.7064 },
-    rajkot: { lat: 23.2156, lon: 70.6369 },
-    kalyan: { lat: 19.2437, lon: 73.1355 },
-    vasai: { lat: 19.4559, lon: 72.8136 },
-    varanasi: { lat: 25.3176, lon: 82.9739 },
-    srinagar: { lat: 34.0837, lon: 74.7973 },
-    aurangabad: { lat: 19.8762, lon: 75.3433 },
-    dhanbad: { lat: 23.7957, lon: 86.4304 },
-    amritsar: { lat: 31.6340, lon: 74.8723 },
-    "navi mumbai": { lat: 19.0330, lon: 73.0297 },
-    allahabad: { lat: 25.4358, lon: 81.8463 },
-    prayagraj: { lat: 25.4358, lon: 81.8463 },
-    ranchi: { lat: 23.3441, lon: 85.3096 },
-    howrah: { lat: 22.5958, lon: 88.2636 },
-    coimbatore: { lat: 11.0168, lon: 76.9558 },
-    jabalpur: { lat: 23.1815, lon: 79.9864 },
-    gwalior: { lat: 26.2183, lon: 78.1828 },
-    vijayawada: { lat: 16.5062, lon: 80.6480 },
-    jodhpur: { lat: 26.2389, lon: 73.0243 },
-    madurai: { lat: 9.9252, lon: 78.1198 },
-    raipur: { lat: 21.2514, lon: 81.6296 },
-    kota: { lat: 25.2138, lon: 75.8648 },
-    chandigarh: { lat: 30.7333, lon: 76.7794 },
-    guwahati: { lat: 26.1445, lon: 91.7362 },
-    salem: { lat: 11.6643, lon: 78.1460 },
-    "jammu": { lat: 32.7266, lon: 74.8570 },
-    noida: { lat: 28.5355, lon: 77.3910 },
-    gurgaon: { lat: 28.4595, lon: 77.0266 },
-    gurugram: { lat: 28.4595, lon: 77.0266 },
-    
-    // Educational hub cities
-    vellore: { lat: 12.9165, lon: 79.1325 },
-    "vit vellore": { lat: 12.9165, lon: 79.1325 },
-    "vit university": { lat: 12.9165, lon: 79.1325 },
-    manipal: { lat: 13.3409, lon: 74.7421 },
-    pilani: { lat: 28.3670, lon: 75.5836 },
-    "bits pilani": { lat: 28.3670, lon: 75.5836 },
-    kharagpur: { lat: 22.3460, lon: 87.2320 },
-    "iit kharagpur": { lat: 22.3460, lon: 87.2320 },
-    roorkee: { lat: 29.8543, lon: 77.8880 },
-    "iit roorkee": { lat: 29.8543, lon: 77.8880 },
-    "nit trichy": { lat: 10.7905, lon: 78.7047 },
-    tiruchirappalli: { lat: 10.7905, lon: 78.7047 },
-    trichy: { lat: 10.7905, lon: 78.7047 },
-    warangal: { lat: 18.0095, lon: 79.5378 },
-    "nit warangal": { lat: 18.0095, lon: 79.5378 },
-    
+    jaipur:      { lat: 26.912434, lon: 75.787270 },
+    surat:       { lat: 21.170240, lon: 72.831062 },
+    lucknow:     { lat: 26.846695, lon: 80.946166 },
+    kanpur:      { lat: 26.449923, lon: 80.331874 },
+    nagpur:      { lat: 21.145800, lon: 79.088154 },
+    indore:      { lat: 22.719568, lon: 75.857727 },
+    thane:       { lat: 19.218330, lon: 72.978088 },
+    bhopal:      { lat: 23.259933, lon: 77.412613 },
+    visakhapatnam:{ lat: 17.686816, lon: 83.218483 },
+    pimpri:      { lat: 18.629819, lon: 73.799664 },
+    patna:       { lat: 25.594094, lon: 85.137566 },
+    vadodara:    { lat: 22.307158, lon: 73.181218 },
+    ghaziabad:   { lat: 28.669154, lon: 77.453758 },
+    ludhiana:    { lat: 30.901014, lon: 75.857276 },
+    agra:        { lat: 27.176670, lon: 78.008074 },
+    nashik:      { lat: 19.997453, lon: 73.789803 },
+    faridabad:   { lat: 28.408966, lon: 77.317789 },
+    meerut:      { lat: 28.984464, lon: 77.706413 },
+    rajkot:      { lat: 22.300000, lon: 70.783300 },
+    kalyan:      { lat: 19.240000, lon: 73.130000 },
+    vasai:       { lat: 19.470000, lon: 72.800000 },
+    varanasi:    { lat: 25.317644, lon: 82.973914 },
+    srinagar:    { lat: 34.083656, lon: 74.797371 },
+    aurangabad:  { lat: 19.876165, lon: 75.343324 },
+    dhanbad:     { lat: 23.795715, lon: 86.430421 },
+    amritsar:    { lat: 31.634035, lon: 74.872264 },
+    "navi mumbai":{ lat: 19.033000, lon: 73.029700 },
+    allahabad:   { lat: 25.435800, lon: 81.846300 },
+    prayagraj:   { lat: 25.435800, lon: 81.846300 },
+    ranchi:      { lat: 23.344099, lon: 85.309563 },
+    howrah:      { lat: 22.595821, lon: 88.263640 },
+    coimbatore:  { lat: 11.016844, lon: 76.955832 },
+    jabalpur:    { lat: 23.181467, lon: 79.986407 },
+    gwalior:     { lat: 26.218258, lon: 78.182830 },
+    vijayawada:  { lat: 16.506174, lon: 80.648015 },
+    jodhpur:     { lat: 26.238947, lon: 73.024309 },
+    madurai:     { lat: 9.925203,  lon: 78.119775 },
+    raipur:      { lat: 21.251384, lon: 81.629637 },
+    kota:        { lat: 25.213814, lon: 75.864799 },
+    chandigarh:  { lat: 30.733314, lon: 76.779418 },
+    guwahati:    { lat: 26.144518, lon: 91.736237 },
+    salem:       { lat: 11.664325, lon: 78.146012 },
+    jammu:       { lat: 32.726603, lon: 74.857025 },
+    noida:       { lat: 28.535516, lon: 77.391026 },
+    gurgaon:     { lat: 28.459496, lon: 77.026638 },
+    gurugram:    { lat: 28.459496, lon: 77.026638 },
+
+    // Educational hubs
+    vellore:     { lat: 12.916500, lon: 79.132500 },
+    "vit vellore":   { lat: 12.916500, lon: 79.132500 },
+    "vit university":{ lat: 12.916500, lon: 79.132500 },
+    manipal:     { lat: 13.340556, lon: 74.741667 },
+    pilani:      { lat: 28.358333, lon: 75.586667 },
+    "bits pilani":   { lat: 28.358333, lon: 75.586667 },
+    kharagpur:   { lat: 22.346000, lon: 87.232000 },
+    "iit kharagpur": { lat: 22.346000, lon: 87.232000 },
+    roorkee:     { lat: 29.854300, lon: 77.888000 },
+    "iit roorkee":   { lat: 29.854300, lon: 77.888000 },
+    "nit trichy":    { lat: 10.790483, lon: 78.704673 },
+    tiruchirappalli: { lat: 10.790483, lon: 78.704673 },
+    trichy:      { lat: 10.790483, lon: 78.704673 },
+    warangal:    { lat: 17.968900, lon: 79.594100 },
+    "nit warangal":  { lat: 17.968900, lon: 79.594100 },
+
     // South Indian cities
-    trivandrum: { lat: 8.5241, lon: 76.9366 },
-    thiruvananthapuram: { lat: 8.5241, lon: 76.9366 },
-    kochi: { lat: 9.9312, lon: 76.2673 },
-    cochin: { lat: 9.9312, lon: 76.2673 },
-    kozhikode: { lat: 11.2588, lon: 75.7804 },
-    calicut: { lat: 11.2588, lon: 75.7804 },
-    mysore: { lat: 12.2958, lon: 76.6394 },
-    mysuru: { lat: 12.2958, lon: 76.6394 },
-    mangalore: { lat: 12.9141, lon: 74.8560 },
-    hubli: { lat: 15.3647, lon: 75.1240 },
-    belgaum: { lat: 15.8497, lon: 74.4977 },
-    pondicherry: { lat: 11.9416, lon: 79.8083 },
-    puducherry: { lat: 11.9416, lon: 79.8083 },
-    
+    trivandrum:  { lat: 8.524100, lon: 76.936600 },
+    thiruvananthapuram: { lat: 8.524100, lon: 76.936600 },
+    kochi:       { lat: 9.931200, lon: 76.267300 },
+    cochin:      { lat: 9.931200, lon: 76.267300 },
+    kozhikode:   { lat: 11.258800, lon: 75.780400 },
+    calicut:     { lat: 11.258800, lon: 75.780400 },
+    mysore:      { lat: 12.295800, lon: 76.639400 },
+    mysuru:      { lat: 12.295800, lon: 76.639400 },
+    mangalore:   { lat: 12.914100, lon: 74.856000 },
+    hubli:       { lat: 15.364700, lon: 75.124000 },
+    belgaum:     { lat: 15.849694, lon: 74.497672 },
+    pondicherry: { lat: 11.941600, lon: 79.808300 },
+    puducherry:  { lat: 11.941600, lon: 79.808300 },
+
     // North-East
-    shillong: { lat: 25.5788, lon: 91.8933 },
-    imphal: { lat: 24.8170, lon: 93.9368 },
-    aizawl: { lat: 23.7271, lon: 92.7176 },
-    agartala: { lat: 23.8315, lon: 91.2868 },
-    gangtok: { lat: 27.3389, lon: 88.6065 },
-    kohima: { lat: 25.6751, lon: 94.1086 },
-    itanagar: { lat: 27.0844, lon: 93.6053 },
-    dispur: { lat: 26.1445, lon: 91.7362 },
-    
+    shillong:    { lat: 25.578800, lon: 91.893300 },
+    imphal:      { lat: 24.817000, lon: 93.936800 },
+    aizawl:      { lat: 23.727100, lon: 92.717600 },
+    agartala:    { lat: 23.831500, lon: 91.286800 },
+    gangtok:     { lat: 27.338900, lon: 88.606500 },
+    kohima:      { lat: 25.675100, lon: 94.108600 },
+    itanagar:    { lat: 27.084400, lon: 93.605300 },
+    dispur:      { lat: 26.144500, lon: 91.736200 },
+
     // Other important cities
-    aligarh: { lat: 27.8974, lon: 78.0880 },
-    bareilly: { lat: 28.3670, lon: 79.4304 },
-    moradabad: { lat: 28.8386, lon: 78.7733 },
-    siliguri: { lat: 26.7271, lon: 88.3953 },
-    durgapur: { lat: 23.5204, lon: 87.3119 },
-    bhubaneswar: { lat: 20.2961, lon: 85.8245 },
-    cuttack: { lat: 20.4625, lon: 85.8828 }
-  }
-  
-  // Try exact match first
+    aligarh:     { lat: 27.897400, lon: 78.088000 },
+    bareilly:    { lat: 28.367000, lon: 79.430400 },
+    moradabad:   { lat: 28.838600, lon: 78.773300 },
+    siliguri:    { lat: 26.727100, lon: 88.395300 },
+    durgapur:    { lat: 23.520400, lon: 87.311900 },
+    bhubaneswar: { lat: 20.296100, lon: 85.824500 },
+    cuttack:     { lat: 20.462500, lon: 85.882800 },
+  };
+
+  // exact match
   if (cityCoordinates[normalizedCity]) {
-    return cityCoordinates[normalizedCity]
+    return cityCoordinates[normalizedCity];
   }
-  
-  // Try partial match
+
+  // partial match
   for (const [key, coords] of Object.entries(cityCoordinates)) {
     if (key.includes(normalizedCity) || normalizedCity.includes(key)) {
-      return coords
+      return coords;
     }
   }
-  
-  // Default fallback (Bangalore)
-  return { lat: 12.9716, lon: 77.5946 }
-}
+
+  // fallback
+  return { lat: 12.971599, lon: 77.594563 };
+};
 
 // -----------------------------------------------------------------------------
 // OpenStreetMap (Nominatim) API Functions
@@ -1292,7 +4067,7 @@ export const searchLocations = async (
     
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Unipool-App/1.0',
+        'User-Agent': 'UniPool-App/1.0',
       },
     })
 
@@ -1325,13 +4100,11 @@ export const searchLocationsWithFallback = async (
   limit = 10
 ): Promise<LocationResult[]> => {
   try {
-    // Primary search
     const results = await searchLocations(query, region, limit)
     if (results.length > 0) {
       return results
     }
 
-    // If no results, try a broader search
     const broaderQuery = query.split(',')[0].trim()
     if (broaderQuery !== query) {
       const broaderResults = await searchLocations(broaderQuery, region, limit)
@@ -1357,7 +4130,7 @@ export const debouncedSearchLocationsWithFallback = debounce(searchLocationsWith
 export const getPopularLocations = async (
   searchQuery: string,
   userLocation?: UserLocation
-): Promise<string[]> => {
+): Promise<LocationResult[]> => {
   const cacheKey = `${searchQuery}_${userLocation?.latitude}_${userLocation?.longitude}`
   
   if (popularLocationsCache.has(cacheKey)) {
@@ -1378,29 +4151,57 @@ export const getPopularLocations = async (
       return []
     }
     
+    let filteredLocationNames: string[] = []
+    
     if (searchQuery.trim() === "") {
-      popularLocationsCache.set(cacheKey, cityLocations)
-      return cityLocations
+      filteredLocationNames = cityLocations
+    } else {
+      filteredLocationNames = cityLocations.filter(location =>
+        location.toLowerCase().includes(searchQuery.toLowerCase())
+      )
     }
     
-    const filtered = cityLocations.filter(location =>
-      location.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    const geocodedResults: LocationResult[] = []
     
-    popularLocationsCache.set(cacheKey, filtered)
-    return filtered
+    for (const locationName of filteredLocationNames) {
+      try {
+        const coordinates = await getCoordinatesForLocation(locationName, cityName)
+        if (coordinates) {
+          const locationResult: LocationResult = {
+            display_name: `${locationName}, ${cityName}, India`,
+            lat: coordinates.lat.toString(),
+            lon: coordinates.lon.toString(),
+            place_id: `popular_${locationName.replace(/\s+/g, '_').toLowerCase()}_${cityName}`,
+            name: locationName
+          }
+          geocodedResults.push(locationResult)
+        } else {
+          console.warn(`Failed to geocode popular location: ${locationName}`)
+        }
+      } catch (error) {
+        console.warn(`Error geocoding popular location "${locationName}":`, error)
+      }
+    }
+    
+    popularLocationsCache.set(cacheKey, geocodedResults)
+    
+    // Validate results before returning
+    const validatedResults = validateLocationResults(geocodedResults)
+    console.log(`Got ${validatedResults.length} valid popular locations out of ${geocodedResults.length} total`)
+    
+    return validatedResults
   } catch (error) {
     console.error("Error getting popular locations:", error)
     return []
   }
 }
 
-export const getPopularLocationsFallback = (searchQuery: string): string[] => {
+export const getPopularLocationsFallback = (searchQuery: string): LocationResult[] => {
   console.warn("getPopularLocationsFallback called - this should not be used anymore without user location")
   return []
 }
 
-export const getPopularLocationsByCity = (cityName: string): string[] => {
+export const getPopularLocationsByCity = (cityName: string): LocationResult[] => {
   const normalizedCity = cityName.toLowerCase().trim()
   const locations = POPULAR_LOCATIONS[normalizedCity as keyof typeof POPULAR_LOCATIONS]
   
@@ -1409,7 +4210,17 @@ export const getPopularLocationsByCity = (cityName: string): string[] => {
     return []
   }
   
-  return locations
+  // Convert string array to LocationResult array with geocoding
+  return locations.map(locationName => {
+    const coordinates = getCityCoordinates(locationName)
+    return {
+      display_name: `${locationName}, ${cityName}, India`,
+      lat: coordinates.lat.toString(),
+      lon: coordinates.lon.toString(),
+      place_id: `popular_${locationName.replace(/\s+/g, '_').toLowerCase()}_${cityName}`,
+      name: locationName
+    }
+  })
 }
 
 export const getNearestCity = async (userLocation: UserLocation): Promise<string> => {
@@ -1580,4 +4391,35 @@ export const isLocationInIndia = (locationResult: LocationResult): boolean => {
   const lon = parseFloat(locationResult.lon)
   
   return lat >= 6 && lat <= 37 && lon >= 68 && lon <= 97
+}
+
+export const getLocationDisplayName = (location: LocationResult | string): string => {
+  if (typeof location === 'string') {
+    return location
+  }
+  return location.name || location.display_name || 'Unknown Location'
+}
+
+export const validateLocationResults = (locations: LocationResult[]): LocationResult[] => {
+  return locations.filter(location => {
+    if (!location || typeof location !== 'object') {
+      console.warn('Invalid location object:', location)
+      return false
+    }
+    
+    if (!location.lat || !location.lon || !location.display_name) {
+      console.warn('Location missing required fields:', location)
+      return false
+    }
+    
+    const lat = parseFloat(location.lat)
+    const lon = parseFloat(location.lon)
+    
+    if (isNaN(lat) || isNaN(lon)) {
+      console.warn('Location has invalid coordinates:', location)
+      return false
+    }
+    
+    return true
+  })
 }

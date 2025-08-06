@@ -39,17 +39,22 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
 
   const fetchedOnceRef = useRef(false);
+  const backgroundRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchLocation = async (retryCount = 0) => {
+  const fetchLocation = async (retryCount = 0, isBackgroundRetry = false) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (!isBackgroundRetry) {
+        setLoading(true);
+        setError(null);
+      }
 
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         setError("Permission denied");
         setLocationText("Permission denied");
-        setLoading(false);
+        if (!isBackgroundRetry) {
+          setLoading(false);
+        }
         return;
       }
 
@@ -78,21 +83,9 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
         
         let locStr = "";
         
-        const isLandmark = (text: string | null): boolean => {
-          if (!text) return false;
-          const landmarkKeywords = [
-            'Institute', 'University', 'College', 'Hospital', 'Mall', 'Airport', 
-            'Station', 'Park', 'Temple', 'Church', 'Mosque', 'School', 'Market',
-            'Complex', 'Center', 'Centre', 'Plaza', 'Tower', 'Building', 'Campus'
-          ];
-          return landmarkKeywords.some(keyword => text.includes(keyword));
-        };
-        
-        if (first.name && first.name !== first.city && first.name !== first.district && isLandmark(first.name)) {
-          locStr = first.name;
-        } else if (first.name && first.name !== first.city && first.name !== first.district) {
-          locStr = first.name;
-        } else if (first.district && first.district !== first.city) {
+        // Priority order: district -> subregion -> city -> region
+        // Avoid overly specific street names or landmarks
+        if (first.district && first.district !== first.city) {
           locStr = first.district;
         } else if (first.subregion && first.subregion !== first.city) {
           locStr = first.subregion;
@@ -108,6 +101,7 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
         
         setLocationText(locStr || "Location found");
         setPincode(first.postalCode || "");
+        setError(null);
       }
 
       setLastUpdated(Date.now());
@@ -115,15 +109,26 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
       console.error("Location fetch error:", e);
       if (retryCount < 1) {
         console.log("Retrying location fetch with lower accuracy...");
-        setTimeout(() => fetchLocation(retryCount + 1), 2000);
+        setTimeout(() => fetchLocation(retryCount + 1, isBackgroundRetry), 2000);
         return;
       }
+      
       setError("Failed to get location");
-      if (!locationText || locationText === "Fetching location...") {
+      if (!isBackgroundRetry && (!locationText || locationText === "Fetching location...")) {
         setLocationText("Failed to get location");
       }
+      
+      if (!isBackgroundRetry || retryCount < 4) {
+        const retryDelay = isBackgroundRetry ? 30000 : 15000;
+        backgroundRetryTimeoutRef.current = setTimeout(() => {
+          console.log("Background retry attempt for location...");
+          fetchLocation(0, true);
+        }, retryDelay);
+      }
     } finally {
-      setLoading(false);
+      if (!isBackgroundRetry) {
+        setLoading(false);
+      }
     }
   };
 
@@ -132,9 +137,19 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
       fetchedOnceRef.current = true;
       void fetchLocation();
     }
+    
+    return () => {
+      if (backgroundRetryTimeoutRef.current) {
+        clearTimeout(backgroundRetryTimeoutRef.current);
+      }
+    };
   }, []);
 
   const refreshLocation = async () => {
+    if (backgroundRetryTimeoutRef.current) {
+      clearTimeout(backgroundRetryTimeoutRef.current);
+      backgroundRetryTimeoutRef.current = null;
+    }
     await fetchLocation();
   };
 
