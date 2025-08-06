@@ -26,6 +26,7 @@ import {
   getPopularLocationsFallback,
   LocationResult,
   formatLocationName,
+  getLocationDisplayName,
   POPULAR_LOCATIONS,
   UserLocation,
   NearbyPlace,
@@ -162,7 +163,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<LocationResult[]>([]);
-  const [popularLocations, setPopularLocations] = useState<string[]>([]);
+  const [popularLocations, setPopularLocations] = useState<LocationResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingPopular, setIsLoadingPopular] = useState(false);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
@@ -222,13 +223,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           setSearchResults(results);
         } catch (error) {
           console.error('Search failed:', error);
-          const fallbackResults = getPopularLocationsFallback(text).slice(0, 4).map((location, index) => ({
-            display_name: `${location}, India`,
-            lat: "13.0827",
-            lon: "80.2707", 
-            place_id: `fallback_${index}`,
-            name: location
-          }));
+          const fallbackResults = getPopularLocationsFallback(text).slice(0, 4);
           setSearchResults(fallbackResults);
         } finally {
           setIsSearching(false);
@@ -768,14 +763,14 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                       key={`popular-${index}`}
                       style={styles.locationItem}
                       onPress={() =>
-                        handleLocationSelect(location, showFromDropdown)
+                        handleLocationSelect(getLocationDisplayName(location), showFromDropdown, location)
                       }
                     >
                       <Image
                         source={require("../assets/location-pin.png")}
                         style={styles.locationIcon}
                       />
-                      <Text style={styles.locationText}>{location}</Text>
+                      <Text style={styles.locationText}>{getLocationDisplayName(location)}</Text>
                     </TouchableOpacity>
                   ))}
                 </>
