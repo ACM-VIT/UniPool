@@ -24,6 +24,13 @@ const AccountSettingsScreen: React.FC = () => {
             setLoading(true);
             try {
               await apiUtil.delete('/user/delete');
+              try {
+                const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+                await AsyncStorage.removeItem('lastUserVerification');
+                console.log('lastUserVerification removed from AsyncStorage after account deletion');
+              } catch (e) {
+                console.log('Could not remove lastUserVerification after account deletion:', e);
+              }
               Alert.alert('Account Deleted', 'Your account has been deleted.');
               (navigation as any).reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
             } catch (err) {

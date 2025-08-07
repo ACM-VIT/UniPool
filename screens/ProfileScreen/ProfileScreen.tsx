@@ -429,19 +429,20 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             try {
               const { getAuth, signOut } = await import('@react-native-firebase/auth');
               const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
-        
+
               console.log("Starting logout process...");
               const auth = getAuth();
               await signOut(auth);
               console.log("Firebase signout completed");
-              
+
               await AsyncStorage.removeItem('unipool_start_address');
               await AsyncStorage.removeItem('defaultAddress');
-              console.log("AsyncStorage cleared");
-              
+              await AsyncStorage.removeItem('lastUserVerification');
+              console.log("AsyncStorage cleared (including lastUserVerification)");
+
               setUserData(null);
               console.log("Navigating to AuthScreen...");
-              
+
               if (navigation && navigation.reset) {
                 navigation.reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
                 console.log("Navigation reset completed");
@@ -536,7 +537,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         }}
         activeOpacity={0.7}
       >
-        {/* {item.icon && (
+         {item.icon && (
           <Image
             source={item.icon}
             style={[
@@ -545,7 +546,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             ]}
             resizeMode="contain"
           />
-        )} */}
+        )} 
         <Text style={styles.menuItemText}>{item.title}</Text>
         {/* {item.hasCheckmark && (
           <Image

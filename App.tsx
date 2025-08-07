@@ -121,6 +121,40 @@ const AppContent = () => {
   const [showCustomSplash, setShowCustomSplash] = useState(true);
   const [authStateResolved, setAuthStateResolved] = useState(false);
   const [pushToken, setPushToken] = useState<string | null>(null);
+  const [lastUserVerification, setLastUserVerification] = useState<number | null>(null);
+
+  const isCachedAuthValid = () => {
+    if (!lastUserVerification) return false;
+    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+    return lastUserVerification > twentyFourHoursAgo;
+  };
+
+  const markUserAsVerified = () => {
+    const now = Date.now();
+    setLastUserVerification(now);
+    try {
+      import('@react-native-async-storage/async-storage').then(({ default: AsyncStorage }) => {
+        AsyncStorage.setItem('lastUserVerification', now.toString());
+      });
+    } catch (error) {
+      console.log('Could not store verification timestamp:', error);
+    }
+  };
+
+  useEffect(() => {
+    const loadCachedVerification = async () => {
+      try {
+        const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+        const cached = await AsyncStorage.getItem('lastUserVerification');
+        if (cached) {
+          setLastUserVerification(parseInt(cached));
+        }
+      } catch (error) {
+        console.log('Could not load cached verification:', error);
+      }
+    };
+    loadCachedVerification();
+  }, []);
 
   const [fontsLoaded] = useFonts({
     NunitoSans_400Regular,
@@ -254,6 +288,7 @@ const AppContent = () => {
             try {
               await apiUtil.get("/user/details");
               console.log("User details found in database, setting route to HomeScreen");
+              markUserAsVerified();
               setInitialRoute("HomeScreen");
             } catch (userDetailsError: any) {
               if (userDetailsError.status === 404 && 
@@ -261,6 +296,22 @@ const AppContent = () => {
                   userDetailsError.message.includes("User not found")) {
                 console.log("User not found in database, redirecting to signup");
                 setInitialRoute("SignUpScreen");
+              } else if (userDetailsError.message && userDetailsError.message.includes("Timeout")) {
+                if (isCachedAuthValid()) {
+                  console.log("Network timeout but cached auth is valid (within 24h), proceeding to HomeScreen");
+                  setInitialRoute("HomeScreen");
+                } else {
+                  console.log("Network timeout and no valid cached auth, redirecting to AuthScreen");
+                  setInitialRoute("AuthScreen");
+                }
+              } else if (userDetailsError.status >= 500) {
+                if (isCachedAuthValid()) {
+                  console.log("Server error but cached auth is valid (within 24h), proceeding to HomeScreen");
+                  setInitialRoute("HomeScreen");
+                } else {
+                  console.log("Server error and no valid cached auth, redirecting to AuthScreen");
+                  setInitialRoute("AuthScreen");
+                }
               } else {
                 console.error("Error checking user details:", userDetailsError);
                 console.log("Redirecting to AuthScreen due to user details error");
@@ -272,10 +323,10 @@ const AppContent = () => {
             const freshToken = await user.getIdTokenResult(true);
             console.log("Fresh token obtained, checking user details in database...");
             
-            // Check if user exists in database before proceeding to HomeScreen
             try {
               await apiUtil.get("/user/details");
               console.log("User details found in database, setting route to HomeScreen");
+              markUserAsVerified();
               setInitialRoute("HomeScreen");
             } catch (userDetailsError: any) {
               if (userDetailsError.status === 404 && 
@@ -283,6 +334,22 @@ const AppContent = () => {
                   userDetailsError.message.includes("User not found")) {
                 console.log("User not found in database, redirecting to signup");
                 setInitialRoute("SignUpScreen");
+              } else if (userDetailsError.message && userDetailsError.message.includes("Timeout")) {
+                if (isCachedAuthValid()) {
+                  console.log("Network timeout but cached auth is valid (within 24h), proceeding to HomeScreen");
+                  setInitialRoute("HomeScreen");
+                } else {
+                  console.log("Network timeout and no valid cached auth, redirecting to AuthScreen");
+                  setInitialRoute("AuthScreen");
+                }
+              } else if (userDetailsError.status >= 500) {
+                if (isCachedAuthValid()) {
+                  console.log("Server error but cached auth is valid (within 24h), proceeding to HomeScreen");
+                  setInitialRoute("HomeScreen");
+                } else {
+                  console.log("Server error and no valid cached auth, redirecting to AuthScreen");
+                  setInitialRoute("AuthScreen");
+                }
               } else {
                 console.error("Error checking user details:", userDetailsError);
                 console.log("Redirecting to AuthScreen due to user details error");
@@ -325,6 +392,7 @@ const AppContent = () => {
             try {
               await apiUtil.get("/user/details");
               console.log("User details found in database, setting route to HomeScreen");
+              markUserAsVerified(); // Mark as verified on success
               setInitialRoute("HomeScreen");
             } catch (userDetailsError: any) {
               if (userDetailsError.status === 404 && 
@@ -332,6 +400,22 @@ const AppContent = () => {
                   userDetailsError.message.includes("User not found")) {
                 console.log("User not found in database, redirecting to signup");
                 setInitialRoute("SignUpScreen");
+              } else if (userDetailsError.message && userDetailsError.message.includes("Timeout")) {
+                if (isCachedAuthValid()) {
+                  console.log("Network timeout but cached auth is valid (within 24h), proceeding to HomeScreen");
+                  setInitialRoute("HomeScreen");
+                } else {
+                  console.log("Network timeout and no valid cached auth, redirecting to AuthScreen");
+                  setInitialRoute("AuthScreen");
+                }
+              } else if (userDetailsError.status >= 500) {
+                if (isCachedAuthValid()) {
+                  console.log("Server error but cached auth is valid (within 24h), proceeding to HomeScreen");
+                  setInitialRoute("HomeScreen");
+                } else {
+                  console.log("Server error and no valid cached auth, redirecting to AuthScreen");
+                  setInitialRoute("AuthScreen");
+                }
               } else {
                 console.error("Error checking user details:", userDetailsError);
                 console.log("Redirecting to AuthScreen due to user details error");

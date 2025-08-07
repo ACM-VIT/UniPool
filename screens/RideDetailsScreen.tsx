@@ -11,6 +11,8 @@ import {
   Platform,
   Linking,
 } from "react-native";
+import { Share } from 'react-native';
+// const shareIcon = require('../assets/megaphone.png');
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -1050,6 +1052,21 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     }
   };
 
+  const handleShare = async () => {
+    if (!rideData) return;
+    const deepLink = `https://unipool.acmvit.in/ride/${rideData.id || rideId}`;
+    const message = `Check out this ride from ${rideData.start_location} to ${rideData.end_location} on ${formatDate(rideData.start_time)} at ${formatTime(rideData.start_time)}!\n\nJoin via: ${deepLink}`;
+    try {
+      await Share.share({
+        message,
+        url: deepLink,
+        title: 'Join my ride on UniPool!'
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Could not share ride details.');
+    }
+  };
+
   const handleRejectBooking = async (bookingId: string) => {
     setIsActionLoading(true);
     setBookingError(null);
@@ -1216,11 +1233,12 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             <ChevronBack />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Ride Management</Text>
-          <View style={{ width: 24 }} />
+          {/* <TouchableOpacity onPress={handleShare} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+            <Image source={shareIcon} style={{ width: 24, height: 24, resizeMode: 'contain' }} />
+          </TouchableOpacity> */}
         </View>
 
         <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
-          {/* Use RideCard component like in RideDetailsScreen */}
           <View style={styles.rideCardContainer}>
             <RideCard
               id={rideData.id || rideId}
@@ -1399,7 +1417,9 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
         <Text style={styles.headerTitle}>Booking Details</Text>
-        <View style={{ width: 24 }} />
+        {/* <TouchableOpacity onPress={handleShare} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+          <Image source={shareIcon} style={{ width: 24, height: 24, resizeMode: 'contain' }} />
+        </TouchableOpacity> */}
       </View>
 
       {/* Show fallback UI for pending and rejected bookings */}
