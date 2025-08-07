@@ -12,7 +12,7 @@ import {
   Linking,
 } from "react-native";
 import { Share } from 'react-native';
-const shareIcon = require('../assets/megaphone.png');
+// const shareIcon = require('../assets/megaphone.png');
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -1417,9 +1417,9 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
         <Text style={styles.headerTitle}>Booking Details</Text>
-        <TouchableOpacity onPress={handleShare} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+        {/* <TouchableOpacity onPress={handleShare} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
           <Image source={shareIcon} style={{ width: 24, height: 24, resizeMode: 'contain' }} />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       {/* Show fallback UI for pending and rejected bookings */}
