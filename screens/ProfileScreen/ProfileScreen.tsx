@@ -537,7 +537,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         }}
         activeOpacity={0.7}
       >
-        {/* {item.icon && (
+         {item.icon && (
           <Image
             source={item.icon}
             style={[
@@ -546,7 +546,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             ]}
             resizeMode="contain"
           />
-        )} */}
+        )} 
         <Text style={styles.menuItemText}>{item.title}</Text>
         {/* {item.hasCheckmark && (
           <Image
