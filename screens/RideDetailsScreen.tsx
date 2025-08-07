@@ -1233,9 +1233,9 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             <ChevronBack />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Ride Management</Text>
-          <TouchableOpacity onPress={handleShare} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+          {/* <TouchableOpacity onPress={handleShare} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
             <Image source={shareIcon} style={{ width: 24, height: 24, resizeMode: 'contain' }} />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
