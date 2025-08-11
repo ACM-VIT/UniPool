@@ -44,3 +44,5 @@ yarn-error.*
 
 google-services.json
 GoogleService-Info.plist
+
+my-upload-key.keystore
