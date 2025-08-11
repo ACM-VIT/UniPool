@@ -504,7 +504,7 @@ const AppContent = () => {
       const timer = setTimeout(() => {
         setShowCustomSplash(false);
         SplashScreen.hideAsync();
-      }, 3000);
+      }, 100);
       return () => clearTimeout(timer);
     }
   }, [fontsLoaded, loading, initialRoute, authStateResolved]);
