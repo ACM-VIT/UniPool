@@ -24,16 +24,33 @@ const AccountSettingsScreen: React.FC = () => {
             setLoading(true);
             try {
               await apiUtil.delete('/user/delete');
+              const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+              const { getAuth, signOut } = await import('@react-native-firebase/auth');
               try {
-                const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
-                await AsyncStorage.removeItem('lastUserVerification');
-                console.log('lastUserVerification removed from AsyncStorage after account deletion');
+                const auth = getAuth();
+                await signOut(auth);
               } catch (e) {
-                console.log('Could not remove lastUserVerification after account deletion:', e);
+                console.error('Firebase sign out error:', e);
               }
+
+              try {
+                await AsyncStorage.multiRemove([
+                  'unipool_start_address',
+                  'defaultAddress',
+                  'lastUserVerification',
+                ]);
+              } catch (e) {
+                console.error('AsyncStorage cleanup error:', e);
+              }
+
               Alert.alert('Account Deleted', 'Your account has been deleted.');
-              (navigation as any).reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
+              if (navigation && typeof (navigation as any).reset === 'function') {
+                (navigation as any).reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
+              } else {
+                navigation.navigate('AuthScreen' as never);
+              }
             } catch (err) {
+              console.error('Account deletion error:', err);
               Alert.alert('Error', 'Failed to delete account. Please try again.');
             } finally {
               setLoading(false);
