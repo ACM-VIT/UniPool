@@ -433,7 +433,7 @@ const AppContent = () => {
         setAuthStateResolved(true);
         setLoading(false);
       }
-    }, 5000);
+    }, 100);
     
     return () => {
       unsubscribe();
