@@ -20,7 +20,7 @@ import AppColors from "../design_systems/colors";
 const { width, height } = Dimensions.get("window");
 
 interface NavItem {
-  iconPath: ImageSourcePropType;
+  iconPath: ImageSourcePropType | any;
   route: string;
   label: string;
   isActive?: boolean;
@@ -30,7 +30,7 @@ interface BottomNavProps {
 }
 interface SingleBarProps {
   text: string;
-  iconPath: ImageSourcePropType;
+  iconPath: ImageSourcePropType | any;
   onPress: () => void;
   showSwitchIcon?: boolean;
 }
@@ -38,7 +38,7 @@ interface MainNavBarProps {
   variant: 0 | 1 | 2;
   bottomNavItems?: NavItem[];
   text?: string;
-  iconPath: ImageSourcePropType;
+  iconPath: ImageSourcePropType | any;
   onPress?: () => void;
   showSwitchIcon?: boolean;
 }
