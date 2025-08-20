@@ -406,9 +406,20 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
       const date = new Date(timeString);
       const hours = date.getHours().toString().padStart(2, '0');
       const minutes = date.getMinutes().toString().padStart(2, '0');
-      return `${hours}${minutes} hrs`;
+  return `${hours}${minutes}hrs`;
     } catch (error) {
       return '1700 hrs';
+    }
+  };
+
+  const formatTimeDisplay = (timeString: string): string => {
+    try {
+      const date = new Date(timeString);
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${hours}:${minutes} hrs`;
+    } catch (error) {
+      return timeString;
     }
   };
 
@@ -509,6 +520,18 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     } else {
       return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
     }
+  };
+
+  /**
+   * Returns true if the ride is over. A ride is considered over if
+   * the current time is more than 24 hours after the ride start time.
+   */
+  const isRideOver = (startTime?: string | null): boolean => {
+    if (!startTime) return false;
+    const start = new Date(startTime);
+    if (isNaN(start.getTime())) return false;
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    return Date.now() > (start.getTime() + oneDayMs);
   };
 
   const requestLocationPermission = async () => {
@@ -1055,7 +1078,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
   const handleShare = async () => {
     if (!rideData) return;
     const deepLink = `https://unipool.acmvit.in/ride/${rideData.id || rideId}`;
-    const message = `Check out this ride from ${rideData.start_location} to ${rideData.end_location} on ${formatDate(rideData.start_time)} at ${formatTime(rideData.start_time)}!\n\nJoin via: ${deepLink}`;
+  const message = `Check out this ride from ${rideData.start_location} to ${rideData.end_location} on ${formatDate(rideData.start_time)} at ${formatTimeDisplay(rideData.start_time)}!\n\nJoin via: ${deepLink}`;
     try {
       await Share.share({
         message,
@@ -1140,17 +1163,13 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
       } catch (deleteError: any) {
         console.log("Delete error details:", deleteError);
         
-        // If it's just an empty response error, we'll continue and check if the deletion was successful
-        // by fetching the updated ride data. The backend might have successfully deleted but returned empty response.
         if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
           console.log("Got empty response from delete - will check if deletion was successful by fetching updated data");
         } else {
-          // For other errors, rethrow them
           throw deleteError;
         }
       }
       
-      // Always fetch updated ride data to see the current state
       console.log("Fetching updated ride data to verify deletion...");
       const completeRideData = await apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
       
@@ -1169,7 +1188,6 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
           },
         }));
         
-        // Check if the booking was actually deleted by seeing if it's still in the list
         const bookingStillExists = transformedBookings.some((booking: any) => booking.id === bookingId);
         
         if (bookingStillExists) {
@@ -1192,12 +1210,10 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     }
   };
 
-  // Loading state
   if (loading) {
     return <LoadingComponent />;
   }
 
-  // Error state
   if (error || !rideData) {
     return (
       <SafeAreaView style={styles.container}>
@@ -1217,8 +1233,8 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     );
   }
 
-  // HOST VIEW - Ride Management  
   if (isHost) {
+  const rideOver = isRideOver(rideData?.start_time);
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -1253,7 +1269,6 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             />
           </View>
 
-          {/* Booking Management Section */}
           <Text style={styles.requestsHeader}>Ride Management</Text>
           
           {requestsLoading ? (
@@ -1283,7 +1298,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                 displayName = `${passengerName} (Host)`;
               }
 
-              if (showSlide && selectedRequest?.id === req.id) {
+              if (showSlide && selectedRequest?.id === req.id && !rideOver) {
                 return (
                   <View key={req.id || idx} style={styles.sliderOnlyContainer}>
                     <SlideToCreate
@@ -1330,28 +1345,32 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                 return (
                   <View key={req.id || idx} style={styles.pendingRequestCard}>
                     <Text style={styles.pendingRequestName}>{displayName}</Text>
-                    <View style={styles.pendingRequestActions}>
-                      <TouchableOpacity
-                        style={styles.rejectButton}
-                        onPress={() => {
-                          setSelectedRequest(req);
-                          setShowSlide("reject");
-                        }}
-                      >
-                        <Image source={require("../assets/cross.png")} style={styles.actionIcon} />
-                        <Text style={styles.rejectLabel}>Reject</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.acceptButton}
-                        onPress={() => {
-                          setSelectedRequest(req);
-                          setShowSlide("accept");
-                        }}
-                      >
-                        <Image source={require("../assets/check.png")} style={styles.actionIconAccept} />
-                        <Text style={styles.acceptLabel}>Accept</Text>
-                      </TouchableOpacity>
-                    </View>
+                    {!rideOver ? (
+                      <View style={styles.pendingRequestActions}>
+                        <TouchableOpacity
+                          style={styles.rejectButton}
+                          onPress={() => {
+                            setSelectedRequest(req);
+                            setShowSlide("reject");
+                          }}
+                        >
+                          <Image source={require("../assets/cross.png")} style={styles.actionIcon} />
+                          <Text style={styles.rejectLabel}>Reject</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.acceptButton}
+                          onPress={() => {
+                            setSelectedRequest(req);
+                            setShowSlide("accept");
+                          }}
+                        >
+                          <Image source={require("../assets/check.png")} style={styles.actionIconAccept} />
+                          <Text style={styles.acceptLabel}>Accept</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <Text style={{ color: AppColors.secondaryDarkGreen, opacity: 0.9 }}>Ride is over</Text>
+                    )}
                   </View>
                 );
               }
@@ -1371,7 +1390,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                     </View>
                   </View>
 
-                  {canRemove && (
+                  {!rideOver && canRemove ? (
                     <TouchableOpacity
                       style={styles.removeButton}
                       onPress={() => {
@@ -1381,7 +1400,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                     >
                       <Image source={require("../assets/cross.png")} style={styles.removeIcon} />
                     </TouchableOpacity>
-                  )}
+                  ) : null}
                 </View>
               );
             })
@@ -1389,12 +1408,18 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         </ScrollView>
 
         <View style={styles.bottomContainer}>
-          <SlideToCreate
-            onSlideComplete={handleCancelRide}
-            text={isActionLoading ? "Deleting..." : "Slide to delete ride"}
-            disabled={isActionLoading}
-            sliderIcon={require("../assets/slide.png")}
-          />
+          {!rideOver ? (
+            <SlideToCreate
+              onSlideComplete={handleCancelRide}
+              text={isActionLoading ? "Deleting..." : "Slide to delete ride"}
+              disabled={isActionLoading}
+              sliderIcon={require("../assets/slide.png")}
+            />
+          ) : (
+            <View style={styles.rideOverBanner}>
+              <Text style={styles.rideOverText}>This ride is over</Text>
+            </View>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -1422,8 +1447,8 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         </TouchableOpacity> */}
       </View>
 
-      {/* Show fallback UI for pending and rejected bookings */}
-      {(userBookingStatus === 'pending' || userBookingStatus === 'rejected') ? (
+  {/* Show fallback UI for pending and rejected bookings (unless ride is over) */}
+  {(!isRideOver(rideData.start_time) && (userBookingStatus === 'pending' || userBookingStatus === 'rejected')) ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20 }}>
           <Image 
             source={require("../assets/sad.png")} 
@@ -1521,7 +1546,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                     <View style={styles.locationContainer}>
                       <View style={styles.startLocationRow}>
                         <View style={styles.startDot} />
-                        <Text style={styles.locationText}>{rideData.start_location}</Text>
+                        <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">{rideData.start_location}</Text>
                       </View>
                       
                       <View style={styles.dottedPath}>
@@ -1530,7 +1555,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                       
                       <View style={styles.endLocationRow}>
                         <Image source={require('../assets/navigation-2.png')} style={styles.endLocationIcon} />
-                        <Text style={styles.locationText}>{rideData.end_location}</Text>
+                        <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">{rideData.end_location}</Text>
                       </View>
                     </View>
                   </View>
@@ -1562,7 +1587,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                   </View>
                   <View style={styles.dateTimeBox}>
                     <Image source={require('../assets/clock.png')} style={styles.clockIcon} />
-                    <Text style={styles.dateTimeText}>{formatTime(rideData.start_time)}</Text>
+                    <Text style={styles.dateTimeText}>{formatTimeDisplay(rideData.start_time)}</Text>
                   </View>
                 </View>
                 
@@ -1626,24 +1651,32 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
           </View>
 
           <View style={styles.bottomActionsContainer}>
-            <SlideToCreate
-              onSlideComplete={handleCancelRide}
-              text={
-                isActionLoading 
-                  ? "Cancelling..." 
-                  : "Slide to cancel booking"
-              }
-              disabled={isActionLoading}
-              sliderIcon={require("../assets/slide.png")}
-            />
-            
-            <TouchableOpacity 
-              style={styles.calendarButton}
-              onPress={handleAddToCalendar}
-            >
-              <Image source={require('../assets/calendar.png')} style={styles.calendarButtonIcon} />
-              <Text style={styles.calendarButtonText}>Add to calendar</Text>
-            </TouchableOpacity>
+            {!isRideOver(rideData.start_time) ? (
+              <>
+                <SlideToCreate
+                  onSlideComplete={handleCancelRide}
+                  text={
+                    isActionLoading 
+                      ? "Cancelling..." 
+                      : "Slide to cancel booking"
+                  }
+                  disabled={isActionLoading}
+                  sliderIcon={require("../assets/slide.png")}
+                />
+                
+                <TouchableOpacity 
+                  style={styles.calendarButton}
+                  onPress={handleAddToCalendar}
+                >
+                  <Image source={require('../assets/calendar.png')} style={styles.calendarButtonIcon} />
+                  <Text style={styles.calendarButtonText}>Add to calendar</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={styles.rideOverBanner}>
+                <Text style={styles.rideOverText}>This ride is over</Text>
+              </View>
+            )}
           </View>
         </>
       )}
@@ -1740,7 +1773,8 @@ const styles = StyleSheet.create({
   },
   routeDetails: {
     flex: 1,
-    paddingRight: 15,
+    // reduce reserved space so location text truncates less aggressively
+    paddingRight: 48,
   },
   locationContainer: {
     flex: 1,
@@ -1779,16 +1813,17 @@ const styles = StyleSheet.create({
     tintColor: AppColors.basicWhite,
   },
   locationText: {
-    color: AppColors.basicWhite,
-    fontSize: 18,
-    fontFamily: 'NunitoSans_400Regular',
-    flex: 1,
+  color: AppColors.basicWhite,
+  fontSize: 18,
+  fontFamily: 'NunitoSans_400Regular',
+  flex: 1,
+  flexShrink: 1,
   },
   scooterContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 120,
-    right: -40,
+    width: 100,
+    right: -24,
   },
   scooterImage: {
     width: 120,
@@ -2132,6 +2167,22 @@ const styles = StyleSheet.create({
     fontFamily: 'NunitoSans_400Regular',
     color: AppColors.basicBlack + 'CC',
     lineHeight: 20,
+  },
+  rideOverBanner: {
+    padding: 12,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 12,
+    backgroundColor: AppColors.basicWhite,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E6E6E6',
+  },
+  rideOverText: {
+    color: AppColors.basicBlack,
+    fontSize: 16,
+    fontFamily: 'NunitoSans_600SemiBold',
   },
 });
 

@@ -12,6 +12,8 @@ import {
   Animated,
   ScrollView,
 } from "react-native";
+import navigationImg from "../assets/navigation.png";
+import locationPinImg from "../assets/location-pin-2.png";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import { useNavigation, useIsFocused } from "@react-navigation/native";
@@ -608,36 +610,36 @@ const customMapStyle = [
             customMapStyle={customMapStyle}
             onMapReady={() => console.log("Map ready")}
           >
-            <Marker 
+            {/* <Marker 
               coordinate={location}
               title="Your Location"
               pinColor={AppColors.secondaryDarkGreen || "#2d5016"}
-            />
+            /> */}
 
-            {fromCoords && (
-              <Marker
-                coordinate={fromCoords}
-                title="From"
-                description={rideDetails?.from}
-                pinColor="#4CAF50"
-              />
-            )}
+              {fromCoords && (
+                <Marker
+                  coordinate={fromCoords}
+                  title="From"
+                  description={rideDetails?.from}
+                  image={navigationImg}
+                />
+              )}
 
-            {toCoords && (
-              <Marker
-                coordinate={toCoords}
-                title="To"
-                description={rideDetails?.to}
-                pinColor="#FF5722"
-              />
-            )}
+              {toCoords && (
+                <Marker
+                  coordinate={toCoords}
+                  title="To"
+                  description={rideDetails?.to}
+                  image={locationPinImg}
+                />
+              )}
 
             {fromCoords && toCoords && (
               <Polyline
                 coordinates={getPolylineCoordinates()}
                 strokeColor={AppColors.secondaryDarkGreen || "#2d5016"}
                 strokeWidth={3}
-                lineDashPattern={[0]}
+                lineDashPattern={[10, 10]}
                 lineJoin="round"
                 lineCap="round"
               />
