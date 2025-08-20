@@ -162,12 +162,7 @@ const BookingsScreen: React.FC = () => {
           width: '100%',
           maxWidth: 680,
           backgroundColor: styles.menuContainer.backgroundColor,
-          borderRadius: 12,
-          padding: 28,
           alignItems: 'center',
-          shadowColor: '#000',
-          shadowOpacity: 0.06,
-          shadowRadius: 10,
           elevation: 2,
         }}>
           <LoadingComponent />
