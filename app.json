@@ -8,7 +8,7 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "statusBarStyle": "dark",
-    "statusBarBackgroundColor": "#A8D8A8",
+    "statusBarBackgroundColor": "#B5D750",
 
 
     "ios": {
@@ -31,7 +31,7 @@
       },
       "package": "com.carpoolitapp",
       "statusBarStyle": "dark",
-      "statusBarBackgroundColor": "#A8D8A8",
+      "statusBarBackgroundColor": "#B5D750",
       "config": {
         "googleMaps": {
           "apiKey": "$GOOGLE_MAPS_API_KEY_ANDROID"
