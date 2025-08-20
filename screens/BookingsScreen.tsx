@@ -133,6 +133,17 @@ const BookingsScreen: React.FC = () => {
     fetchAllUserRides();
   }, [apiUtil]);
 
+  const formatTimeCompact = (timeString: string): string => {
+    try {
+      const date = new Date(timeString);
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${hours}${minutes}hrs`;
+    } catch (error) {
+      return typeof timeString === 'string' ? timeString : '';
+    }
+  };
+
   if (loading) return (
     <View style={styles.container}>
       <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
@@ -173,7 +184,6 @@ const BookingsScreen: React.FC = () => {
     const price = details.total_price !== undefined ? Number(details.total_price) : undefined;
     const seatsAvailable = details.booked_seats !== undefined && details.total_seats !== undefined ? `${details.booked_seats}/${details.total_seats}` : (details.seatsAvailable || '0/0');
 
-    // Try several common fields to find a ride id. Avoid passing 'undefined'.
     const rideId = item.ride_id || item.ride?.ride_id || item.ride?.id || item.ride_details?.ride_id || item.ride_details?.id || undefined;
 
     return (
@@ -181,15 +191,13 @@ const BookingsScreen: React.FC = () => {
         id={rideId ? String(rideId) : String(item.id || '')}
         origin={origin}
         destination={destination}
-        time={typeof timeRaw === 'string' ? timeRaw : (timeRaw ? new Date(timeRaw).toLocaleTimeString() : '')}
+        time={formatTimeCompact(timeRaw)}
         price={price}
         seatsAvailable={seatsAvailable}
         totalSeats={details.total_seats}
         onSelect={(id: string) => {
-          // Only navigate to ride details if we have a valid ride id
           if (rideId) {
             try {
-              // RideDetailsScreen expects a param named `rideId` (not an object `ride`)
               (navigation as any).navigate('RideDetailsScreen', { rideId: String(rideId) });
             } catch (e) {
               console.warn('Navigation to RideDetailsScreen failed', e);
@@ -199,7 +207,6 @@ const BookingsScreen: React.FC = () => {
           }
         }}
         variant={item.type === 'hosted' ? 'upcoming' : 'upcoming'}
-        date={details.start_time ? String(details.start_time) : ''}
       />
     );
   };
