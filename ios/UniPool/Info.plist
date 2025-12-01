@@ -53,19 +53,19 @@
       <true/>
     </dict>
     <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your calendar to add ride events.</string>
+    <string>UniPool needs calendar access to add your ride schedule and set reminders so you never miss a carpool.</string>
     <key>NSCalendarsUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your calendar to add ride events.</string>
+    <string>UniPool needs calendar access to add your ride schedule and set reminders so you never miss a carpool.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to use your location.</string>
+    <string>UniPool needs your location to find rides near you, show your pickup point to drivers, and calculate accurate routes.</string>
     <key>NSLocationAlwaysUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <string>UniPool needs your location to find rides near you and show your pickup point to drivers.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <string>UniPool needs your location to find rides near you, show your pickup point to drivers, and calculate accurate routes.</string>
     <key>NSRemindersFullAccessUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your reminders to set ride alerts.</string>
+    <string>UniPool needs reminders access to alert you before your scheduled rides so you're always on time.</string>
     <key>NSRemindersUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your reminders to set ride alerts.</string>
+    <string>UniPool needs reminders access to alert you before your scheduled rides so you're always on time.</string>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>
