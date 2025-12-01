@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text, StyleSheet, Alert, Dimensions, SafeAreaView } from "react-native";
+import { View, Text, StyleSheet, Alert, Dimensions } from "react-native";
 import { TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Modal, Image } from "react-native";
 import { X } from "lucide-react-native";
 import ChevronBack from "../components/ChevronBack";
@@ -138,7 +138,7 @@ const DefaultAddressScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.brandInfoHeaderRow}>
         <BrandInfo />
       </View>
@@ -308,7 +308,7 @@ const DefaultAddressScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 

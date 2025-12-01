@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { Share } from 'react-native';
 // const shareIcon = require('../assets/megaphone.png');
-import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import * as Calendar from 'expo-calendar';
@@ -1216,7 +1215,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
 
   if (error || !rideData) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <BrandInfo />
         </View>
@@ -1229,14 +1228,14 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             <Text style={styles.retryButtonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (isHost) {
   const rideOver = isRideOver(rideData?.start_time);
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <BrandInfo />
         </View>
@@ -1421,13 +1420,13 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             </View>
           )}
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   // NON-HOST VIEW - Ride Details (similar to AvailableRideScreenSelected)
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <BrandInfo />
       </View>
@@ -1680,7 +1679,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
           </View>
         </>
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 

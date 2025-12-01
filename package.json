@@ -35,7 +35,6 @@
     "google-auth-library": "^10.2.0",
     "lottie-react-native": "7.2.2",
     "lucide-react-native": "^0.513.0",
-    "metro-config": "^0.83.1",
     "react": "19.0.0",
     "react-dom": "^19.0.0",
     "react-native": "0.79.5",
