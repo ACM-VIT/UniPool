@@ -10,7 +10,6 @@ const styles = StyleSheet.create({
   },
   brandInfoHeaderRow: {
     width: '100%',
-    paddingTop: height * 0.01,
     marginBottom: height * 0.01,
   },
   headerRow: {

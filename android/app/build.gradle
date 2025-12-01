@@ -92,8 +92,8 @@ android {
         applicationId 'com.carpoolitapp'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4
-        versionName "2.0.1"
+        versionCode 1
+        versionName "2.0.0"
     }
     signingConfigs {x
         debug {

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   Modal,
   TextInput,
@@ -556,7 +555,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.brandInfoHeaderRow}>
         <BrandInfo />
       </View>
@@ -679,7 +678,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       </ScrollView>
 
       {renderFilterModal()}
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -4,7 +4,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   FlatList,
   Image,
@@ -16,6 +15,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { chatMessagesStyles } from './ChatScreen.styles';
 import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
@@ -811,14 +811,12 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
   };
 
   return (
-    <SafeAreaView style={[chatMessagesStyles.container, { flex: 1 }]}>
+    <View style={[chatMessagesStyles.container, { flex: 1 }]}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
 
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
-        <BrandInfo />
-      </View>
+      <BrandInfo />
 
-      <View style={[chatMessagesStyles.chatHeader, { flexDirection: 'row', alignItems: 'center', marginTop: 16 }]}>
+      <View style={[chatMessagesStyles.chatHeader, { flexDirection: 'row', alignItems: 'center' }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginRight: 12 }}>
           <Image source={require('../../assets/arrow-square-left.png')} style={{ width: 24, height: 24 }} />
         </TouchableOpacity>
@@ -906,7 +904,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
       </KeyboardAvoidingView>
 
       {renderSettingsModal()}
-    </SafeAreaView>
+    </View>
   );
 };
 

@@ -41,7 +41,6 @@ export const chatScreenStyles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    marginTop: 48,
   },
   chatTitle: {
     fontSize: 24,
@@ -135,10 +134,6 @@ export const passengerInfoStyles = StyleSheet.create({
 
 export const tripInfoStyles = StyleSheet.create({
   ...chatScreenStyles,
-  chatHeader: {
-    ...chatScreenStyles.chatHeader,
-    marginTop: 48,
-  },
   toggleContainer: {
     flexDirection: 'row',
     justifyContent: 'center',

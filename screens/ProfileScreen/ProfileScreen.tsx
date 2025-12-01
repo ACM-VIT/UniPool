@@ -4,7 +4,6 @@ import {
   Text,
   Image,
   Alert,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Platform,
@@ -574,27 +573,27 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <LoadingComponent />
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error || !userData) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>
             {error || "Unable to load profile data"}
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={[styles.brandInfoHeaderRow, Platform.OS === 'ios' ? { paddingTop: (StatusBar.currentHeight || 24) } : null]}>
+    <View style={styles.container}>
+      <View style={styles.brandInfoHeaderRow}>
         <BrandInfo />
       </View>
       
@@ -699,7 +698,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
