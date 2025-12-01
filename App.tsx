@@ -682,6 +682,16 @@ const AppContent = () => {
               component={TripsListScreen}
               options={{ headerShown: false, animation: 'none' }}
             />
+            <Stack.Screen
+              name="PrivacyPolicyScreen"
+              component={require("./screens/PrivacyPolicyScreen").default}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="TermsOfServiceScreen"
+              component={require("./screens/TermsOfServiceScreen").default}
+              options={{ headerShown: false }}
+            />
           </Stack.Navigator>
 
           {showNavBar && (
