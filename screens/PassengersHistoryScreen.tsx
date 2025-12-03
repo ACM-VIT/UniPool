@@ -6,6 +6,7 @@ import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
 import { useNavigation } from '@react-navigation/native';
 import LoadingComponent from '../components/LoadingComponent';
+import AppColors from '../design_systems/colors';
 
 interface Passenger {
   id: string;
@@ -83,15 +84,13 @@ const PassengersHistoryScreen: React.FC = () => {
             <View style={{
               minHeight: 120,
               justifyContent: 'center',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               padding: 32,
-              backgroundColor: styles.menuContainer.backgroundColor,
-              borderRadius: styles.menuContainer.borderRadius,
             }}>
-              <Text style={{ fontSize: 18, color: styles.headerTitle.color, textAlign: 'center', marginBottom: 12, fontWeight: '600', fontFamily: 'NunitoSans_600SemiBold' }}>
+              <Text style={{ fontSize: 18, color: styles.headerTitle.color, textAlign: 'left', marginBottom: 12, fontWeight: '600', fontFamily: 'NunitoSans_600SemiBold' }}>
                 You haven't travelled with any passengers yet.
               </Text>
-              <Text style={{ fontSize: 14, color: '#555', textAlign: 'center', fontFamily: 'NunitoSans_400Regular' }}>
+              <Text style={{ fontSize: 14, color: AppColors.secondaryDarkGreen, textAlign: 'left', fontFamily: 'NunitoSans_400Regular' }}>
                 Book a ride or join one to see passengers here!
               </Text>
             </View>
