@@ -30,6 +30,7 @@ export type RootStackParamList = {
     chatSubtitle: string;
     isGroupChat: boolean;
   };
+  AvailableRidesListScreen: undefined;
   TripsListScreen: undefined;
   RideDetailsScreen: { ride: any };
   PrivacyPolicyScreen: undefined;
