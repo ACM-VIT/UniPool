@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,17 +10,16 @@ import {
   Platform,
 } from "react-native";
 import {
-  useNavigation,
-  useNavigationState,
   NavigationState,
 } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { navigationRef } from "../navigation/navigationRef";
 import AppColors from "../design_systems/colors";
 
 const { width, height } = Dimensions.get("window");
 
 interface NavItem {
-  iconPath: ImageSourcePropType;
+  iconPath: ImageSourcePropType | any;
   route: string;
   label: string;
   isActive?: boolean;
@@ -30,7 +29,7 @@ interface BottomNavProps {
 }
 interface SingleBarProps {
   text: string;
-  iconPath: ImageSourcePropType;
+  iconPath: ImageSourcePropType | any;
   onPress: () => void;
   showSwitchIcon?: boolean;
 }
@@ -38,7 +37,7 @@ interface MainNavBarProps {
   variant: 0 | 1 | 2;
   bottomNavItems?: NavItem[];
   text?: string;
-  iconPath: ImageSourcePropType;
+  iconPath: ImageSourcePropType | any;
   onPress?: () => void;
   showSwitchIcon?: boolean;
 }
@@ -54,28 +53,45 @@ const ROUTE_MAP: Record<string, RouteMapValue> = {
 
 const DEFAULT_ACTIVE_SCREEN = "HomeScreen";
 
-function getActiveRouteName(state?: NavigationState): string | undefined {
-  if (!state) return undefined;
+const getActiveRouteName = (state?: NavigationState): string => {
+  if (!state) return DEFAULT_ACTIVE_SCREEN;
   const route = state.routes[state.index ?? 0] as any;
   if (route?.state) return getActiveRouteName(route.state);
-  return route?.name;
-}
+  return route?.name || DEFAULT_ACTIVE_SCREEN;
+};
 
 const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
-  const navigation = useNavigation();
-  const navState = useNavigationState((s) => s);
   const insets = useSafeAreaInsets();
-  const fromState = getActiveRouteName(navState);
-  const activeRouteName = (fromState || DEFAULT_ACTIVE_SCREEN).toLowerCase();
+  const [activeRouteName, setActiveRouteName] = useState(DEFAULT_ACTIVE_SCREEN.toLowerCase());
+  
+  useEffect(() => {
+    // Get initial route name
+    if (navigationRef.isReady()) {
+      const state = navigationRef.getRootState();
+      setActiveRouteName(getActiveRouteName(state).toLowerCase());
+    }
+    
+    // Subscribe to navigation state changes
+    const unsubscribe = navigationRef.addListener('state', () => {
+      if (navigationRef.isReady()) {
+        const state = navigationRef.getRootState();
+        setActiveRouteName(getActiveRouteName(state).toLowerCase());
+      }
+    });
+    
+    return unsubscribe;
+  }, []);
 
   const handleNavigation = (routeKey: string) => {
+    if (!navigationRef.isReady()) return;
+    
     const mapping = ROUTE_MAP[routeKey] ?? routeKey;
     if (Array.isArray(mapping)) {
       mapping.forEach((screen) => {
-        navigation.navigate(screen as never);
+        navigationRef.navigate(screen as never);
       });
     } else {
-      navigation.navigate(mapping as never);
+      navigationRef.navigate(mapping as never);
     }
   };
 

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   Modal,
   TextInput,
@@ -556,7 +555,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.brandInfoHeaderRow}>
         <BrandInfo />
       </View>
@@ -649,26 +648,26 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                   
                   {ride.match_reason && (
                     <Text style={styles.matchReason}>
-                      💡 {ride.match_reason}
+                      {ride.match_reason}
                     </Text>
                   )}
                   
                   <View style={styles.distanceInfo}>
                     {ride.start_distance && (
                       <Text style={styles.distanceText}>
-                        📍 {formatDistance(ride.start_distance)} from pickup
+                        {formatDistance(ride.start_distance)} from pickup
                       </Text>
                     )}
                     {ride.end_distance && (
                       <Text style={styles.distanceText}>
-                        🎯 {formatDistance(ride.end_distance)} from destination
+                        {formatDistance(ride.end_distance)} from destination
                       </Text>
                     )}
                   </View>
                   
                   <View style={styles.hostInfo}>
                     <Text style={styles.hostName}>
-                      👤 Host: {ride.host_user_name}
+                      Host: {ride.host_user_name}
                     </Text>
                   </View>
                 </View>
@@ -679,7 +678,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       </ScrollView>
 
       {renderFilterModal()}
-    </SafeAreaView>
+    </View>
   );
 };
 

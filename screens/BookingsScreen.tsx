@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, ListRenderItem, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, ListRenderItem, TouchableOpacity, StyleSheet } from 'react-native';
 import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
 import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
+import RideCard from '../components/RideCard';
+import AppColors from '../design_systems/colors';
 import { useNavigation } from '@react-navigation/native';
 import LoadingComponent from '../components/LoadingComponent';
 
@@ -131,9 +133,21 @@ const BookingsScreen: React.FC = () => {
     fetchAllUserRides();
   }, [apiUtil]);
 
+  const formatTimeCompact = (timeString: string): string => {
+    try {
+      const date = new Date(timeString);
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${hours}${minutes}hrs`;
+    } catch (error) {
+      return typeof timeString === 'string' ? timeString : '';
+    }
+  };
+
   if (loading) return (
-    <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}> 
+    <View style={styles.container}>
       <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
+
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -142,43 +156,53 @@ const BookingsScreen: React.FC = () => {
           <Text style={styles.headerTitle}>My Bookings</Text>
         </View>
       </View>
-      <LoadingComponent />
+
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
+        <View style={{
+          width: '100%',
+          maxWidth: 680,
+          backgroundColor: styles.menuContainer.backgroundColor,
+          alignItems: 'center',
+          elevation: 2,
+        }}>
+          <LoadingComponent />
+        </View>
+      </View>
     </View>
   );
 
   const renderBooking: ListRenderItem<Booking> = ({ item }) => {
-    const details = item.ride_details;
-    let summary = 'No details available';
-    let roleIndicator = '';
-    
-    if (item.type === 'hosted') {
-      roleIndicator = '🚗 Hosting: ';
-    } else if (item.type === 'booking') {
-      roleIndicator = '🎫 Booked: ';
-    }
-    
-    if (details) {
-      const origin = details.start_location || '';
-      const destination = details.end_location || '';
-      const time = details.start_time ? new Date(details.start_time).toLocaleString() : '';
-      if (origin && destination && time) {
-        summary = `${roleIndicator}From ${origin} to ${destination} at ${time}`;
-      } else if (origin && destination) {
-        summary = `${roleIndicator}From ${origin} to ${destination}`;
-      } else {
-        summary = roleIndicator + JSON.stringify(details);
-      }
-    }
-    
+    const details = item.ride_details || item.ride || {};
+    const origin = details.start_location || 'Unknown';
+    const destination = details.end_location || 'Unknown';
+    const timeRaw = details.start_time || '';
+    const price = details.total_price !== undefined ? Number(details.total_price) : undefined;
+    const seatsAvailable = details.booked_seats !== undefined && details.total_seats !== undefined ? `${details.booked_seats}/${details.total_seats}` : (details.seatsAvailable || '0/0');
+
+    const rideId = item.ride_id || item.ride?.ride_id || item.ride?.id || item.ride_details?.ride_id || item.ride_details?.id || undefined;
+
     return (
-      <View style={styles.menuItem}>
-        <Text style={styles.menuItemText}>{summary}</Text>
-        {/* {item.type === 'hosted' && details.total_seats && details.booked_seats !== undefined && (
-          <Text style={{ fontSize: 12, color: '#666', marginTop: 4, fontFamily: 'NunitoSans_400Regular' }}>
-            {details.booked_seats}/{details.total_seats} seats booked
-          </Text>
-        )} */}
-      </View>
+      <RideCard
+        id={rideId ? String(rideId) : String(item.id || '')}
+        origin={origin}
+        destination={destination}
+        time={formatTimeCompact(timeRaw)}
+        price={price}
+        seatsAvailable={seatsAvailable}
+        totalSeats={details.total_seats}
+        onSelect={(id: string) => {
+          if (rideId) {
+            try {
+              (navigation as any).navigate('RideDetailsScreen', { rideId: String(rideId) });
+            } catch (e) {
+              console.warn('Navigation to RideDetailsScreen failed', e);
+            }
+          } else {
+            console.warn('No ride id available for this booking; cannot navigate to ride details', item);
+          }
+        }}
+        variant={item.type === 'hosted' ? 'upcoming' : 'upcoming'}
+      />
     );
   };
 
@@ -217,23 +241,41 @@ const BookingsScreen: React.FC = () => {
       </View>
       <View style={styles.newSection}>
         {dedupedBookings.length === 0 ? (
-          <View style={{
-            minHeight: 120,
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: 32,
-            backgroundColor: styles.menuContainer.backgroundColor,
-            borderRadius: styles.menuContainer.borderRadius,
-          }}>
-            <Text style={{ fontSize: 18, color: styles.headerTitle.color, textAlign: 'center', marginBottom: 12, fontWeight: '600', fontFamily: 'NunitoSans_600SemiBold' }}>
-              You have no bookings or rides yet.
-            </Text>
-            <Text style={{ fontSize: 14, color: '#555', textAlign: 'center', fontFamily: 'NunitoSans_400Regular' }}>
-              Book a ride or create one to see your activity here!
-            </Text>
+          <View style={styles.menuContainer}>
+            <View style={{
+              minHeight: 120,
+              justifyContent: 'center',
+              alignItems: 'flex-start',
+              padding: 24,
+            }}>
+              <Text style={{ fontSize: 18, color: styles.headerTitle.color, textAlign: 'left', marginBottom: 8, fontWeight: '600', fontFamily: 'NunitoSans_600SemiBold' }}>
+                You have no bookings or rides yet.
+              </Text>
+              <Text style={{ fontSize: 14, color: AppColors.secondaryDarkGreen, textAlign: 'left', marginBottom: 14, fontFamily: 'NunitoSans_400Regular' }}>
+                Book a ride or create one to see your activity here!
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => {
+                  try {
+                    (navigation as any).navigate('CreateRide');
+                  } catch (e) {
+                    console.warn('Navigation to CreateRide failed', e);
+                  }
+                }}
+                style={{
+                  backgroundColor: AppColors.secondaryDarkGreen,
+                  paddingVertical: 10,
+                  paddingHorizontal: 18,
+                  borderRadius: 10,
+                }}
+              >
+                <Text style={{ color: AppColors.basicWhite, fontFamily: 'NunitoSans_600SemiBold' }}>Create a ride</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
-          <View style={styles.menuContainer}>
+          <View style={styles.menuContainer}> 
             <FlatList
               data={dedupedBookings}
               keyExtractor={(item) => item.id}

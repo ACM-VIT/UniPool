@@ -8,7 +8,7 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "statusBarStyle": "dark",
-    "statusBarBackgroundColor": "#A8D8A8",
+    "statusBarBackgroundColor": "#B5D750",
 
 
     "ios": {
@@ -31,7 +31,7 @@
       },
       "package": "com.carpoolitapp",
       "statusBarStyle": "dark",
-      "statusBarBackgroundColor": "#A8D8A8",
+      "statusBarBackgroundColor": "#B5D750",
       "config": {
         "googleMaps": {
           "apiKey": "$GOOGLE_MAPS_API_KEY_ANDROID"
@@ -58,14 +58,14 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location."
+          "locationAlwaysAndWhenInUsePermission": "UniPool needs your location to find rides near you, show your pickup point to drivers, and calculate accurate routes."
         }
       ],
       [
         "expo-calendar",
         {
-          "calendarPermission": "Allow $(PRODUCT_NAME) to access your calendar to add ride events.",
-          "remindersPermission": "Allow $(PRODUCT_NAME) to access your reminders to set ride alerts."
+          "calendarPermission": "UniPool needs calendar access to add your ride schedule and set reminders so you never miss a carpool.",
+          "remindersPermission": "UniPool needs reminders access to alert you before your scheduled rides so you're always on time."
         }
       ],
       [

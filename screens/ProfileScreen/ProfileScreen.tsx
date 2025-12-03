@@ -4,7 +4,6 @@ import {
   Text,
   Image,
   Alert,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Platform,
@@ -408,9 +407,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const openRateApp = () => {
     import('react-native').then(({ Linking, Platform }) => {
       const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.carpoolitapp';
-      const appStoreUrl = 'https://apps.apple.com/app/idYOUR_APP_ID';
+      // App Store URL will use bundle ID - update with actual App ID after first submission
+      const appStoreUrl = 'https://apps.apple.com/app/unipool/id6740000000';
       const url = Platform.OS === 'ios' ? appStoreUrl : playStoreUrl;
-      Linking.openURL(url);
+      Linking.openURL(url).catch(() => {
+        Alert.alert('Error', 'Unable to open app store. Please search for UniPool manually.');
+      });
     });
   };
 
@@ -487,6 +489,28 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       icon: require("../../assets/question.png"),
       hasCheckmark: true,
       onPress: openHelpEmail,
+    },
+    {
+      id: "privacy_policy",
+      title: "Privacy Policy",
+      icon: require("../../assets/setting-3.png"),
+      hasCheckmark: true,
+      onPress: () => {
+        if (navigation && navigation.navigate) {
+          navigation.navigate("PrivacyPolicyScreen" as never);
+        }
+      },
+    },
+    {
+      id: "terms_of_service",
+      title: "Terms of Service",
+      icon: require("../../assets/setting-3.png"),
+      hasCheckmark: true,
+      onPress: () => {
+        if (navigation && navigation.navigate) {
+          navigation.navigate("TermsOfServiceScreen" as never);
+        }
+      },
     },
     {
       id: "account_settings",
@@ -574,27 +598,27 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <LoadingComponent />
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error || !userData) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>
             {error || "Unable to load profile data"}
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={[styles.brandInfoHeaderRow, Platform.OS === 'ios' ? { paddingTop: (StatusBar.currentHeight || 24) } : null]}>
+    <View style={styles.container}>
+      <View style={styles.brandInfoHeaderRow}>
         <BrandInfo />
       </View>
       
@@ -699,7 +723,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

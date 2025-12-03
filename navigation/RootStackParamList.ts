@@ -32,4 +32,6 @@ export type RootStackParamList = {
   };
   TripsListScreen: undefined;
   RideDetailsScreen: { ride: any };
+  PrivacyPolicyScreen: undefined;
+  TermsOfServiceScreen: undefined;
 };

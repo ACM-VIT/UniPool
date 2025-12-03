@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text, StyleSheet, Alert, Dimensions, SafeAreaView } from "react-native";
+import { View, Text, StyleSheet, Alert, Dimensions } from "react-native";
 import { TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Modal, Image } from "react-native";
 import { X } from "lucide-react-native";
 import ChevronBack from "../components/ChevronBack";
@@ -138,7 +138,7 @@ const DefaultAddressScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.brandInfoHeaderRow}>
         <BrandInfo />
       </View>
@@ -308,7 +308,7 @@ const DefaultAddressScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -353,8 +353,8 @@ const styles = StyleSheet.create({
   },
   cardWrapper: {
     borderRadius: 20,
-    borderWidth: 2,
-    borderColor: AppColors.basicBlack,
+    borderWidth: 1,
+    borderColor: AppColors.secondaryDarkGreen,
     padding: 20,
     marginBottom: 20,
   },
@@ -364,13 +364,13 @@ const styles = StyleSheet.create({
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_600SemiBold",
     marginBottom: 8,
-    textAlign: "center",
+    textAlign: "left",
   },
   cardDescription: {
     fontSize: 14,
     color: AppColors.basicBlack + "CC",
     fontFamily: "NunitoSans_400Regular",
-    textAlign: "center",
+    textAlign: "left",
     marginBottom: 20,
     lineHeight: 20,
   },
@@ -378,8 +378,8 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingHorizontal: 16,
     paddingVertical: 20,
-    borderTopWidth: 2,
-    borderTopColor: AppColors.basicBlack,
+    borderTopWidth: 1,
+    borderTopColor: AppColors.secondaryDarkGreen,
   },
   inputContent: {
     flexDirection: "row",

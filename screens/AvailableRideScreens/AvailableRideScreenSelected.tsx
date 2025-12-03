@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Dimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 
@@ -550,7 +549,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <BrandInfo />
       </View>
@@ -686,7 +685,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
           sliderIcon={require("../../assets/slide.png")}
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 

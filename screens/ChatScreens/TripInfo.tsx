@@ -3,11 +3,9 @@ import {
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   ScrollView,
   Image,
-  Platform,
 } from 'react-native';
 import { tripInfoStyles } from './ChatScreen.styles';
 import { TripInfoScreenProps, Ride } from './ChatScreen.types';
@@ -16,6 +14,7 @@ import BrandInfo from '../../components/BrandInfo';
 import { useApi } from '../../utils/ApiUtil';
 import RideService from '../../utils/RideService';
 import LoadingComponent from '../../components/LoadingComponent';
+import styles from '../ProfileScreen/ProfileScreen.styles';
 
 
 const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, setNavBarVariant }) => {
@@ -46,22 +45,14 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
   }, [apiUtil]);
 
   return (
-    <SafeAreaView style={tripInfoStyles.container}>
+    <View style={tripInfoStyles.container}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
+      <View style={styles.brandInfoHeaderRow}>
+        <BrandInfo />
+      </View>
+      
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 10,
-          }}
-        >
-          <BrandInfo />
-        </View>
-
-        <View style={[tripInfoStyles.chatHeader, Platform.OS === 'ios' ? { paddingTop: 44 } : null]}>
+        <View style={tripInfoStyles.chatHeader}>
           <Text style={tripInfoStyles.chatTitle}>Chat</Text>
         </View>
 
@@ -78,12 +69,12 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
         </View>
 
         {loading ? (
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 200 }}>
             <LoadingComponent />
           </View>
         ) : (
           rides.length === 0 ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, paddingBottom: 200 }}>
               <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 18, color: AppColors.basicBlack, textAlign: 'center' }}>
                 No trips found. When you join or create a ride, your trips will appear here.
               </Text>
@@ -123,7 +114,7 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
           )
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

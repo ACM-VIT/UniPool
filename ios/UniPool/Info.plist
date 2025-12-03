@@ -7,7 +7,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <string>unipool-new-frontend</string>
+    <string>UniPool</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -19,7 +19,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>2.0.0</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -39,6 +39,8 @@
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>GMSApiKey</key>
+    <string>IzaSyDodPSdiyXv-iWpo9kX8RwvrR56q-GCsFk</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -50,22 +52,20 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>UniPool needs calendar access to add your ride schedule and set reminders so you never miss a carpool.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>UniPool needs calendar access to add your ride schedule and set reminders so you never miss a carpool.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to use your location.</string>
+    <string>UniPool needs your location to find rides near you, show your pickup point to drivers, and calculate accurate routes.</string>
     <key>NSLocationAlwaysUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <string>UniPool needs your location to find rides near you and show your pickup point to drivers.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
-    <key>UIAppFonts</key>
-    <array>
-      <string>Trap-Black.otf</string>
-      <string>Trap-Bold.otf</string>
-      <string>Trap-ExtraBold.otf</string>
-      <string>Trap-Light.otf</string>
-      <string>Trap-Medium.otf</string>
-      <string>Trap-Regular.otf</string>
-      <string>Trap-SemiBold.otf</string>
-    </array>
+    <string>UniPool needs your location to find rides near you, show your pickup point to drivers, and calculate accurate routes.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>UniPool needs reminders access to alert you before your scheduled rides so you're always on time.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>UniPool needs reminders access to alert you before your scheduled rides so you're always on time.</string>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>
@@ -89,7 +89,7 @@
       <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>UIUserInterfaceStyle</key>
-    <string>Light</string>
+    <string>Dark</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
   </dict>

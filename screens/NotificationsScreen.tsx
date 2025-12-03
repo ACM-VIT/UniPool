@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text, StyleSheet, Alert, Dimensions, SafeAreaView, Switch } from "react-native";
+import { View, Text, StyleSheet, Alert, Dimensions, Switch } from "react-native";
 import { TouchableOpacity, ScrollView } from "react-native";
 import ChevronBack from "../components/ChevronBack";
 import BrandInfo from "../components/BrandInfo";
@@ -106,7 +106,7 @@ const NotificationsScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.brandInfoHeaderRow}>
         <BrandInfo />
       </View>
@@ -178,7 +178,7 @@ const NotificationsScreen: React.FC = () => {
           </Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   menuContainer: {
     backgroundColor: AppColors.primaryLightGreen,
     borderRadius: width * 0.046,
-    borderWidth: width * 0.0064,
+    borderWidth: 1,
     borderColor: AppColors.secondaryDarkGreen,
     marginBottom: height * 0.03,
     overflow: "hidden",
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.041,
     paddingVertical: height * 0.0175,
     backgroundColor: AppColors.primaryLightGreen,
-    borderBottomWidth: width * 0.0038,
+    borderBottomWidth: 0.5,
     borderBottomColor: AppColors.secondaryDarkGreen,
   },
   settingTextContainer: {

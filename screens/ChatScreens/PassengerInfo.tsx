@@ -3,9 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
-  Platform,
   ScrollView,
 } from 'react-native';
 import { passengerInfoStyles } from './ChatScreen.styles';
@@ -15,6 +13,7 @@ import BrandInfo from '../../components/BrandInfo';
 import LoadingComponent from '../../components/LoadingComponent';
 import { useApi } from '../../utils/ApiUtil';
 import RideService from '../../utils/RideService';
+import styles from '../ProfileScreen/ProfileScreen.styles';
 
 const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, route, setNavBarVariant }) => {
   const [passengers, setPassengers] = useState<User[]>([]);
@@ -110,22 +109,14 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
   }, [apiUtil]);
 
   return (
-    <SafeAreaView style={passengerInfoStyles.container}>
+    <View style={passengerInfoStyles.container}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
+      <View style={styles.brandInfoHeaderRow}>
+        <BrandInfo />
+      </View>
+      
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 10,
-          }}
-        >
-          <BrandInfo />
-        </View>
-
-        <View style={[passengerInfoStyles.chatHeader, Platform.OS === 'ios' ? { paddingTop: 44 } : null]}>
+        <View style={passengerInfoStyles.chatHeader}>
           <Text style={passengerInfoStyles.chatTitle}>Chat</Text>
         </View>
 
@@ -142,12 +133,12 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
         </View>
 
         {loading ? (
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 200 }}>
             <LoadingComponent />
           </View>
         ) : (
           passengers.length === 0 ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, paddingBottom: 200 }}>
               <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 18, color: AppColors.basicBlack, textAlign: 'center' }}>
                 No passengers found. When you join a ride as a passenger, they will appear here.
               </Text>
@@ -176,7 +167,7 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
           )
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
