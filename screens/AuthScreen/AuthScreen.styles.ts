@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
   watermarkHide: {
     position: 'absolute',
     bottom: screenHeight * 0.002,
-    left: screenWidth * 0.49,
+    left: screenWidth * 0.44,
     width: screenWidth * 0.17,
     height: screenHeight * 0.02, 
     backgroundColor: AppColors.primaryLightGreen,

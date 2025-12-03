@@ -241,43 +241,41 @@ const BookingsScreen: React.FC = () => {
       </View>
       <View style={styles.newSection}>
         {dedupedBookings.length === 0 ? (
-          <View style={{
-            minHeight: 120,
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: 24,
-            backgroundColor: styles.menuContainer.backgroundColor,
-            borderRadius: styles.menuContainer.borderRadius,
-            borderWidth: 0,
-            borderColor: 'transparent',
-          }}>
-            <Text style={{ fontSize: 18, color: styles.headerTitle.color, textAlign: 'center', marginBottom: 8, fontWeight: '600', fontFamily: 'NunitoSans_600SemiBold' }}>
-              You have no bookings or rides yet.
-            </Text>
-            <Text style={{ fontSize: 14, color: '#555', textAlign: 'center', marginBottom: 14, fontFamily: 'NunitoSans_400Regular' }}>
-              Book a ride or create one to see your activity here!
-            </Text>
+          <View style={styles.menuContainer}>
+            <View style={{
+              minHeight: 120,
+              justifyContent: 'center',
+              alignItems: 'flex-start',
+              padding: 24,
+            }}>
+              <Text style={{ fontSize: 18, color: styles.headerTitle.color, textAlign: 'left', marginBottom: 8, fontWeight: '600', fontFamily: 'NunitoSans_600SemiBold' }}>
+                You have no bookings or rides yet.
+              </Text>
+              <Text style={{ fontSize: 14, color: AppColors.secondaryDarkGreen, textAlign: 'left', marginBottom: 14, fontFamily: 'NunitoSans_400Regular' }}>
+                Book a ride or create one to see your activity here!
+              </Text>
 
-            <TouchableOpacity
-              onPress={() => {
-                try {
-                  (navigation as any).navigate('CreateRide');
-                } catch (e) {
-                  console.warn('Navigation to CreateRide failed', e);
-                }
-              }}
-              style={{
-                backgroundColor: AppColors.secondaryDarkGreen,
-                paddingVertical: 10,
-                paddingHorizontal: 18,
-                borderRadius: 10,
-              }}
-            >
-              <Text style={{ color: AppColors.basicWhite, fontFamily: 'NunitoSans_600SemiBold' }}>Create a ride</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  try {
+                    (navigation as any).navigate('CreateRide');
+                  } catch (e) {
+                    console.warn('Navigation to CreateRide failed', e);
+                  }
+                }}
+                style={{
+                  backgroundColor: AppColors.secondaryDarkGreen,
+                  paddingVertical: 10,
+                  paddingHorizontal: 18,
+                  borderRadius: 10,
+                }}
+              >
+                <Text style={{ color: AppColors.basicWhite, fontFamily: 'NunitoSans_600SemiBold' }}>Create a ride</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
-          <View style={[styles.menuContainer, { borderColor: 'transparent', borderWidth: 0 }]}> 
+          <View style={styles.menuContainer}> 
             <FlatList
               data={dedupedBookings}
               keyExtractor={(item) => item.id}

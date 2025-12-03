@@ -251,7 +251,6 @@ const styles = StyleSheet.create({
     color: AppColors.secondaryDarkGreen,
     fontFamily: 'NunitoSans_400Regular',
     marginBottom: 8,
-    fontStyle: 'italic',
   },
   distanceInfo: {
     flexDirection: 'row',

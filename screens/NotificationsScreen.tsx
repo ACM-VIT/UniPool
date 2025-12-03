@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   menuContainer: {
     backgroundColor: AppColors.primaryLightGreen,
     borderRadius: width * 0.046,
-    borderWidth: width * 0.0064,
+    borderWidth: 1,
     borderColor: AppColors.secondaryDarkGreen,
     marginBottom: height * 0.03,
     overflow: "hidden",
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.041,
     paddingVertical: height * 0.0175,
     backgroundColor: AppColors.primaryLightGreen,
-    borderBottomWidth: width * 0.0038,
+    borderBottomWidth: 0.5,
     borderBottomColor: AppColors.secondaryDarkGreen,
   },
   settingTextContainer: {
