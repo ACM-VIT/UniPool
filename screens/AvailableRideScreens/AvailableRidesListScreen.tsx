@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,8 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
+  Image,
+  Platform,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
+import { format, isSameDay } from "date-fns";
 import BrandInfo from "../../components/BrandInfo";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import { useApi } from "../../utils/ApiUtil";
@@ -29,6 +34,12 @@ interface RideData {
 
 type RidesByDate = Record<string, RideData[]>;
 
+const getStartOfToday = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+};
+
 const AvailableRidesListScreen: React.FC = () => {
   const navigation = useNavigation();
   const { apiUtil } = useApi();
@@ -37,6 +48,8 @@ const AvailableRidesListScreen: React.FC = () => {
   const [sortedDates, setSortedDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() => getStartOfToday());
+  const [showIOSDatePicker, setShowIOSDatePicker] = useState(false);
 
   const formatTime = (timeString: string): string => {
     try {
@@ -70,13 +83,23 @@ const AvailableRidesListScreen: React.FC = () => {
     return seats > 0 ? `${remaining}/${seats}` : `${remaining}/-`;
   };
 
-  const groupRidesByDate = (rides: RideData[]) => {
+  const matchesSelectedDate = useCallback(
+    (ride: RideData) => {
+      if (!selectedDate) return true;
+      const rideDate = new Date(ride.start_time);
+      return isSameDay(rideDate, selectedDate);
+    },
+    [selectedDate]
+  );
+
+  const groupRidesByDate = useCallback((rides: RideData[]) => {
     const grouped: RidesByDate = {};
 
     rides.forEach((ride) => {
       if (!ride.start_time) return;
       const rideDate = new Date(ride.start_time);
       if (isNaN(rideDate.getTime())) return;
+      if (!matchesSelectedDate(ride)) return;
 
       const dateKey = rideDate.toDateString();
       if (!grouped[dateKey]) {
@@ -98,13 +121,30 @@ const AvailableRidesListScreen: React.FC = () => {
 
     setRidesByDate(grouped);
     setSortedDates(orderedDateKeys);
-  };
+  }, [matchesSelectedDate]);
 
-  const fetchAvailableRides = async () => {
+  const quickSelectDates = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Array.from({ length: 4 }, (_, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() + index);
+      return {
+        key: index === 0 ? "today" : date.toISOString(),
+        title: index === 0 ? "Today" : format(date, "EEE"),
+        subtitle: format(date, "d MMM"),
+        date,
+      };
+    });
+  }, []);
+
+  const fetchAvailableRides = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const rides = await apiUtil.get<RideData[]>("/ride/all");
+      const dateParam = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
+      const endpoint = dateParam ? `/ride/all?date=${dateParam}` : "/ride/all";
+      const rides = await apiUtil.get<RideData[]>(endpoint);
       const now = new Date();
       const startOfToday = new Date(now);
       startOfToday.setHours(0, 0, 0, 0);
@@ -116,7 +156,7 @@ const AvailableRidesListScreen: React.FC = () => {
             if (isNaN(rideStart.getTime())) return false;
             const seatsLeft =
               (ride.total_seats ?? 0) - (ride.booked_seats ?? 0);
-            return rideStart >= startOfToday && seatsLeft > 0;
+            return rideStart >= startOfToday && seatsLeft > 0 && matchesSelectedDate(ride);
           })
         : [];
 
@@ -128,15 +168,109 @@ const AvailableRidesListScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiUtil, groupRidesByDate, matchesSelectedDate, selectedDate]);
 
   useEffect(() => {
     fetchAvailableRides();
-  }, [apiUtil]);
+  }, [fetchAvailableRides]);
+
+  const handleDateSelection = useCallback((date: Date | null) => {
+    if (!date) {
+      setSelectedDate(null);
+      return;
+    }
+    const normalized = new Date(date);
+    normalized.setHours(0, 0, 0, 0);
+    setSelectedDate(normalized);
+  }, []);
+
+  const openCalendarPicker = useCallback(() => {
+    const currentValue = selectedDate || new Date();
+    if (Platform.OS === "android") {
+      DateTimePickerAndroid.open({
+        mode: "date",
+        value: currentValue,
+        onChange: (_event, date) => {
+          if (date) {
+            handleDateSelection(date);
+          }
+        },
+      });
+    } else {
+      setShowIOSDatePicker(true);
+    }
+  }, [handleDateSelection, selectedDate]);
+
+  const renderDateFilter = () => (
+    <View style={styles.dateFilterContainer}>
+      <Text style={styles.dateFilterHeading}>
+        {selectedDate ? format(selectedDate, "EEEE, MMM d") : "Upcoming dates"}
+      </Text>
+      <View style={styles.dateChipsRow}>
+        <View style={styles.dateChipsWrapper}>
+          {quickSelectDates.map(({ key, title, subtitle, date }, index) => {
+            const isActive = !!selectedDate && isSameDay(date, selectedDate);
+            const marginStyle =
+              index === quickSelectDates.length - 1 ? null : { marginRight: 8 };
+
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[
+                  styles.dateChip,
+                  marginStyle,
+                  isActive && styles.dateChipActive,
+                ]}
+                onPress={() =>
+                  isActive ? handleDateSelection(null) : handleDateSelection(date)
+                }
+              >
+                <Text
+                  style={[
+                    styles.dateChipTitle,
+                    isActive && styles.dateChipTitleActive,
+                  ]}
+                >
+                  {title}
+                </Text>
+                <Text
+                  style={[
+                    styles.dateChipSubtitle,
+                    isActive && styles.dateChipSubtitleActive,
+                  ]}
+                >
+                  {subtitle}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <TouchableOpacity
+          style={styles.calendarIconButton}
+          onPress={openCalendarPicker}
+        >
+          <Image
+            source={require("../../assets/calendar.png")}
+            style={styles.calendarIcon}
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const handleIOSDateChange = (_event: DateTimePickerEvent, date?: Date) => {
+    if (date) {
+      handleDateSelection(date);
+    }
+  };
 
   const renderContent = () => {
     if (loading) {
-      return <LoadingComponent />;
+      return (
+        <View style={styles.loadingContainer}>
+          <LoadingComponent />
+        </View>
+      );
     }
 
     if (error) {
@@ -153,13 +287,19 @@ const AvailableRidesListScreen: React.FC = () => {
     if (sortedDates.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>No rides are available today.</Text>
+          <Text style={styles.emptyTitle}>
+            {selectedDate
+              ? `No rides for ${format(selectedDate, "EEE, MMM d")}.`
+              : "No rides are available right now."}
+          </Text>
           <Text style={styles.emptySubtitle}>
-            Pull down to refresh or create a ride for others to join.
+            {selectedDate
+              ? "Try a different date or pull down to refresh."
+              : "Pull down to refresh or create a ride for others to join."}
           </Text>
           <TouchableOpacity
             style={styles.retryButton}
-            onPress={() => navigation.navigate("CreateRide" as never)}
+            onPress={() => (navigation as any).navigate("CreateRide")}
           >
             <Text style={styles.retryButtonText}>Create Ride</Text>
           </TouchableOpacity>
@@ -169,6 +309,7 @@ const AvailableRidesListScreen: React.FC = () => {
 
     return (
       <ScrollView
+        style={styles.listScroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
@@ -193,9 +334,9 @@ const AvailableRidesListScreen: React.FC = () => {
                     seatsAvailable={calculateSeatsLabel(ride)}
                     totalSeats={ride.total_seats}
                     variant="inprogress"
-                    onSelect={() => {
-                      if (!rideId) return;
-                      navigation.navigate("RideDetailsScreen" as never, { rideId });
+                      onSelect={() => {
+                        if (!rideId) return;
+                        (navigation as any).navigate("RideDetailsScreen", { rideId });
                     }}
                   />
                 </View>
@@ -224,8 +365,25 @@ const AvailableRidesListScreen: React.FC = () => {
           <Text style={styles.headerTitle}>Available Rides</Text>
           <View style={{ width: 32 }} />
         </View>
-
-        {renderContent()}
+        <View style={styles.contentWrapper}>
+          {renderDateFilter()}
+          {renderContent()}
+        </View>
+        {showIOSDatePicker && Platform.OS === "ios" && (
+          <View style={styles.iosPickerContainer}>
+            <DateTimePicker
+              mode="date"
+              display="inline"
+              value={selectedDate || new Date()}
+              onChange={(event, date) => {
+                if (event.type !== "dismissed") {
+                  handleIOSDateChange(event, date);
+                }
+                setShowIOSDatePicker(false);
+              }}
+            />
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -239,6 +397,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: AppColors.primaryLightGreen,
+  },
+  contentWrapper: {
+    flex: 1,
+    paddingBottom: 16,
   },
   brandInfoHeaderRow: {
     position: "absolute",
@@ -265,10 +427,86 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_600SemiBold",
     color: AppColors.basicBlack,
   },
+  listScroll: {
+    flex: 1,
+  },
   scrollContent: {
     paddingTop: 16,
     paddingHorizontal: 16,
     paddingBottom: 120,
+  },
+  dateFilterContainer: {
+    backgroundColor: AppColors.basicWhite,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  dateFilterHeading: {
+    fontSize: 14,
+    fontFamily: "NunitoSans_600SemiBold",
+    color: AppColors.basicBlack,
+    marginBottom: 10,
+  },
+  dateChipsRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+  dateChipsWrapper: {
+    flex: 1,
+    flexDirection: "row",
+    marginRight: 12,
+  },
+  dateChip: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: AppColors.primaryLightGreen,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  dateChipActive: {
+    borderColor: AppColors.secondaryDarkGreen,
+    backgroundColor: AppColors.secondaryDarkGreen,
+  },
+  dateChipTitle: {
+    fontSize: 12,
+    fontFamily: "NunitoSans_600SemiBold",
+    color: AppColors.secondaryDarkGreen,
+    marginBottom: 2,
+  },
+  dateChipSubtitle: {
+    fontSize: 13,
+    fontFamily: "NunitoSans_400Regular",
+    color: AppColors.basicBlack,
+  },
+  dateChipTitleActive: {
+    color: AppColors.primaryLightGreen,
+  },
+  dateChipSubtitleActive: {
+    color: AppColors.primaryLightGreen,
+  },
+  calendarIconButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: AppColors.secondaryDarkGreen,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calendarIcon: {
+    width: 20,
+    height: 20,
+    tintColor: AppColors.secondaryDarkGreen,
   },
   dateSection: {
     backgroundColor: AppColors.secondaryDarkGreen,
@@ -294,6 +532,11 @@ const styles = StyleSheet.create({
   },
   rideCardWrapper: {
     marginTop: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   errorContainer: {
     flex: 1,
@@ -325,6 +568,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
+    marginHorizontal: 16,
   },
   emptyTitle: {
     fontSize: 18,
@@ -339,6 +583,22 @@ const styles = StyleSheet.create({
     color: AppColors.secondaryDarkGreen,
     textAlign: "center",
     marginBottom: 16,
+  },
+  iosPickerContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: AppColors.basicWhite,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 6,
   },
 });
 

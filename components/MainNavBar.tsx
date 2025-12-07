@@ -46,8 +46,8 @@ type RouteMapValue = string | string[];
 
 const ROUTE_MAP: Record<string, RouteMapValue> = {
   home: "HomeScreen",
-  trips: ["BookingScreen", "AvailableRidesListScreen"],
-  chat: ["PassengerInfoScreen", "TripsListScreen"],
+  trips: "BookingScreen",
+  chat: "PassengerInfoScreen",
   profile: "ProfileScreen",
 };
 

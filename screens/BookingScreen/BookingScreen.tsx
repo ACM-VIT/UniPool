@@ -416,7 +416,7 @@ const BookingScreen: React.FC = () => {
               disabled={availablePreview.length === 0}
               onPress={() => navigation.navigate("AvailableRidesListScreen" as never)}
             >
-              <Text style={styles.viewAllButtonText}>See all</Text>
+              <Text style={styles.viewAllButtonText}>See all rides</Text>
             </TouchableOpacity>
           </View>
           <View>
