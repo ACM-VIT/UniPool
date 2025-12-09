@@ -367,6 +367,19 @@ interface RideResponse extends RideData {
   [key: string]: any;
 }
 
+interface RideRequestResponse {
+  success?: boolean;
+  id?: string;
+  booking_id?: string;
+  message?: string;
+  status?: string;
+}
+
+interface RideRequestPayload {
+  ride_id: string;
+  request_status: string;
+}
+
 const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
   const { rideId } = route.params;
   const { apiUtil } = useApi();
@@ -398,6 +411,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
   
   // Action state
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [isRequesting, setIsRequesting] = useState(false);
 
   // Utility functions from AvailableRideScreenSelected
   const formatTime = (timeString: string): string => {
@@ -717,6 +731,79 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
       }
     }
   }, [rideData?.id]); // Use rideData.id as dependency to avoid infinite loops
+
+  const handleRequestRide = async () => {
+    if (isRequesting || userBookingStatus !== 'none') return;
+
+    if (!rideData) {
+      Alert.alert("Ride unavailable", "We couldn't load this ride. Please go back and try again.");
+      return;
+    }
+
+    if (!currentUserId) {
+      Alert.alert("Sign in required", "Please sign in before requesting this ride.");
+      return;
+    }
+
+    const rideIdentifier = rideData.ride_id || rideData.id || rideId;
+    if (!rideIdentifier) {
+      Alert.alert("Ride unavailable", "This ride is missing an identifier. Please try again later.");
+      return;
+    }
+
+    setIsRequesting(true);
+
+    try {
+      const requestPayload: RideRequestPayload = {
+        ride_id: rideIdentifier,
+        request_status: "pending",
+      };
+
+      const response = await apiUtil.post('/bookings/request', requestPayload) as RideRequestResponse;
+
+      if (response && (response.success || response.id || response.booking_id)) {
+        const bookingId = response.id || response.booking_id || `pending-${Date.now()}`;
+        const pendingBooking = {
+          id: bookingId,
+          passenger_id: currentUserId,
+          request_status: "pending",
+          created_at: new Date().toISOString(),
+        };
+
+        setUserBooking(pendingBooking);
+        setUserBookingStatus('pending');
+        setRequests((prev) => {
+          const filtered = prev.filter((req: any) => req?.passenger_id !== currentUserId);
+          return [...filtered, pendingBooking];
+        });
+
+        Alert.alert(
+          "Request sent",
+          "The host has been notified. We'll update you once they respond."
+        );
+      } else {
+        throw new Error(response?.message || 'Failed to request ride');
+      }
+    } catch (error: any) {
+      console.error('Error requesting ride:', error);
+
+      let errorMessage = 'Failed to request ride. Please try again.';
+
+      if (error?.response?.status === 400) {
+        errorMessage = error?.response?.data?.message || 'Invalid request. Please check ride availability.';
+      } else if (error?.response?.status === 401) {
+        errorMessage = 'Please sign in to request this ride.';
+      } else if (error?.response?.status === 409) {
+        errorMessage = 'You have already requested this ride or it has no seats left.';
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsRequesting(false);
+    }
+  };
 
   const handleCancelRide = async () => {
     if (isActionLoading) return;
@@ -1650,7 +1737,18 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
           </View>
 
           <View style={styles.bottomActionsContainer}>
-            {!isRideOver(rideData.start_time) ? (
+            {isRideOver(rideData.start_time) ? (
+              <View style={styles.rideOverBanner}>
+                <Text style={styles.rideOverText}>This ride is over</Text>
+              </View>
+            ) : userBookingStatus === 'none' ? (
+              <SlideToCreate
+                onSlideComplete={handleRequestRide}
+                text={isRequesting ? "Requesting..." : "Slide to request ride"}
+                disabled={isRequesting}
+                sliderIcon={require("../assets/slide.png")}
+              />
+            ) : (
               <>
                 <SlideToCreate
                   onSlideComplete={handleCancelRide}
@@ -1671,10 +1769,6 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                   <Text style={styles.calendarButtonText}>Add to calendar</Text>
                 </TouchableOpacity>
               </>
-            ) : (
-              <View style={styles.rideOverBanner}>
-                <Text style={styles.rideOverText}>This ride is over</Text>
-              </View>
             )}
           </View>
         </>

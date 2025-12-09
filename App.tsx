@@ -25,6 +25,7 @@ import PersonalInformationScreen from "./screens/PersonalInformationScreen";
 import PassengersHistoryScreen from "./screens/PassengersHistoryScreen";
 import AccountSettingsScreen from "./screens/AccountSettingsScreen";
 import AvailableRideScreenSelected from "./screens/AvailableRideScreens/AvailableRideScreenSelected";
+import AvailableRidesListScreen from "./screens/AvailableRideScreens/AvailableRidesListScreen";
 
 import { PassengerInfoScreen, ChatConversationScreen, TripsListScreen } from "./screens/ChatScreens";
 
@@ -651,6 +652,11 @@ const AppContent = () => {
                   .default
               }
               options={{ headerShown: false, animation: 'none' }}
+            />
+            <Stack.Screen
+              name="AvailableRidesListScreen"
+              component={AvailableRidesListScreen}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="BookingsScreen"
