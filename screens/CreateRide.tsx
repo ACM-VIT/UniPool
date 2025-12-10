@@ -464,6 +464,8 @@ const CreateRide: React.FC = () => {
           loadingText="Creating ride..."
           sliderIcon={require("../assets/slide.png")}
           emojiIcon={require("../assets/happy-emoji.png")}
+          
+          
         />
       </View>
     </SafeAreaView>
@@ -510,8 +512,8 @@ const styles = StyleSheet.create({
     paddingBottom: "2.5%",
   },
   label: {
-    paddingTop: "6%",
-    paddingBottom: "3%",
+    paddingTop: "10%",
+    paddingBottom: "2%",
     fontWeight: "500",
     fontSize: 18,
     color: AppColors.basicBlack,
@@ -612,6 +614,8 @@ const styles = StyleSheet.create({
   vehicleImageContainer: {
     alignSelf: "center",
     overflow: "hidden",
+    marginBottom: 0,
+    paddingBottom:0
   },
 });
 

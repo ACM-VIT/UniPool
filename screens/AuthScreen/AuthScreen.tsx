@@ -62,7 +62,17 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
       }
       
       const googleCredential = GoogleAuthProvider.credential(idToken);
-      await signInWithCredential(getAuth(), googleCredential);
+      const userCredential = await signInWithCredential(getAuth(), googleCredential);
+      
+      // Wait for auth state to propagate
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Verify the user is now signed in
+      const currentUser = getAuth().currentUser;
+      if (!currentUser) {
+        console.log("Firebase auth not ready after sign-in, waiting...");
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
       
       try {
         await apiUtil.get("/user/details");
@@ -109,6 +119,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
       const appleCredential = AppleAuthProvider.credential(identityToken, nonce);
   
       await signInWithCredential(getAuth(), appleCredential);
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const currentUser = getAuth().currentUser;
+      if (!currentUser) {
+        console.log("Firebase auth not ready after Apple sign-in, waiting...");
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
       
       try {
         await apiUtil.get("/user/details");

@@ -17,6 +17,18 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Android build artifacts (keep source files, ignore build outputs)
+android/app/build/
+android/build/
+android/.gradle/
+*.apk
+*.aab
+
+# iOS build artifacts
+ios/build/
+ios/Pods/
+*.xcworkspace/xcuserdata/
+
 # Metro
 .metro-health-check*
 

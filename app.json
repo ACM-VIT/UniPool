@@ -2,6 +2,7 @@
   "expo": {
     "name": "UniPool",
     "slug": "UniPool",
+    "scheme": "carpoolitapp",
     "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon2.png",
