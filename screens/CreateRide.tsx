@@ -583,6 +583,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     width: "50%",
     alignSelf: "center",
+    //marginBottom: -40,
   },
   counterButton: {
     paddingHorizontal: 12,
@@ -598,23 +599,27 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.basicBlack,
     paddingVertical: 5,
     paddingHorizontal: 15,
+    
   },
   counterValue: {
     color: AppColors.basicWhite,
     fontSize: 20,
     fontWeight: "bold",
     fontFamily: "NunitoSans_700Bold",
+    //marginBottom: -10,
   },
   passengerImage: {
     width: 170,
     height: 170,
     alignSelf: "center",
     resizeMode: "contain",
+    marginBottom: -20,
+    //paddingBottom:20
   },
   vehicleImageContainer: {
     alignSelf: "center",
     overflow: "hidden",
-    marginBottom: 0,
+    marginBottom: -40,
     paddingBottom:0
   },
 });
