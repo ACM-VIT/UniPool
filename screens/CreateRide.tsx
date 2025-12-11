@@ -368,7 +368,7 @@ const CreateRide: React.FC = () => {
           />
         </View>
 
-        <Text style={styles.label}>Pick the cost per person</Text>
+        <Text style={styles.label}>Pick the cost per person </Text>
         <View style={styles.costContainer}>
           <TouchableOpacity
             onPress={decreaseCost}
@@ -411,7 +411,7 @@ const CreateRide: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.label}>Number of Passengers</Text>
+        <Text style={styles.passengersLabel}>Number of Passengers</Text>
         <View style={styles.counterContainer}>
           <TouchableOpacity
             onPress={decreasePassengers}
@@ -481,26 +481,26 @@ const styles = StyleSheet.create({
   headerRowWithTitle: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 10,
-    gap: 12,
+    paddingHorizontal: width * 0.05,
+    paddingTop: height * 0.012,
+    paddingBottom: height * 0.012,
+    gap: width * 0.03,
   },
   backButton: {
-    padding: 5,
+    padding: width * 0.012,
   },
   backIcon: {
-    width: 24,
-    height: 24,
+    width: width * 0.06,
+    height: width * 0.06,
     tintColor: AppColors.basicBlack,
   },
   mainContent: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 5,
+    paddingHorizontal: width * 0.05,
+    paddingTop: height * 0.006,
   },
   title: {
-    fontSize: 20,
+    fontSize: width * 0.05,
     fontWeight: "600",
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_600SemiBold",
@@ -512,10 +512,18 @@ const styles = StyleSheet.create({
     paddingBottom: "2.5%",
   },
   label: {
-    paddingTop: "10%",
+    paddingTop: "5%",
     paddingBottom: "2%",
     fontWeight: "500",
-    fontSize: 18,
+    fontSize: width * 0.045,
+    color: AppColors.basicBlack,
+    fontFamily: "NunitoSans_500Medium",
+  },
+  passengersLabel: {
+    paddingTop: "8%",
+    paddingBottom: "2%",
+    fontWeight: "500",
+    fontSize: width * 0.045,
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_500Medium",
   },
@@ -524,19 +532,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: AppColors.basicBlack,
-    borderRadius: 15,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: width * 0.04,
+    paddingHorizontal: width * 0.025,
+    paddingVertical: height * 0.007,
     width: "100%",
     alignSelf: "center",
   },
   costButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingHorizontal: width * 0.05,
+    paddingVertical: height * 0.01,
   },
   costButtonText: {
     color: AppColors.primaryLightGreen,
-    fontSize: 30,
+    fontSize: width * 0.075,
     fontWeight: "bold",
     fontFamily: "NunitoSans_700Bold",
   },
@@ -546,31 +554,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: AppColors.basicBlack,
-    paddingVertical: 5,
-    paddingHorizontal: 15,
+    paddingVertical: height * 0.006,
+    paddingHorizontal: width * 0.04,
   },
   currencySymbol: {
     color: AppColors.primaryLightGreen,
-    fontSize: 35,
+    fontSize: width * 0.088,
     fontWeight: "bold",
     fontFamily: "NunitoSans_700Bold",
-    marginRight: 5,
+    marginRight: width * 0.012,
   },
   costValue: {
     color: AppColors.basicWhite,
-    fontSize: 35,
+    fontSize: width * 0.088,
     fontWeight: "bold",
     fontFamily: "NunitoSans_700Bold",
   },
   costValueInput: {
     color: AppColors.basicWhite,
-    fontSize: 35,
+    fontSize: width * 0.088,
     fontWeight: "bold",
     fontFamily: "NunitoSans_700Bold",
     backgroundColor: "transparent",
     padding: 0,
     margin: 0,
-    width: 80,
+    width: width * 0.2,
     textAlign: "center",
   },
   counterContainer: {
@@ -578,49 +586,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: AppColors.basicBlack,
-    borderRadius: 15,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    borderRadius: width * 0.04,
+    paddingHorizontal: width * 0.025,
+    paddingVertical: height * 0.006,
     width: "50%",
     alignSelf: "center",
-    //marginBottom: -40,
   },
   counterButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: width * 0.03,
+    paddingVertical: height * 0.006,
   },
   counterText: {
     color: AppColors.primaryLightGreen,
-    fontSize: 22,
+    fontSize: width * 0.055,
     fontWeight: "bold",
     fontFamily: "NunitoSans_700Bold",
   },
   counterValueContainer: {
     backgroundColor: AppColors.basicBlack,
-    paddingVertical: 5,
-    paddingHorizontal: 15,
-    
+    paddingVertical: height * 0.006,
+    paddingHorizontal: width * 0.04,
   },
   counterValue: {
     color: AppColors.basicWhite,
-    fontSize: 20,
+    fontSize: width * 0.05,
     fontWeight: "bold",
     fontFamily: "NunitoSans_700Bold",
-    //marginBottom: -10,
   },
   passengerImage: {
-    width: 170,
-    height: 170,
+    width: width * 0.42,
+    height: width * 0.42,
     alignSelf: "center",
     resizeMode: "contain",
-    marginBottom: -20,
-    //paddingBottom:20
+    marginBottom: height * -0.025,
   },
   vehicleImageContainer: {
     alignSelf: "center",
     overflow: "hidden",
-    marginBottom: -40,
-    paddingBottom:0
+    paddingBottom: 0,
   },
 });
 
