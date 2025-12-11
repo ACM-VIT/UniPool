@@ -456,17 +456,20 @@ const CreateRide: React.FC = () => {
           />
         </Animated.View>
 
-        <SlideToCreate
-          onSlideComplete={handleCreateRide}
-          isLoading={isCreating}
-          disabled={!fromLocation || !toLocation || isCreating}
-          text="Slide to create ride"
-          loadingText="Creating ride..."
-          sliderIcon={require("../assets/slide.png")}
-          emojiIcon={require("../assets/happy-emoji.png")}
-          
-          
-        />
+        <View>
+          <SlideToCreate
+            onSlideComplete={handleCreateRide}
+            isLoading={isCreating}
+            disabled={!fromLocation || !toLocation || isCreating}
+            text="Slide to create ride"
+            loadingText="Creating ride..."
+            sliderIcon={require("../assets/slide.png")}
+            emojiIcon={require("../assets/happy-emoji.png")}
+          />
+          {(!fromLocation || !toLocation) && !isCreating && (
+            <Text style={styles.hintText}>Please select From and To locations to proceed</Text>
+          )}
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -624,6 +627,14 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     overflow: "hidden",
     paddingBottom: 0,
+  },
+  hintText: {
+    textAlign: "center",
+    color: "#555555",
+    fontSize: width * 0.033,
+    fontFamily: "NunitoSans_400Regular",
+    marginTop: height * -0.02,
+    marginBottom: height * 0.012,
   },
 });
 
