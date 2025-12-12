@@ -16,6 +16,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { chatMessagesStyles } from './ChatScreen.styles';
 import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
@@ -442,6 +443,17 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     });
     wsRef.current = ws;
     return () => {
+      // Save the last message ID as read when leaving the chat
+      const chatId = chatParams.chatRoom?.id || chatParams.chatId;
+      if (chatId) {
+        // We need to get the current messages from state - use a ref or save async
+        AsyncStorage.getItem(`pendingLastRead_${chatId}`).then(lastMsgId => {
+          if (lastMsgId) {
+            AsyncStorage.setItem(`lastRead_${chatId}`, lastMsgId);
+            AsyncStorage.removeItem(`pendingLastRead_${chatId}`);
+          }
+        });
+      }
       typingTimeoutRef.current && clearTimeout(typingTimeoutRef.current);
       typingDebounceRef.current && clearTimeout(typingDebounceRef.current);
       isTyping && ws.readyState===WebSocket.OPEN && sendTypingIndicator(false);
@@ -455,6 +467,17 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     messages.filter(m => m.sender==='other' && !m.readBy?.includes(userUuid))
       .forEach(m => markMessageAsRead(m.id));
   }, [messages, userUuid]);
+
+  // Save last message ID as pending read whenever messages update
+  useEffect(() => {
+    const chatId = chatParams.chatRoom?.id || chatParams.chatId;
+    if (messages.length > 0 && chatId) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage?.id && !lastMessage.id.startsWith('temp_')) {
+        AsyncStorage.setItem(`pendingLastRead_${chatId}`, lastMessage.id);
+      }
+    }
+  }, [messages, chatParams]);
 
   useEffect(() => {
     messages.length>0 && setTimeout(()=>flatListRef.current?.scrollToEnd({animated:true}),100);

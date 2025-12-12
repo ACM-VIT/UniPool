@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,15 @@ import {
   Image,
   Dimensions
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { PassengerInfoScreenProps, User } from './ChatScreen.types';
 import BrandInfo from '../../components/BrandInfo';
 import LoadingComponent from '../../components/LoadingComponent';
 import { useApi } from '../../utils/ApiUtil';
 import RideService from '../../utils/RideService';
+import ChatService from '../../utils/ChatService';
 import styles from '../ProfileScreen/ProfileScreen.styles';
 
 
@@ -24,7 +27,7 @@ const THEME = {
   textWhite: '#FFFFFF',
   textGrey: '#8C9E96',
   separator: '#2C3E36',
-  accent: '#C1D95E',     // Badge color
+  accent: '#C1D95E',     
   black: '#000000'
 };
 
@@ -32,8 +35,9 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
   const [passengers, setPassengers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [lastMessages, setLastMessages] = useState<{ [roomId: string]: { text: string; timestamp: Date } | null }>({});
+  const [unreadCounts, setUnreadCounts] = useState<{ [roomId: string]: number }>({});
   
-  // State to handle tab switching (Groups vs Individuals)
   const [activeTab, setActiveTab] = useState<'groups' | 'individuals'>('individuals');
 
   const { apiUtil } = useApi();
@@ -41,6 +45,28 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
   const generateDMRoomId = (userId1: string, userId2: string): string => {
     const sortedIds = [userId1, userId2].sort();
     return `dm_${sortedIds[0]}_${sortedIds[1]}`;
+  };
+
+
+  const processBackendMessage = (backendMsg: any): { text: string; timestamp: Date } | null => {
+    if (!backendMsg) return null;
+    
+    const content = backendMsg.content || backendMsg.text || backendMsg.message;
+    const timestamp = backendMsg.timestamp || backendMsg.created_at || backendMsg.sent_at;
+    
+    if (!content) return null;
+    
+    let parsedTimestamp: Date;
+    if (timestamp) {
+      parsedTimestamp = new Date(timestamp);
+      if (isNaN(parsedTimestamp.getTime())) {
+        parsedTimestamp = new Date();
+      }
+    } else {
+      parsedTimestamp = new Date();
+    }
+    
+    return { text: content, timestamp: parsedTimestamp };
   };
 
   useEffect(() => {
@@ -96,6 +122,59 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
         
         const uniquePeople = Array.from(uniquePeopleMap.values());
         setPassengers(uniquePeople);
+
+
+        const messagesMap: { [roomId: string]: { text: string; timestamp: Date } | null } = {};
+        const unreadMap: { [roomId: string]: number } = {};
+        
+        for (const person of uniquePeople) {
+          const dmRoomId = generateDMRoomId(fetchedCurrentUserId, person.id);
+          try {
+            const messages = await ChatService.fetchMessages(apiUtil, dmRoomId);
+            console.log(`[PassengerInfo] Messages for ${dmRoomId}:`, messages?.length);
+            
+            if (messages && messages.length > 0) {
+
+              const lastRawMessage = messages[messages.length - 1];
+              messagesMap[dmRoomId] = processBackendMessage(lastRawMessage);
+              
+
+              const lastReadMessageId = await AsyncStorage.getItem(`lastRead_${dmRoomId}`);
+              
+
+              let unreadCount = 0;
+              let foundLastRead = !lastReadMessageId; //if no last read, all are unread
+              
+              for (const msg of messages) {
+                const rawMsg = msg as any;
+                const messageId = rawMsg.id || rawMsg.message_id;
+                const senderId = rawMsg.sender_id || rawMsg.senderId || rawMsg.user_id;
+                const isFromOther = senderId !== fetchedCurrentUserId;
+                
+
+                if (messageId === lastReadMessageId) {
+                  foundLastRead = true;
+                  continue;
+                }
+                
+
+                if (foundLastRead && isFromOther) {
+                  unreadCount++;
+                }
+              }
+              unreadMap[dmRoomId] = unreadCount;
+            } else {
+              messagesMap[dmRoomId] = null;
+              unreadMap[dmRoomId] = 0;
+            }
+          } catch (error) {
+            console.warn(`Failed to fetch messages for room ${dmRoomId}:`, error);
+            messagesMap[dmRoomId] = null;
+            unreadMap[dmRoomId] = 0;
+          }
+        }
+        setLastMessages(messagesMap);
+        setUnreadCounts(unreadMap);
       } catch (error: any) {
         if (error?.message === "AUTHENTICATION_REDIRECT") return;
         console.error("Failed to fetch passengers:", error);
@@ -107,15 +186,86 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
     fetchPassengers();
   }, [apiUtil]);
 
-  // Helper to render a list item
+  // Refetch unread counts when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const refreshUnreadCounts = async () => {
+        if (!currentUserId || passengers.length === 0) return;
+        
+        const unreadMap: { [roomId: string]: number } = {};
+        const messagesMap: { [roomId: string]: { text: string; timestamp: Date } | null } = {};
+        
+        for (const person of passengers) {
+          const dmRoomId = generateDMRoomId(currentUserId, person.id);
+          try {
+            const messages = await ChatService.fetchMessages(apiUtil, dmRoomId);
+            
+            if (messages && messages.length > 0) {
+              const lastRawMessage = messages[messages.length - 1];
+              messagesMap[dmRoomId] = processBackendMessage(lastRawMessage);
+              
+              // Get locally stored last read message ID for this room
+              const lastReadMessageId = await AsyncStorage.getItem(`lastRead_${dmRoomId}`);
+              
+              let unreadCount = 0;
+              let foundLastRead = !lastReadMessageId;
+              
+              for (const msg of messages) {
+                const rawMsg = msg as any;
+                const messageId = rawMsg.id || rawMsg.message_id;
+                const senderId = rawMsg.sender_id || rawMsg.senderId || rawMsg.user_id;
+                const isFromOther = senderId !== currentUserId;
+                
+                if (messageId === lastReadMessageId) {
+                  foundLastRead = true;
+                  continue;
+                }
+                
+                if (foundLastRead && isFromOther) {
+                  unreadCount++;
+                }
+              }
+              unreadMap[dmRoomId] = unreadCount;
+            } else {
+              messagesMap[dmRoomId] = null;
+              unreadMap[dmRoomId] = 0;
+            }
+          } catch (error) {
+            console.warn(`Failed to refresh messages for room ${dmRoomId}:`, error);
+          }
+        }
+        setLastMessages(messagesMap);
+        setUnreadCounts(unreadMap);
+      };
+
+      refreshUnreadCounts();
+    }, [currentUserId, passengers, apiUtil])
+  );
+
+
+  const formatMessageTime = (timestamp: Date | string | undefined): string => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return '';
+    
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    
+    if (isToday) {
+      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+  };
+
+
   const renderChatItem = (user: User, isLast: boolean) => {
     const dmRoomId = generateDMRoomId(currentUserId, user.id);
     
-    // Placeholder data to match the design (Time/Unread)
-    // In a real app, these would come from your Chat Service
-    const lastMessageTime = "8:10 AM"; 
-    const unreadCount = 0; // Set to > 0 to see the badge
-    const lastMessageText = "lorem ipsum dolor intem quany ui";
+    const lastMessage = lastMessages[dmRoomId];
+    const lastMessageText = lastMessage?.text || "Tap here to start chatting";
+    const lastMessageTime = lastMessage ? formatMessageTime(lastMessage.timestamp) : '';
+    const unreadCount = unreadCounts[dmRoomId] || 0;
 
     return (
       <TouchableOpacity 
@@ -133,12 +283,12 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
           {/* Left Side: Name and Message */}
           <View style={newStyles.chatContent}>
             <Text style={newStyles.userName}>{user.name}</Text>
-            <Text style={newStyles.lastMessage} numberOfLines={1}>
+            <Text style={[newStyles.lastMessage, !lastMessage && newStyles.placeholderMessage]} numberOfLines={1}>
               {lastMessageText}
             </Text>
           </View>
 
-          {/* Right Side: Time and Badge */}
+
           <View style={newStyles.chatMeta}>
             <Text style={newStyles.timeText}>{lastMessageTime}</Text>
             {unreadCount > 0 && (
@@ -218,10 +368,10 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
           </ScrollView>
         )}
         
-        {/* Illustration at bottom right (Bird on Traffic Light) */}
+
         <View style={newStyles.illustrationContainer}>
           <Image 
-            source={require('../../assets/traffic_bird.png')}
+            source={require('../../assets/traffic_light.png')}
             style={newStyles.illustrationImage}
             resizeMode="contain"
           />
@@ -231,7 +381,7 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
   );
 };
 
-// New Styles to match the design provided
+
 const newStyles = StyleSheet.create({
   container: {
     flex: 1,
@@ -261,10 +411,10 @@ const newStyles = StyleSheet.create({
   },
   pageTitle: {
     fontSize: 28,
-    fontFamily: 'NunitoSans_600SemiBold', // Adjust font family as needed
+    fontFamily: 'NunitoSans_600SemiBold', 
     color: THEME.black,
   },
-  // Tab Styles
+
   tabContainer: {
     flexDirection: 'row',
     paddingHorizontal: 0,
@@ -289,9 +439,9 @@ const newStyles = StyleSheet.create({
     color: THEME.lightGreen,
   },
   inactiveTabText: {
-    color: '#4A5E4D', // Darker green for inactive text on light background
+    color: '#4A5E4D', 
   },
-  // Content Styles
+
   contentContainer: {
     flex: 1,
     backgroundColor: THEME.darkGreen,
@@ -311,7 +461,7 @@ const newStyles = StyleSheet.create({
     color: THEME.textGrey,
     fontSize: 16,
   },
-  // Chat Item Styles
+
   chatItem: {
     paddingVertical: 18,
     paddingHorizontal: 20,
@@ -340,6 +490,10 @@ const newStyles = StyleSheet.create({
     color: THEME.textGrey,
     fontSize: 14,
   },
+  placeholderMessage: {
+    fontStyle: 'italic',
+    color: THEME.accent,
+  },
   chatMeta: {
     alignItems: 'flex-end',
   },
@@ -362,11 +516,11 @@ const newStyles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
-//chekc once
+
   illustrationContainer: {
     position: 'absolute',
     bottom: 20,
-    right: 20,
+    right: -10,
     zIndex: 0,
     elevation: 0,
   },

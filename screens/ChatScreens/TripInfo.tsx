@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,15 @@ import {
   StyleSheet,
   Dimensions
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { TripInfoScreenProps, Ride } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
 import BrandInfo from '../../components/BrandInfo';
 import { useApi } from '../../utils/ApiUtil';
 import RideService from '../../utils/RideService';
+import ChatService from '../../utils/ChatService';
 import LoadingComponent from '../../components/LoadingComponent';
 
 
@@ -29,6 +32,8 @@ const THEME = {
 const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, setNavBarVariant }) => {
   const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [unreadCounts, setUnreadCounts] = useState<{ [rideId: string]: number }>({});
   const { apiUtil } = useApi();
 
   useEffect(() => {
@@ -42,6 +47,49 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
       try {
         const fetchedRides = await RideService.getInvolvedRides(apiUtil);
         setRides(fetchedRides);
+        
+        const currentUserResponse = await apiUtil.get<{user: {id: string}}>("/user/details");
+        const fetchedCurrentUserId = currentUserResponse.user.id;
+        setCurrentUserId(fetchedCurrentUserId);
+        
+        const unreadMap: { [rideId: string]: number } = {};
+        
+        for (const ride of fetchedRides) {
+          try {
+            const messages = await ChatService.fetchMessages(apiUtil, ride.id);
+            
+            if (messages && messages.length > 0) {
+
+              const lastReadMessageId = await AsyncStorage.getItem(`lastRead_${ride.id}`);
+              
+              let unreadCount = 0;
+              let foundLastRead = !lastReadMessageId;
+              
+              for (const msg of messages) {
+                const rawMsg = msg as any;
+                const messageId = rawMsg.id || rawMsg.message_id;
+                const senderId = rawMsg.sender_id || rawMsg.senderId || rawMsg.user_id;
+                const isFromOther = senderId !== fetchedCurrentUserId;
+                
+                if (messageId === lastReadMessageId) {
+                  foundLastRead = true;
+                  continue;
+                }
+                
+                if (foundLastRead && isFromOther) {
+                  unreadCount++;
+                }
+              }
+              unreadMap[ride.id] = unreadCount;
+            } else {
+              unreadMap[ride.id] = 0;
+            }
+          } catch (error) {
+            console.warn(`Failed to fetch messages for ride ${ride.id}:`, error);
+            unreadMap[ride.id] = 0;
+          }
+        }
+        setUnreadCounts(unreadMap);
       } catch (error) {
         console.error("Failed to fetch rides:", error);
       } finally {
@@ -51,6 +99,54 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
 
     fetchRides();
   }, [apiUtil]);
+
+  // Refetch unread counts when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const refreshUnreadCounts = async () => {
+        if (!currentUserId || rides.length === 0) return;
+        
+        const unreadMap: { [rideId: string]: number } = {};
+        
+        for (const ride of rides) {
+          try {
+            const messages = await ChatService.fetchMessages(apiUtil, ride.id);
+            
+            if (messages && messages.length > 0) {
+              const lastReadMessageId = await AsyncStorage.getItem(`lastRead_${ride.id}`);
+              
+              let unreadCount = 0;
+              let foundLastRead = !lastReadMessageId;
+              
+              for (const msg of messages) {
+                const rawMsg = msg as any;
+                const messageId = rawMsg.id || rawMsg.message_id;
+                const senderId = rawMsg.sender_id || rawMsg.senderId || rawMsg.user_id;
+                const isFromOther = senderId !== currentUserId;
+                
+                if (messageId === lastReadMessageId) {
+                  foundLastRead = true;
+                  continue;
+                }
+                
+                if (foundLastRead && isFromOther) {
+                  unreadCount++;
+                }
+              }
+              unreadMap[ride.id] = unreadCount;
+            } else {
+              unreadMap[ride.id] = 0;
+            }
+          } catch (error) {
+            console.warn(`Failed to refresh messages for ride ${ride.id}:`, error);
+          }
+        }
+        setUnreadCounts(unreadMap);
+      };
+
+      refreshUnreadCounts();
+    }, [currentUserId, rides, apiUtil])
+  );
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -151,7 +247,7 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
                     <Text style={localStyles.separator}>|</Text>
                     {/* Icon for people */}
                     <Image 
-                      source={require('../../assets/user_group.png')} // Need a user icon asset
+                      source={require('../../assets/user_group.png')} 
                       style={localStyles.smallIcon}
                     />
                     <Text style={localStyles.detailText}>
@@ -159,9 +255,9 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
                     </Text>
                   </View>
                   
-                  {index === 0 && (
+                  {unreadCounts[ride.id] > 0 && (
                     <View style={localStyles.badge}>
-                      <Text style={localStyles.badgeText}>4</Text>
+                      <Text style={localStyles.badgeText}>{unreadCounts[ride.id]}</Text>
                     </View>
                   )}
                 </View>
