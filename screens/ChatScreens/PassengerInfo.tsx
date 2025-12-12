@@ -1,24 +1,41 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StatusBar,
   ScrollView,
+  StyleSheet,
+  Image,
+  Dimensions
 } from 'react-native';
-import { passengerInfoStyles } from './ChatScreen.styles';
+
 import { PassengerInfoScreenProps, User } from './ChatScreen.types';
-import AppColors from '../../design_systems/colors';
 import BrandInfo from '../../components/BrandInfo';
 import LoadingComponent from '../../components/LoadingComponent';
 import { useApi } from '../../utils/ApiUtil';
 import RideService from '../../utils/RideService';
 import styles from '../ProfileScreen/ProfileScreen.styles';
 
+
+const THEME = {
+  lightGreen: '#C1D95E', 
+  darkGreen: '#1F3329',  
+  textWhite: '#FFFFFF',
+  textGrey: '#8C9E96',
+  separator: '#2C3E36',
+  accent: '#C1D95E',     // Badge color
+  black: '#000000'
+};
+
 const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, route, setNavBarVariant }) => {
   const [passengers, setPassengers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>('');
+  
+  // State to handle tab switching (Groups vs Individuals)
+  const [activeTab, setActiveTab] = useState<'groups' | 'individuals'>('individuals');
+
   const { apiUtil } = useApi();
 
   const generateDMRoomId = (userId1: string, userId2: string): string => {
@@ -41,23 +58,16 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
         const fetchedCurrentUserId = currentUserResponse.user.id;
         setCurrentUserId(fetchedCurrentUserId);
         
-        const allPeople: User[] = [];
         const uniquePeopleMap = new Map<string, User>();
         
         for (const ride of involvedRides) {
           try {
             const rideDetails = await apiUtil.get<{
-              host: {
-                id: string;
-                name: string;
-                email: string;
-                profile_picture_url: string;
-              };
+              host: { id: string; name: string; email: string; };
               bookings: Array<{
                 passenger_id: string;
                 passenger_name: string;
                 passenger_email: string;
-                passenger_profile_picture_url: string;
                 request_status: string;
               }>;
             }>(`/ride/details/${ride.id}`);
@@ -87,18 +97,7 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
         const uniquePeople = Array.from(uniquePeopleMap.values());
         setPassengers(uniquePeople);
       } catch (error: any) {
-        if (error?.message === "AUTHENTICATION_REDIRECT") {
-          console.log("Authentication redirect in PassengerInfo");
-          return;
-        }
-        
-        // Handle user not found - should redirect to signup (handled by ApiUtil)
-        if (error?.response?.status === 404 && 
-            error?.response?.data?.message === "User not found in database, signup required") {
-          console.log("User not found in database - redirect to signup handled by ApiUtil");
-          return;
-        }
-        
+        if (error?.message === "AUTHENTICATION_REDIRECT") return;
         console.error("Failed to fetch passengers:", error);
       } finally {
         setLoading(false);
@@ -108,67 +107,273 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
     fetchPassengers();
   }, [apiUtil]);
 
+  // Helper to render a list item
+  const renderChatItem = (user: User, isLast: boolean) => {
+    const dmRoomId = generateDMRoomId(currentUserId, user.id);
+    
+    // Placeholder data to match the design (Time/Unread)
+    // In a real app, these would come from your Chat Service
+    const lastMessageTime = "8:10 AM"; 
+    const unreadCount = 0; // Set to > 0 to see the badge
+    const lastMessageText = "lorem ipsum dolor intem quany ui";
+
+    return (
+      <TouchableOpacity 
+        key={user.id} 
+        style={[newStyles.chatItem, !isLast && newStyles.separator]}
+        onPress={() => navigation?.navigate('ChatMessages' as never, {
+          chatId: dmRoomId,
+          chatTitle: user.name,
+          chatSubtitle: '',
+          isGroupChat: false,
+          otherUserId: user.id,
+        })}
+      >
+        <View style={newStyles.chatRow}>
+          {/* Left Side: Name and Message */}
+          <View style={newStyles.chatContent}>
+            <Text style={newStyles.userName}>{user.name}</Text>
+            <Text style={newStyles.lastMessage} numberOfLines={1}>
+              {lastMessageText}
+            </Text>
+          </View>
+
+          {/* Right Side: Time and Badge */}
+          <View style={newStyles.chatMeta}>
+            <Text style={newStyles.timeText}>{lastMessageTime}</Text>
+            {unreadCount > 0 && (
+              <View style={newStyles.badge}>
+                <Text style={newStyles.badgeText}>{unreadCount}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
-    <View style={passengerInfoStyles.container}>
-      <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
-      <View style={styles.brandInfoHeaderRow}>
-        <BrandInfo />
-      </View>
+    <View style={newStyles.container}>
+      <StatusBar backgroundColor={THEME.lightGreen} barStyle="dark-content" />
       
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-        <View style={passengerInfoStyles.chatHeader}>
-          <Text style={passengerInfoStyles.chatTitle}>Chat</Text>
+      {/* 1. Light Green Header Section */}
+      <View style={newStyles.headerContainer}>
+        <View style={styles.brandInfoHeaderRow}>
+          <BrandInfo />
         </View>
 
-        <View style={passengerInfoStyles.toggleContainer}>
+        <View style={newStyles.titleRow}>
+            {/* Back Arrow Placeholder */}
+            <TouchableOpacity onPress={() => navigation?.goBack()} style={newStyles.backButton}>
+                {/* Use an Icon component here if you have one, e.g., IonIcons name="arrow-back" */}
+                <Text style={{fontSize: 24, fontWeight: '300'}}>←</Text> 
+            </TouchableOpacity>
+            <Text style={newStyles.pageTitle}>Chat</Text>
+        </View>
+
+        {/* 2. Tabs Section */}
+        <View style={newStyles.tabContainer}>
           <TouchableOpacity 
-            style={passengerInfoStyles.toggleButtonInactive}
-            onPress={() => navigation?.navigate('TripsListScreen' as never)}
+            style={[newStyles.tab, activeTab === 'groups' && newStyles.activeTab]}
+            onPress={() => {
+                setActiveTab('groups');
+                navigation?.navigate('TripsListScreen' as never);
+            }}
           >
-            <Text style={passengerInfoStyles.toggleTextInactive}>Trips</Text>
+            <Text style={[newStyles.tabText, activeTab === 'groups' ? newStyles.activeTabText : newStyles.inactiveTabText]}>
+              Groups
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={passengerInfoStyles.toggleButtonActive}>
-            <Text style={passengerInfoStyles.toggleTextActive}>Passenger</Text>
+
+          <TouchableOpacity 
+            style={[newStyles.tab, activeTab === 'individuals' && newStyles.activeTab]}
+            onPress={() => setActiveTab('individuals')}
+          >
+            <Text style={[newStyles.tabText, activeTab === 'individuals' ? newStyles.activeTabText : newStyles.inactiveTabText]}>
+              Individuals
+            </Text>
           </TouchableOpacity>
         </View>
+      </View>
 
+      {/* 3. Dark Content Section */}
+      <View style={newStyles.contentContainer}>
         {loading ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 200 }}>
+          <View style={newStyles.centerContent}>
             <LoadingComponent />
           </View>
         ) : (
-          passengers.length === 0 ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, paddingBottom: 200 }}>
-              <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 18, color: AppColors.basicBlack, textAlign: 'center' }}>
-                No passengers found. When you join a ride as a passenger, they will appear here.
-              </Text>
-            </View>
-          ) : (
-            <View style={passengerInfoStyles.destinationsList}>
-              {passengers.map((passenger) => {
-                const dmRoomId = generateDMRoomId(currentUserId, passenger.id);
-                return (
-                  <TouchableOpacity 
-                    key={passenger.id} 
-                    style={passengerInfoStyles.destinationItem}
-                    onPress={() => navigation?.navigate('ChatMessages' as never, {
-                      chatId: dmRoomId,
-                      chatTitle: `Chat with ${passenger.name}`,
-                      chatSubtitle: ``,
-                      isGroupChat: false,
-                      otherUserId: passenger.id,
-                    })}
-                  >
-                    <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )
+          <ScrollView contentContainerStyle={newStyles.scrollContent}>
+            {activeTab === 'individuals' && (
+                passengers.length === 0 ? (
+                    <View style={newStyles.centerContent}>
+                    <Text style={newStyles.emptyText}>
+                        No individual chats yet.
+                    </Text>
+                    </View>
+                ) : (
+                    passengers.map((p, index) => renderChatItem(p, index === passengers.length - 1))
+                )
+            )}
+          </ScrollView>
         )}
-      </ScrollView>
+        
+        {/* Illustration at bottom right (Bird on Traffic Light) */}
+        <View style={newStyles.illustrationContainer}>
+          <Image 
+            source={require('../../assets/traffic_bird.png')}
+            style={newStyles.illustrationImage}
+            resizeMode="contain"
+          />
+        </View>
+      </View>
     </View>
   );
 };
+
+// New Styles to match the design provided
+const newStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: THEME.lightGreen,
+  },
+  headerContainer: {
+    backgroundColor: THEME.lightGreen,
+    paddingBottom: 0,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 15,
+  },
+  backButton: {
+    marginRight: 15,
+    padding: 5,
+    borderWidth: 1,
+    borderColor: THEME.black,
+    borderRadius: 8,
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pageTitle: {
+    fontSize: 28,
+    fontFamily: 'NunitoSans_600SemiBold', // Adjust font family as needed
+    color: THEME.black,
+  },
+  // Tab Styles
+  tabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 0,
+    alignItems: 'flex-end',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  activeTab: {
+    backgroundColor: THEME.darkGreen,
+  },
+  tabText: {
+    fontSize: 18,
+    fontFamily: 'NunitoSans_600SemiBold',
+  },
+  activeTabText: {
+    color: THEME.lightGreen,
+  },
+  inactiveTabText: {
+    color: '#4A5E4D', // Darker green for inactive text on light background
+  },
+  // Content Styles
+  contentContainer: {
+    flex: 1,
+    backgroundColor: THEME.darkGreen,
+  },
+  scrollContent: {
+    paddingTop: 10,
+    paddingBottom: 150,
+    zIndex: 1,
+  },
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 50,
+  },
+  emptyText: {
+    color: THEME.textGrey,
+    fontSize: 16,
+  },
+  // Chat Item Styles
+  chatItem: {
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    backgroundColor: THEME.darkGreen,
+  },
+  separator: {
+    borderBottomWidth: 1,
+    borderBottomColor: THEME.separator,
+  },
+  chatRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  chatContent: {
+    flex: 1,
+    marginRight: 10,
+  },
+  userName: {
+    color: THEME.textWhite,
+    fontSize: 20,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  lastMessage: {
+    color: THEME.textGrey,
+    fontSize: 14,
+  },
+  chatMeta: {
+    alignItems: 'flex-end',
+  },
+  timeText: {
+    color: THEME.textGrey,
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  badge: {
+    backgroundColor: THEME.accent,
+    borderRadius: 12,
+    minWidth: 22,
+    height: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  badgeText: {
+    color: '#000',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+//chekc once
+  illustrationContainer: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    zIndex: 0,
+    elevation: 0,
+  },
+  illustrationImage: {
+    width: 250,
+    height: 250,
+  },
+});
 
 export default PassengerInfoScreen;

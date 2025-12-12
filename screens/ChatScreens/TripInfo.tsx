@@ -52,7 +52,6 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
     fetchRides();
   }, [apiUtil]);
 
-  // Helper to format date like "Fri | 3 Jun 2024"
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
@@ -62,7 +61,6 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
     return `${dayName} | ${day} ${month} ${year}`;
   };
 
-  // Helper to format time like "8:10 AM"
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -72,21 +70,18 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
     <View style={localStyles.container}>
       <StatusBar backgroundColor={THEME.lightGreen} barStyle="dark-content" />
       
-      {/* HEADER SECTION (Light Green) */}
+
       <View style={localStyles.headerContainer}>
-        {/* Brand Header */}
+
         <View style={localStyles.brandHeader}>
-           {/* Assuming BrandInfo contains the Location and UniPool text */}
-           {/* If BrandInfo has its own background, ensure it is transparent or matches lightGreen */}
            <BrandInfo /> 
         </View>
 
-        {/* Chat Title with Back Arrow */}
         <View style={localStyles.titleRow}>
           <TouchableOpacity onPress={() => navigation?.goBack()} style={localStyles.backButton}>
-             {/* Replace this Image with an Icon component if you have one installed */}
+           
              <Image 
-                source={require('../../assets/arrow_back.png')} // Ensure you have a back arrow asset
+                source={require('../../assets/arrow_back.png')} 
                 style={{ width: 24, height: 24, tintColor: '#000' }} 
              />
           </TouchableOpacity>
@@ -164,7 +159,6 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
                     </Text>
                   </View>
                   
-                  {/* Notification Badge (Example logic: show if index is 0) */}
                   {index === 0 && (
                     <View style={localStyles.badge}>
                       <Text style={localStyles.badgeText}>4</Text>
@@ -176,7 +170,6 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
           </ScrollView>
         )}
 
-        {/* Illustration at bottom right (Bird on Traffic Light) */}
         <View style={localStyles.illustrationContainer}>
            <Image 
               source={require('../../assets/traffic_bird.png')}
@@ -189,16 +182,16 @@ const TripsListScreen: React.FC<TripInfoScreenProps> = ({ navigation, route, set
   );
 };
 
-// Styles to match the image
+
 const localStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: THEME.lightGreen, // Top half background
+    backgroundColor: THEME.lightGreen,
   },
   headerContainer: {
     backgroundColor: THEME.lightGreen,
     paddingTop: 10,
-    paddingBottom: 0, // Tabs sit on the bottom
+    paddingBottom: 0, 
   },
   brandHeader: {
     paddingHorizontal: 16,
@@ -257,10 +250,10 @@ const localStyles = StyleSheet.create({
     fontWeight: '600',
   },
   
-  // Body Section
+
   bodyContainer: {
     flex: 1,
-    backgroundColor: THEME.darkGreen, // The dark background
+    backgroundColor: THEME.darkGreen, 
     position: 'relative',
   },
   centerContent: {
@@ -274,7 +267,7 @@ const localStyles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 10,
-    paddingBottom: 150, // Space for illustration
+    paddingBottom: 150, 
     zIndex: 1,
   },
   listItem: {
