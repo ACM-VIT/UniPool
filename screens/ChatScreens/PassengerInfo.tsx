@@ -18,7 +18,6 @@ import LoadingComponent from '../../components/LoadingComponent';
 import { useApi } from '../../utils/ApiUtil';
 import RideService from '../../utils/RideService';
 import ChatService from '../../utils/ChatService';
-import styles from '../ProfileScreen/ProfileScreen.styles';
 
 
 const THEME = {
@@ -308,15 +307,16 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
       
       {/* 1. Light Green Header Section */}
       <View style={newStyles.headerContainer}>
-        <View style={styles.brandInfoHeaderRow}>
+        <View style={newStyles.brandHeader}>
           <BrandInfo />
         </View>
 
         <View style={newStyles.titleRow}>
-            {/* Back Arrow Placeholder */}
             <TouchableOpacity onPress={() => navigation?.goBack()} style={newStyles.backButton}>
-                {/* Use an Icon component here if you have one, e.g., IonIcons name="arrow-back" */}
-                <Text style={{fontSize: 24, fontWeight: '300'}}>←</Text> 
+               <Image 
+                  source={require('../../assets/arrow_back.png')} 
+                  style={{ width: 24, height: 24, tintColor: '#000' }} 
+               />
             </TouchableOpacity>
             <Text style={newStyles.pageTitle}>Chat</Text>
         </View>
@@ -389,30 +389,28 @@ const newStyles = StyleSheet.create({
   },
   headerContainer: {
     backgroundColor: THEME.lightGreen,
+    paddingTop: 10,
     paddingBottom: 0,
+  },
+  brandHeader: {
+    paddingHorizontal: 16,
+    marginBottom: 10,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginTop: 10,
-    marginBottom: 15,
+    paddingHorizontal: 16,
+    marginBottom: 20,
   },
   backButton: {
-    marginRight: 15,
-    padding: 5,
-    borderWidth: 1,
-    borderColor: THEME.black,
-    borderRadius: 8,
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginRight: 10,
+    padding: 4,
   },
   pageTitle: {
-    fontSize: 28,
-    fontFamily: 'NunitoSans_600SemiBold', 
-    color: THEME.black,
+    fontSize: 24,
+    fontWeight: '500',
+    color: '#000',
+    fontFamily: 'NunitoSans_700Bold', 
   },
 
   tabContainer: {
