@@ -6,38 +6,18 @@ import {
   StyleSheet,
   Image,
   Dimensions,
-  ImageSourcePropType,
-  ImageStyle,
-  TextStyle,
-  ViewStyle,
 } from "react-native";
-const locationPinIcon = require("../assets/location-pin.png");
-const navigationIcon = require("../assets/navigation-2.png");
-const clockIcon = require("../assets/clock.png");
-const walletIcon = require("../assets/wallet.png");
-const sofaIcon = require("../assets/sofa.png");
 import AppColors from "../design_systems/colors";
 
+const pinIcon = require("../assets/location-pin.png");
+const arrowIcon = require("../assets/navigation-2.png");
+const clockIcon = require("../assets/clock.png");
+const walletIcon = require("../assets/wallet.png");
+const seatIcon = require("../assets/sofa.png");
+
 const { width, height } = Dimensions.get("window");
-
-const isSmallDevice = width < 350;
-const isMediumDevice = width >= 350 && width < 400;
-const isLargeDevice = width >= 400;
-
-const wp = (percentage: number) => (width * percentage) / 100;
-const hp = (percentage: number) => (height * percentage) / 100;
-
-const getFontSize = (small: number, medium: number, large: number) => {
-  if (isSmallDevice) return small;
-  if (isMediumDevice) return medium;
-  return large;
-};
-
-const getIconSize = (small: number, medium: number, large: number) => {
-  if (isSmallDevice) return small;
-  if (isMediumDevice) return medium;
-  return large;
-};
+const wp = (p: number) => (width * p) / 100;
+const hp = (p: number) => (height * p) / 100;
 
 interface RideCardProps {
   id: string;
@@ -45,324 +25,164 @@ interface RideCardProps {
   destination?: string;
   time?: string;
   price?: number;
-  isSelected?: boolean;
   seatsAvailable?: string;
   totalSeats?: number;
   onSelect?: (id: string) => void;
-  pricePerPerson?: boolean;
-  variant?: "upcoming" | "inprogress";
-  date?: string;
 }
 
-// Format time to add colon between hours (e.g., '1700 hrs' -> '17:00 hrs')
-const formatTime = (rawTime: string) => {
-  // Match '1700 hrs', '0900 hrs', etc.
-  const match = rawTime.match(/^(\d{2})(\d{2})\s*hrs$/);
-  if (match) {
-    return `${match[1]}:${match[2]} hrs`;
-  }
-  return rawTime;
-};
-
 const RideCard: React.FC<RideCardProps> = ({
-  id = "01",
+  id,
   origin = "VIT Vellore",
   destination = "Chennai Airport",
   time = "1700 hrs",
   price = 500,
-  isSelected = false,
   seatsAvailable = "1/2",
-  totalSeats,
+  totalSeats = 2,
   onSelect = () => {},
-  pricePerPerson = false,
-  variant = "upcoming",
-  date = "",
 }) => {
-  const handleSelect = () => {
-    onSelect(id);
-  };
-
-  const maxSeats = typeof totalSeats === "number" ? totalSeats : parseInt(seatsAvailable.split("/")[1]) || 0;
-  const getVehicleIcon = (): ImageSourcePropType => {
-    if (maxSeats < 3) return require("../assets/motorcycle.png");
-    if (maxSeats === 3) return require("../assets/Taxi.png");
-    if (maxSeats === 4) return require("../assets/racer.png");
-    if (maxSeats < 8) return require("../assets/wagon.png");
-    if (maxSeats < 11) return require("../assets/foodvan.png");
-    if (maxSeats < 20) return require("../assets/Bus.png");
-    return require("../assets/UFO.png");
+  const getVehicleImage = () => {
+    if (totalSeats <= 2) return require("../assets/motorcycle.png");
+    if (totalSeats <= 4) return require("../assets/racer.png");
+    if (totalSeats <= 7) return require("../assets/wagon.png");
+    if (totalSeats <= 10) return require("../assets/foodvan.png");
+    return require("../assets/Bus.png");
   };
 
   return (
-    <TouchableOpacity
-      style={[styles.card, { backgroundColor: isSelected ? AppColors.secondaryDarkGreen : AppColors.basicWhite }]}
-      onPress={handleSelect}
-    >
-      <View style={styles.topContainer}>
-        <View style={styles.routeContainer}>
-          <View style={styles.locationContainer}>
-            <Image
-              source={locationPinIcon}
-              style={[
-                styles.icon,
-                {
-                  tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
-                  width: getIconSize(16, 18, 20),
-                  height: getIconSize(16, 18, 20),
-                },
-              ]}
-              resizeMode="contain"
-            />
-            <Text
-              style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {origin}
-            </Text>
-          </View>
-          {isSelected ? (
-            <Image source={require("../assets/dotted_line_green.png")} style={styles.verticalLine} />
-          ) : (
-            <Image source={require("../assets/dotted_line.png")} style={styles.verticalLine} />
-          )}
-          <View style={styles.locationContainer}>
-            <Image
-              source={navigationIcon}
-              style={[
-                styles.icon,
-                {
-                  tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
-                  width: getIconSize(16, 18, 20),
-                  height: getIconSize(16, 18, 20),
-                },
-              ]}
-              resizeMode="contain"
-            />
-            <Text
-              style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {destination}
-            </Text>
-          </View>
+    <TouchableOpacity style={styles.card} onPress={() => onSelect(id)}>
+      <View style={styles.leftBlock}>
+        <View style={styles.row}>
+          <Image source={pinIcon} style={styles.mainIcon} />
+          <Text style={styles.locationText}>{origin}</Text>
         </View>
-        <View style={styles.detailsContainer}>
-          <View style={styles.timeContainer}>
-            <Image
-              source={clockIcon}
-              style={[
-                styles.timeIcon,
-                {
-                  tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
-                  width: getIconSize(14, 16, 16),
-                  height: getIconSize(14, 16, 16),
-                },
-              ]}
-              resizeMode="contain"
-            />
-            <Text style={[styles.detailText, isSelected ? styles.selectedDetailText : styles.unselectedDetailText]}>
-              {formatTime(time)}
-            </Text>
-          </View>
-          <View style={styles.priceContainer}>
-            <Image
-              source={walletIcon}
-              style={[
-                styles.priceIcon,
-                {
-                  tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
-                  width: getIconSize(14, 16, 16),
-                  height: getIconSize(14, 16, 16),
-                },
-              ]}
-              resizeMode="contain"
-            />
-            <Text style={[styles.detailText, isSelected ? styles.selectedDetailText : styles.unselectedDetailText]}>
-              {price} pp
-            </Text>
-          </View>
+
+        <Image source={require("../assets/dotted_line.png")} style={styles.dotLine} />
+
+        <View style={styles.row}>
+          <Image source={arrowIcon} style={styles.mainIcon} />
+          <Text style={styles.locationText}>{destination}</Text>
+        </View>
+
+        <View style={styles.seatRow}>
+          <Image source={seatIcon} style={styles.seatIcon} />
+          <Text style={styles.seatText}>{seatsAvailable} seats available</Text>
         </View>
       </View>
-      {variant === "upcoming" ? (
-        <View style={styles.seatsContainer}>
-          <Text style={[styles.seatsText, isSelected ? styles.selectedText : styles.unselectedText]}>
-            {date}
-          </Text>
+
+      <View style={styles.rightBlock}>
+        <View style={styles.infoRow}>
+          <Image source={clockIcon} style={styles.infoIcon} />
+          <Text style={styles.infoText}>{time}</Text>
         </View>
-      ) : (
-        <View style={styles.seatsContainer}>
-          <Image
-            source={sofaIcon}
-            style={[
-              styles.smallIcon,
-              {
-                tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
-                width: getIconSize(16, 18, 18),
-                height: getIconSize(16, 18, 18),
-              },
-            ]}
-            resizeMode="contain"
-          />
-          <Text style={[styles.seatsText, isSelected ? styles.selectedText : styles.unselectedText]}>
-            {seatsAvailable} seat{parseInt(seatsAvailable.split("/")[0]) !== 1 ? "s" : ""} available
-          </Text>
+
+        <View style={styles.infoRow}>
+          <Image source={walletIcon} style={styles.infoIcon} />
+          <Text style={styles.infoText}>₹ {price}</Text>
         </View>
-      )}
-      <View style={styles.vehicleImageContainer}>
-        <Image source={getVehicleIcon()} style={styles.vehicleImage} resizeMode="contain" />
       </View>
+
+      <Image source={getVehicleImage()} style={styles.vehicle} />
     </TouchableOpacity>
   );
 };
 
-interface Styles {
-  card: ViewStyle;
-  topContainer: ViewStyle;
-  selectedCard: ViewStyle;
-  unselectedCard: ViewStyle;
-  routeContainer: ViewStyle;
-  locationContainer: ViewStyle;
-  verticalLine: ImageStyle;
-  icon: ImageStyle;
-  locationText: TextStyle;
-  selectedText: TextStyle;
-  unselectedText: TextStyle;
-  seatsContainer: ViewStyle;
-  smallIcon: ImageStyle;
-  seatsText: TextStyle;
-  detailsContainer: ViewStyle;
-  timeContainer: ViewStyle;
-  priceContainer: ViewStyle;
-  timeIcon: ImageStyle;
-  priceIcon: ImageStyle;
-  detailText: TextStyle;
-  selectedDetailText: TextStyle;
-  unselectedDetailText: TextStyle;
-  vehicleImageContainer: ViewStyle;
-  vehicleImage: ImageStyle;
-}
-
-const styles = StyleSheet.create<Styles>({
+const styles = StyleSheet.create({
   card: {
-    height: hp(22),
     width: "100%",
-    borderRadius: wp(3),
-    padding: wp(4),
-    flexDirection: "column",
+    backgroundColor: "white",
+    borderRadius: 0,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    flexDirection: "row",
     justifyContent: "space-between",
     position: "relative",
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-    marginBottom: "2%",
+    overflow: "visible",
   },
-  topContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+
+  leftBlock: {
+    flex: 1.4,
+    paddingRight: 10,
   },
-  selectedCard: {
-    backgroundColor: "#1e4620",
+
+  rightBlock: {
+    flex: 0.8,
+    alignItems: "flex-end",
+    paddingTop: 6,
   },
-  unselectedCard: {
-    backgroundColor: "#ffffff",
-  },
-  routeContainer: {
-    marginBottom: 0,
-    flex: 1,
-    marginRight: wp(2),
-    minHeight: hp(12),
-  },
-  locationContainer: {
+
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
-    minHeight: hp(5),
-    paddingVertical: hp(0.5),
+    marginBottom: 6,
   },
-  verticalLine: {
-    width: 2,
-    height: hp(3),
-    left: wp(2.5),
-    marginTop: hp(0.5),
-    marginBottom: hp(0.5),
+
+  mainIcon: {
+    width: 22,
+    height: 22,
+    tintColor: AppColors.secondaryDarkGreen,
+    marginRight: 6,
   },
-  icon: {
-    marginRight: wp(2),
-  },
+
   locationText: {
-    fontSize: getFontSize(14, 16, 18),
-    fontFamily: "NunitoSans_400Regular",
-    flex: 1,
-    lineHeight: getFontSize(18, 20, 22),
-    includeFontPadding: false,
-    textAlignVertical: "center",
-  },
-  selectedText: {
-    color: AppColors.basicWhite,
-  },
-  unselectedText: {
+    fontSize: 21,
+    fontFamily: "NunitoSans_700Bold",
     color: AppColors.basicBlack,
   },
-  seatsContainer: {
+
+  dotLine: {
+    width: 2,
+    height: hp(4),
+    tintColor: AppColors.secondaryDarkGreen,
+    marginLeft: 12,
+    marginVertical: 4,
+  },
+
+  seatRow: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: hp(4),
-    paddingVertical: hp(0.5),
+    marginTop: 12,
   },
-  smallIcon: {
-    marginRight: wp(1.5),
+
+  seatIcon: {
+    width: 20,
+    height: 20,
+    tintColor: AppColors.secondaryDarkGreen,
+    marginRight: 6,
   },
-  seatsText: {
-    fontSize: getFontSize(12, 14, 16),
+
+  seatText: {
+    fontSize: 16,
     fontFamily: "NunitoSans_400Regular",
-    lineHeight: getFontSize(16, 18, 20),
+    color: AppColors.basicBlack,
   },
-  detailsContainer: {
-    flexDirection: "column",
-  },
-  timeContainer: {
+
+  infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 12,
-    gap: 8,
+    marginBottom: 10,
   },
-  priceContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+
+  infoIcon: {
+    width: 18,
+    height: 18,
+    tintColor: AppColors.secondaryDarkGreen,
+    marginRight: 6,
   },
-  timeIcon: {
-    marginRight: 4,
-  },
-  priceIcon: {
-    marginRight: 4,
-  },
-  detailText: {
-    fontSize: 14,
+
+  infoText: {
+    fontSize: 17,
     fontFamily: "NunitoSans_600SemiBold",
-  },
-  selectedDetailText: {
-    color: AppColors.basicWhite,
-  },
-  unselectedDetailText: {
     color: AppColors.basicBlack,
   },
-  vehicleImageContainer: {
+
+  vehicle: {
     position: "absolute",
-    right: 0,
-    bottom: 3,
-    top: -1,
-    width: "40%",
-    height: "100%",
-  },
-  vehicleImage: {
-    width: "100%",
+    right: -4,
+    bottom: -2,
+    width: wp(35),
+    height: hp(12),
+    resizeMode: "contain",
   },
 });
 
