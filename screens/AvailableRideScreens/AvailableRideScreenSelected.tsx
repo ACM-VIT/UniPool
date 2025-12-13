@@ -594,7 +594,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
               </View>
               
               <View style={styles.scooterContainer}>
-                <Image source={require('../../assets/Beep Beep Motorcycle.png')} style={styles.scooterImage} resizeMode="contain" />
+                <Image source={require('../../assets/Beep-Beep-Motorcycle.png')} style={styles.scooterImage} resizeMode="contain" />
               </View>
             </View>
             

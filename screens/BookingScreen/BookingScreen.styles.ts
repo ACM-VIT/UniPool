@@ -98,12 +98,13 @@ export default StyleSheet.create({
   },
 
   airplaneIcon: {
-    position: "absolute",
-    width: window.width * 0.55,
-    height: window.width * 0.28,
-    bottom: 70,
-    right: -25,
-    zIndex: 5,
-    opacity: 1,
-  },
+  position: "absolute",
+  width: window.width * 0.75,
+  height: window.width * 0.38,
+  bottom: 60,
+  right: -45,
+  zIndex: 5,
+  opacity: 1,
+},
+
 });

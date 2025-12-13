@@ -15,6 +15,12 @@ const clockIcon = require("../assets/clock.png");
 const walletIcon = require("../assets/wallet.png");
 const seatIcon = require("../assets/sofa.png");
 
+const bikeImg = require("../assets/Beep-Beep-Motorcycle.png");
+const carImg = require("../assets/Beep-Beep-Racer.png");
+const wagonImg = require("../assets/wagon.png");
+const vanImg = require("../assets/foodvan.png");
+const busImg = require("../assets/Bus.png");
+
 const { width, height } = Dimensions.get("window");
 const wp = (p: number) => (width * p) / 100;
 const hp = (p: number) => (height * p) / 100;
@@ -46,17 +52,27 @@ const RideCard: React.FC<RideCardProps> = ({
 }) => {
   const isDark = variant === "dark";
 
-  const getVehicleImage = () => {
-    if (totalSeats <= 2) return require("../assets/motorcycle.png");
-    if (totalSeats <= 4) return require("../assets/racer.png");
-    if (totalSeats <= 7) return require("../assets/wagon.png");
-    if (totalSeats <= 10) return require("../assets/foodvan.png");
-    return require("../assets/Bus.png");
+  const vehicleConfig = () => {
+    if (totalSeats <= 2)
+      return { image: bikeImg, right: -18, bottom: 6, scale: 1.1 };
+
+    if (totalSeats <= 4)
+      return { image: carImg, right: -22, bottom: 6, scale: 1.1 };
+
+    if (totalSeats <= 7)
+      return { image: wagonImg, right: -24, bottom: 4, scale: 0.95 };
+
+    if (totalSeats <= 10)
+      return { image: vanImg, right: -26, bottom: 2, scale: 1 };
+
+    return { image: busImg, right: -28, bottom: 0, scale: 1.05 };
   };
+
+  const v = vehicleConfig();
 
   return (
     <TouchableOpacity
-      activeOpacity={0.85}
+      activeOpacity={0.9}
       onPress={() => onSelect?.(id)}
       style={[
         styles.card,
@@ -75,12 +91,12 @@ const RideCard: React.FC<RideCardProps> = ({
             ]}
           />
           <Text
+            numberOfLines={1}
             style={[
               styles.locationText,
               compact ? styles.locationSmall : styles.locationLarge,
               { color: isDark ? "white" : AppColors.basicBlack },
             ]}
-            numberOfLines={1}
           >
             {origin}
           </Text>
@@ -104,12 +120,12 @@ const RideCard: React.FC<RideCardProps> = ({
             ]}
           />
           <Text
+            numberOfLines={1}
             style={[
               styles.locationText,
               compact ? styles.locationSmall : styles.locationLarge,
               { color: isDark ? "white" : AppColors.basicBlack },
             ]}
-            numberOfLines={1}
           >
             {destination}
           </Text>
@@ -176,10 +192,15 @@ const RideCard: React.FC<RideCardProps> = ({
       </View>
 
       <Image
-        source={getVehicleImage()}
+        source={v.image}
         style={[
           styles.vehicle,
           compact ? styles.vehicleSmall : styles.vehicleLarge,
+          {
+            right: v.right,
+            bottom: v.bottom,
+            transform: [{ scale: v.scale }],
+          },
         ]}
       />
     </TouchableOpacity>
@@ -194,7 +215,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     position: "relative",
-    overflow: "hidden",
+    overflow: "visible",
   },
 
   lightCard: {
@@ -204,140 +225,54 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.secondaryDarkGreen,
   },
 
-  // cardCompact: {
-  //   paddingVertical: 12,
-  //   paddingHorizontal: 16,
-  //   marginBottom: 14,
-  // },
-  // cardFull: {
-  //   paddingVertical: 22,
-  //   paddingHorizontal: 20,
-  //   marginBottom: 20,
-  // },
   cardCompact: {
-  paddingVertical: 15,
-  paddingHorizontal: 18,
-  marginBottom: 16,
-  minHeight: hp(16),
-},
-
-cardFull: {
-  paddingVertical: 26,
-  paddingHorizontal: 24,
-  marginBottom: 24,
-  minHeight: hp(20),
-},
-
-
-  leftBlock: {
-    flex: 1.5,
+    paddingVertical: 15,
+    paddingHorizontal: 18,
+    marginBottom: 16,
+    minHeight: hp(16),
   },
-  rightBlock: {
-    flex: 0.8,
-    alignItems: "flex-end",
+  cardFull: {
+    paddingVertical: 26,
+    paddingHorizontal: 24,
+    marginBottom: 24,
+    minHeight: hp(21),
   },
 
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-  },
+  leftBlock: { flex: 1.5 },
+  rightBlock: { flex: 0.8, alignItems: "flex-end" },
 
-  iconMain: {
-    resizeMode: "contain",
-  },
-  iconSmall: {
-    width: 18,
-    height: 18,
-    marginRight: 8,
-  },
-  iconLarge: {
-    width: 24,
-    height: 24,
-    marginRight: 10,
-  },
+  row: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
 
-  locationText: {
-    fontWeight: "700",
-    flexShrink: 1,
-  },
-  locationSmall: {
-    fontSize: 17,
-  },
-  locationLarge: {
-    fontSize: 20,
-  },
+  iconMain: { resizeMode: "contain" },
+  iconSmall: { width: 18, height: 18, marginRight: 8 },
+  iconLarge: { width: 24, height: 24, marginRight: 10 },
+
+  locationText: { fontWeight: "700", flexShrink: 1 },
+  locationSmall: { fontSize: 17 },
+  locationLarge: { fontSize: 20 },
 
   dottedLine: {
     width: 2,
     borderLeftWidth: 2,
     borderStyle: "dashed",
   },
-  dotSmall: {
-    height: hp(3),
-    marginVertical: 3,
-    marginLeft: 8,
-  },
-  dotLarge: {
-    height: hp(6),
-    marginVertical: 6,
-    marginLeft: 12,
-  },
+  dotSmall: { height: hp(3), marginVertical: 3, marginLeft: 8 },
+  dotLarge: { height: hp(6), marginVertical: 6, marginLeft: 12 },
 
-  seatRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 6,
-  },
+  seatRow: { flexDirection: "row", alignItems: "center", marginTop: 6 },
+  seatIcon: { resizeMode: "contain" },
+  seatSmall: { width: 16, height: 16, marginRight: 6 },
+  seatLarge: { width: 20, height: 20, marginRight: 8 },
+  seatText: { fontSize: 15 },
 
-  seatIcon: {
-    resizeMode: "contain",
-  },
-  seatSmall: {
-    width: 16,
-    height: 16,
-    marginRight: 6,
-  },
-  seatLarge: {
-    width: 20,
-    height: 20,
-    marginRight: 8,
-  },
-
-  seatText: {
-    fontSize: 15,
-    fontWeight: "400",
-  },
-
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-
-  infoIcon: {
-    resizeMode: "contain",
-  },
-  infoSmall: {
-    width: 16,
-    height: 16,
-    marginRight: 6,
-  },
-  infoLarge: {
-    width: 20,
-    height: 20,
-    marginRight: 8,
-  },
-
-  infoText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
+  infoRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+  infoIcon: { resizeMode: "contain" },
+  infoSmall: { width: 16, height: 16, marginRight: 6 },
+  infoLarge: { width: 20, height: 20, marginRight: 8 },
+  infoText: { fontSize: 15, fontWeight: "600" },
 
   vehicle: {
     position: "absolute",
-    bottom: -6,
-    right: -8,
     resizeMode: "contain",
   },
   vehicleSmall: {
@@ -345,7 +280,7 @@ cardFull: {
     height: hp(10),
   },
   vehicleLarge: {
-    width: wp(44),
-    height: hp(15),
+    width: wp(42),
+    height: hp(14),
   },
 });
