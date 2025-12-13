@@ -28,18 +28,24 @@ interface RideCardProps {
   seatsAvailable?: string;
   totalSeats?: number;
   onSelect?: (id: string) => void;
+  compact?: boolean;
+  variant?: "light" | "dark";
 }
 
 const RideCard: React.FC<RideCardProps> = ({
   id,
-  origin = "VIT Vellore",
-  destination = "Chennai Airport",
-  time = "1700 hrs",
-  price = 500,
-  seatsAvailable = "1/2",
-  totalSeats = 2,
-  onSelect = () => {},
+  origin,
+  destination,
+  time,
+  price,
+  seatsAvailable,
+  totalSeats = 4,
+  onSelect,
+  compact = false,
+  variant = "light",
 }) => {
+  const isDark = variant === "dark";
+
   const getVehicleImage = () => {
     if (totalSeats <= 2) return require("../assets/motorcycle.png");
     if (totalSeats <= 4) return require("../assets/racer.png");
@@ -49,66 +55,186 @@ const RideCard: React.FC<RideCardProps> = ({
   };
 
   return (
-    <TouchableOpacity style={styles.card} onPress={() => onSelect(id)}>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() => onSelect?.(id)}
+      style={[
+        styles.card,
+        compact ? styles.cardCompact : styles.cardFull,
+        isDark ? styles.darkCard : styles.lightCard,
+      ]}
+    >
       <View style={styles.leftBlock}>
         <View style={styles.row}>
-          <Image source={pinIcon} style={styles.mainIcon} />
-          <Text style={styles.locationText}>{origin}</Text>
+          <Image
+            source={pinIcon}
+            style={[
+              styles.iconMain,
+              compact ? styles.iconSmall : styles.iconLarge,
+              { tintColor: isDark ? "white" : AppColors.secondaryDarkGreen },
+            ]}
+          />
+          <Text
+            style={[
+              styles.locationText,
+              compact ? styles.locationSmall : styles.locationLarge,
+              { color: isDark ? "white" : AppColors.basicBlack },
+            ]}
+            numberOfLines={1}
+          >
+            {origin}
+          </Text>
         </View>
 
-        <Image source={require("../assets/dotted_line.png")} style={styles.dotLine} />
+        <View
+          style={[
+            styles.dottedLine,
+            compact ? styles.dotSmall : styles.dotLarge,
+            { borderColor: isDark ? "white" : AppColors.secondaryDarkGreen },
+          ]}
+        />
 
         <View style={styles.row}>
-          <Image source={arrowIcon} style={styles.mainIcon} />
-          <Text style={styles.locationText}>{destination}</Text>
+          <Image
+            source={arrowIcon}
+            style={[
+              styles.iconMain,
+              compact ? styles.iconSmall : styles.iconLarge,
+              { tintColor: isDark ? "white" : AppColors.secondaryDarkGreen },
+            ]}
+          />
+          <Text
+            style={[
+              styles.locationText,
+              compact ? styles.locationSmall : styles.locationLarge,
+              { color: isDark ? "white" : AppColors.basicBlack },
+            ]}
+            numberOfLines={1}
+          >
+            {destination}
+          </Text>
         </View>
 
         <View style={styles.seatRow}>
-          <Image source={seatIcon} style={styles.seatIcon} />
-          <Text style={styles.seatText}>{seatsAvailable} seats available</Text>
+          <Image
+            source={seatIcon}
+            style={[
+              styles.seatIcon,
+              compact ? styles.seatSmall : styles.seatLarge,
+              { tintColor: isDark ? "white" : AppColors.secondaryDarkGreen },
+            ]}
+          />
+          <Text
+            style={[
+              styles.seatText,
+              { color: isDark ? "white" : AppColors.basicBlack },
+            ]}
+          >
+            {seatsAvailable} seats available
+          </Text>
         </View>
       </View>
 
       <View style={styles.rightBlock}>
         <View style={styles.infoRow}>
-          <Image source={clockIcon} style={styles.infoIcon} />
-          <Text style={styles.infoText}>{time}</Text>
+          <Image
+            source={clockIcon}
+            style={[
+              styles.infoIcon,
+              compact ? styles.infoSmall : styles.infoLarge,
+              { tintColor: isDark ? "white" : AppColors.secondaryDarkGreen },
+            ]}
+          />
+          <Text
+            style={[
+              styles.infoText,
+              { color: isDark ? "white" : AppColors.basicBlack },
+            ]}
+          >
+            {time}
+          </Text>
         </View>
 
         <View style={styles.infoRow}>
-          <Image source={walletIcon} style={styles.infoIcon} />
-          <Text style={styles.infoText}>₹ {price}</Text>
+          <Image
+            source={walletIcon}
+            style={[
+              styles.infoIcon,
+              compact ? styles.infoSmall : styles.infoLarge,
+              { tintColor: isDark ? "white" : AppColors.secondaryDarkGreen },
+            ]}
+          />
+          <Text
+            style={[
+              styles.infoText,
+              { color: isDark ? "white" : AppColors.basicBlack },
+            ]}
+          >
+            ₹ {price}
+          </Text>
         </View>
       </View>
 
-      <Image source={getVehicleImage()} style={styles.vehicle} />
+      <Image
+        source={getVehicleImage()}
+        style={[
+          styles.vehicle,
+          compact ? styles.vehicleSmall : styles.vehicleLarge,
+        ]}
+      />
     </TouchableOpacity>
   );
 };
 
+export default RideCard;
+
 const styles = StyleSheet.create({
   card: {
     width: "100%",
-    backgroundColor: "white",
-    borderRadius: 0,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    marginBottom: 16,
     flexDirection: "row",
     justifyContent: "space-between",
     position: "relative",
-    overflow: "visible",
+    overflow: "hidden",
   },
+
+  lightCard: {
+    backgroundColor: "white",
+  },
+  darkCard: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+  },
+
+  // cardCompact: {
+  //   paddingVertical: 12,
+  //   paddingHorizontal: 16,
+  //   marginBottom: 14,
+  // },
+  // cardFull: {
+  //   paddingVertical: 22,
+  //   paddingHorizontal: 20,
+  //   marginBottom: 20,
+  // },
+  cardCompact: {
+  paddingVertical: 15,
+  paddingHorizontal: 18,
+  marginBottom: 16,
+  minHeight: hp(16),
+},
+
+cardFull: {
+  paddingVertical: 26,
+  paddingHorizontal: 24,
+  marginBottom: 24,
+  minHeight: hp(20),
+},
+
 
   leftBlock: {
-    flex: 1.4,
-    paddingRight: 10,
+    flex: 1.5,
   },
-
   rightBlock: {
     flex: 0.8,
     alignItems: "flex-end",
-    paddingTop: 6,
   },
 
   row: {
@@ -117,73 +243,109 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
 
-  mainIcon: {
-    width: 22,
-    height: 22,
-    tintColor: AppColors.secondaryDarkGreen,
-    marginRight: 6,
+  iconMain: {
+    resizeMode: "contain",
+  },
+  iconSmall: {
+    width: 18,
+    height: 18,
+    marginRight: 8,
+  },
+  iconLarge: {
+    width: 24,
+    height: 24,
+    marginRight: 10,
   },
 
   locationText: {
-    fontSize: 21,
-    fontFamily: "NunitoSans_700Bold",
-    color: AppColors.basicBlack,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  locationSmall: {
+    fontSize: 17,
+  },
+  locationLarge: {
+    fontSize: 20,
   },
 
-  dotLine: {
+  dottedLine: {
     width: 2,
-    height: hp(4),
-    tintColor: AppColors.secondaryDarkGreen,
+    borderLeftWidth: 2,
+    borderStyle: "dashed",
+  },
+  dotSmall: {
+    height: hp(3),
+    marginVertical: 3,
+    marginLeft: 8,
+  },
+  dotLarge: {
+    height: hp(6),
+    marginVertical: 6,
     marginLeft: 12,
-    marginVertical: 4,
   },
 
   seatRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 12,
+    marginTop: 6,
   },
 
   seatIcon: {
+    resizeMode: "contain",
+  },
+  seatSmall: {
+    width: 16,
+    height: 16,
+    marginRight: 6,
+  },
+  seatLarge: {
     width: 20,
     height: 20,
-    tintColor: AppColors.secondaryDarkGreen,
-    marginRight: 6,
+    marginRight: 8,
   },
 
   seatText: {
-    fontSize: 16,
-    fontFamily: "NunitoSans_400Regular",
-    color: AppColors.basicBlack,
+    fontSize: 15,
+    fontWeight: "400",
   },
 
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 6,
   },
 
   infoIcon: {
-    width: 18,
-    height: 18,
-    tintColor: AppColors.secondaryDarkGreen,
+    resizeMode: "contain",
+  },
+  infoSmall: {
+    width: 16,
+    height: 16,
     marginRight: 6,
+  },
+  infoLarge: {
+    width: 20,
+    height: 20,
+    marginRight: 8,
   },
 
   infoText: {
-    fontSize: 17,
-    fontFamily: "NunitoSans_600SemiBold",
-    color: AppColors.basicBlack,
+    fontSize: 15,
+    fontWeight: "600",
   },
 
   vehicle: {
     position: "absolute",
-    right: -4,
-    bottom: -2,
-    width: wp(35),
-    height: hp(12),
+    bottom: -6,
+    right: -8,
     resizeMode: "contain",
   },
+  vehicleSmall: {
+    width: wp(34),
+    height: hp(10),
+  },
+  vehicleLarge: {
+    width: wp(44),
+    height: hp(15),
+  },
 });
-
-export default RideCard;

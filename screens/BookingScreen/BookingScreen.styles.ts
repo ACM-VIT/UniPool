@@ -3,119 +3,107 @@ import AppColors from "../../design_systems/colors";
 
 const window = Dimensions.get("window");
 
-const styles = StyleSheet.create({
+export default StyleSheet.create({
   container: {
     flex: 1,
-    width: "100%",
     backgroundColor: AppColors.primaryLightGreen,
-    paddingTop: window.height * 0.038,
-  },
-  backButton: {
-    position: "absolute",
-    top: window.height * 0.04,
-    left: 20,
-    zIndex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 1,
-  },
-  header: {
     width: "100%",
+  },
+
+  headerWrapper: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: AppColors.primaryLightGreen,
+    paddingTop: window.height * 0.035,
+    paddingBottom: 6,
+  },
+
+  scrollContent: {
+    paddingTop: window.height * 0.13,
+    paddingBottom: 120,
+  },
+
+  sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: "2%",
+    alignItems: "flex-start",
+    paddingHorizontal: window.width * 0.05,
+    marginBottom: 12,
   },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  headerText: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: "2%",
-    color: AppColors.secondaryDarkGreen,
-    fontFamily: "NunitoSans_400Regular",
-  },
-  brandText: {
-    fontSize: 18,
-    fontWeight: "bold",
+
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: "NunitoSans_700Bold",
     color: AppColors.basicBlack,
-    right: "2%",
+  },
+
+  sectionDate: {
+    fontSize: 13,
+    marginTop: 4,
+    color: "#4C5A3E",
     fontFamily: "NunitoSans_400Regular",
   },
+
+  viewAllButton: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+  },
+
+  viewAllButtonText: {
+    color: "white",
+    fontSize: 12,
+    fontFamily: "NunitoSans_600SemiBold",
+  },
+
   pageContainer: {
     width: window.width,
     paddingHorizontal: window.width * 0.05,
   },
-  sectionTitle: {
-    fontSize: 20,
-    marginLeft: window.width * 0.03,
-    marginBottom: window.height * 0.02,
-    marginTop: window.height * 0.02,
-    fontFamily: "NunitoSans_400Regular",
-  },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: window.width * 0.03,
-    marginTop: window.height * 0.02,
-    marginBottom: window.height * 0.015,
-  },
-  viewAllButton: {
-    backgroundColor: AppColors.secondaryDarkGreen,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  viewAllButtonText: {
-    color: AppColors.basicWhite,
-    fontSize: 12,
-    fontFamily: "NunitoSans_600SemiBold",
-  },
-  rideDateLabel: {
-    textAlign: "left",
-    fontSize: 16,
-    marginBottom: 12,
-    marginLeft: 4,
-    fontFamily: "NunitoSans_400Regular",
-    color: AppColors.basicBlack,
-  },
-  sectionErrorText: {
-    textAlign: "center",
-    color: "red",
-    marginTop: 8,
-    fontFamily: "NunitoSans_400Regular",
-  },
+
   paginationContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    alignItems: "center",
+    marginTop: 8,
+    marginBottom: 10,
   },
+
   paginationDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 4,
-    backgroundColor: AppColors.basicWhite,
-    marginHorizontal: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 5,
+    backgroundColor: "#A9A9A9",
+    marginHorizontal: 4,
   },
+
   paginationDotActive: {
     backgroundColor: AppColors.basicBlack,
   },
-  airplaneIcon: {
-    width: window.width * 0.9,
-    height: window.width * 0.63,
-    left: window.width * 0.23,
-    bottom: window.height * 0.02,
-  },
-  navBarView: {
-    width: "100%",
-    backgroundColor: AppColors.primaryLightGreen,
+
+  emptyPage: {
+    width: window.width,
     justifyContent: "center",
     alignItems: "center",
-    bottom: window.height * 0.015,
+    paddingVertical: 30,
+  },
+
+  emptyText: {
+    fontSize: 14,
+    color: "#444",
+    fontFamily: "NunitoSans_400Regular",
+  },
+
+  airplaneIcon: {
+    position: "absolute",
+    width: window.width * 0.55,
+    height: window.width * 0.28,
+    bottom: 70,
+    right: -25,
+    zIndex: 5,
+    opacity: 1,
   },
 });
-
-export default styles;

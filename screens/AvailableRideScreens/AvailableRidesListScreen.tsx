@@ -332,6 +332,7 @@ const AvailableRidesListScreen: React.FC = () => {
               return (
                 <View key={rideId || `${dateKey}-ride`} style={styles.rideCardWrapper}>
                   <RideCard
+                  compact
                     id={rideId ?? ""}
                     origin={ride.start_location}
                     destination={ride.end_location}
