@@ -365,7 +365,11 @@ const styles = StyleSheet.create({
   // the container so the press hit-area covers everything except the
   // close glyph in the corner.
   singleBarTouchable: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
