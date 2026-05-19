@@ -13,7 +13,7 @@ import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
 import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
-import { useNavigation } from '../navigation/router-compat';
+import { useRouter } from "expo-router";
 import LoadingComponent from '../components/LoadingComponent';
 import AppColors from '../design_systems/colors';
 import BrandedAlert from "../components/BrandedAlert";
@@ -44,7 +44,7 @@ interface UserResponse {
  * accounts) goes through the auth flow instead.
  */
 const PersonalInformationScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const router = useRouter();
   const { apiUtil } = useApi();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -115,7 +115,7 @@ const PersonalInformationScreen: React.FC = () => {
       <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => router.back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{title}</Text>

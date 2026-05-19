@@ -1,8 +1,9 @@
 import { getAuth, getIdTokenResult, signOut } from "@react-native-firebase/auth";
+import { router } from "expo-router";
 import React, { createContext, useContext, useState } from "react";
 import baseURL from "../config/urlconfig";
-import { CommonActions } from '../navigation/router-compat';
 import { useErrorContext } from '../contexts/ErrorContext';
+import { appHref } from "../navigation/routes";
 
 type JSON = {
   [key: string]: string | number | boolean | JSON;
@@ -10,18 +11,11 @@ type JSON = {
 
 export default class ApiUtil {
   private baseUrl: string;
-  private navigationRef?: any;
   private showError?: (error: any, retryAction?: () => void) => void;
-  private isAppInitialized: boolean = false;
+  private isAppInitialized: boolean = true;
 
-  constructor(baseUrl: string, navigationRef?: any) {
+  constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
-    this.navigationRef = navigationRef;
-  }
-
-  setNavigationRef(navigationRef: any) {
-    this.navigationRef = navigationRef;
-    this.isAppInitialized = true; // Mark as initialized when navigation is set
   }
 
   setErrorHandler(showError: (error: any, retryAction?: () => void) => void) {
@@ -43,27 +37,8 @@ export default class ApiUtil {
       }
       
       setTimeout(() => {
-        if (this.navigationRef && this.navigationRef.isReady && this.navigationRef.isReady()) {
-          console.log("Navigating to AuthScreen");
-          this.navigationRef.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [{ name: 'AuthScreen' }],
-            })
-          );
-        } else {
-          console.warn("Navigation ref not available for automatic redirect");
-          setTimeout(() => {
-            if (this.navigationRef && this.navigationRef.isReady && this.navigationRef.isReady()) {
-              this.navigationRef.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: 'AuthScreen' }],
-                })
-              );
-            }
-          }, 1000);
-        }
+        console.log("Navigating to AuthScreen");
+        router.replace(appHref("AuthScreen"));
       }, 100);
       
     } catch (error) {
@@ -142,11 +117,9 @@ export default class ApiUtil {
       ) {
         console.log('User not found in database - redirecting to signup screen');
         setTimeout(() => {
-          if (this.navigationRef && this.navigationRef.isReady && this.navigationRef.isReady()) {
-            this.navigationRef.navigate('SignUpScreen', {
-              newUser: error.response.data.newUser
-            });
-          }
+          router.navigate(appHref("SignUpScreen", {
+            newUser: error.response.data.newUser,
+          }));
         }, 100);
         throw error;
       }
@@ -317,30 +290,12 @@ export const DataContext = createContext<{
   triggerRevalidation: () => {},
 });
 
-export const ApiProvider = ({ children, navigationRef }: { children: React.ReactNode, navigationRef?: React.RefObject<any> }) => {
+export const ApiProvider = ({ children }: { children: React.ReactNode }) => {
   const [revalidate, setRevalidate] = useState(false);
   const [apiUtil] = useState(() => {
     const util = new ApiUtil(baseURL);
     return util;
   });
-
-  // Update navigation ref when it changes
-  React.useEffect(() => {
-    if (navigationRef?.current) {
-      console.log("🔗 Setting navigation ref in ApiUtil");
-      apiUtil.setNavigationRef(navigationRef.current);
-    }
-  }, [navigationRef?.current, apiUtil]);
-
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      if (navigationRef?.current && navigationRef.current.isReady && navigationRef.current.isReady()) {
-        apiUtil.setNavigationRef(navigationRef.current);
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [navigationRef, apiUtil]);
 
   const triggerRevalidation = () => {
     setRevalidate(true);

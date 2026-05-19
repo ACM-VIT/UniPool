@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, Image, ScrollView, TouchableOpacity, Platform, StatusBar } from "react-native";
+import { useRouter } from "expo-router";
 import { ProfileScreenProps } from "./ProfileScreen.types";
 import BrandInfo from "../../components/BrandInfo";
 import styles from "./ProfileScreen.styles";
@@ -9,6 +10,7 @@ import { useApi } from "../../utils/ApiUtil";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
 import BrandedAlert from "../../components/BrandedAlert";
+import { appHref } from "../../navigation/routes";
 
 interface UserData {
   id: string;
@@ -38,7 +40,8 @@ interface MenuItem {
   onPress?: () => void;
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = () => {
+  const router = useRouter();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -302,7 +305,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       onPress: () => {
         console.log("Navigating to PersonalInformationScreen");
         try {
-          navigation.navigate("PersonalInformationScreen");
+          router.navigate(appHref("PersonalInformationScreen"));
         } catch (error) {
           console.error("Navigation error:", error);
           BrandedAlert.alert("Navigation Error", "Unable to navigate to Personal Information screen");
@@ -317,7 +320,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       onPress: () => {
         console.log("Navigating to PassengersHistoryScreen");
         try {
-          navigation.navigate("PassengersHistoryScreen");
+          router.navigate(appHref("PassengersHistoryScreen"));
         } catch (error) {
           console.error("Navigation error:", error);
           BrandedAlert.alert("Navigation Error", "Unable to navigate to Passengers History screen");
@@ -334,7 +337,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       onPress: () => {
         console.log("Navigating to DefaultAddressScreen");
         try {
-          navigation.navigate("DefaultAddressScreen");
+          router.navigate(appHref("DefaultAddressScreen"));
         } catch (error) {
           console.error("Navigation error:", error);
           BrandedAlert.alert("Navigation Error", "Unable to navigate to Default Address screen");
@@ -426,13 +429,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               setUserData(null);
               console.log("Navigating to AuthScreen...");
 
-              if (navigation && navigation.reset) {
-                navigation.reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
-                console.log("Navigation reset completed");
-              } else {
-                console.error("Navigation or reset method not available");
-                BrandedAlert.alert("Logout Error", "Navigation is not available. Please restart the app.");
-              }
+              router.replace(appHref("AuthScreen"));
+              console.log("Navigation reset completed");
             } catch (e) {
               console.error('Logout error:', e);
               BrandedAlert.alert('Logout Failed', 'An error occurred while logging out.');
@@ -477,9 +475,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       icon: require("../../assets/setting-3.png"),
       hasCheckmark: true,
       onPress: () => {
-        if (navigation && navigation.navigate) {
-          navigation.navigate("PrivacyPolicyScreen" as never);
-        }
+        router.navigate(appHref("PrivacyPolicyScreen"));
       },
     },
     {
@@ -488,9 +484,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       icon: require("../../assets/setting-3.png"),
       hasCheckmark: true,
       onPress: () => {
-        if (navigation && navigation.navigate) {
-          navigation.navigate("TermsOfServiceScreen" as never);
-        }
+        router.navigate(appHref("TermsOfServiceScreen"));
       },
     },
     {
@@ -501,13 +495,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       onPress: () => {
         console.log("Navigating to AccountSettingsScreen");
         try {
-          if (navigation && navigation.navigate) {
-            navigation.navigate("AccountSettingsScreen");
-            console.log("Navigation to AccountSettingsScreen completed");
-          } else {
-            console.error("Navigation object or navigate method not available");
-            BrandedAlert.alert("Navigation Error", "Unable to navigate to Account Settings");
-          }
+          router.navigate(appHref("AccountSettingsScreen"));
+          console.log("Navigation to AccountSettingsScreen completed");
         } catch (error) {
           console.error("Navigation error:", error);
           BrandedAlert.alert("Navigation Error", "Unable to navigate to Account Settings");

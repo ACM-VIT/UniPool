@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Svg, { Path } from 'react-native-svg';
-import { Settings } from 'lucide-react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 import {
   View,
   Text,
@@ -18,12 +17,14 @@ import {
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from "expo-router";
 import { chatMessagesStyles } from './ChatScreen.styles';
 import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
 import ChatService from '../../utils/ChatService';
 import BrandedAlert from "../../components/BrandedAlert";
+import { useDecodedLocalSearchParams } from "../../navigation/routes";
 
 /**
  * Quick-reply chips shown above the keyboard when the input is empty.
@@ -69,11 +70,10 @@ type ChatRow =
   | { kind: 'sep'; label: string; id: string }
   | { kind: 'safety'; id: string };
 
-const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
-  navigation,
-  route,
+const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarVariant">> = ({
   setNavBarVariant,
 }) => {
+  const router = useRouter();
   const { apiUtil } = useApi();
 
   const [newMessage, setNewMessage] = useState('');
@@ -134,7 +134,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     pendingRideId?: string;
     pendingHostName?: string;
   };
-  const chatParams = (route?.params as ChatRouteParams) ?? {};
+  const chatParams = useDecodedLocalSearchParams<ChatRouteParams>();
   const [chatTitle, setChatTitle] = useState(chatParams.chatTitle ?? 'Vellore to Chennai');
   const chatSubtitle = chatParams.chatSubtitle ?? 'You, Bhallaldeva, Kattappa and 3 more';
   const isPendingHostInquiry = !!chatParams.pendingHostInquiry;
@@ -512,7 +512,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
       Object.values(typingUsers).forEach(u=>u.timeout&&clearTimeout(u.timeout));
       ws.close();
     };
-  }, [route?.params, userUuid]);
+  }, [chatParams, userUuid]);
 
   useEffect(() => {
     if (!userUuid) return;
@@ -651,7 +651,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
   const handleLeaveRide = () => {
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
     if (chatParams.isGroupChat===false || !chatId) {
-      navigation.goBack();
+      router.back();
       return;
     }
     BrandedAlert.alert(
@@ -668,7 +668,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
             } catch {
               console.warn('[Chat] leave ride failed');
             } finally {
-              navigation.goBack();
+              router.back();
             }
           },
         },
@@ -1212,7 +1212,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
           settings icon right. No BrandInfo strip — keeps the chat
           surface focused on the conversation. */}
       <View style={chatMessagesStyles.chatHeaderRow}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={chatMessagesStyles.chatHeaderBack} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} style={chatMessagesStyles.chatHeaderBack} hitSlop={8}>
           <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
             <Path
               d="M15 6 L 9 12 L 15 18"
@@ -1242,9 +1242,9 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
           {/* Three-dot "more" glyph — cleaner than the cog, which read
               as a settings icon shouting at the user. */}
           <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-            <Path d="M12 6 A 1.7 1.7 0 1 1 12 5.999" stroke={AppColors.primaryLightGreen} strokeWidth={2.6} strokeLinecap="round" />
-            <Path d="M12 12 A 1.7 1.7 0 1 1 12 11.999" stroke={AppColors.primaryLightGreen} strokeWidth={2.6} strokeLinecap="round" />
-            <Path d="M12 18 A 1.7 1.7 0 1 1 12 17.999" stroke={AppColors.primaryLightGreen} strokeWidth={2.6} strokeLinecap="round" />
+            <Circle cx={12} cy={6} r={1.7} fill={AppColors.primaryLightGreen} />
+            <Circle cx={12} cy={12} r={1.7} fill={AppColors.primaryLightGreen} />
+            <Circle cx={12} cy={18} r={1.7} fill={AppColors.primaryLightGreen} />
           </Svg>
         </TouchableOpacity>
       </View>

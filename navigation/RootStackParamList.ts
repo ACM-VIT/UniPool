@@ -7,7 +7,15 @@ export type RootStackParamList = {
   SplashScreen: undefined;
   ErrorScreen: undefined;
   RideCreatedScreen: undefined;
-  RideRequestedScreen: undefined;
+  RideRequestedScreen:
+    | {
+        rideId?: string;
+        bookingId?: string;
+        rideDetails?: any;
+        hostUserId?: string;
+        hostUserName?: string;
+      }
+    | undefined;
   BookingScreen: undefined;
   HomeScreen: undefined;
   ProfileScreen: undefined;
@@ -21,16 +29,23 @@ export type RootStackParamList = {
     fromCoordinates?: { latitude: number; longitude: number };
     toCoordinates?: { latitude: number; longitude: number };
   };
-  AvailableRidesSelectedScreen: undefined;
+  AvailableRidesSelectedScreen: { ride?: any } | undefined;
   DefaultAddressScreen: undefined;
   NotificationsScreen: undefined;
   AccountSettingsScreen: undefined;
   PassengerInfoScreen: undefined;
   ChatMessages: {
-    chatId: string;
-    chatTitle: string;
-    chatSubtitle: string;
-    isGroupChat: boolean;
+    chatId?: string;
+    chatRoom?: { id: string; title?: string; subtitle?: string };
+    chatTitle?: string;
+    chatSubtitle?: string;
+    isGroupChat?: boolean;
+    otherUserId?: string;
+    hostUserId?: string;
+    viewerRole?: string;
+    pendingHostInquiry?: boolean;
+    pendingRideId?: string;
+    pendingHostName?: string;
   };
   TripsListScreen: undefined;
   RideDetailsScreen: { ride?: any; rideId?: string };

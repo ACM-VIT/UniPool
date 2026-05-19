@@ -5,6 +5,7 @@ import { Share } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import * as Calendar from 'expo-calendar';
+import { useRouter } from "expo-router";
 import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
 import ChevronBack from '../components/ChevronBack/ChevronBack';
@@ -13,6 +14,7 @@ import BrandInfo from '../components/BrandInfo/BrandInfo';
 import LoadingComponent from "../components/LoadingComponent";
 import RideCard from "../components/RideCard";
 import BrandedAlert from "../components/BrandedAlert";
+import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
 
 const { width, height } = Dimensions.get("window");
 
@@ -357,8 +359,10 @@ interface RideResponse extends RideData {
   [key: string]: any;
 }
 
-const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
-  const { rideId } = route.params;
+const RideDetailsScreen: React.FC = () => {
+  const router = useRouter();
+  const routeParams = useDecodedLocalSearchParams<{ rideId?: string }>();
+  const { rideId } = routeParams;
   const { apiUtil } = useApi();
   
   // State management
@@ -684,7 +688,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         // Handle user not found error gracefully - redirect to signup without showing error modal
         if (err.status === 404 && err.message && err.message.includes("User not found")) {
           console.log("User not found, redirecting to signup");
-          navigation.navigate('Signup' as never);
+          router.navigate(appHref("SignUpScreen"));
           return;
         }
         
@@ -697,7 +701,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
 
     fetchRideDetails();
     requestLocationPermission();
-  }, [rideId, apiUtil]);
+  }, [rideId, apiUtil, router]);
 
   useEffect(() => {
     if (rideData) {
@@ -781,7 +785,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                   BrandedAlert.alert("Ride deleted", "It's no longer visible to anyone.", [
                     {
                       text: "OK",
-                      onPress: () => navigation.goBack()
+                      onPress: () => router.back()
                     }
                   ]);
                 } catch (deleteError: any) {
@@ -793,7 +797,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                     BrandedAlert.alert("Ride deleted", "It's no longer visible to anyone.", [
                       {
                         text: "OK",
-                        onPress: () => navigation.goBack()
+                        onPress: () => router.back()
                       }
                     ]);
                   } else {
@@ -860,7 +864,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                     BrandedAlert.alert("Booking cancelled", "Your seat is no longer reserved.", [
                       {
                         text: "OK",
-                        onPress: () => navigation.goBack()
+                        onPress: () => router.back()
                       }
                     ]);
                   } catch (deleteError: any) {
@@ -872,7 +876,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                       BrandedAlert.alert("Booking cancelled", "Your seat is no longer reserved.", [
                         {
                           text: "OK",
-                          onPress: () => navigation.goBack()
+                          onPress: () => router.back()
                         }
                       ]);
                     } else {
@@ -1259,7 +1263,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
           <Text style={styles.errorText}>{error || "Ride not found"}</Text>
           <TouchableOpacity 
             style={styles.retryButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => router.back()}
           >
             <Text style={styles.retryButtonText}>Go Back</Text>
           </TouchableOpacity>
@@ -1279,7 +1283,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         <View style={styles.navigationRow}>
           <TouchableOpacity 
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => router.back()}
           >
             <ChevronBack />
           </TouchableOpacity>
@@ -1292,7 +1296,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
           <View style={styles.rideCardContainer}>
             <RideCard
-              id={rideData.id || rideId}
+              id={rideData.id || rideId || ""}
               origin={rideData.start_location}
               destination={rideData.end_location}
               time={formatTime(rideData.start_time)}
@@ -1471,7 +1475,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         <View style={styles.navigationLeft}>
           <TouchableOpacity 
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => router.back()}
           >
             <ChevronBack />
           </TouchableOpacity>
@@ -1545,7 +1549,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                   // chat list's pending rows.
                   const sorted = [currentUserId, hostUserId].sort();
                   const dmRoomId = `dm_${sorted[0]}_${sorted[1]}`;
-                  navigation.navigate("ChatMessages", {
+                  router.navigate(appHref("ChatMessages", {
                     chatId: dmRoomId,
                     chatTitle: hostName || "Host",
                     chatSubtitle: `${rideData?.start_location} → ${rideData?.end_location}`,
@@ -1554,7 +1558,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                     pendingHostInquiry: true,
                     pendingRideId: rideData?.id,
                     pendingHostName: hostName,
-                  });
+                  }));
                 }
               }}
             >
@@ -1587,7 +1591,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                 shadowRadius: 12,
                 elevation: userBookingStatus === 'pending' ? 0 : 2,
               }}
-              onPress={() => navigation.navigate("HomeScreen")}
+              onPress={() => router.navigate(appHref("HomeScreen"))}
             >
               <Text style={{
                 color: userBookingStatus === 'pending'

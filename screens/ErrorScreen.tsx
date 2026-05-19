@@ -8,16 +8,17 @@ import {
   TouchableOpacity,
   Dimensions,
 } from "react-native";
-import { useNavigation } from "../navigation/router-compat";
+import { useRouter } from "expo-router";
 import AppColors from "../design_systems/colors";
+import { appHref } from "../navigation/routes";
 
 const win = Dimensions.get("window");
 
 const ErrorScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const router = useRouter();
   const goBack = () => {
-    if (navigation.canGoBack()) navigation.goBack();
-    else (navigation as any).reset({ index: 0, routes: [{ name: "HomeScreen" }] });
+    if (router.canGoBack()) router.back();
+    else router.replace(appHref("HomeScreen"));
   };
 
   return (

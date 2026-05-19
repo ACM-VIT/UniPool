@@ -1,15 +1,16 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, View, Image, Easing } from "react-native";
-import { RideCreateScreenProps } from "./RideRequestedScreen.types";
+import { useRouter } from "expo-router";
 import styles from "./RideRequestedScreen.styles";
+import { appHref } from "../../navigation/routes";
 
 // Quick confirmation interstitial. The original sat on screen for 3
 // seconds with a static PNG — too long for an "OK we got it" beat. New
 // version pops in with a brief spring + scale, then hands off to the
 // trips list well under a second later. Total time on screen ~900ms.
 const HOLD_MS = 700;
-const RideRequestedScreen: React.FC<RideCreateScreenProps> = (props) => {
-  const navigation = props.navigation;
+const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }> = (props) => {
+  const router = useRouter();
 
   // Entrance: scale + fade. Read as a confident "done!" pulse instead
   // of a slideshow image.
@@ -41,13 +42,11 @@ const RideRequestedScreen: React.FC<RideCreateScreenProps> = (props) => {
         duration: 140,
         useNativeDriver: true,
       }).start(() => {
-        if (navigation && typeof navigation.navigate === "function") {
-          navigation.navigate("BookingScreen");
-        }
+        router.navigate(appHref("BookingScreen"));
       });
     }, HOLD_MS);
     return () => clearTimeout(timer);
-  }, [props.setNavBarVariant, navigation]);
+  }, [props.setNavBarVariant, router]);
 
   return (
     <View style={styles.container}>

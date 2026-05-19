@@ -2,9 +2,11 @@ import React, { useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, Animated, Easing, Dimensions, StatusBar } from "react-native";
 import * as Location from "expo-location";
 import Svg, { Circle, Path, Defs, LinearGradient, Stop } from "react-native-svg";
-import { LocationPermissionScreenProps } from "./LocationPermissionScreen.types";
+import { useRouter } from "expo-router";
 import styles from "./LocationPermissionScreen.styles";
 import AppColors from "../../design_systems/colors";
+import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
+import type { AppRouteTarget } from "../../navigation/routes";
 
 const { width, height } = Dimensions.get("window");
 const VISUAL = Math.min(width * 0.75, height * 0.38);
@@ -94,16 +96,15 @@ const Pulse: React.FC<{ size: number }> = ({ size }) => {
   );
 };
 
-const LocationPermissionScreen: React.FC<LocationPermissionScreenProps> = ({ navigation, route }) => {
-  const returnTo = route?.params?.returnTo;
+const LocationPermissionScreen: React.FC = () => {
+  const router = useRouter();
+  const routeParams = useDecodedLocalSearchParams<{ returnTo?: AppRouteTarget }>();
+  const returnTo = routeParams.returnTo;
   const goHome = () => {
     if (returnTo) {
-      navigation.reset({
-        index: 1,
-        routes: [{ name: "HomeScreen" }, { name: returnTo.screen as any, params: returnTo.params }],
-      });
+      router.replace(targetHref(returnTo));
     } else {
-      navigation.reset({ index: 0, routes: [{ name: "HomeScreen" }] });
+      router.replace(appHref("HomeScreen"));
     }
   };
 

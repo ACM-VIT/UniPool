@@ -8,6 +8,7 @@ import {
   AppleAuthProvider,
   signInWithCredential,
 } from "@react-native-firebase/auth";
+import { router } from "expo-router";
 let appleAuth: any = null;
 if (Platform.OS === "ios") {
   appleAuth = require("@invertase/react-native-apple-authentication").appleAuth;
@@ -15,8 +16,8 @@ if (Platform.OS === "ios") {
 
 import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
-import { navigationRef } from "../../navigation/navigationRef";
 import type { RootStackParamList } from "../../navigation/RootStackParamList";
+import { appHref } from "../../navigation/routes";
 import BrandedAlert from "../BrandedAlert";
 import { haptic } from "../PressableScale";
 
@@ -156,20 +157,18 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
       await apiUtil.get("/user/details");
       onDismiss();
       // Existing user — drop them at the gated destination.
-      if (returnTo && navigationRef.isReady?.()) {
-        (navigationRef as any).navigate(returnTo.screen, returnTo.params);
+      if (returnTo) {
+        router.navigate(appHref(returnTo.screen, returnTo.params as any));
       }
     } catch (err: any) {
       if (err.response?.status === 404) {
         // New user — they still need profile completion. Send them to
         // SignUp full-screen (one-time onboarding step) carrying returnTo.
         onDismiss();
-        if (navigationRef.isReady?.()) {
-          (navigationRef as any).navigate("SignUpScreen", {
-            newUser: err.response?.data?.newUser || null,
-            returnTo,
-          });
-        }
+        router.navigate(appHref("SignUpScreen", {
+          newUser: err.response?.data?.newUser || null,
+          returnTo,
+        }));
       } else {
         BrandedAlert.alert("Couldn't finish sign-in", err.message || "Try again in a moment.");
       }
@@ -339,7 +338,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
             style={{ fontFamily: "NunitoSans_600SemiBold", textDecorationLine: "underline" }}
             onPress={() => {
               onDismiss();
-              if (navigationRef.isReady?.()) (navigationRef as any).navigate("TermsOfServiceScreen");
+              router.navigate(appHref("TermsOfServiceScreen"));
             }}
           >
             Terms
@@ -349,7 +348,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
             style={{ fontFamily: "NunitoSans_600SemiBold", textDecorationLine: "underline" }}
             onPress={() => {
               onDismiss();
-              if (navigationRef.isReady?.()) (navigationRef as any).navigate("PrivacyPolicyScreen");
+              router.navigate(appHref("PrivacyPolicyScreen"));
             }}
           >
             Privacy Policy

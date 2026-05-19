@@ -15,10 +15,11 @@ import {
 } from "react-native";
 import LottieView from "lottie-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { OnboardingScreenProps } from "./OnboardingScreen.types";
+import { useRouter } from "expo-router";
 import styles, { SLIDE_WIDTH } from "./OnboardingScreen.styles";
 import AppColors from "../../design_systems/colors";
 import VerifiedIllustration from "./VerifiedIllustration";
+import { appHref } from "../../navigation/routes";
 
 const { width, height } = Dimensions.get("window");
 const ILLUSTRATION_HEIGHT = Math.min(width * 0.78, height * 0.42);
@@ -83,7 +84,8 @@ const SLIDES: Slide[] = [
   },
 ];
 
-const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
+const OnboardingScreen: React.FC = () => {
+  const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const [index, setIndex] = useState(0);
@@ -105,9 +107,9 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
       try {
         await AsyncStorage.setItem("hasSeenOnboarding", "true");
       } catch {}
-      navigation.replace(target);
+      router.replace(appHref(target));
     },
-    [navigation]
+    [router]
   );
 
   const goNext = useCallback(async () => {

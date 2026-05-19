@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions } from "react-native";
-import { useNavigation, useIsFocused, useRoute } from "../../navigation/router-compat";
+import { useRouter, useFocusEffect } from "expo-router";
 
 import BrandInfo from "../../components/BrandInfo";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";
@@ -12,6 +12,7 @@ import { useApi } from "../../utils/ApiUtil";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import styles from "./AvailableRideScreens.styles";
 import BrandedAlert from "../../components/BrandedAlert";
+import { useDecodedLocalSearchParams } from "../../navigation/routes";
 
 interface AvailableRideScreenProps {
   setNavBarVariant: (variant: 0 | 1 | 2) => void;
@@ -61,9 +62,9 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   setNavBarIcon,
   setNavBarItems,
 }) => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const isFocused = useIsFocused();
+  const router = useRouter();
+  const routeParams = useDecodedLocalSearchParams();
+  const [isFocused, setIsFocused] = useState(true);
   const { apiUtil } = useApi();
 
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
@@ -87,6 +88,13 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     date: '',
   });
 
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => setIsFocused(false);
+    }, []),
+  );
+
   // Extract and update route parameters when they change
   useEffect(() => {
     let newFromLocation = "";
@@ -94,21 +102,21 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     let newFromCoordinates: { latitude: number; longitude: number } | undefined;
     let newToCoordinates: { latitude: number; longitude: number } | undefined;
 
-    if (route.params && typeof route.params === "object") {
-      if ("fromLocation" in route.params && typeof (route.params as any).fromLocation === "string") {
-        newFromLocation = (route.params as any).fromLocation;
+    if (routeParams && typeof routeParams === "object") {
+      if ("fromLocation" in routeParams && typeof (routeParams as any).fromLocation === "string") {
+        newFromLocation = (routeParams as any).fromLocation;
       }
-      if ("toLocation" in route.params && typeof (route.params as any).toLocation === "string") {
-        newToLocation = (route.params as any).toLocation;
+      if ("toLocation" in routeParams && typeof (routeParams as any).toLocation === "string") {
+        newToLocation = (routeParams as any).toLocation;
       }
-      if ("fromCoordinates" in route.params && (route.params as any).fromCoordinates) {
-        newFromCoordinates = (route.params as any).fromCoordinates;
+      if ("fromCoordinates" in routeParams && (routeParams as any).fromCoordinates) {
+        newFromCoordinates = (routeParams as any).fromCoordinates;
       }
-      if ("toCoordinates" in route.params && (route.params as any).toCoordinates) {
-        newToCoordinates = (route.params as any).toCoordinates;
+      if ("toCoordinates" in routeParams && (routeParams as any).toCoordinates) {
+        newToCoordinates = (routeParams as any).toCoordinates;
       }
-      if ((route.params as any).params) {
-        const nested = (route.params as any).params;
+      if ((routeParams as any).params) {
+        const nested = (routeParams as any).params;
         if (typeof nested.fromLocation === "string") {
           newFromLocation = nested.fromLocation;
         }
@@ -124,32 +132,13 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       }
     }
 
-    if (!newFromLocation || !newToLocation) {
-      try {
-        const navState = (navigation as any).getState?.();
-        if (navState && navState.routes) {
-          const currentRoute = navState.routes[navState.index ?? 0];
-          if (currentRoute && currentRoute.params) {
-            if (typeof currentRoute.params.fromLocation === "string") {
-              newFromLocation = currentRoute.params.fromLocation;
-            }
-            if (typeof currentRoute.params.toLocation === "string") {
-              newToLocation = currentRoute.params.toLocation;
-            }
-          }
-        }
-      } catch (e) {
-        // Silent catch
-      }
-    }
-
     console.log('Route params updated:', { newFromLocation, newToLocation, newFromCoordinates, newToCoordinates });
     
     setFromLocation(newFromLocation);
     setToLocation(newToLocation);
     setFromCoordinates(newFromCoordinates);
     setToCoordinates(newToCoordinates);
-  }, [route.params, navigation]);
+  }, [routeParams]);
 
   const buildQueryParams = () => {
     let queryParams = `start_location=${encodeURIComponent(fromLocation)}&end_location=${encodeURIComponent(toLocation)}`;
@@ -556,7 +545,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         <View style={styles.ridesHeaderLeft}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => router.back()}
           >
             <ChevronBack />
           </TouchableOpacity>

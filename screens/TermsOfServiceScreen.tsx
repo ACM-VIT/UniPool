@@ -9,13 +9,13 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import { useNavigation } from '../navigation/router-compat';
+import { useRouter } from "expo-router";
 import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
 import AppColors from '../design_systems/colors';
 
 const TermsOfServiceScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const router = useRouter();
 
   const openExternalLink = (url: string) => {
     Linking.openURL(url);
@@ -29,7 +29,7 @@ const TermsOfServiceScreen: React.FC = () => {
       </View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => router.back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Terms of Service</Text>

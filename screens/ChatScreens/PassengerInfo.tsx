@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
+import { useRouter } from "expo-router";
 import { passengerInfoStyles } from './ChatScreen.styles';
 import { PassengerInfoScreenProps, User } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
@@ -15,8 +16,10 @@ import LoadingComponent from '../../components/LoadingComponent';
 import { useApi } from '../../utils/ApiUtil';
 import RideService from '../../utils/RideService';
 import styles from '../ProfileScreen/ProfileScreen.styles';
+import { appHref } from "../../navigation/routes";
 
-const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, route, setNavBarVariant }) => {
+const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVariant">> = ({ setNavBarVariant }) => {
+  const router = useRouter();
   const [passengers, setPassengers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>('');
@@ -124,7 +127,7 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
         <View style={passengerInfoStyles.toggleContainer}>
           <TouchableOpacity 
             style={passengerInfoStyles.toggleButtonInactive}
-            onPress={() => navigation?.navigate('TripsListScreen' as never)}
+            onPress={() => router.navigate(appHref("TripsListScreen"))}
           >
             <Text style={passengerInfoStyles.toggleTextInactive}>Trips</Text>
           </TouchableOpacity>
@@ -160,13 +163,13 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
                   <TouchableOpacity 
                     key={passenger.id} 
                     style={passengerInfoStyles.destinationItem}
-                    onPress={() => navigation?.navigate('ChatMessages' as never, {
+                    onPress={() => router.navigate(appHref("ChatMessages", {
                       chatId: dmRoomId,
                       chatTitle: `Chat with ${passenger.name}`,
                       chatSubtitle: ``,
                       isGroupChat: false,
                       otherUserId: passenger.id,
-                    })}
+                    }))}
                   >
                     <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
                   </TouchableOpacity>

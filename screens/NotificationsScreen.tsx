@@ -6,7 +6,7 @@ import ChevronBack from "../components/ChevronBack";
 import BrandInfo from "../components/BrandInfo";
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
-import { useNavigation } from "../navigation/router-compat";
+import { useRouter } from "expo-router";
 import BrandedAlert from "../components/BrandedAlert";
 
 const { width, height } = Dimensions.get("window");
@@ -20,7 +20,7 @@ interface NotificationSettings {
 }
 
 const NotificationsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const router = useRouter();
   const [settings, setSettings] = useState<NotificationSettings>({
     pushNotifications: true,
     rideUpdates: true,
@@ -113,7 +113,7 @@ const NotificationsScreen: React.FC = () => {
       </View>
 
       <View style={styles.headerRowWithChevron}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => router.back()}>
           <ChevronBack />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
