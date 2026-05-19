@@ -1,7 +1,11 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-const PROD_URL = "https://dev.unipool.acmvit.in";
+// Backend host. PROD_URL points at the Cloudflare-proxied dev VM
+// (Ubuntu @ 165.22.218.217, nginx → :3000 Fiber). Release builds
+// always go through this; debug builds fall back to localhost
+// detection so a local Go server is still usable.
+const PROD_URL = "https://unidev.acmvit.in";
 
 const resolveLocalHost = () => {
   if (Platform.OS === "android") return "10.0.2.2";
