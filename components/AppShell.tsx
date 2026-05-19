@@ -469,6 +469,10 @@ const AppShell = () => {
 
     setupNotifications();
 
+    if (!Device.isDevice) {
+      return;
+    }
+
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
       console.log("Notification received:", notification);
     });

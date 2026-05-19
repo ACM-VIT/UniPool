@@ -194,6 +194,13 @@ const BookingScreen: React.FC = () => {
             body: "Your ride history shows up here once you've taken one.",
             cta: { label: "Find a ride", to: "HomeScreen" as const },
           };
+    const handleEmptyCta = () => {
+      if (copy.cta.to === "HomeScreen") {
+        router.replace(appHref(copy.cta.to));
+        return;
+      }
+      router.navigate(appHref(copy.cta.to));
+    };
 
     return (
       <EmptyState
@@ -205,7 +212,7 @@ const BookingScreen: React.FC = () => {
         title={copy.title}
         body={copy.body}
         ctaLabel={copy.cta.label}
-        onPressCta={() => (navigation as any).navigate(copy.cta.to)}
+        onPressCta={handleEmptyCta}
         // Anchor the content to the top half of the screen so the
         // BookingScreen's airplane decoration at the bottom stays
         // visible without overlapping the CTA.

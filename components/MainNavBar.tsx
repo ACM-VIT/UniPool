@@ -99,6 +99,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
   const handleNavigation = (routeKey: string) => {
     const mapping = ROUTE_MAP[routeKey] ?? routeKey;
     const firstScreen = Array.isArray(mapping) ? mapping[0] : mapping;
+    const firstScreenName = String(firstScreen).toLowerCase();
 
     // Guest gate: tab taps that require an account open the lightweight
     // AuthSheet (Vibecode pattern). Contextual reason copy = "to see your
@@ -115,12 +116,16 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
       return;
     }
 
+    if (activeRouteName === firstScreenName) return;
+
     if (Array.isArray(mapping)) {
-      mapping.forEach((screen) => {
+      const [rootScreen, ...nextScreens] = mapping;
+      router.replace(appHref(rootScreen as any));
+      nextScreens.forEach((screen) => {
         router.navigate(appHref(screen as any));
       });
     } else {
-      router.navigate(appHref(mapping as any));
+      router.replace(appHref(mapping as any));
     }
   };
 
