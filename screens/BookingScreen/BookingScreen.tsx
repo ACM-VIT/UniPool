@@ -14,7 +14,8 @@ import { useApi } from "../../utils/ApiUtil";
 import LoadingComponent from "../../components/LoadingComponent";
 import RideCard from "../../components/RideCard";
 import EmptyState from "../../components/EmptyState";
-import { useNavigation } from "../../navigation/router-compat";
+import { useRouter } from "expo-router";
+import { appHref } from "../../navigation/routes";
 
 export interface RideData {
   id?: string;
@@ -77,7 +78,7 @@ const BookingScreen: React.FC = () => {
   // (the old behaviour) meant "Hosting" never matched any ride.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { apiUtil } = useApi();
-  const navigation = useNavigation();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -169,7 +170,7 @@ const BookingScreen: React.FC = () => {
 
   const openRide = (rideId: string) => {
     if (!rideId) return;
-    navigation.navigate("RideDetailsScreen", { rideId });
+    router.navigate(appHref("RideDetailsScreen", { rideId }));
   };
 
   // Empty-state copy is intentionally terse. Mobbin pattern across

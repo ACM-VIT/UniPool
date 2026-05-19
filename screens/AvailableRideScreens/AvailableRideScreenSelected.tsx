@@ -2,16 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Dimensions } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
+import { useRouter } from "expo-router";
 
 const { width, height } = Dimensions.get("window");
 
-import { useNavigation } from '../../navigation/router-compat';
 import ChevronBack from '../../components/ChevronBack/ChevronBack';
 import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
 import BrandInfo from '../../components/BrandInfo/BrandInfo';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
 import { useAuthGate } from '../../contexts/AuthGate';
+import { appHref, useDecodedLocalSearchParams } from '../../navigation/routes';
 
 const customMapStyle = [
   {
@@ -277,13 +278,9 @@ type RootStackParamList = {
   };
 };
 
-type AvailableRideScreenSelectedProps = {
-  navigation?: any;
-  route?: any;
-};
-
-const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = ({ navigation, route }) => {
-  const nav = useNavigation();
+const AvailableRideScreenSelected: React.FC = () => {
+  const router = useRouter();
+  const routeParams = useDecodedLocalSearchParams<{ ride?: any }>();
   const { apiUtil } = useApi();
   const { requireAuth } = useAuthGate();
   const [location, setLocation] = useState<any>(null);
@@ -298,7 +295,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
   // endpoint doesn't emit viewer_state). Either way we render off
   // this single field instead of deriving from isHost / bookings.
   const [viewerState, setViewerState] = useState<string | null>(
-    (route?.params?.ride as any)?.viewer_state ?? null,
+    (routeParams?.ride as any)?.viewer_state ?? null,
   );
   const [viewerActions, setViewerActions] = useState<{
     can_request_seat?: boolean;
@@ -306,7 +303,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
     can_cancel_ride?: boolean;
     can_accept_passengers?: boolean;
     can_open_chat?: boolean;
-  }>((route?.params?.ride as any)?.actions ?? {});
+  }>((routeParams?.ride as any)?.actions ?? {});
   // Verification + same-campus signals — populated by the same
   // /ride/details fetch as viewer_state. Drives the host checkmark
   // and "Same campus" chip rendered alongside the host name.
@@ -314,16 +311,11 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
   const [hostInstituteName, setHostInstituteName] = useState<string | null>(null);
   const [hostSameInstituteAsViewer, setHostSameInstituteAsViewer] = useState<boolean>(false);
 
-  // Vehicle ID — only populated by the server for host +
-  // confirmed_passenger viewers (the pickup audience). Surfaced
-  // below the trip card so passengers know what to look for.
-  const [vehicleInfo, setVehicleInfo] = useState<string>("");
-
   const [viewerBookingId, setViewerBookingId] = useState<string | null>(
-    (route?.params?.ride as any)?.viewer_booking_id ?? null,
+    (routeParams?.ride as any)?.viewer_booking_id ?? null,
   );
 
-  const rideData = route?.params?.ride;
+  const rideData = routeParams?.ride;
   console.log("Received ride data:", rideData);
 
   if (rideData) {
@@ -510,9 +502,6 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
         setHostVerified(!!details?.host_is_verified);
         setHostInstituteName(details?.host_institute_name ?? null);
         setHostSameInstituteAsViewer(!!details?.host_same_institute_as_viewer);
-        // Vehicle ID — server only sends a value for host /
-        // confirmed_passenger viewers, otherwise empty string.
-        setVehicleInfo(details?.vehicle_info ?? "");
       } catch (err) {
         console.warn('viewer_state fetch failed', err);
       }
@@ -530,12 +519,8 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
   useEffect(() => {
     if (!ride?.id) return;
     if (viewerState !== "pending_passenger" && viewerState !== "rejected_passenger") return;
-    if (typeof (nav as any).replace === "function") {
-      (nav as any).replace("RideDetailsScreen", { rideId: ride.id });
-    } else {
-      (nav as any).navigate("RideDetailsScreen", { rideId: ride.id });
-    }
-  }, [viewerState, ride?.id]);
+    router.replace(appHref("RideDetailsScreen", { rideId: ride.id }));
+  }, [viewerState, ride?.id, router]);
 
   useEffect(() => {
     if (isValidCoordinate(ride.start_latitude, ride.start_longitude) && 
@@ -579,7 +564,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
 
     // Guests have to sign in before requesting a seat — bring them back here
     // with the same ride params after sign-up completes.
-    if (!requireAuth({ screen: "AvailableRidesSelectedScreen", params: route?.params }, "to book this ride")) {
+    if (!requireAuth({ screen: "AvailableRidesSelectedScreen", params: routeParams as any }, "to book this ride")) {
       return;
     }
 
@@ -604,7 +589,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
         setViewerState("pending_passenger");
         setViewerBookingId((response.id || response.booking_id) ?? null);
 
-        (nav as any).navigate('RideRequestedScreen', {
+        router.navigate(appHref("RideRequestedScreen", {
           rideId: ride.id,
           bookingId: response.id || response.booking_id,
           rideDetails: {
@@ -619,7 +604,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
           // "Message host" there.
           hostUserId: ride.host_user_id,
           hostUserName: ride.host_user_name,
-        });
+        }));
       } else {
         throw new Error(response?.message || 'Failed to request ride');
       }
@@ -654,7 +639,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
         <View style={styles.navigationLeft}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => (nav as any).navigate('AvailableRidesScreen')}
+            onPress={() => router.back()}
           >
             <ChevronBack />
           </TouchableOpacity>
@@ -721,19 +706,6 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
                     <Text style={styles.sameCampusChipText}>SAME CAMPUS</Text>
                   </View>
                 ) : null}
-              </View>
-            ) : null}
-            {/* Pickup vehicle ID — server gates this to host +
-                confirmed passengers, so an empty string means
-                "don't surface". Renders as a quiet "Look for:"
-                row so it doesn't visually compete with the price /
-                host card. */}
-            {vehicleInfo ? (
-              <View style={styles.vehicleInfoRow}>
-                <Text style={styles.vehicleInfoLabel}>LOOK FOR</Text>
-                <Text style={styles.vehicleInfoText} numberOfLines={2}>
-                  {vehicleInfo}
-                </Text>
               </View>
             ) : null}
             <Text style={styles.yobText}>{getAgeText(ride.host_user_yob)}</Text>
@@ -820,7 +792,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
                 <Text style={styles.viewerNoticeTitle}>You're hosting this ride</Text>
                 <TouchableOpacity
                   style={styles.viewerNoticeBtn}
-                  onPress={() => (nav as any).navigate("RideDetailsScreen", { rideId: ride.id })}
+                  onPress={() => router.navigate(appHref("RideDetailsScreen", { rideId: ride.id }))}
                 >
                   <Text style={styles.viewerNoticeBtnText}>Manage</Text>
                 </TouchableOpacity>
@@ -840,7 +812,7 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
                 <Text style={styles.viewerNoticeTitle}>Your seat is confirmed</Text>
                 <TouchableOpacity
                   style={styles.viewerNoticeBtn}
-                  onPress={() => (nav as any).navigate("RideDetailsScreen", { rideId: ride.id })}
+                  onPress={() => router.navigate(appHref("RideDetailsScreen", { rideId: ride.id }))}
                 >
                   <Text style={styles.viewerNoticeBtnText}>View booking</Text>
                 </TouchableOpacity>
@@ -1079,31 +1051,6 @@ const styles = StyleSheet.create({
     fontFamily: 'NunitoSans_800ExtraBold',
     fontSize: 9,
     letterSpacing: 0.6,
-  },
-  // Pickup vehicle info — quiet uppercase eyebrow + value, sits
-  // inside the forest dark trip card. Reads as practical info, not
-  // a banner.
-  vehicleInfoRow: {
-    marginTop: 6,
-    marginBottom: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(181,215,80,0.18)',
-  },
-  vehicleInfoLabel: {
-    color: AppColors.primaryLightGreen,
-    fontFamily: 'NunitoSans_800ExtraBold',
-    fontSize: 10,
-    letterSpacing: 0.8,
-    opacity: 0.7,
-    marginBottom: 3,
-  },
-  vehicleInfoText: {
-    color: AppColors.basicWhite,
-    fontFamily: 'NunitoSans_700Bold',
-    fontSize: 14,
-    lineHeight: 19,
-    letterSpacing: -0.1,
   },
   yobText: {
     color: AppColors.basicWhite,

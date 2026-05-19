@@ -1,3 +1,5 @@
+# Set by expo-router. This enables Fabric-only features from react-native-screens
+ENV['RNS_GAMMA_ENABLED'] ||= '1'
 require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
 require File.join(File.dirname(`node --print "require.resolve('react-native/package.json')"`), "scripts/react_native_pods")
 
@@ -73,19 +75,44 @@ target 'UniPool' do
       target.build_configurations.each do |config|
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = podfile_properties['ios.deploymentTarget'] || '16.4'
 
-        paths = Array(config.build_settings['HEADER_SEARCH_PATHS'])
+        raw_header_paths = config.build_settings['HEADER_SEARCH_PATHS']
+        paths =
+          case raw_header_paths
+          when Array
+            raw_header_paths.compact.reject(&:empty?)
+          when String
+            raw_header_paths.empty? ? [] : [raw_header_paths]
+          else
+            []
+          end
+        header_paths_changed = false
+
+        add_header_path = lambda do |path|
+          unless paths.include?(path)
+            paths << path
+            header_paths_changed = true
+          end
+        end
 
         if ['ReactCodegen', 'react-native-safe-area-context'].include?(target.name)
           generated_codegen_path = '"${PODS_ROOT}/../build/generated/ios/ReactCodegen"'
-          paths << generated_codegen_path unless paths.include?(generated_codegen_path)
+          add_header_path.call(generated_codegen_path)
         end
 
         if ['ReactCodegen', 'ReactAppDependencyProvider'].include?(target.name)
           generated_ios_path = '"${PODS_ROOT}/../build/generated/ios"'
-          paths << generated_ios_path unless paths.include?(generated_ios_path)
+          add_header_path.call(generated_ios_path)
         end
 
-        config.build_settings['HEADER_SEARCH_PATHS'] = paths
+        if target.name == 'libdav1d'
+          add_header_path.call('"${PODS_ROOT}/libdav1d/generate"')
+          add_header_path.call('"${PODS_TARGET_SRCROOT}/generate"')
+        end
+
+        if header_paths_changed
+          paths.unshift('$(inherited)') unless paths.include?('$(inherited)')
+          config.build_settings['HEADER_SEARCH_PATHS'] = paths
+        end
 
         if target.name == 'ReactCodegen'
           flags = Array(config.build_settings['OTHER_CFLAGS'])

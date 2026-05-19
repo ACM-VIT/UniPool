@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -10,10 +10,11 @@ import {
   Platform,
 } from "react-native";
 import {
-  NavigationState,
-} from "../navigation/router-compat";
+  appHref,
+  routeNameFromPath,
+} from "../navigation/routes";
+import { usePathname, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { navigationRef } from "../navigation/navigationRef";
 import AppColors from "../design_systems/colors";
 import { useAuthGate } from "../contexts/AuthGate";
 
@@ -86,39 +87,16 @@ const ROUTE_MAP: Record<string, RouteMapValue> = {
 
 const DEFAULT_ACTIVE_SCREEN = "HomeScreen";
 
-const getActiveRouteName = (state?: NavigationState): string => {
-  if (!state) return DEFAULT_ACTIVE_SCREEN;
-  const route = state.routes[state.index ?? 0] as any;
-  if (route?.state) return getActiveRouteName(route.state);
-  return route?.name || DEFAULT_ACTIVE_SCREEN;
-};
-
 const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
   const insets = useSafeAreaInsets();
-  const [activeRouteName, setActiveRouteName] = useState(DEFAULT_ACTIVE_SCREEN.toLowerCase());
+  const router = useRouter();
+  const pathname = usePathname();
+  const activeRouteName = (
+    routeNameFromPath(pathname) ?? DEFAULT_ACTIVE_SCREEN
+  ).toLowerCase();
   const { requireAuth, isGuest } = useAuthGate();
-  
-  useEffect(() => {
-    // Get initial route name
-    if (navigationRef.isReady()) {
-      const state = navigationRef.getRootState();
-      setActiveRouteName(getActiveRouteName(state).toLowerCase());
-    }
-    
-    // Subscribe to navigation state changes
-    const unsubscribe = navigationRef.addListener('state', () => {
-      if (navigationRef.isReady()) {
-        const state = navigationRef.getRootState();
-        setActiveRouteName(getActiveRouteName(state).toLowerCase());
-      }
-    });
-    
-    return unsubscribe;
-  }, []);
 
   const handleNavigation = (routeKey: string) => {
-    if (!navigationRef.isReady()) return;
-
     const mapping = ROUTE_MAP[routeKey] ?? routeKey;
     const firstScreen = Array.isArray(mapping) ? mapping[0] : mapping;
 
@@ -139,10 +117,10 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
 
     if (Array.isArray(mapping)) {
       mapping.forEach((screen) => {
-        navigationRef.navigate(screen as never);
+        router.navigate(appHref(screen as any));
       });
     } else {
-      navigationRef.navigate(mapping as never);
+      router.navigate(appHref(mapping as any));
     }
   };
 

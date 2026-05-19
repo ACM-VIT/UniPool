@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { View, Text, ScrollView, StyleSheet, Dimensions } from "react-native";
 import PreviousTripsCompressed from "../components/PreviousTripsCompressed";
-import { useNavigation } from "../navigation/router-compat";
-import { NativeStackNavigationProp } from '../navigation/router-compat';
-import { RootStackParamList } from '../navigation/RootStackParamList';
+import { useRouter } from "expo-router";
+import { appHref } from "../navigation/routes";
 import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
 import AppColors from "../design_systems/colors";
@@ -24,8 +23,6 @@ interface UserRideData {
     passenger_id?: string;
 }
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'HomeScreen'>;
-
 interface PreviousTripsSectionProps {
     // Fires whenever the "do we have trips to show?" answer changes —
     // lets HomeScreen swap between this section and the "Rides around
@@ -34,7 +31,7 @@ interface PreviousTripsSectionProps {
 }
 
 const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsChange }) => {
-    const navigation = useNavigation<NavigationProp>();
+    const router = useRouter();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [rideData, setRideData] = useState<UserRideData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -217,7 +214,7 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsC
                                 <PreviousTripsCompressed
                                     trip={trip}
                                     // @ts-ignore: rideId is expected by RideDetailsScreen navigation
-                                    onPress={() => navigation.navigate("RideDetailsScreen", { rideId: trip.ride_id })}
+                                    onPress={() => router.navigate(appHref("RideDetailsScreen", { rideId: trip.ride_id }))}
                                 />
                             </View>
                         ))}

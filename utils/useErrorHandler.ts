@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { useNavigation } from '../navigation/router-compat';
+import { useRouter } from "expo-router";
+import { appHref } from "../navigation/routes";
 
 export interface ErrorState {
   hasError: boolean;
@@ -16,13 +17,7 @@ export const useErrorHandler = () => {
   const [errorState, setErrorState] = useState<ErrorState>({
     hasError: false,
   });
-  
-  let navigation: any = null;
-  try {
-    navigation = useNavigation();
-  } catch (error) {
-    console.warn('Navigation not available in ErrorHandler context');
-  }
+  const router = useRouter();
 
   const handleApiError = useCallback((error: any, retryAction?: () => void) => {
     console.error('API Error handled:', error);
@@ -80,25 +75,17 @@ export const useErrorHandler = () => {
 
   const goHome = useCallback(() => {
     clearError();
-    if (navigation) {
-      (navigation as any).navigate('BookingScreen');
-    } else {
-      console.warn('Navigation not available for goHome action');
-    }
-  }, [navigation, clearError]);
+    router.navigate(appHref("BookingScreen"));
+  }, [router, clearError]);
 
   const goBack = useCallback(() => {
     clearError();
-    if (navigation) {
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else {
-        (navigation as any).navigate('BookingScreen');
-      }
+    if (router.canGoBack()) {
+      router.back();
     } else {
-      console.warn('Navigation not available for goBack action');
+      router.navigate(appHref("BookingScreen"));
     }
-  }, [navigation, clearError]);
+  }, [router, clearError]);
 
   return {
     errorState,

@@ -12,13 +12,14 @@ import {
   Dimensions,
 } from "react-native";
 import * as Location from "expo-location";
-import { useNavigation } from "../../navigation/router-compat";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../../design_systems/colors";
 import baseURL from "../../config/urlconfig";
 import ChevronBack from "../../components/ChevronBack";
 import LoadingComponent from "../../components/LoadingComponent";
 import EmptyState from "../../components/EmptyState";
+import { appHref } from "../../navigation/routes";
 
 const { width, height } = Dimensions.get("window");
 const isSmallDevice = width < 350;
@@ -91,7 +92,7 @@ const haversineKm = (
  * already handles the sign-in gate when they try to request a seat.
  */
 const NearbyRidesScreen: React.FC = () => {
-  const navigation = useNavigation<any>();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [rides, setRides] = useState<NearbyRide[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,7 +152,7 @@ const NearbyRidesScreen: React.FC = () => {
   };
 
   const openRide = (ride: NearbyRide) => {
-    navigation.navigate("AvailableRidesSelectedScreen", { ride });
+    router.navigate(appHref("AvailableRidesSelectedScreen", { ride } as any));
   };
 
   const renderRide = ({ item }: { item: NearbyRide }) => {
@@ -222,7 +223,7 @@ const NearbyRidesScreen: React.FC = () => {
 
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 10 }]}>
         <View style={styles.headerTopRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => router.back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Rides around you</Text>
@@ -248,7 +249,7 @@ const NearbyRidesScreen: React.FC = () => {
           title="No carpools near you"
           body="Be the first to post one going your way — your co-riders will roll in."
           ctaLabel="Post a ride"
-          onPressCta={() => navigation.navigate("CreateRide")}
+          onPressCta={() => router.navigate(appHref("CreateRide"))}
         />
       ) : (
         <FlatList

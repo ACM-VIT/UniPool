@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState } from 'react';
 import { StyleSheet, Animated, Easing, View } from 'react-native';
+import { router } from "expo-router";
 import ErrorComponent from '../components/ErrorComponent';
+import { appHref } from "../navigation/routes";
 
 export interface ErrorState {
   hasError: boolean;
@@ -25,10 +27,9 @@ const ErrorContext = createContext<ErrorContextType>({
 
 interface ErrorProviderProps {
   children: React.ReactNode;
-  navigationRef?: any;
 }
 
-export const ErrorProvider: React.FC<ErrorProviderProps> = ({ children, navigationRef }) => {
+export const ErrorProvider: React.FC<ErrorProviderProps> = ({ children }) => {
   const [errorState, setErrorState] = useState<ErrorState>({
     hasError: false,
   });
@@ -87,31 +88,15 @@ export const ErrorProvider: React.FC<ErrorProviderProps> = ({ children, navigati
 
   const goHome = () => {
     hideError();
-    if (navigationRef?.current) {
-      try {
-        navigationRef.current.navigate('BookingScreen');
-      } catch (navError) {
-        console.warn('Navigation error in goHome:', navError);
-      }
-    } else {
-      console.warn('Navigation ref not available for goHome action');
-    }
+    router.navigate(appHref("BookingScreen"));
   };
 
   const goBack = () => {
     hideError();
-    if (navigationRef?.current) {
-      try {
-        if (navigationRef.current.canGoBack()) {
-          navigationRef.current.goBack();
-        } else {
-          navigationRef.current.navigate('BookingScreen');
-        }
-      } catch (navError) {
-        console.warn('Navigation error in goBack:', navError);
-      }
+    if (router.canGoBack()) {
+      router.back();
     } else {
-      console.warn('Navigation ref not available for goBack action');
+      router.navigate(appHref("BookingScreen"));
     }
   };
 

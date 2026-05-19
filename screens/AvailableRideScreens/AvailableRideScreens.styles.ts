@@ -622,11 +622,6 @@ const styles = StyleSheet.create({
     color: AppColors.basicBlack,
     fontFamily: "NunitoSans_600SemiBold",
   },
-  vehicleInfo: {
-    fontSize: 14,
-    color: AppColors.secondaryDarkGreen,
-    fontFamily: "NunitoSans_400Regular",
-  },
   seatsContainer: {
     flexDirection: "row",
     alignItems: "center",

@@ -7,7 +7,6 @@ import AppShell from "../components/AppShell";
 import { AuthGateProvider } from "../contexts/AuthGate";
 import { ErrorProvider } from "../contexts/ErrorContext";
 import { LocationProvider } from "../contexts/location-context";
-import { navigationRef } from "../navigation/navigationRef";
 import { ApiProvider } from "../utils/ApiUtil";
 
 Notifications.setNotificationHandler({
@@ -25,8 +24,8 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <StatusBar backgroundColor="#A8D8A8" barStyle="dark-content" />
-        <ErrorProvider navigationRef={navigationRef}>
-          <ApiProvider navigationRef={navigationRef}>
+        <ErrorProvider>
+          <ApiProvider>
             <AuthGateProvider>
               <LocationProvider>
                 <AppShell />

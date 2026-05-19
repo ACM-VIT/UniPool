@@ -3,9 +3,10 @@ import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-na
 import styles from './ProfileScreen/ProfileScreen.styles';
 import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
-import { useNavigation } from '../navigation/router-compat';
+import { useRouter } from "expo-router";
 import { useApi } from '../utils/ApiUtil';
 import BrandedAlert from "../components/BrandedAlert";
+import { appHref } from "../navigation/routes";
 
 // Brand coral the rest of the app already uses for destructive
 // states (Leave ride, declined badge). Avoids dropping a raw red
@@ -13,7 +14,7 @@ import BrandedAlert from "../components/BrandedAlert";
 const DESTRUCTIVE = '#FF6B5B';
 
 const AccountSettingsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const router = useRouter();
   const { apiUtil } = useApi();
   const [loading, setLoading] = useState(false);
 
@@ -50,11 +51,7 @@ const AccountSettingsScreen: React.FC = () => {
               }
 
               BrandedAlert.alert('Account deleted', 'See you around. We\'ve removed your data.');
-              if (navigation && typeof (navigation as any).reset === 'function') {
-                (navigation as any).reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
-              } else {
-                navigation.navigate('AuthScreen' as never);
-              }
+              router.replace(appHref("AuthScreen"));
             } catch (err) {
               console.error('Account deletion error:', err);
               BrandedAlert.alert('Couldn\'t delete', 'Something went wrong. Try again in a moment.');
@@ -72,7 +69,7 @@ const AccountSettingsScreen: React.FC = () => {
       <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => router.back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Account Settings</Text>

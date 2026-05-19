@@ -51,6 +51,11 @@ GMSServices.provideAPIKey("__REMOVED_GOOGLE_API_KEY__")
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
+    // Firebase Auth handles its own reCAPTCHA redirect URLs.
+    if url.host?.lowercased() == "firebaseauth" {
+      return false
+    }
+
     return super.application(app, open: url, options: options) || RCTLinkingManager.application(app, open: url, options: options)
   }
 

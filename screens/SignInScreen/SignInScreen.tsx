@@ -1,17 +1,19 @@
 import React from "react";
 import { View, Image, Text } from "react-native";
+import { useRouter } from "expo-router";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import {
   getAuth,
   GoogleAuthProvider,
   signInWithCredential,
 } from "@react-native-firebase/auth";
-import { SignInScreenProps } from "./SignInScreen.types";
 import styles from "./SignInScreen.styles";
 import GoogleAuthButton from "../../components/GoogleAuthBox";
 import BrandedAlert from "../../components/BrandedAlert";
+import { appHref } from "../../navigation/routes";
 
-const SignInScreen: React.FC<SignInScreenProps> = ({ navigation }) => {
+const SignInScreen: React.FC = () => {
+  const router = useRouter();
   const handleGoogleSignIn = async () => {
     try {
       console.log("Starting Google Sign-In");
@@ -30,7 +32,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation }) => {
       const userCredential = await signInWithCredential(auth, googleCredential);
 
       console.log("Signed in as:", userCredential.user.email);
-      navigation.navigate("BookingScreen");
+      router.navigate(appHref("BookingScreen"));
     } catch (err) {
       console.error("Google Sign-In error", err);
       const message =

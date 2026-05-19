@@ -1,19 +1,24 @@
 import React, { useMemo, useState } from "react";
 import { SafeAreaView, View, Platform, KeyboardAvoidingView, TouchableOpacity, Text, ScrollView, TextInput, StatusBar } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
-import { SignUpScreenProps } from "./SignUpScreen.types";
+import { useRouter } from "expo-router";
 import { useApi } from "../../utils/ApiUtil";
 import styles from "./SignUpScreen.styles";
 import AppColors from "../../design_systems/colors";
 import BrandedAlert from "../../components/BrandedAlert";
+import { appHref, useDecodedLocalSearchParams } from "../../navigation/routes";
+import type { AppRouteTarget } from "../../navigation/routes";
 
 type FieldKey = "phone" | "yob" | null;
 
-const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
+const SignUpScreen: React.FC = () => {
   const { apiUtil } = useApi();
-  const insets = useSafeAreaInsets();
-  const returnTo = route?.params?.returnTo;
+  const router = useRouter();
+  const routeParams = useDecodedLocalSearchParams<{
+    newUser?: any;
+    returnTo?: AppRouteTarget;
+  }>();
+  const returnTo = routeParams.returnTo;
 
   const [contactNumber, setContactNumber] = useState("");
   const [yob, setYob] = useState("");
@@ -39,15 +44,12 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
         gender,
         yob: yobNum,
       });
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "LocationPermissionScreen", params: { returnTo } }],
-      });
+      router.replace(appHref("LocationPermissionScreen", { returnTo }));
     } catch (error: any) {
       setLoading(false);
       if (error?.message === "AUTHENTICATION_REDIRECT") {
         BrandedAlert.alert("Let's get you back in", "Sign in again to continue.", [
-          { text: "OK", onPress: () => navigation.reset({ index: 0, routes: [{ name: "AuthScreen", params: { returnTo } }] }) },
+          { text: "OK", onPress: () => router.replace(appHref("AuthScreen", { returnTo })) },
         ]);
         return;
       }
@@ -55,7 +57,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
         error?.response?.status === 409 ||
         (error?.response?.data?.message && error.response.data.message.includes("already exists"))
       ) {
-        navigation.reset({ index: 0, routes: [{ name: "LocationPermissionScreen", params: { returnTo } }] });
+        router.replace(appHref("LocationPermissionScreen", { returnTo }));
         return;
       }
       const errorMessage =
@@ -83,7 +85,13 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
           <View style={styles.topRow}>
             <TouchableOpacity
               style={styles.backBtn}
-              onPress={() => (navigation.canGoBack() ? navigation.goBack() : null)}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace(appHref("HomeScreen"));
+                }
+              }}
               activeOpacity={0.7}
             >
               <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">

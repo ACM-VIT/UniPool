@@ -3,15 +3,14 @@ import React, { useState, useEffect } from "react";
 import { View, StyleSheet, Platform } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { Stack } from "expo-router/stack";
-import { navigationRef } from "../navigation/navigationRef";
 import { RootStackParamList } from "../navigation/RootStackParamList";
 import {
+  appHref,
   routeNameFromPath,
-  screenToHref,
-} from "../navigation/router-compat";
+} from "../navigation/routes";
 import { NavBarProvider } from "../contexts/NavBarContext";
 import SplashScreenComponent from "../screens/SplashScreen";
-import MainNavBar from "../components/MainNavBar";
+import MainNavBar, { MAIN_NAV_BAR_TOP_OFFSET } from "../components/MainNavBar";
 import { BrandedAlertHost } from "../components/BrandedAlert";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { useApi } from "../utils/ApiUtil";
@@ -77,17 +76,15 @@ const globalStyles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 12,
+    height: MAIN_NAV_BAR_TOP_OFFSET,
     alignItems: "center",
     justifyContent: "center",
-    pointerEvents: "box-none",
     zIndex: 20,
     // On Android, `elevation` beats `zIndex` for stacking. The bottom
     // sheet uses `elevation: 8`, which was making it draw over the
     // floating navbar (and the navbar looked invisible even though it
-    // was rendered — touches still went through to it via `box-none`
-    // on the wrapper, which is why tapping where the nav should be
-    // still triggered the auth sheet). Setting a higher elevation
-    // forces the navbar back on top on Android.
+    // was rendered). Setting a higher elevation forces the navbar
+    // back on top on Android.
     elevation: 30,
   },
 });
@@ -163,55 +160,44 @@ const AppShell = () => {
     showCustomSplash || !fontsLoaded || loading || !initialRoute || !authStateResolved;
 
   const handleNotificationNavigation = (data: any) => {
-    if (!navigationRef.current) return;
-
     if (data?.type === "chat_message") {
       if (data.ride_id) {
-        navigationRef.current.navigate("ChatMessages", {
+        router.navigate(appHref("ChatMessages", {
           chatId: String(data.ride_id),
           chatTitle: String(data.chat_title || "Chat"),
           chatSubtitle: String(data.chat_subtitle || "Ride Chat"),
           isGroupChat: true
-        });
+        }));
       }
     } else if (data?.type === "ride_request_approved") {
       if (data.ride_id) {
-        navigationRef.current.navigate("RideDetailsScreen", {
+        router.navigate(appHref("RideDetailsScreen", {
           rideId: String(data.ride_id)
-        });
+        }));
       }
     } else if (data?.type === "ride_request_received") {
       if (data.ride_id) {
-        navigationRef.current.navigate("RideDetailsScreen", {
+        router.navigate(appHref("RideDetailsScreen", {
           rideId: String(data.ride_id)
-        });
+        }));
       }
     } else if (data?.type === "ride_reminder") {
       if (data.ride_id) {
-        navigationRef.current.navigate("RideDetailsScreen", {
+        router.navigate(appHref("RideDetailsScreen", {
           rideId: String(data.ride_id)
-        });
+        }));
       }
     } else if (data?.ride_id || data?.rideId) {
       const rideId = data.ride_id || data.rideId;
-      navigationRef.current.navigate("RideDetailsScreen", {
+      router.navigate(appHref("RideDetailsScreen", {
         rideId: String(rideId)
-      });
+      }));
     }
   };
 
   useEffect(() => {
     SplashScreen.preventAutoHideAsync();
   }, []);
-
-  useEffect(() => {
-    navigationRef.setReady(true);
-    return () => navigationRef.setReady(false);
-  }, []);
-
-  useEffect(() => {
-    navigationRef.setCurrentRouteName(currentRouteName);
-  }, [currentRouteName]);
 
   useEffect(() => {
     const authInstance = getAuth();
@@ -492,11 +478,6 @@ const AppShell = () => {
       
       const data = response.notification.request.content.data as any;
       
-      if (!navigationRef.current) {
-        console.log("Navigation ref not ready");
-        return;
-      }
-
       handleNotificationNavigation(data);
     });
 
@@ -506,9 +487,7 @@ const AppShell = () => {
         const data = response.notification.request.content.data as any;
         
         setTimeout(() => {
-          if (navigationRef.current) {
-            handleNotificationNavigation(data);
-          }
+          handleNotificationNavigation(data);
         }, 1000);
       }
     });
@@ -531,7 +510,7 @@ const AppShell = () => {
 
   useEffect(() => {
     if (!isBootstrapping && initialRoute && (!pathname || pathname === "/")) {
-      router.replace(screenToHref(initialRoute) as any);
+      router.replace(appHref(initialRoute) as any);
     }
   }, [initialRoute, isBootstrapping, pathname, router]);
 
@@ -565,18 +544,23 @@ const AppShell = () => {
         <View style={{ flex: 1 }}>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" options={{ headerShown: false, animation: "fade" }} />
-            <Stack.Screen name="[screen]" options={{ headerShown: false }} />
+            <Stack.Screen name="AuthScreen" options={{ headerShown: false, presentation: "modal" }} />
+            <Stack.Screen name="AvailableRidesSelectedScreen" options={{ headerShown: false, animation: "none" }} />
+            <Stack.Screen name="ChatMessages" options={{ headerShown: false, animation: "none" }} />
+            <Stack.Screen name="PassengerInfoScreen" options={{ headerShown: false, animation: "none" }} />
+            <Stack.Screen name="RideRequestedScreen" options={{ headerShown: false, animation: "none" }} />
+            <Stack.Screen name="TripsListScreen" options={{ headerShown: false, animation: "none" }} />
           </Stack>
 
           {showNavBar && (
-            <View style={globalStyles.navBarWrapper}>
+            <View pointerEvents="box-none" style={globalStyles.navBarWrapper}>
               {navBarVariant === 1 ? (
                 <MainNavBar
                   variant={1}
                   text={navBarText}
                   iconPath={navBarIcon}
                   onPress={() => {
-                    navigationRef.isReady() && navigationRef.navigate("AvailableRidesScreen", { fromLocation: "", toLocation: "" });
+                    router.navigate(appHref("AvailableRidesScreen", { fromLocation: "", toLocation: "" }));
                     setNavBarVariant(0);
                     setNavBarText("");
                     setNavBarIcon(require("../assets/wallet.png"));
@@ -597,7 +581,7 @@ const AppShell = () => {
                   text={navBarText}
                   iconPath={navBarIcon}
                   onPress={() => {
-                    navigationRef.isReady() && navigationRef.navigate("AvailableRidesSelectedScreen");
+                    router.navigate(appHref("AvailableRidesSelectedScreen"));
                   }}
                 />
               ) : (

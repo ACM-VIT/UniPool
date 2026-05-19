@@ -4,27 +4,21 @@ import navigationImg from "../assets/navigation.png";
 import locationPinImg from "../assets/location-pin-2.png";
 import MapView, { Marker, Polyline, Circle, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
-import { useNavigation, useIsFocused } from "../navigation/router-compat";
-import { NativeStackNavigationProp } from "../navigation/router-compat";
+import { useRouter, useFocusEffect } from "expo-router";
 
 import { useApi } from "../utils/ApiUtil";
 import baseURL from "../config/urlconfig";
 import { useAuthGate } from "../contexts/AuthGate";
+import { appHref } from "../navigation/routes";
 import AppColors from "../design_systems/colors";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import PreviousTripsSection from "../components/PreviousTripsSection";
 import ActiveTripCard from "../components/ActiveTripCard";
 import { MAIN_NAV_BAR_TOP_OFFSET } from "../components/MainNavBar";
 import bottomNavItems from "../data/BottomNavigationItems";
-import { RootStackParamList } from "../navigation/RootStackParamList";
 import BrandInfo from "../components/BrandInfo";
 import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/PressableScale";
-
-type HomeScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
-  "HomeScreen"
->;
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -131,8 +125,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   setNavBarIcon,
   setNavBarItems,
 }) => {
-  const navigation = useNavigation<HomeScreenNavigationProp>();
-  const isFocused = useIsFocused();
+  const router = useRouter();
+  const [isFocused, setIsFocused] = useState(true);
   const { apiUtil } = useApi();
   const { requireAuth, isGuest } = useAuthGate();
   const mapRef = useRef<MapView>(null);
@@ -224,6 +218,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
   const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => setIsFocused(false);
+    }, []),
+  );
 
   // The sheet keeps a fixed max height and moves with translateY.
   // Animating `height` during a drag forced a full layout pass through
@@ -789,7 +790,7 @@ const customMapStyle = [
           toCoordinates: rideDetails.toCoordinates,
         };
         // Browsing rides is free; booking inside RideDetails will gate the user.
-        navigation.navigate("AvailableRidesScreen", params);
+        router.navigate(appHref("AvailableRidesScreen", params));
       };
       // Close X on the Search Rides bar — wipes From / To selection.
       // The RideDetailsSelector's clearTrigger effect handles the
@@ -814,7 +815,7 @@ const customMapStyle = [
     setNavBarIcon,
     setNavBarItems,
     rideDetails,
-    navigation,
+    router,
   ]);
 
   // Drives the live map preview as the user picks locations. Fires
@@ -928,9 +929,9 @@ const customMapStyle = [
                 key={c.key}
                 coordinate={{ latitude: c.latitude, longitude: c.longitude }}
                 onPress={() =>
-                  navigation.navigate("AvailableRidesSelectedScreen" as any, {
+                  router.navigate(appHref("AvailableRidesSelectedScreen", {
                     ride: c.cheapest,
-                  } as any)
+                  } as any))
                 }
                 tracksViewChanges={false}
                 anchor={{ x: 0.5, y: 1 }}
@@ -1040,7 +1041,7 @@ const customMapStyle = [
             {!isGuest && (
               <ActiveTripCard
                 onPressOpen={(rideId) =>
-                  navigation.navigate("RideDetailsScreen", { rideId } as any)
+                  router.navigate(appHref("RideDetailsScreen", { rideId } as any))
                 }
               />
             )}
@@ -1060,7 +1061,7 @@ const customMapStyle = [
               <TouchableOpacity
                 activeOpacity={0.85}
                 style={styles.nearbyTile}
-                onPress={() => navigation.navigate("NearbyRidesScreen" as any)}
+                onPress={() => router.navigate(appHref("NearbyRidesScreen"))}
               >
                 <Text style={styles.nearbyTileText}>Rides around you</Text>
               </TouchableOpacity>
@@ -1076,7 +1077,7 @@ const customMapStyle = [
                 onPress={() => {
                   // Posting a ride requires an authenticated student.
                   if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) return;
-                  navigation.navigate("CreateRide");
+                  router.navigate(appHref("CreateRide"));
                 }}
               >
                 <Text style={styles.createRideButtonText}>

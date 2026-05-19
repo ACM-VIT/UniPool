@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, Image, TouchableOpacity, ActivityIndicator, Platform, StatusBar } from "react-native";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import {
@@ -13,24 +13,28 @@ if (Platform.OS === "ios") {
 }
 import LottieView from "lottie-react-native";
 import Svg, { Path } from "react-native-svg";
-import { AuthScreenProps } from "./AuthScreen.types";
+import { useRouter } from "expo-router";
 import styles from "./AuthScreen.styles";
 import { useApi } from "../../utils/ApiUtil";
 import AppColors from "../../design_systems/colors";
 import BrandedAlert from "../../components/BrandedAlert";
+import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
+import type { AppRouteTarget } from "../../navigation/routes";
 
-const AuthScreen: React.FC<AuthScreenProps> = ({ navigation, route }) => {
+const AuthScreen: React.FC = () => {
   const { apiUtil } = useApi();
+  const router = useRouter();
+  const routeParams = useDecodedLocalSearchParams<{ returnTo?: AppRouteTarget }>();
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const returnTo = route?.params?.returnTo;
+  const returnTo = routeParams.returnTo;
 
-  const navigateAfterAuth = () => {
+  const navigateAfterAuth = useCallback(() => {
     if (returnTo) {
-      navigation.replace(returnTo.screen as any, returnTo.params as any);
+      router.replace(targetHref(returnTo));
     } else {
-      navigation.replace("HomeScreen");
+      router.replace(appHref("HomeScreen"));
     }
-  };
+  }, [returnTo, router]);
 
   useEffect(() => {
     const checkExistingAuth = async () => {
@@ -51,7 +55,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation, route }) => {
       }
     };
     checkExistingAuth();
-  }, [navigation, apiUtil]);
+  }, [apiUtil, navigateAfterAuth]);
 
   const routeAfterAuth = async () => {
     try {
@@ -59,10 +63,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation, route }) => {
       navigateAfterAuth();
     } catch (err: any) {
       if (err.response?.status === 404) {
-        navigation.replace("SignUpScreen", {
+        router.replace(appHref("SignUpScreen", {
           newUser: err.response?.data?.newUser || null,
           returnTo,
-        });
+        }));
       } else if (err.response?.status === 400) {
         BrandedAlert.alert("Hmm, something's off", err.response?.data?.message || "Try that again in a moment.");
       } else {
@@ -121,14 +125,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation, route }) => {
     }
   };
 
-  const canGoBack = navigation.canGoBack();
+  const canGoBack = router.canGoBack();
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={AppColors.primaryLightGreen} />
       <View style={styles.topRow}>
         {canGoBack ? (
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
             <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
               <Path d="M15 6 L 9 12 L 15 18" stroke={AppColors.secondaryDarkGreen} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
             </Svg>
@@ -206,14 +210,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation, route }) => {
             By continuing, you agree to UniPool's{" "}
             <Text
               style={styles.footerLink}
-              onPress={() => navigation.navigate("TermsOfServiceScreen")}
+              onPress={() => router.navigate(appHref("TermsOfServiceScreen"))}
             >
               Terms
             </Text>{" "}
             and{" "}
             <Text
               style={styles.footerLink}
-              onPress={() => navigation.navigate("PrivacyPolicyScreen")}
+              onPress={() => router.navigate(appHref("PrivacyPolicyScreen"))}
             >
               Privacy Policy
             </Text>

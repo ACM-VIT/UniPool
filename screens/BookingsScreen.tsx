@@ -16,8 +16,9 @@ import ChevronBack from "../components/ChevronBack";
 import RideCard from "../components/RideCard";
 import UpNextCard from "../components/UpNextCard";
 import AppColors from "../design_systems/colors";
-import { useNavigation } from "../navigation/router-compat";
+import { useRouter } from "expo-router";
 import LoadingComponent from "../components/LoadingComponent";
+import { appHref } from "../navigation/routes";
 
 interface RawRide {
   id?: string;
@@ -71,7 +72,7 @@ interface TripItem {
 type Tab = "upcoming" | "hosting" | "past";
 
 const BookingsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const router = useRouter();
   const { apiUtil } = useApi();
   const [trips, setTrips] = useState<TripItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -208,25 +209,17 @@ const BookingsScreen: React.FC = () => {
 
   const navigateToRide = (rideId?: string) => {
     if (!rideId) return;
-    try {
-      (navigation as any).navigate("RideDetailsScreen", { rideId: String(rideId) });
-    } catch (e) {
-      console.warn("Navigation to RideDetailsScreen failed", e);
-    }
+    router.navigate(appHref("RideDetailsScreen", { rideId: String(rideId) }));
   };
 
   const navigateToChat = (rideId?: string, route?: string) => {
     if (!rideId) return;
-    try {
-      (navigation as any).navigate("ChatMessages", {
-        chatId: String(rideId),
-        chatTitle: route || "Ride chat",
-        chatSubtitle: "Group chat",
-        isGroupChat: true,
-      });
-    } catch (e) {
-      console.warn("Navigation to ChatMessages failed", e);
-    }
+    router.navigate(appHref("ChatMessages", {
+      chatId: String(rideId),
+      chatTitle: route || "Ride chat",
+      chatSubtitle: "Group chat",
+      isGroupChat: true,
+    }));
   };
 
   const renderTrip: ListRenderItem<TripItem> = ({ item }) => {
@@ -264,20 +257,20 @@ const BookingsScreen: React.FC = () => {
             title: "No upcoming trips",
             body: "Browse rides on your route or post your own. Anything you book will land here.",
             ctaLabel: "Find a ride",
-            onPress: () => (navigation as any).navigate("HomeScreen"),
+            onPress: () => router.navigate(appHref("HomeScreen")),
           }
         : tab === "hosting"
         ? {
             title: "Not hosting yet",
             body: "Have a regular commute? Post it once and let classmates jump in.",
             ctaLabel: "Post a ride",
-            onPress: () => (navigation as any).navigate("CreateRide"),
+            onPress: () => router.navigate(appHref("CreateRide")),
           }
         : {
             title: "No past trips",
             body: "Once you complete a ride it'll show up here so you can re-book or rate it.",
             ctaLabel: "Find a ride",
-            onPress: () => (navigation as any).navigate("HomeScreen"),
+            onPress: () => router.navigate(appHref("HomeScreen")),
           };
     return (
       <View style={{ alignItems: "center", paddingTop: 32, paddingHorizontal: 24 }}>
@@ -395,7 +388,7 @@ const BookingsScreen: React.FC = () => {
         </View>
         <View style={styles.headerRow}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <TouchableOpacity onPress={() => navigation.goBack()}>
+            <TouchableOpacity onPress={() => router.back()}>
               <ChevronBack />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Your trips</Text>
@@ -413,7 +406,7 @@ const BookingsScreen: React.FC = () => {
       </View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => router.back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Your trips</Text>

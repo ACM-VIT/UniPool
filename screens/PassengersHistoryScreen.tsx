@@ -4,10 +4,11 @@ import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
 import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
-import { useNavigation } from '../navigation/router-compat';
+import { useRouter } from "expo-router";
 import LoadingComponent from '../components/LoadingComponent';
 import AppColors from '../design_systems/colors';
 import EmptyState from '../components/EmptyState';
+import { appHref } from "../navigation/routes";
 
 interface Passenger {
   id: string;
@@ -16,7 +17,7 @@ interface Passenger {
 }
 
 const PassengersHistoryScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const router = useRouter();
   const { apiUtil } = useApi();
   const [passengers, setPassengers] = useState<Passenger[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -46,7 +47,7 @@ const PassengersHistoryScreen: React.FC = () => {
         <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
         <View style={styles.headerRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity onPress={() => { if (typeof navigation !== 'undefined') navigation.goBack(); }}>
+            <TouchableOpacity onPress={() => router.back()}>
               <ChevronBack />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Passengers History</Text>
@@ -70,7 +71,7 @@ const PassengersHistoryScreen: React.FC = () => {
       <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => { if (typeof navigation !== 'undefined') navigation.goBack(); }}>
+          <TouchableOpacity onPress={() => router.back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Passengers History</Text>
@@ -82,7 +83,7 @@ const PassengersHistoryScreen: React.FC = () => {
           title="No co-riders yet"
           body="The people you share a ride with will live here once you've taken your first trip together."
           ctaLabel="Find a ride"
-          onPressCta={() => (navigation as any).navigate('HomeScreen')}
+          onPressCta={() => router.navigate(appHref("HomeScreen"))}
         />
       ) : (
         <View style={styles.newSection}>

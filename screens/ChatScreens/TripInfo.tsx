@@ -11,11 +11,12 @@ import {
   Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "../../navigation/router-compat";
+import { useFocusEffect, useRouter } from "expo-router";
 import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
 import LoadingComponent from "../../components/LoadingComponent";
 import EmptyState from "../../components/EmptyState";
+import { appHref } from "../../navigation/routes";
 
 const clockIcon = require("../../assets/clock.png");
 
@@ -67,8 +68,7 @@ type ChatRoom = {
 };
 
 type Props = {
-  navigation?: any;
-  setNavBarVariant?: (n: number) => void;
+  setNavBarVariant?: (variant: 0 | 1 | 2) => void;
 };
 
 const formatTimestamp = (iso: string): string => {
@@ -134,7 +134,8 @@ const makeDMRoomId = (a: string, b: string): string => {
   return `dm_${sorted[0]}_${sorted[1]}`;
 };
 
-const TripsListScreen: React.FC<Props> = ({ navigation, setNavBarVariant }) => {
+const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
+  const router = useRouter();
   const [chats, setChats] = useState<ChatRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -202,7 +203,7 @@ const TripsListScreen: React.FC<Props> = ({ navigation, setNavBarVariant }) => {
     // `dm_<sorted_uuids>` infrastructure. Once accepted they'll see the
     // group chat in this same list.
     if (room.viewer_role === "pending_passenger" && viewerUserId) {
-      navigation?.navigate("ChatMessages", {
+      router.navigate(appHref("ChatMessages", {
         chatId: makeDMRoomId(viewerUserId, room.host_user_id),
         chatTitle: room.host_user_name || "Host",
         chatSubtitle: `${room.start_location} → ${room.end_location} · ${dateSub}`,
@@ -213,18 +214,18 @@ const TripsListScreen: React.FC<Props> = ({ navigation, setNavBarVariant }) => {
         pendingHostInquiry: true,
         pendingRideId: room.id,
         pendingHostName: room.host_user_name,
-      });
+      }));
       return;
     }
 
-    navigation?.navigate("ChatMessages", {
+    router.navigate(appHref("ChatMessages", {
       chatId: room.id,
       chatTitle: `${room.start_location} → ${room.end_location}`,
       chatSubtitle: dateSub,
       isGroupChat: true,
       hostUserId: room.host_user_id,
       viewerRole: room.viewer_role,
-    });
+    } as any));
   };
 
   const renderRow = ({ item }: { item: ChatRoom }) => {
@@ -369,7 +370,7 @@ const TripsListScreen: React.FC<Props> = ({ navigation, setNavBarVariant }) => {
           title="No trip chats yet"
           body="Book a seat or post a ride and the conversation will land here."
           ctaLabel="Find a ride"
-          onPressCta={() => navigation?.navigate("HomeScreen")}
+          onPressCta={() => router.navigate(appHref("HomeScreen"))}
         />
       ) : (
         <FlatList
