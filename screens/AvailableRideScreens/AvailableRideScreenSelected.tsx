@@ -307,6 +307,13 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
     can_accept_passengers?: boolean;
     can_open_chat?: boolean;
   }>((route?.params?.ride as any)?.actions ?? {});
+  // Verification + same-campus signals — populated by the same
+  // /ride/details fetch as viewer_state. Drives the host checkmark
+  // and "Same campus" chip rendered alongside the host name.
+  const [hostVerified, setHostVerified] = useState<boolean>(false);
+  const [hostInstituteName, setHostInstituteName] = useState<string | null>(null);
+  const [hostSameInstituteAsViewer, setHostSameInstituteAsViewer] = useState<boolean>(false);
+
   const [viewerBookingId, setViewerBookingId] = useState<string | null>(
     (route?.params?.ride as any)?.viewer_booking_id ?? null,
   );
@@ -485,7 +492,6 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
   // the source of truth.
   useEffect(() => {
     if (!ride?.id) return;
-    if (viewerState) return; // params already carried it
     let cancelled = false;
     (async () => {
       try {
@@ -494,6 +500,11 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
         if (details?.viewer_state) setViewerState(details.viewer_state);
         if (details?.actions) setViewerActions(details.actions);
         if (details?.viewer_booking_id) setViewerBookingId(details.viewer_booking_id);
+        // Verified-host + same-campus surfaces. Always read fresh —
+        // the params version of the ride row doesn't carry them.
+        setHostVerified(!!details?.host_is_verified);
+        setHostInstituteName(details?.host_institute_name ?? null);
+        setHostSameInstituteAsViewer(!!details?.host_same_institute_as_viewer);
       } catch (err) {
         console.warn('viewer_state fetch failed', err);
       }
@@ -679,7 +690,28 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
               </View>
             </View>
             
-            <Text style={styles.creatorText} numberOfLines={1} ellipsizeMode="tail">Ride Created by {ride.host_user_name || 'Yash Raj Singh'} on {formatDate(ride.start_time)}</Text>
+            <View style={styles.hostRow}>
+              <Text style={styles.creatorText} numberOfLines={1} ellipsizeMode="tail">
+                Hosted by {ride.host_user_name || 'Yash Raj Singh'}
+              </Text>
+              {hostVerified ? (
+                <View style={styles.verifiedDot}>
+                  <Text style={styles.verifiedGlyph}>✓</Text>
+                </View>
+              ) : null}
+            </View>
+            {hostInstituteName ? (
+              <View style={styles.instituteRow}>
+                <Text style={styles.instituteText} numberOfLines={1} ellipsizeMode="tail">
+                  {hostInstituteName}
+                </Text>
+                {hostSameInstituteAsViewer ? (
+                  <View style={styles.sameCampusChip}>
+                    <Text style={styles.sameCampusChipText}>SAME CAMPUS</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
             <Text style={styles.yobText}>{getAgeText(ride.host_user_yob)}</Text>
             
             <View style={styles.dateTimeContainer}>
@@ -974,6 +1006,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'NunitoSans_400Regular',
     marginBottom: 4,
+  },
+  // Host row — name + optional verified checkmark glyph. Sits in
+  // the forest dark trip card, so the checkmark is lime.
+  hostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  verifiedDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: AppColors.primaryLightGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verifiedGlyph: {
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 11,
+    lineHeight: 13,
+  },
+  // Institute label + optional Same-campus chip on a second line.
+  instituteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  instituteText: {
+    color: AppColors.primaryLightGreen,
+    opacity: 0.75,
+    fontFamily: 'NunitoSans_600SemiBold',
+    fontSize: 12.5,
+    letterSpacing: 0.1,
+    flexShrink: 1,
+  },
+  sameCampusChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: AppColors.primaryLightGreen,
+  },
+  sameCampusChipText: {
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 9,
+    letterSpacing: 0.6,
   },
   yobText: {
     color: AppColors.basicWhite,

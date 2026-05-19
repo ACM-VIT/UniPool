@@ -27,6 +27,7 @@ import { useAuthGate } from "../contexts/AuthGate";
 import AppColors from "../design_systems/colors";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import PreviousTripsSection from "../components/PreviousTripsSection";
+import ActiveTripCard from "../components/ActiveTripCard";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { RootStackParamList } from "../navigation/RootStackParamList";
 import BrandInfo from "../components/BrandInfo";
@@ -1049,6 +1050,22 @@ const customMapStyle = [
             // the sheet's resting height via the effect above.
             onContentSizeChange={onScrollContentSizeChange}
           >
+            {/* Active trip card — the highest-signal surface on the
+                home screen for signed-in users. Renders the next
+                upcoming trip OR the most recent un-dismissed one;
+                the component itself returns null when the server has
+                nothing relevant (204), so there's no empty UI to
+                manage from here. */}
+            {!isGuest && (
+              <View style={styles.activeTripWrapper}>
+                <ActiveTripCard
+                  onPressOpen={(rideId) =>
+                    navigation.navigate("RideDetailsScreen", { rideId } as any)
+                  }
+                />
+              </View>
+            )}
+
             {/* Recent trips only shows for signed-in users. Showing an empty
                 "Sign in to see trips" card when unauthed wastes vertical space
                 that should stay on the map / search inputs. */}
@@ -1320,6 +1337,12 @@ const styles = StyleSheet.create({
     borderRadius: normalize(18),
     paddingVertical: responsiveHeight(0.3),
     paddingHorizontal: 0,
+  },
+  // Wrapper for the ActiveTripCard. Same left/right gutter as the
+  // nearby tile and Create Ride button, modest bottom gap.
+  activeTripWrapper: {
+    marginHorizontal: responsiveWidth(2.5),
+    marginBottom: responsiveHeight(1.2),
   },
   // "Rides around you" tile — forest dark surface, label + count
   // subtitle on the left, chevron at the trailing edge. Same shape
