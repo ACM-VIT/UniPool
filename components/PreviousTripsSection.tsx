@@ -202,7 +202,16 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsC
                                 key={trip.ride_id}
                                 style={[
                                     styles.tripContainer,
-                                    { width: screenWidth - 32 },
+                                    // Each carousel page matches the parent
+                                    // ScrollView width — i.e. the same inner
+                                    // width as scrollableContent (screen
+                                    // minus 2 × 2.5% gutter on each side).
+                                    // Previously this was `screenWidth - 32`
+                                    // which didn't track the rest of the
+                                    // sheet's pill widths, so the "Your
+                                    // trips" card sat a different size from
+                                    // the buttons below.
+                                    { width: screenWidth * 0.95 },
                                 ]}
                             >
                                 <PreviousTripsCompressed
@@ -242,11 +251,13 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     tripContainer: {
+        // No horizontal margin — the page width is computed inline
+        // (`width: screenWidth * 0.95`) to match scrollableContent's
+        // inner width. Adding margin here would break the paging
+        // snap (each "page" must equal the ScrollView's width).
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 8,
-        marginLeft: 8,
     },
     paginationContainer: {
         flexDirection: "row",

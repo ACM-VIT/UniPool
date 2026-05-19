@@ -45,14 +45,15 @@ const responsiveWidth = (percentage: number) => {
   return (screenWidth * percentage) / 100;
 };
 
-// Sheet sizing — like Uber / Lyft / Bolt, the sheet opens at a position
-// that exposes the search-first content (search input + From/To/When).
-// MIN = peek state (just the search trigger); MAX = full input stack +
-// recent trips. MAX is sized to also clear the floating MainNavBar
-// (~105 pt footprint from bottom) so the date row never hides under it.
+// Hard cap for the physical sheet surface. The real expanded snap is
+// measured from content below; this cap only prevents impossible heights
+// on small screens or very long signed-in content.
 const BOTTOM_SHEET_MAX_HEIGHT = Math.min(screenHeight * 0.78, screenHeight - 180);
 const BOTTOM_SHEET_MIN_HEIGHT = Math.max(screenHeight * 0.32, 220);
-const SHEET_DRAG_RANGE = BOTTOM_SHEET_MAX_HEIGHT - BOTTOM_SHEET_MIN_HEIGHT;
+const SHEET_BOTTOM_BREATHING_ROOM = Math.min(
+  165,
+  Math.max(120, screenHeight * 0.18),
+);
 const heightToSheetOffset = (height: number) => BOTTOM_SHEET_MAX_HEIGHT - height;
 const sheetOffsetToHeight = (offset: number) => BOTTOM_SHEET_MAX_HEIGHT - offset;
 
@@ -231,24 +232,28 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const sheetOffset = useRef(0);
   const dragStartOffset = useRef(0);
 
-  // Measured natural height of the ScrollView's content container —
-  // INCLUDES the `paddingBottom: 165` from `scrollableContent`. Driven
-  // by `ScrollView.onContentSizeChange`, which fires whenever the
-  // children re-flow.
+  // Measured natural height of the ScrollView's content container,
+  // including the responsive bottom breathing room below the form.
   const [scrollContentHeight, setScrollContentHeight] = useState<number | null>(null);
   const onScrollContentSizeChange = useCallback((_w: number, h: number) => {
     if (!h || Number.isNaN(h)) return;
     setScrollContentHeight((prev) => (prev === h ? prev : h));
   }, []);
 
-  // Drag handle chrome above the ScrollView: 10 (marginTop) + 5
-  // (height) + 14 (marginBottom) = 29pt.
-  const DRAG_HANDLE_RESERVED = 29;
+  const DRAG_HANDLE_RESERVED = 42;
 
   const userHasDragged = useRef(false);
   const hasAppliedInitialSize = useRef(false);
 
   const naturalRestHeight = useRef<number>(BOTTOM_SHEET_MIN_HEIGHT);
+  const getExpandedSheetOffset = useCallback(
+    () => heightToSheetOffset(naturalRestHeight.current),
+    [],
+  );
+  const getCollapsedSheetOffset = useCallback(
+    () => heightToSheetOffset(BOTTOM_SHEET_MIN_HEIGHT),
+    [],
+  );
 
   useEffect(() => {
     const listenerId = sheetTranslateY.addListener(({ value }) => {
@@ -558,6 +563,7 @@ const customMapStyle = [
       Math.abs(gestureState.dy) > DRAG_THRESHOLD,
     onPanResponderGrant: () => {
       userHasDragged.current = true;
+      dragStartOffset.current = sheetOffset.current;
       sheetTranslateY.stopAnimation((value) => {
         sheetOffset.current = value;
         dragStartOffset.current = value;
@@ -565,24 +571,30 @@ const customMapStyle = [
     },
     onPanResponderMove: (_evt, gestureState) => {
       const rawOffset = dragStartOffset.current + gestureState.dy;
+      const expandedOffset = getExpandedSheetOffset();
+      const collapsedOffset = getCollapsedSheetOffset();
       const resistedOffset =
-        rawOffset < 0
-          ? Math.max(rawOffset * 0.3, -50)
-          : rawOffset > SHEET_DRAG_RANGE
-            ? Math.min(SHEET_DRAG_RANGE + (rawOffset - SHEET_DRAG_RANGE) * 0.3, SHEET_DRAG_RANGE + 50)
+        rawOffset < expandedOffset
+          ? Math.max(expandedOffset + (rawOffset - expandedOffset) * 0.3, expandedOffset - 50)
+          : rawOffset > collapsedOffset
+            ? Math.min(collapsedOffset + (rawOffset - collapsedOffset) * 0.3, collapsedOffset + 50)
             : rawOffset;
 
       sheetTranslateY.setValue(resistedOffset);
       sheetOffset.current = resistedOffset;
     },
     onPanResponderRelease: (_evt, gestureState) => {
-      const currentOffset = Math.min(Math.max(sheetOffset.current, 0), SHEET_DRAG_RANGE);
+      const expandedOffset = getExpandedSheetOffset();
+      const collapsedOffset = getCollapsedSheetOffset();
+      const currentOffset = Math.min(
+        Math.max(sheetOffset.current, expandedOffset),
+        collapsedOffset,
+      );
       const currentHeight = sheetOffsetToHeight(currentOffset);
       const dynamicSnapPoints = Array.from(
         new Set([
           BOTTOM_SHEET_MIN_HEIGHT,
           naturalRestHeight.current,
-          BOTTOM_SHEET_MAX_HEIGHT,
         ]),
       ).sort((a, b) => a - b);
 
@@ -591,7 +603,7 @@ const customMapStyle = [
       );
 
       if (Math.abs(gestureState.vy) > 0.8) {
-        targetHeight = gestureState.vy < 0 ? BOTTOM_SHEET_MAX_HEIGHT : BOTTOM_SHEET_MIN_HEIGHT;
+        targetHeight = gestureState.vy < 0 ? naturalRestHeight.current : BOTTOM_SHEET_MIN_HEIGHT;
       }
 
       const targetOffset = heightToSheetOffset(targetHeight);
@@ -604,7 +616,7 @@ const customMapStyle = [
       }).start();
       sheetOffset.current = targetOffset;
     },
-  }), [sheetTranslateY]);
+  }), [getCollapsedSheetOffset, getExpandedSheetOffset, sheetTranslateY]);
 
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -1281,12 +1293,9 @@ const styles = StyleSheet.create({
   },
   scrollableContent: {
     paddingHorizontal: responsiveWidth(2.5),
-    // Sheet stretches to the screen bottom (so the lime canvas
-    // continues under the floating navbar), but content stops here
-    // so the date row sits comfortably above the navbar with a
-    // visible breathing strip. Navbar footprint ≈ 105 pt;
-    // +60 pt of air = 165 pt total.
-    paddingBottom: 165,
+    // Keeps the same visual air above the floating navbar, scaled
+    // down on shorter screens so the expanded snap follows content.
+    paddingBottom: SHEET_BOTTOM_BREATHING_ROOM,
     minHeight: BOTTOM_SHEET_MAX_HEIGHT - 60,
   },
   previousTripsWrapper: {
@@ -1298,10 +1307,12 @@ const styles = StyleSheet.create({
     paddingVertical: responsiveHeight(0.3),
     paddingHorizontal: 0,
   },
-  // Wrapper for the ActiveTripCard. Same left/right gutter as the
-  // nearby tile and Create Ride button, modest bottom gap.
+  // ActiveTripCard wrapper. No extra horizontal margin — the parent
+  // `scrollableContent` already insets every child by 2.5% on each
+  // side, so adding more here would make this card narrower than
+  // the nearby tile / Create Ride button (which sit directly inside
+  // `scrollableContent`).
   activeTripWrapper: {
-    marginHorizontal: responsiveWidth(2.5),
     marginBottom: responsiveHeight(1.2),
   },
   // "Rides around you" — mirrors `createRideButton` exactly so the
@@ -1336,6 +1347,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   section: {
+    // No `paddingHorizontal` here — the parent (`scrollableContent`)
+    // already insets every child by 2.5% on each side. The previous
+    // 2% padding inside this section made the Create Ride button +
+    // RideDetailsSelector ~4% narrower than the "Your trips" card
+    // and the "Rides around you" tile, breaking the visual rhythm.
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
@@ -1343,7 +1359,6 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderRadius: normalize(16),
     paddingVertical: responsiveHeight(0.2),
-    paddingHorizontal: responsiveWidth(2),
   },
   sectionTitle: {
     // Quiet sub-header — sentence-case so a question (which this is)
