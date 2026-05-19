@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions } from "react-native";
-import { useNavigation, useIsFocused, useRoute } from "@react-navigation/native";
+import { useNavigation, useIsFocused, useRoute } from "../../navigation/router-compat";
 
 import BrandInfo from "../../components/BrandInfo";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";

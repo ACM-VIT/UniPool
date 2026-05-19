@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { View, Text, Image, StyleSheet, SafeAreaView, Dimensions, TouchableOpacity, TextInput, Animated } from "react-native";
 import * as Location from "expo-location";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "../navigation/router-compat";
 import AppColors from "../design_systems/colors";
 import SlideToCreate from "../components/SlideToCreate";
 import { useApi } from "../utils/ApiUtil";

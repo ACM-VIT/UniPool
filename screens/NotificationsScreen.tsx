@@ -6,7 +6,7 @@ import ChevronBack from "../components/ChevronBack";
 import BrandInfo from "../components/BrandInfo";
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "../navigation/router-compat";
 import BrandedAlert from "../components/BrandedAlert";
 
 const { width, height } = Dimensions.get("window");

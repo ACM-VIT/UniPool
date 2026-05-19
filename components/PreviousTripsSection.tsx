@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { View, Text, ScrollView, StyleSheet, Dimensions } from "react-native";
 import PreviousTripsCompressed from "../components/PreviousTripsCompressed";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from "../navigation/router-compat";
+import { NativeStackNavigationProp } from '../navigation/router-compat';
 import { RootStackParamList } from '../navigation/RootStackParamList';
 import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";

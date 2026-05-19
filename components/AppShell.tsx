@@ -1,40 +1,20 @@
 import 'react-native-gesture-handler';
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, StatusBar } from "react-native";
-import { NavigationContainer } from "@react-navigation/native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { navigationRef } from "./navigation/navigationRef";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { RootStackParamList } from "./navigation/RootStackParamList";
-
-import AuthScreen from "./screens/AuthScreen";
-import SignInScreen from "./screens/SignInScreen";
-import SignUpScreen from "./screens/SignUpScreen";
-import OnboardingScreen from "./screens/OnboardingScreen";
-import LocationPermissionScreen from "./screens/LocationPermissionScreen";
-import SplashScreenComponent from "./screens/SplashScreen";
-import ErrorScreen from "./screens/ErrorScreen";
-import RideCreatedScreen from "./screens/RideCreatedScreen";
-import RideRequestedScreen from "./screens/RideRequestedScreen";
-import BookingScreen from "./screens/BookingScreen";
-import HomeScreen from "./screens/HomeScreen";
-import ProfileScreen from "./screens/ProfileScreen";
-import CreateRide from "./screens/CreateRide";
-import RideDetailsScreen from "./screens/RideDetailsScreen";
-
-import BookingsScreen from "./screens/BookingsScreen";
-import PersonalInformationScreen from "./screens/PersonalInformationScreen";
-import PassengersHistoryScreen from "./screens/PassengersHistoryScreen";
-import AccountSettingsScreen from "./screens/AccountSettingsScreen";
-import AvailableRideScreenSelected from "./screens/AvailableRideScreens/AvailableRideScreenSelected";
-
-import { PassengerInfoScreen, ChatConversationScreen, TripsListScreen } from "./screens/ChatScreens";
-
-import MainNavBar from "./components/MainNavBar";
-import { BrandedAlertHost } from "./components/BrandedAlert";
-import bottomNavItems from "./data/BottomNavigationItems";
-import { ApiProvider, useApi } from "./utils/ApiUtil";
-import { ErrorProvider } from "./contexts/ErrorContext";
+import { View, StyleSheet, Platform } from "react-native";
+import { usePathname, useRouter } from "expo-router";
+import { Stack } from "expo-router/stack";
+import { navigationRef } from "../navigation/navigationRef";
+import { RootStackParamList } from "../navigation/RootStackParamList";
+import {
+  routeNameFromPath,
+  screenToHref,
+} from "../navigation/router-compat";
+import { NavBarProvider } from "../contexts/NavBarContext";
+import SplashScreenComponent from "../screens/SplashScreen";
+import MainNavBar from "../components/MainNavBar";
+import { BrandedAlertHost } from "../components/BrandedAlert";
+import bottomNavItems from "../data/BottomNavigationItems";
+import { useApi } from "../utils/ApiUtil";
 
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { useFonts } from "expo-font";
@@ -47,12 +27,8 @@ import {
 import * as SplashScreen from "expo-splash-screen";
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithCredential } from "@react-native-firebase/auth";
 
-import { LocationProvider } from "./contexts/location-context";
-import { AuthGateProvider } from "./contexts/AuthGate";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
-import { Platform } from "react-native";
 
 async function registerForPushNotificationsAsync(): Promise<string | null> {
   let token = null;
@@ -123,9 +99,9 @@ GoogleSignin.configure({
   forceCodeForRefreshToken: true,
 });
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
-
-const AppContent = () => {
+const AppShell = () => {
+  const router = useRouter();
+  const pathname = usePathname();
   const { apiUtil } = useApi();
   const [initialRoute, setInitialRoute] =
     useState<keyof RootStackParamList | null>(null);
@@ -179,11 +155,12 @@ const AppContent = () => {
   const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
   const [navBarText, setNavBarText] = useState<string>("");
   const [navBarIcon, setNavBarIcon] = useState<any>(
-    require("./assets/wallet.png")
+    require("../assets/wallet.png")
   );
   const [navBarItems, setNavBarItems] = useState(bottomNavItems);
-
-  const [navStateVersion, setNavStateVersion] = useState(0);
+  const currentRouteName = routeNameFromPath(pathname) ?? initialRoute ?? "SplashScreen";
+  const isBootstrapping =
+    showCustomSplash || !fontsLoaded || loading || !initialRoute || !authStateResolved;
 
   const handleNotificationNavigation = (data: any) => {
     if (!navigationRef.current) return;
@@ -200,25 +177,25 @@ const AppContent = () => {
     } else if (data?.type === "ride_request_approved") {
       if (data.ride_id) {
         navigationRef.current.navigate("RideDetailsScreen", {
-          ride: { id: String(data.ride_id) }
+          rideId: String(data.ride_id)
         });
       }
     } else if (data?.type === "ride_request_received") {
       if (data.ride_id) {
         navigationRef.current.navigate("RideDetailsScreen", {
-          ride: { id: String(data.ride_id) }
+          rideId: String(data.ride_id)
         });
       }
     } else if (data?.type === "ride_reminder") {
       if (data.ride_id) {
         navigationRef.current.navigate("RideDetailsScreen", {
-          ride: { id: String(data.ride_id) }
+          rideId: String(data.ride_id)
         });
       }
     } else if (data?.ride_id || data?.rideId) {
       const rideId = data.ride_id || data.rideId;
       navigationRef.current.navigate("RideDetailsScreen", {
-        ride: { id: String(rideId) }
+        rideId: String(rideId)
       });
     }
   };
@@ -226,6 +203,15 @@ const AppContent = () => {
   useEffect(() => {
     SplashScreen.preventAutoHideAsync();
   }, []);
+
+  useEffect(() => {
+    navigationRef.setReady(true);
+    return () => navigationRef.setReady(false);
+  }, []);
+
+  useEffect(() => {
+    navigationRef.setCurrentRouteName(currentRouteName);
+  }, [currentRouteName]);
 
   useEffect(() => {
     const authInstance = getAuth();
@@ -543,24 +529,12 @@ const AppContent = () => {
     }
   }, [fontsLoaded, loading, initialRoute, authStateResolved]);
 
-  const getCurrentRouteName = () => {
-    if (navigationRef.current && navigationRef.current.getCurrentRoute) {
-      const route = navigationRef.current.getCurrentRoute();
-      return route?.name;
+  useEffect(() => {
+    if (!isBootstrapping && initialRoute && (!pathname || pathname === "/")) {
+      router.replace(screenToHref(initialRoute) as any);
     }
-    return initialRoute;
-  };
+  }, [initialRoute, isBootstrapping, pathname, router]);
 
-  if (showCustomSplash || !fontsLoaded || loading || !initialRoute || !authStateResolved) {
-    return <SplashScreenComponent />;
-  }
-
-  const currentRouteName = getCurrentRouteName();
-  // Hide the nav on these flows. We check `initialRoute` in addition
-  // to `currentRouteName` so the bar doesn't flash in during the
-  // navigator's first render — when `getCurrentRoute()` is still
-  // returning the fallback and the state-change event hasn't fired
-  // yet.
   const NAVBAR_HIDDEN_ROUTES = [
     "OnboardingScreen",
     "LocationPermissionScreen",
@@ -572,8 +546,7 @@ const AppContent = () => {
     "RideDetailsScreen",
   ];
   const showNavBar =
-    !NAVBAR_HIDDEN_ROUTES.includes(currentRouteName as string) &&
-    !NAVBAR_HIDDEN_ROUTES.includes(initialRoute as string);
+    !isBootstrapping && !NAVBAR_HIDDEN_ROUTES.includes(currentRouteName as string);
   
   return (
     <View style={{ flex: 1 }}>
@@ -581,182 +554,19 @@ const AppContent = () => {
           the top of the tree; any code can call BrandedAlert.show()
           to surface a dialog without touching the native chrome. */}
       <BrandedAlertHost />
-      <NavigationContainer
-        ref={navigationRef}
-        onStateChange={() => setNavStateVersion((v) => v + 1)}
+      <NavBarProvider
+        value={{
+          setNavBarVariant,
+          setNavBarText,
+          setNavBarIcon,
+          setNavBarItems,
+        }}
       >
         <View style={{ flex: 1 }}>
-          <Stack.Navigator initialRouteName={initialRoute}>
-            <Stack.Screen
-              name="DefaultAddressScreen"
-              component={require("./screens/DefaultAddressScreen").default}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="NotificationsScreen"
-              component={require("./screens/NotificationsScreen").default}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="AccountSettingsScreen"
-              component={AccountSettingsScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="OnboardingScreen"
-              component={OnboardingScreen}
-              options={{ headerShown: false, animation: "fade" }}
-            />
-            <Stack.Screen
-              name="LocationPermissionScreen"
-              component={LocationPermissionScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="AuthScreen"
-              component={AuthScreen}
-              options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
-            />
-            <Stack.Screen
-              name="SignInScreen"
-              component={SignInScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="SignUpScreen"
-              component={SignUpScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="SplashScreen"
-              component={SplashScreenComponent}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="ErrorScreen"
-              component={ErrorScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="RideCreatedScreen"
-              options={{ headerShown: false }}
-            >
-              {(props) => (
-                <RideCreatedScreen
-                  {...props}
-                  setNavBarVariant={setNavBarVariant}
-                />
-              )}
-            </Stack.Screen>
-            <Stack.Screen
-              name="RideRequestedScreen"
-              component={RideRequestedScreen}
-              options={{ headerShown: false, animation: 'none' }}
-            />
-            <Stack.Screen
-              name="BookingScreen"
-              component={BookingScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="NearbyRidesScreen"
-              component={require("./screens/NearbyRidesScreen/NearbyRidesScreen").default}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="RideDetailsScreen"
-              component={RideDetailsScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen name="HomeScreen" options={{ headerShown: false }}>
-              {(props) => (
-                <HomeScreen
-                  {...props}
-                  setNavBarVariant={setNavBarVariant}
-                  setNavBarText={setNavBarText}
-                  setNavBarIcon={setNavBarIcon}
-                  setNavBarItems={setNavBarItems}
-                />
-              )}
-            </Stack.Screen>
-            <Stack.Screen
-              name="ProfileScreen"
-              component={ProfileScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="CreateRide"
-              component={CreateRide}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="AvailableRidesScreen"
-              options={{ headerShown: false }}
-            >
-              {(props) => {
-                const AvailableRideScreen = require(
-                  "./screens/AvailableRideScreens/AvailableRideScreen"
-                ).default;
-                return (
-                  <AvailableRideScreen
-                    {...props}
-                    setNavBarVariant={setNavBarVariant}
-                    setNavBarText={setNavBarText}
-                    setNavBarIcon={setNavBarIcon}
-                    setNavBarItems={setNavBarItems}
-                  />
-                );
-              }}
-            </Stack.Screen>
-            <Stack.Screen
-              name="AvailableRidesSelectedScreen"
-              component={
-                require("./screens/AvailableRideScreens/AvailableRideScreenSelected")
-                  .default
-              }
-              options={{ headerShown: false, animation: 'none' }}
-            />
-            <Stack.Screen
-              name="BookingsScreen"
-              component={BookingsScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="PersonalInformationScreen"
-              component={PersonalInformationScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="PassengersHistoryScreen"
-              component={PassengersHistoryScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="PassengerInfoScreen"
-              component={PassengerInfoScreen}
-              options={{ headerShown: false, animation: 'none' }}
-            />
-            <Stack.Screen
-              name="ChatMessages"
-              component={ChatConversationScreen}
-              options={{ headerShown: false, animation: 'none' }}
-            />
-            <Stack.Screen
-              name="TripsListScreen"
-              component={TripsListScreen}
-              options={{ headerShown: false, animation: 'none' }}
-            />
-            <Stack.Screen
-              name="PrivacyPolicyScreen"
-              component={require("./screens/PrivacyPolicyScreen").default}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="TermsOfServiceScreen"
-              component={require("./screens/TermsOfServiceScreen").default}
-              options={{ headerShown: false }}
-            />
-          </Stack.Navigator>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" options={{ headerShown: false, animation: "fade" }} />
+            <Stack.Screen name="[screen]" options={{ headerShown: false }} />
+          </Stack>
 
           {showNavBar && (
             <View style={globalStyles.navBarWrapper}>
@@ -769,7 +579,7 @@ const AppContent = () => {
                     navigationRef.isReady() && navigationRef.navigate("AvailableRidesScreen", { fromLocation: "", toLocation: "" });
                     setNavBarVariant(0);
                     setNavBarText("");
-                    setNavBarIcon(require("./assets/wallet.png"));
+                    setNavBarIcon(require("../assets/wallet.png"));
                     setNavBarItems(bottomNavItems);
                   }}
                   // Close X — defers to a handler set by the active
@@ -799,29 +609,16 @@ const AppContent = () => {
               )}
             </View>
           )}
+
+          {isBootstrapping && (
+            <View style={StyleSheet.absoluteFill} pointerEvents="auto">
+              <SplashScreenComponent />
+            </View>
+          )}
         </View>
-      </NavigationContainer>
+      </NavBarProvider>
     </View>
   );
 };
 
-const App = () => {
-  return (
-    <SafeAreaProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <StatusBar backgroundColor="#A8D8A8" barStyle="dark-content" />
-        <ErrorProvider navigationRef={navigationRef}>
-          <ApiProvider navigationRef={navigationRef}>
-            <AuthGateProvider>
-              <LocationProvider>
-                <AppContent />
-              </LocationProvider>
-            </AuthGateProvider>
-          </ApiProvider>
-        </ErrorProvider>
-      </GestureHandlerRootView>
-    </SafeAreaProvider>
-  );
-};
-
-export default App;
+export default AppShell;

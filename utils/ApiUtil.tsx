@@ -1,7 +1,7 @@
 import { getAuth, getIdTokenResult, signOut } from "@react-native-firebase/auth";
 import React, { createContext, useContext, useState } from "react";
 import baseURL from "../config/urlconfig";
-import { CommonActions } from '@react-navigation/native';
+import { CommonActions } from '../navigation/router-compat';
 import { useErrorContext } from '../contexts/ErrorContext';
 
 type JSON = {

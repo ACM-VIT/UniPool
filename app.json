@@ -6,8 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon2.png",
     "userInterfaceStyle": "dark",
-
-
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
@@ -17,7 +15,6 @@
         "googleMapsApiKey": "$GOOGLE_MAPS_API_KEY_IOS"
       }
     },
-
     "android": {
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
@@ -31,11 +28,9 @@
         }
       }
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "plugins": [
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
@@ -45,7 +40,9 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#ffffff",
-          "sounds": ["./assets/notification.mp3"]
+          "sounds": [
+            "./assets/notification.mp3"
+          ]
         }
       ],
       [
@@ -68,7 +65,8 @@
             "useFrameworks": "static"
           }
         }
-      ]
+      ],
+      "expo-router"
     ]
   }
 }

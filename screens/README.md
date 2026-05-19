@@ -18,7 +18,7 @@ screens/
 2. **Integration:** Reuse components from the `components` folder wherever possible.
 3. **Props and Navigation:**
    - Define a `ScreenProps` interface for the screen's props in the `types.ts` file.
-   - Use the `react-navigation` types for navigation props.
+   - Use the Expo Router compatibility types from `navigation/router-compat` for legacy screen props.
 4. **Styling:** Use a separate `styles.ts` file for styles.
 5. **Index File:** Export the screen from an `index.ts` file.
 
@@ -47,7 +47,7 @@ export default HomeScreen;
 
 #### HomeScreen.types.ts
 ```tsx
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { NativeStackScreenProps } from '../../navigation/router-compat';
 import { RootStackParamList } from '../../navigation/types';
 
 export type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'HomeScreen'>;

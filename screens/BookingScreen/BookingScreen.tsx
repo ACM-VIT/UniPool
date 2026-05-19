@@ -14,6 +14,7 @@ import { useApi } from "../../utils/ApiUtil";
 import LoadingComponent from "../../components/LoadingComponent";
 import RideCard from "../../components/RideCard";
 import EmptyState from "../../components/EmptyState";
+import { useNavigation } from "../../navigation/router-compat";
 
 export interface RideData {
   id?: string;
@@ -76,7 +77,7 @@ const BookingScreen: React.FC = () => {
   // (the old behaviour) meant "Hosting" never matched any ride.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { apiUtil } = useApi();
-  const navigation = require("@react-navigation/native").useNavigation();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
