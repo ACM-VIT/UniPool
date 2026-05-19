@@ -1085,15 +1085,7 @@ const customMapStyle = [
               style={styles.nearbyTile}
               onPress={() => navigation.navigate("NearbyRidesScreen" as any)}
             >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.nearbyTileTitle}>Rides around you</Text>
-                <Text style={styles.nearbyTileSubtitle}>
-                  {nearbyCount && nearbyCount > 0
-                    ? `${nearbyCount} carpool${nearbyCount === 1 ? "" : "s"} within 5 km`
-                    : "Browse trips starting near your location"}
-                </Text>
-              </View>
-              <Text style={styles.nearbyTileChevron}>›</Text>
+              <Text style={styles.nearbyTileText}>Rides around you</Text>
             </TouchableOpacity>
 
             <View style={styles.section}>
@@ -1344,46 +1336,31 @@ const styles = StyleSheet.create({
     marginHorizontal: responsiveWidth(2.5),
     marginBottom: responsiveHeight(1.2),
   },
-  // "Rides around you" tile — forest dark surface, label + count
-  // subtitle on the left, chevron at the trailing edge. Same shape
-  // vocabulary as the menu cards on the settings pages so it reads
-  // as part of the same product.
+  // "Rides around you" — mirrors `createRideButton` exactly so the
+  // two CTAs read as a matched pair on the home sheet (forest fill,
+  // lime label, identical padding / radius / shadow).
   nearbyTile: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: AppColors.secondaryDarkGreen,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderRadius: 18,
-    marginHorizontal: responsiveWidth(2.5),
+    paddingVertical: normalize(15),
+    paddingHorizontal: responsiveWidth(2.5),
+    borderRadius: normalize(14),
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 400,
+    marginTop: responsiveHeight(0.4),
     marginBottom: responsiveHeight(1.4),
-    gap: 14,
+    alignSelf: "center",
+    elevation: 2,
     shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.16,
     shadowRadius: 12,
-    elevation: 2,
   },
-  nearbyTileTitle: {
+  nearbyTileText: {
     color: AppColors.primaryLightGreen,
+    fontSize: normalize(15.5),
     fontFamily: "NunitoSans_700Bold",
-    fontSize: 15.5,
-    letterSpacing: -0.2,
-  },
-  nearbyTileSubtitle: {
-    color: AppColors.basicWhite,
-    opacity: 0.65,
-    fontFamily: "NunitoSans_600SemiBold",
-    fontSize: 12.5,
-    letterSpacing: -0.05,
-    marginTop: 2,
-  },
-  nearbyTileChevron: {
-    color: AppColors.primaryLightGreen,
-    fontFamily: "NunitoSans_700Bold",
-    fontSize: 24,
-    opacity: 0.7,
-    marginRight: 4,
+    letterSpacing: 0.3,
   },
   section: {
     width: "100%",
