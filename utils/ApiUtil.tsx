@@ -86,6 +86,11 @@ export default class ApiUtil {
     return this.makeRequestWithErrorHandling<T>("PUT", endpoint, body, headers, timeout, retryAction);
   }
 
+  async patch<T, B>(endpoint: string, body: B, headers?: HeadersInit, timeout?: number): Promise<T> {
+    const retryAction = () => this.patch<T, B>(endpoint, body, headers, timeout);
+    return this.makeRequestWithErrorHandling<T>("PATCH", endpoint, body, headers, timeout, retryAction);
+  }
+
   async delete<T>(endpoint: string, headers?: HeadersInit, timeout?: number): Promise<T> {
     const retryAction = () => this.delete<T>(endpoint, headers, timeout);
     return this.makeRequestWithErrorHandling<T>("DELETE", endpoint, undefined, headers, timeout, retryAction);

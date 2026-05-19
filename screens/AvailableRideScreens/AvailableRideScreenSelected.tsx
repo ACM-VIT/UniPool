@@ -314,6 +314,11 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
   const [hostInstituteName, setHostInstituteName] = useState<string | null>(null);
   const [hostSameInstituteAsViewer, setHostSameInstituteAsViewer] = useState<boolean>(false);
 
+  // Vehicle ID — only populated by the server for host +
+  // confirmed_passenger viewers (the pickup audience). Surfaced
+  // below the trip card so passengers know what to look for.
+  const [vehicleInfo, setVehicleInfo] = useState<string>("");
+
   const [viewerBookingId, setViewerBookingId] = useState<string | null>(
     (route?.params?.ride as any)?.viewer_booking_id ?? null,
   );
@@ -505,6 +510,9 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
         setHostVerified(!!details?.host_is_verified);
         setHostInstituteName(details?.host_institute_name ?? null);
         setHostSameInstituteAsViewer(!!details?.host_same_institute_as_viewer);
+        // Vehicle ID — server only sends a value for host /
+        // confirmed_passenger viewers, otherwise empty string.
+        setVehicleInfo(details?.vehicle_info ?? "");
       } catch (err) {
         console.warn('viewer_state fetch failed', err);
       }
@@ -710,6 +718,19 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
                     <Text style={styles.sameCampusChipText}>SAME CAMPUS</Text>
                   </View>
                 ) : null}
+              </View>
+            ) : null}
+            {/* Pickup vehicle ID — server gates this to host +
+                confirmed passengers, so an empty string means
+                "don't surface". Renders as a quiet "Look for:"
+                row so it doesn't visually compete with the price /
+                host card. */}
+            {vehicleInfo ? (
+              <View style={styles.vehicleInfoRow}>
+                <Text style={styles.vehicleInfoLabel}>LOOK FOR</Text>
+                <Text style={styles.vehicleInfoText} numberOfLines={2}>
+                  {vehicleInfo}
+                </Text>
               </View>
             ) : null}
             <Text style={styles.yobText}>{getAgeText(ride.host_user_yob)}</Text>
@@ -1055,6 +1076,31 @@ const styles = StyleSheet.create({
     fontFamily: 'NunitoSans_800ExtraBold',
     fontSize: 9,
     letterSpacing: 0.6,
+  },
+  // Pickup vehicle info — quiet uppercase eyebrow + value, sits
+  // inside the forest dark trip card. Reads as practical info, not
+  // a banner.
+  vehicleInfoRow: {
+    marginTop: 6,
+    marginBottom: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(181,215,80,0.18)',
+  },
+  vehicleInfoLabel: {
+    color: AppColors.primaryLightGreen,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 10,
+    letterSpacing: 0.8,
+    opacity: 0.7,
+    marginBottom: 3,
+  },
+  vehicleInfoText: {
+    color: AppColors.basicWhite,
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 14,
+    lineHeight: 19,
+    letterSpacing: -0.1,
   },
   yobText: {
     color: AppColors.basicWhite,
