@@ -6,6 +6,11 @@ import ChevronBack from '../components/ChevronBack';
 import { useNavigation } from '@react-navigation/native';
 import { useApi } from '../utils/ApiUtil';
 
+// Brand coral the rest of the app already uses for destructive
+// states (Leave ride, declined badge). Avoids dropping a raw red
+// hex into the design system here.
+const DESTRUCTIVE = '#FF6B5B';
+
 const AccountSettingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { apiUtil } = useApi();
@@ -13,10 +18,10 @@ const AccountSettingsScreen: React.FC = () => {
 
   const handleDeleteAccount = async () => {
     Alert.alert(
-      'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone.',
+      'Delete your account?',
+      'Your profile, posted rides, and bookings will be erased for good. This can\'t be undone.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Keep account', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
@@ -43,7 +48,7 @@ const AccountSettingsScreen: React.FC = () => {
                 console.error('AsyncStorage cleanup error:', e);
               }
 
-              Alert.alert('Account Deleted', 'Your account has been deleted.');
+              Alert.alert('Account deleted', 'See you around. We\'ve removed your data.');
               if (navigation && typeof (navigation as any).reset === 'function') {
                 (navigation as any).reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
               } else {
@@ -51,7 +56,7 @@ const AccountSettingsScreen: React.FC = () => {
               }
             } catch (err) {
               console.error('Account deletion error:', err);
-              Alert.alert('Error', 'Failed to delete account. Please try again.');
+              Alert.alert('Couldn\'t delete', 'Something went wrong. Try again in a moment.');
             } finally {
               setLoading(false);
             } 
@@ -81,10 +86,10 @@ const AccountSettingsScreen: React.FC = () => {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#d32f2f" />
+              <ActivityIndicator color={DESTRUCTIVE} />
             ) : (
-              <Text style={{ color: '#d32f2f', fontWeight: '700', fontSize: 18 }}>
-                Delete My Account
+              <Text style={[styles.menuItemText, { color: DESTRUCTIVE }]}>
+                Delete my account
               </Text>
             )}
           </TouchableOpacity>

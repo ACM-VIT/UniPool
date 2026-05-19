@@ -11,6 +11,7 @@ import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
 import BrandInfo from '../../components/BrandInfo/BrandInfo';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
+import { useAuthGate } from '../../contexts/AuthGate';
 
 const customMapStyle = [
   {
@@ -284,12 +285,31 @@ type AvailableRideScreenSelectedProps = {
 const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = ({ navigation, route }) => {
   const nav = useNavigation();
   const { apiUtil } = useApi();
+  const { requireAuth } = useAuthGate();
   const [location, setLocation] = useState<any>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
   const [routeCoordinates, setRouteCoordinates] = useState<any[]>([]);
   const [estimatedDuration, setEstimatedDuration] = useState<string>('Estimating...');
+  // Server-computed UI state. May arrive via route params (when the
+  // user comes from search results) or be fetched fresh from
+  // /ride/details when they tap a map pin (the public /rides/nearby
+  // endpoint doesn't emit viewer_state). Either way we render off
+  // this single field instead of deriving from isHost / bookings.
+  const [viewerState, setViewerState] = useState<string | null>(
+    (route?.params?.ride as any)?.viewer_state ?? null,
+  );
+  const [viewerActions, setViewerActions] = useState<{
+    can_request_seat?: boolean;
+    can_cancel_booking?: boolean;
+    can_cancel_ride?: boolean;
+    can_accept_passengers?: boolean;
+    can_open_chat?: boolean;
+  }>((route?.params?.ride as any)?.actions ?? {});
+  const [viewerBookingId, setViewerBookingId] = useState<string | null>(
+    (route?.params?.ride as any)?.viewer_booking_id ?? null,
+  );
 
   const rideData = route?.params?.ride;
   console.log("Received ride data:", rideData);
@@ -458,6 +478,43 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
     requestLocationPermission();
   }, []);
 
+  // Backfill viewer_state from /ride/details/:id when it wasn't
+  // included in route params (e.g. map-pin taps from the public
+  // /rides/nearby endpoint don't carry viewer context). The detail
+  // endpoint always computes the freshest state so we trust it as
+  // the source of truth.
+  useEffect(() => {
+    if (!ride?.id) return;
+    if (viewerState) return; // params already carried it
+    let cancelled = false;
+    (async () => {
+      try {
+        const details = await apiUtil.get<any>(`/ride/details/${ride.id}`);
+        if (cancelled) return;
+        if (details?.viewer_state) setViewerState(details.viewer_state);
+        if (details?.actions) setViewerActions(details.actions);
+        if (details?.viewer_booking_id) setViewerBookingId(details.viewer_booking_id);
+      } catch (err) {
+        console.warn('viewer_state fetch failed', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ride?.id]);
+
+  // Pending / rejected viewers can't act here — there's no slide-to-
+  // request CTA, and the screen would be the awkward "notice card"
+  // layout. Redirect to RideDetailsScreen, which already has the
+  // proper waiting-on-host fallback view used everywhere else
+  // (RideCard taps, etc.). Keeps the two entry points consistent.
+  useEffect(() => {
+    if (!ride?.id) return;
+    if (viewerState !== "pending_passenger" && viewerState !== "rejected_passenger") return;
+    (nav as any).replace?.("RideDetailsScreen", { rideId: ride.id })
+      ?? (nav as any).navigate("RideDetailsScreen", { rideId: ride.id });
+  }, [viewerState, ride?.id]);
+
   useEffect(() => {
     if (isValidCoordinate(ride.start_latitude, ride.start_longitude) && 
         isValidCoordinate(ride.end_latitude, ride.end_longitude)) {
@@ -497,7 +554,13 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
 
   const handleRequestRide = async () => {
     if (isRequesting) return;
-    
+
+    // Guests have to sign in before requesting a seat — bring them back here
+    // with the same ride params after sign-up completes.
+    if (!requireAuth({ screen: "AvailableRidesSelectedScreen", params: route?.params }, "to book this ride")) {
+      return;
+    }
+
     setIsRequesting(true);
     
     try {
@@ -513,6 +576,12 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
       console.log('Ride request response:', response);
 
       if (response && (response.success || response.id || response.booking_id)) {
+        // Flip the local viewer state immediately so the user sees
+        // the "Message host" affordance without waiting for a fetch
+        // round-trip. The next /ride/details/:id call will confirm.
+        setViewerState("pending_passenger");
+        setViewerBookingId((response.id || response.booking_id) ?? null);
+
         (nav as any).navigate('RideRequestedScreen', {
           rideId: ride.id,
           bookingId: response.id || response.booking_id,
@@ -522,7 +591,12 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
             time: formatTime(ride.start_time),
             price: ride.total_price,
             driver: ride.host_user_name,
-          }
+          },
+          // Carry the chat hand-off so RideRequestedScreen can route
+          // the user straight to the host's thread if they tap
+          // "Message host" there.
+          hostUserId: ride.host_user_id,
+          hostUserName: ride.host_user_name,
         });
       } else {
         throw new Error(response?.message || 'Failed to request ride');
@@ -556,19 +630,16 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
 
       <View style={styles.navigationRow}>
         <View style={styles.navigationLeft}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
             onPress={() => (nav as any).navigate('AvailableRidesScreen')}
           >
             <ChevronBack />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity 
-          style={styles.createRideBtn}
-          onPress={() => (nav as any).navigate('CreateRide')}
-        >
-          <Text style={styles.createRideBtnText}>Create Ride</Text>
-        </TouchableOpacity>
+        {/* No "Create Ride" CTA here — this screen is the *preview*
+            for booking someone else's ride. The composer lives on
+            Home; surfacing it here just confuses the action. */}
       </View>
 
       <View style={styles.mainContent}>
@@ -678,12 +749,75 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
       </View>
 
       <View style={styles.bottomContainer}>
-        <SlideToCreate
-          onSlideComplete={handleRequestRide}
-          text={isRequesting ? "Requesting..." : "Slide to request ride"}
-          disabled={isRequesting}
-          sliderIcon={require("../../assets/slide.png")}
-        />
+        {/* Bottom action zone — branches on the server-computed
+            viewer_state instead of the old "isHost && hasBooking &&
+            status === 'pending'" chain. One field in → one CTA out. */}
+        {(() => {
+          // Default to "available" while we wait for the fetch to
+          // resolve — the slide is disabled so nothing actually
+          // fires; this just stops the layout from being empty.
+          const state = viewerState ?? "available";
+
+          if (state === "host") {
+            return (
+              <View style={styles.viewerNoticeWrap}>
+                <Text style={styles.viewerNoticeTitle}>You're hosting this ride</Text>
+                <TouchableOpacity
+                  style={styles.viewerNoticeBtn}
+                  onPress={() => (nav as any).navigate("RideDetailsScreen", { rideId: ride.id })}
+                >
+                  <Text style={styles.viewerNoticeBtnText}>Manage</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          }
+          if (state === "pending_passenger" || state === "rejected_passenger") {
+            // The useEffect above redirects these viewers to
+            // RideDetailsScreen. Render nothing in the bottom slot
+            // while the navigation transition is in flight so the old
+            // notice card doesn't flash on screen.
+            return null;
+          }
+          if (state === "confirmed_passenger") {
+            return (
+              <View style={styles.viewerNoticeWrap}>
+                <Text style={styles.viewerNoticeTitle}>Your seat is confirmed</Text>
+                <TouchableOpacity
+                  style={styles.viewerNoticeBtn}
+                  onPress={() => (nav as any).navigate("RideDetailsScreen", { rideId: ride.id })}
+                >
+                  <Text style={styles.viewerNoticeBtnText}>View booking</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          }
+          // (rejected_passenger handled above — falls through to the
+          // redirect to RideDetailsScreen alongside pending.)
+          if (state === "full") {
+            return (
+              <View style={styles.viewerNoticeWrap}>
+                <Text style={styles.viewerNoticeTitle}>This ride is full</Text>
+                <Text style={styles.viewerNoticeSub}>All seats have been taken.</Text>
+              </View>
+            );
+          }
+          if (state === "past") {
+            return (
+              <View style={styles.viewerNoticeWrap}>
+                <Text style={styles.viewerNoticeTitle}>Trip completed</Text>
+              </View>
+            );
+          }
+          // available
+          return (
+            <SlideToCreate
+              onSlideComplete={handleRequestRide}
+              text={isRequesting ? "Requesting..." : "Slide to request ride"}
+              disabled={isRequesting || viewerActions.can_request_seat === false}
+              sliderIcon={require("../../assets/slide.png")}
+            />
+          );
+        })()}
       </View>
     </View>
   );
@@ -924,6 +1058,49 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 20,
     paddingBottom: 10,
+  },
+  // States the user can't act on (pending / declined / full / past)
+  // render a forest dark notice card here instead of the slide CTA.
+  viewerNoticeWrap: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  viewerNoticeTitle: {
+    flex: 1,
+    color: AppColors.primaryLightGreen,
+    fontSize: 15,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: -0.2,
+  },
+  viewerNoticeSub: {
+    color: AppColors.basicWhite,
+    fontSize: 12,
+    fontFamily: "NunitoSans_600SemiBold",
+    opacity: 0.7,
+    marginTop: 2,
+  },
+  viewerNoticeBtn: {
+    backgroundColor: AppColors.primaryLightGreen,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 12,
+  },
+  viewerNoticeBtnText: {
+    color: AppColors.secondaryDarkGreen,
+    fontSize: 13,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: 0.2,
   },
 });
 

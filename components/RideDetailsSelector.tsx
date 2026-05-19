@@ -71,20 +71,35 @@ interface RideDetails {
 
 interface RideDetailsSelectorProps {
   onSubmit: (details: RideDetails) => void;
+  /**
+   * Fires whenever either location field changes (even with only one set).
+   * Parents use this to update the map preview as the user types — without
+   * waiting for the date to also be filled.
+   */
+  onCoordsChange?: (from: LocationCoordinates | null, to: LocationCoordinates | null) => void;
   onLocationSelectionChange?: (hasFromAndTo: boolean) => void;
   onLocationSwap?: () => void;
   fromLocation?: string;
   toLocation?: string;
   userLocation?: UserLocation;
+  /**
+   * Bump this counter from the parent to imperatively clear From,
+   * To, and their coordinates (used by the Search Rides X button).
+   * Effect compares the new value to the previous one and resets on
+   * change — first render is treated as the baseline.
+   */
+  clearTrigger?: number;
 }
 
 export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   onSubmit,
+  onCoordsChange,
   onLocationSelectionChange,
   onLocationSwap,
   fromLocation: externalFromLocation,
   toLocation: externalToLocation,
   userLocation,
+  clearTrigger,
 }) => {
   const { apiUtil } = require('../utils/ApiUtil').useApi();
   const [defaultStartAddress, setDefaultStartAddress] = useState<string>("");
@@ -461,19 +476,25 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   };
 
   const handleLocationSwap = () => {
+    // No-op when there's nothing to swap *into* From. Previously this
+    // would clear From, then a `useEffect` watching the parent's
+    // `fromLocation` prop would re-fill it to the same value, leaving
+    // both fields with the original From location (duplicate).
+    if (!toLocation || !fromLocation) return;
+
     const tempLocation = fromLocation;
     const tempCoordinates = fromCoordinates;
-    
+
     setFromLocation(toLocation);
     setToLocation(tempLocation);
     setFromCoordinates(toCoordinates);
     setToCoordinates(tempCoordinates);
-    
+
     if (onLocationSwap) {
       onLocationSwap();
     }
 
-    if (toLocation && tempLocation && selectedDate) {
+    if (selectedDate) {
       submitRideDetails(
         toLocation,
         tempLocation,
@@ -592,11 +613,33 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
   }, [fromLocation]);
 
+  // Imperative clear from the parent (e.g. Search Rides X button).
+  // `fromCleared` blocks the defaultStartAddress auto-fill effect
+  // from immediately re-populating From after we wipe it.
+  useEffect(() => {
+    if (clearTrigger === undefined) return;
+    setFromLocation("");
+    setToLocation("");
+    setFromCoordinates(null);
+    setToCoordinates(null);
+    setFromCleared(true);
+    setHasClearedFrom(true);
+  }, [clearTrigger]);
+
   useEffect(() => {
     if (onLocationSelectionChange) {
       onLocationSelectionChange(fromLocation !== "" && toLocation !== "");
     }
   }, [fromLocation, toLocation, onLocationSelectionChange]);
+
+  // Push coord updates upward whenever either pin changes, so the parent
+  // can animate the map preview without waiting for a full From+To+date
+  // submission. Either side may be null when only one location is set.
+  useEffect(() => {
+    if (onCoordsChange) {
+      onCoordsChange(fromCoordinates ?? null, toCoordinates ?? null);
+    }
+  }, [fromCoordinates, toCoordinates, onCoordsChange]);
 
   useEffect(() => {
     return () => {
@@ -615,29 +658,24 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.locationsWrapper}>
+        <View style={styles.routeConnector} pointerEvents="none" />
         <TouchableOpacity
           style={styles.inputContainer}
           onPress={() => handleLocationSelectorOpen(true)}
         >
           <View style={styles.inputContent}>
-            <Image
-              source={require("../assets/location-pin-2.png")}
-              style={styles.icon}
-            />
-            <Text style={styles.selectedText} numberOfLines={1} ellipsizeMode="tail">
-              {fromLocation ? (fromLocation.length > getTextTruncationLength() ? fromLocation.slice(0, getTextTruncationLength() - 3) + '...' : fromLocation) : "From"}
+            <View style={styles.routeDotOutline} />
+            {/* Muted lime placeholder when empty (matches `label`),
+                bright lime 700Bold when filled (matches the date
+                label). No clear-X — the whole row is tappable, so a
+                second clear control was redundant chrome. */}
+            <Text
+              style={fromLocation ? styles.selectedText : styles.label}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {fromLocation || "From"}
             </Text>
-            {fromLocation !== "" && (
-              <TouchableOpacity
-                style={styles.clearIconContainer}
-                onPress={e => {
-                  e.stopPropagation && e.stopPropagation();
-                  handleLocationClear(true);
-                }}
-              >
-                <X size={wp(4)} color={AppColors.basicBlack} />
-              </TouchableOpacity>
-            )}
           </View>
         </TouchableOpacity>
 
@@ -652,28 +690,18 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.inputContainer}
+          style={[styles.inputContainer, { borderBottomWidth: 0 }]}
           onPress={() => handleLocationSelectorOpen(false)}
         >
           <View style={styles.inputContent}>
-            <Image
-              source={require("../assets/arrow-icon.png")}
-              style={styles.icon}
-            />
-            <Text style={styles.selectedText} numberOfLines={1} ellipsizeMode="tail">
-              {toLocation ? (toLocation.length > getTextTruncationLength() ? toLocation.slice(0, getTextTruncationLength() - 3) + '...' : toLocation) : "To"}
+            <View style={styles.routeDotFilled} />
+            <Text
+              style={toLocation ? styles.selectedText : styles.label}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {toLocation || "To"}
             </Text>
-            {toLocation !== "" && (
-              <TouchableOpacity
-                style={styles.clearIconContainer}
-                onPress={e => {
-                  e.stopPropagation && e.stopPropagation();
-                  handleLocationClear(false);
-                }}
-              >
-                <X size={wp(4)} color={AppColors.basicBlack} />
-              </TouchableOpacity>
-            )}
           </View>
         </TouchableOpacity>
       </View>
@@ -688,7 +716,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             <View style={styles.dateTextContainer}>
               {selectedDate ? (
                 <>
-                  <Text style={styles.label}>{format(selectedDate, "EEE d MMM yyyy")}</Text>
+                  <Text style={styles.selectedDateLabel}>{format(selectedDate, "EEE d MMM yyyy")}</Text>
                   <Text style={styles.selectedDateText}>{format(selectedDate, "h:mm a")}</Text>
                 </>
               ) : (
@@ -873,7 +901,13 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                     }
                   }}
                   minimumDate={new Date()}
-                  textColor={AppColors.basicBlack}
+                  // The modal sits on the forest dark surface, so the
+                  // spinner needs to render its wheel text in white,
+                  // not black. `themeVariant="dark"` flips iOS 14+ to
+                  // the dark spinner, and `textColor` covers older
+                  // builds.
+                  themeVariant="dark"
+                  textColor={AppColors.basicWhite}
                   accentColor={AppColors.primaryLightGreen}
                   style={styles.dateTimePicker}
                 />
@@ -916,22 +950,42 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    borderRadius: wp(5),
+    borderRadius: 18,
     overflow: "hidden",
-    borderColor: AppColors.basicBlack,
-    borderWidth: 2,
+    // Forest card on lime — matches UpNextCard / PreviousTripsSection
+    // empty card. Bold dark slab carries the route inputs; lime accents
+    // (dots, swap button) and white text live inside.
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderWidth: 0,
   },
   locationsWrapper: {
     position: "relative",
   },
+  // Vertical dotted connector that spans between the From and To rows,
+  // mirroring the BlaBlaCar / inDrive dot-line-dot route pattern we use
+  // on RideCard + UpNextCard.
+  routeConnector: {
+    position: "absolute",
+    left: wp(4) + hp(1.5) - 1,
+    top: hp(5.5),
+    bottom: hp(5.5),
+    width: 2,
+    backgroundColor: "rgba(181,215,80,0.55)",
+    borderRadius: 1,
+  },
   inputContainer: {
     width: "100%",
-    paddingHorizontal: wp(4),
-    paddingVertical: hp(2.5),
-    borderBottomWidth: 2,
-    borderBottomColor: AppColors.basicBlack,
+    paddingLeft: wp(4),
+    // Extra right padding so the clear-X icon clears the absolutely-
+    // positioned lime swap button (which is anchored at right wp(4),
+    // 36×36). Without this, the X visually overlapped the swap
+    // button and read as a smudge under its edge.
+    paddingRight: wp(14),
+    paddingVertical: hp(2),
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
     flexDirection: "row",
-    minHeight: hp(7),
+    minHeight: hp(6.5),
   },
   inputContent: {
     flexDirection: "row",
@@ -942,31 +996,77 @@ const styles = StyleSheet.create({
     height: hp(3),
     width: hp(3),
     resizeMode: "contain",
+    tintColor: AppColors.primaryLightGreen,
+  },
+  // Replace pin/arrow icons with abstract route dots. Empty circle = origin,
+  // filled circle = destination (universal cartography idiom).
+  routeDotOutline: {
+    width: hp(2),
+    height: hp(2),
+    borderRadius: hp(1),
+    borderWidth: 2,
+    borderColor: AppColors.primaryLightGreen,
+    backgroundColor: "transparent",
+    marginRight: wp(3),
+  },
+  routeDotFilled: {
+    width: hp(2),
+    height: hp(2),
+    borderRadius: hp(1),
+    backgroundColor: AppColors.primaryLightGreen,
+    marginRight: wp(3),
   },
   label: {
     marginLeft: wp(2),
-    fontSize: getFontSize(16, 18, 20),
-    color: AppColors.basicBlack,
+    fontSize: getFontSize(15, 16, 17),
+    // Default state ("When", "From", "To") is a muted lime placeholder.
+    // When a real value is rendered (date / location), we swap to the
+    // brighter `selectedLabel` style below for full contrast.
+    color: AppColors.primaryLightGreen,
+    opacity: 0.55,
     fontFamily: "NunitoSans_600SemiBold",
   },
+  // Filled From / To location — mirrors `selectedDateLabel` exactly
+  // so the location row and the date row look like one design system,
+  // not two. Was white 700Bold @ 17 (too loud, mismatch with the lime
+  // date headline below).
   selectedText: {
-    fontSize: getFontSize(16, 18, 20),
-    color: AppColors.basicBlack,
-    fontFamily: "NunitoSans_600SemiBold",
-    marginLeft: wp(2),
+    fontSize: getFontSize(15, 15.5, 16),
+    color: AppColors.primaryLightGreen,
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: -0.15,
+    marginLeft: 0,
     flex: 1,
   },
   selectedDateText: {
     marginLeft: wp(2),
-    fontSize: getFontSize(10, 11, 12),
-    color: AppColors.basicBlack,
+    fontSize: getFontSize(12, 13, 14),
+    // The selected time — full white, no opacity. The previous lime+opacity
+    // combo read as a washed olive on the forest card.
+    color: AppColors.basicWhite,
+    opacity: 0.85,
     fontFamily: "NunitoSans_600SemiBold",
+    marginTop: 3,
+    letterSpacing: 0.2,
+  },
+  selectedDateLabel: {
+    marginLeft: wp(2),
+    // Was 800ExtraBold @ 18 — same weight as section titles, which
+    // made the whole sheet feel "shouty." Dropped to 700Bold @ 16 so
+    // it reads as a confident value, not a banner. Mirrors the
+    // location text below.
+    fontSize: getFontSize(15, 15.5, 16),
+    color: AppColors.primaryLightGreen,
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: -0.15,
   },
   dateContainer: {
     width: "100%",
     paddingHorizontal: wp(4),
     paddingVertical: hp(2),
-    minHeight: hp(7),
+    minHeight: hp(6.5),
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
   },
   dateInputContainer: {
     flex: 1,
@@ -1120,16 +1220,26 @@ const styles = StyleSheet.create({
   },
   switchIconContainer: {
     position: "absolute",
-    right: wp(8),
-    top: hp(7),
+    right: wp(4),
+    top: hp(5.5),
     zIndex: 10,
-    padding: getSpacing(4),
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: AppColors.primaryLightGreen,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 6,
+    elevation: 3,
   },
   switchIcon: {
-    width: wp(6),
-    height: wp(6),
-    tintColor: AppColors.basicBlack,
+    width: wp(4.5),
+    height: wp(4.5),
+    // Forest icon on lime swap-button — same as the inverted CTA pattern.
+    tintColor: AppColors.secondaryDarkGreen,
   },
   clearIconContainer: {
     marginLeft: wp(2),
@@ -1158,16 +1268,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp(5),
     paddingVertical: hp(2),
     borderBottomWidth: 1,
-    borderBottomColor: AppColors.basicBlack + "20",
+    // Lime-tinted hairline on the forest modal — matches the rest
+    // of the forest-surface dividers in the app.
+    borderBottomColor: "rgba(181,215,80,0.18)",
   },
   dateTimeTitle: {
     fontSize: getFontSize(16, 17, 18),
-    fontFamily: "NunitoSans_600SemiBold",
-    color: AppColors.basicBlack,
+    fontFamily: "NunitoSans_800ExtraBold",
+    // Lime on forest — was black on forest, which was nearly
+    // invisible.
+    color: AppColors.primaryLightGreen,
+    letterSpacing: -0.2,
   },
   dateTimeButtonText: {
     fontSize: getFontSize(14, 15, 16),
-    fontFamily: "NunitoSans_600SemiBold",
+    fontFamily: "NunitoSans_700Bold",
     color: AppColors.primaryLightGreen,
   },
   dateTimePickerContainer: {
@@ -1185,7 +1300,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: wp(5),
     paddingVertical: hp(2),
     borderTopWidth: 1,
-    borderTopColor: AppColors.basicBlack + "20",
+    borderTopColor: "rgba(181,215,80,0.18)",
   },
   quickSelectButton: {
     paddingHorizontal: wp(6),

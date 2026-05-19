@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Svg, { Path } from 'react-native-svg';
 import { Settings } from 'lucide-react-native';
 import {
   View,
@@ -14,6 +15,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { chatMessagesStyles } from './ChatScreen.styles';
@@ -21,7 +23,21 @@ import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
 import ChatService from '../../utils/ChatService';
-import BrandInfo from '../../components/BrandInfo';
+
+/**
+ * Quick-reply chips shown above the keyboard when the input is empty.
+ * Ordered for ride logistics: greet, status, location, ETA. Lifted from
+ * the Gojek "Quick chat", Bolt onboarding chips, and Uber "I'm here" /
+ * "Be right there" patterns we sourced from Mobbin.
+ */
+const QUICK_REPLIES = [
+  '👋',
+  "On my way",
+  "I'm here",
+  "5 min late",
+  "Where are you?",
+  "Thanks!",
+];
 
 interface Participant {
   id: string;
@@ -67,6 +83,29 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
   const [newChatName, setNewChatName] = useState('');
   const [typingUsers, setTypingUsers] = useState<{ [k: string]: { name: string; timeout: NodeJS.Timeout } }>({});
   const [isTyping, setIsTyping] = useState(false);
+  // Pagination — `hasMoreMessages` tells the FlatList whether the
+  // "load older" affordance should be active; `isLoadingOlder` blocks
+  // multiple in-flight fetches as the user scrolls.
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  // Initial-load suspense — true while the first page of messages is
+  // in flight. Drives the skeleton placeholder so the user never
+  // stares at an empty pane.
+  const [isLoadingInitial, setIsLoadingInitial] = useState(true);
+
+  // Report sheet — open from chat settings, posts to /reports.
+  const [showReportSheet, setShowReportSheet] = useState(false);
+  const [reportReason, setReportReason] = useState<string | null>(null);
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const REPORT_REASONS: Array<{ key: string; label: string }> = [
+    { key: 'safety', label: 'Safety concern' },
+    { key: 'harassment', label: 'Harassment or hate' },
+    { key: 'scam', label: 'Scam or fraud' },
+    { key: 'spam', label: 'Spam' },
+    { key: 'inappropriate', label: 'Inappropriate content' },
+    { key: 'other', label: 'Something else' },
+  ];
 
   const wsRef = useRef<WebSocket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -81,10 +120,20 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     userId?: string;
     isGroupChat?: boolean;
     otherUserId?: string;
+    // Set when TripsListScreen opens a 1:1 with the host because the
+    // viewer's booking is still pending. Used to swap the safety
+    // strip for an explicit "you're messaging the host while your
+    // request is pending" explainer.
+    pendingHostInquiry?: boolean;
+    pendingRideId?: string;
+    pendingHostName?: string;
   };
   const chatParams = (route?.params as ChatRouteParams) ?? {};
   const [chatTitle, setChatTitle] = useState(chatParams.chatTitle ?? 'Vellore to Chennai');
   const chatSubtitle = chatParams.chatSubtitle ?? 'You, Bhallaldeva, Kattappa and 3 more';
+  const isPendingHostInquiry = !!chatParams.pendingHostInquiry;
+  const pendingHostFirstName =
+    (chatParams.pendingHostName || '').trim().split(/\s+/)[0] || 'the host';
 
   const processBackendMessage = (backendMsg: any, currentUserId: string): ChatMessage => {
     console.log('[ProcessMessage] Raw backend message:', JSON.stringify(backendMsg, null, 2));
@@ -334,6 +383,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
 
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
     const isGroup = chatParams.isGroupChat !== false;
+    const isDM = !!chatId && chatId.startsWith('dm_');
     const userId = chatParams.userId || userUuid;
     if (!chatId) return;
 
@@ -356,22 +406,30 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
       }
     }
 
-    ChatService.fetchMessages(apiUtil, chatId)
-      .then((rawMessages: any[]) => {
-        console.log('[Chat] Raw messages from API:', JSON.stringify(rawMessages.slice(0, 2), null, 2)); // Log first 2 messages
-        console.log('[Chat] Total messages fetched:', rawMessages.length);
-        
+    // Initial page (most recent ~50 messages). Older pages are loaded
+    // on demand via loadOlderMessages() when the user scrolls to top.
+    setIsLoadingInitial(true);
+    ChatService.fetchMessages(apiUtil, chatId, { limit: 50 })
+      .then((res) => {
         if (!userUuid) {
-          console.warn('[Chat] No userUuid available for message processing');
           setMessages([]);
           return;
         }
-        
-        const processedMessages = rawMessages.map(msg => processBackendMessage(msg, userUuid));
-        console.log('[Chat] Processed messages:', processedMessages.length);
-        setMessages(processedMessages);
+        const processed = res.messages.map((msg: any) => processBackendMessage(msg, userUuid));
+        setMessages(processed);
+        setHasMoreMessages(res.hasMore);
       })
-      .catch(err => { if (!isGroup) setMessages([]); else console.error('[Chat] fetchMessages err',err); });
+      .catch((err) => {
+        if (!isGroup) setMessages([]);
+        else console.error('[Chat] fetchMessages err', err);
+      })
+      .finally(() => {
+        setIsLoadingInitial(false);
+      });
+
+    // Tell the backend the user has seen everything up to now. Resets
+    // the unread badge on the chat list.
+    if (!isDM) ChatService.markRideRead(apiUtil, chatId);
 
     const ws = ChatService.openSocket(userId, chatId, e => {
       (e.data as string).trim().split('\n').filter(Boolean).forEach(line => {
@@ -460,15 +518,16 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     messages.length>0 && setTimeout(()=>flatListRef.current?.scrollToEnd({animated:true}),100);
   }, [messages]);
 
-  const sendMessage = () => {
+  const sendMessage = (override?: string) => {
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
-    if (!userUuid || !chatId || !newMessage.trim()) return;
+    const text = (override ?? newMessage).trim();
+    if (!userUuid || !chatId || !text) return;
 
     handleTypingStop();
     const tempId = `temp_${Date.now()}_${Math.random()}`;
     const optimistic: ChatMessage = {
       id: tempId,
-      text: newMessage.trim(),
+      text,
       sender: 'user',
       senderId: userUuid,
       senderName: 'You',
@@ -541,6 +600,48 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     }
   };
 
+  // Best-guess at the user the reporter wants flagged. For a 1:1 DM
+  // it's the other side; for a group chat we default to the host (the
+  // most common target) but pass a chat_room_id + ride_id so the
+  // moderation surface has full context regardless.
+  const inferReportedUserId = (): string | undefined => {
+    if (chatParams.isGroupChat === false) {
+      return chatParams.otherUserId;
+    }
+    return rideDetails?.hostUserId;
+  };
+
+  const submitReport = async () => {
+    if (!reportReason || reportSubmitting) return;
+    const chatId = chatParams.chatRoom?.id || chatParams.chatId;
+    setReportSubmitting(true);
+    try {
+      await apiUtil.post('/reports', {
+        reported_user_id: inferReportedUserId() || undefined,
+        ride_id: chatParams.isGroupChat !== false ? chatId : undefined,
+        chat_room_id: chatId,
+        reason: reportReason,
+        details: reportDetails.trim(),
+      });
+      setShowReportSheet(false);
+      setReportReason(null);
+      setReportDetails('');
+      Alert.alert(
+        'Report sent',
+        "Thanks for letting us know. Our team will review it and follow up if we need more info.",
+      );
+    } catch (err: any) {
+      console.warn('[Chat] report submit failed', err);
+      Alert.alert(
+        "Couldn't send report",
+        err?.response?.data?.error ||
+          "We hit a snag sending your report. Try again in a moment.",
+      );
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
   const handleLeaveRide = () => {
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
     if (chatParams.isGroupChat===false || !chatId) {
@@ -600,6 +701,76 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     }
   };
 
+  /**
+   * Load the page of messages just before the oldest one currently in
+   * memory. Wired to FlatList's `onEndReached` (inverted lists put
+   * "older" at the natural scroll end). Skipped while one is in
+   * flight to avoid stacking concurrent fetches.
+   */
+  const loadOlderMessages = async () => {
+    if (isLoadingOlder || !hasMoreMessages) return;
+    const chatId = chatParams.chatRoom?.id || chatParams.chatId;
+    if (!chatId || !userUuid || messages.length === 0) return;
+    const oldest = messages[0];
+    const before = oldest.timestamp instanceof Date
+      ? oldest.timestamp.toISOString()
+      : new Date(oldest.timestamp as any).toISOString();
+    setIsLoadingOlder(true);
+    try {
+      const res = await ChatService.fetchMessages(apiUtil, chatId, { before, limit: 50 });
+      const processed = res.messages.map((msg: any) => processBackendMessage(msg, userUuid));
+      // Prepend older messages — `messages` is in chronological order.
+      setMessages((prev) => [...processed, ...prev]);
+      setHasMoreMessages(res.hasMore);
+    } catch (err) {
+      console.warn('[Chat] loadOlderMessages failed', err);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  };
+
+  /**
+   * Insert "Today / Yesterday / <date>" separator entries between
+   * messages that span a calendar-day boundary. Returns a tagged list
+   * the FlatList can render through a discriminated `renderItem`.
+   */
+  type Row =
+    | { kind: 'msg'; message: ChatMessage; id: string }
+    | { kind: 'sep'; label: string; id: string }
+    | { kind: 'safety'; id: string };
+
+  const buildRows = (msgs: ChatMessage[]): Row[] => {
+    const rows: Row[] = [];
+    // Pin the safety notice as the very first row in the conversation.
+    // Lives inside the FlatList so it scrolls away with the chat
+    // instead of permanently parking under the header.
+    rows.push({ kind: 'safety', id: 'safety-banner' });
+    let prevDayKey = '';
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const dayKey = (d: Date) => d.toDateString();
+    for (const m of msgs) {
+      const d = m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp as any);
+      const key = dayKey(d);
+      if (key !== prevDayKey) {
+        let label: string;
+        if (key === dayKey(today)) label = 'Today';
+        else if (key === dayKey(yesterday)) label = 'Yesterday';
+        else
+          label = d.toLocaleDateString(undefined, {
+            weekday: 'short',
+            day: '2-digit',
+            month: 'short',
+          });
+        rows.push({ kind: 'sep', label, id: `sep-${key}` });
+        prevDayKey = key;
+      }
+      rows.push({ kind: 'msg', message: m, id: m.id });
+    }
+    return rows;
+  };
+
   const renderMessageStatus = (msg: ChatMessage) => {
     if (msg.sender!=='user') return null;
     let sym='✓', col='#999';
@@ -617,24 +788,59 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     }}>{sym}</Text>;
   };
 
+  /**
+   * Map every sender to a stable, distinct accent color so group-chat
+   * participants are visually differentiable. Drawn from a brand-tuned
+   * palette (lime + orange + amber + sky) that reads well against the
+   * forest bubble. Same user always gets the same color.
+   */
+  const SENDER_PALETTE = [
+    '#B5D750', // brand lime
+    '#F09E5C', // brand orange
+    '#FFD166', // amber
+    '#A5D9C5', // mint
+    '#9EC9F0', // sky
+    '#E6A5D3', // pink lilac
+    '#C6B7F3', // periwinkle
+    '#FF8E72', // coral
+  ];
+  const getSenderColor = (id?: string): string => {
+    if (!id) return SENDER_PALETTE[0];
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    return SENDER_PALETTE[h % SENDER_PALETTE.length];
+  };
+
   const renderMessage = (msg: ChatMessage) => {
-    const me=msg.sender==='user';
-    
+    const me = msg.sender === 'user';
+    const isGroup = chatParams.isGroupChat !== false;
+    // Sender colour is reused for the in-bubble name so each
+    // participant has a consistent visual identity, without dropping
+    // a separate avatar chip next to every received message.
+    const senderColor = getSenderColor(msg.senderId);
+
     return (
-      <View key={msg.id} style={[
-        me?chatMessagesStyles.messageSent:chatMessagesStyles.messageReceived,
-        {marginVertical:6}
-      ]}>
-        {!me && <Text style={chatMessagesStyles.senderName}>{msg.senderName}</Text>}
-        <Text style={ me? chatMessagesStyles.messageTextSent:chatMessagesStyles.messageText }>
+      <View
+        key={msg.id}
+        style={me ? chatMessagesStyles.messageSent : chatMessagesStyles.messageReceived}
+      >
+        {!me && isGroup ? (
+          <Text style={[chatMessagesStyles.senderName, { color: senderColor }]}>
+            {msg.senderName}
+          </Text>
+        ) : null}
+        <Text style={me ? chatMessagesStyles.messageTextSent : chatMessagesStyles.messageText}>
           {msg.text}
         </Text>
-        <View style={{
-          flexDirection:'row', alignItems:'center',
-          justifyContent: me?'flex-end':'flex-start',
-          marginTop:2
-        }}>
-          <Text style={ me? chatMessagesStyles.messageTimeSent:chatMessagesStyles.messageTime }>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: me ? 'flex-end' : 'flex-start',
+            marginTop: 2,
+          }}
+        >
+          <Text style={me ? chatMessagesStyles.messageTimeSent : chatMessagesStyles.messageTime}>
             {formatMessageTime(msg.timestamp)}
           </Text>
           {renderMessageStatus(msg)}
@@ -663,11 +869,9 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
           <ScrollView style={chatMessagesStyles.settingsContent}>
             <View style={chatMessagesStyles.settingsSection}>
               <View style={chatMessagesStyles.chatInfoHeader}>
-                <View style={chatMessagesStyles.chatAvatarContainer}>
-                  <Text style={chatMessagesStyles.chatAvatarText}>
-                    {chatTitle.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
+                {/* No initial-letter avatar — the title carries the
+                    route, and a route-derived letter ("A") read as
+                    arbitrary. */}
                 <View style={chatMessagesStyles.chatInfoDetails}>
                   {editingChatName && isGroup ? (
                     <View style={chatMessagesStyles.editNameContainer}>
@@ -707,15 +911,16 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
 
             <View style={chatMessagesStyles.settingsSection}>
               <Text style={chatMessagesStyles.sectionTitle}>Participants</Text>
-              {participants.map((p,i)=>(
+              {participants.map((p,i)=>{
+                const dotColor = getSenderColor(p.id);
+                return (
                 <View key={`${p.id}-${i}`} style={chatMessagesStyles.participantItem}>
-                  <View style={chatMessagesStyles.participantAvatar}>
-                    <Text style={chatMessagesStyles.participantAvatarText}>
-                      {p.id===userUuid
-                        ? userProfiles[userUuid]?.name.charAt(0).toUpperCase()||'Y'
-                        : p.name.charAt(0).toUpperCase()||'U'
-                      }
-                    </Text>
+                  {/* No letter avatar — instead, a small coloured
+                      dot that matches the in-chat sender colour, so
+                      participants in the list are visually tied to
+                      their messages. */}
+                  <View style={chatMessagesStyles.participantDotWrap}>
+                    <View style={[chatMessagesStyles.participantDot, { backgroundColor: dotColor }]} />
                     {p.isOnline && <View style={chatMessagesStyles.onlineIndicator}/>}
                   </View>
                   <View style={chatMessagesStyles.participantInfo}>
@@ -734,7 +939,8 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
                     </Text>
                   </View>
                 </View>
-              ))}
+                );
+              })}
             </View>
 
             {rideDetails && isGroup && (
@@ -792,17 +998,56 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
               )}
             </View>
 
+            {/* Report a problem — sits on the lime canvas as a forest
+                outlined button. Available in every chat (group and
+                DM), since trust + safety is universal. Tapping it
+                closes settings and opens the dedicated report sheet. */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => {
+                setShowSettings(false);
+                // small delay so the sheet animation doesn't fight
+                // with the modal close.
+                setTimeout(() => setShowReportSheet(true), 220);
+              }}
+              style={{
+                marginHorizontal: 16,
+                marginTop: 4,
+                marginBottom: chatParams.isGroupChat !== false ? 12 : 24,
+                paddingVertical: 13,
+                paddingHorizontal: 20,
+                borderRadius: 14,
+                borderWidth: 1.5,
+                borderColor: AppColors.secondaryDarkGreen,
+                alignItems: 'center',
+                backgroundColor: 'transparent',
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: 'NunitoSans_800ExtraBold',
+                  fontSize: 15,
+                  color: AppColors.secondaryDarkGreen,
+                  letterSpacing: 0.2,
+                }}
+              >
+                Report a problem
+              </Text>
+            </TouchableOpacity>
+
             {chatParams.isGroupChat !== false && (
-              <View style={chatMessagesStyles.settingsSection}>
-                <TouchableOpacity
-                  style={[chatMessagesStyles.actionButton, chatMessagesStyles.destructiveButton]}
-                  onPress={handleLeaveRide}
-                >
-                  <Text style={[chatMessagesStyles.actionButtonText, chatMessagesStyles.destructiveButtonText]}>
-                    Leave Ride
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              // Leave Ride sits *outside* any forest section card so it
+              // doesn't read as a coral pill on a black slab. Standalone
+              // destructive CTA on the lime canvas with generous side
+              // margins.
+              <TouchableOpacity
+                style={[chatMessagesStyles.actionButton, chatMessagesStyles.destructiveButton, { marginHorizontal: 16, marginTop: 4, marginBottom: 24 }]}
+                onPress={handleLeaveRide}
+              >
+                <Text style={[chatMessagesStyles.actionButtonText, chatMessagesStyles.destructiveButtonText]}>
+                  Leave ride
+                </Text>
+              </TouchableOpacity>
             )}
           </ScrollView>
         </SafeAreaView>
@@ -810,63 +1055,435 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     );
   };
 
-  return (
-    <View style={[chatMessagesStyles.container, { flex: 1 }]}>
-      <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
+  // Report sheet — opens from the chat settings "Report a problem"
+  // button. Reason chips + optional free-text. POSTs to /reports.
+  const renderReportSheet = () => (
+    <Modal
+      visible={showReportSheet}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => !reportSubmitting && setShowReportSheet(false)}
+    >
+      <SafeAreaView style={chatMessagesStyles.container}>
+        <View style={chatMessagesStyles.settingsHeader}>
+          <TouchableOpacity
+            onPress={() => !reportSubmitting && setShowReportSheet(false)}
+            disabled={reportSubmitting}
+          >
+            <Text style={chatMessagesStyles.settingsCloseButton}>Cancel</Text>
+          </TouchableOpacity>
+          <Text style={chatMessagesStyles.settingsTitle}>Report</Text>
+          <View style={{ width: 60 }} />
+        </View>
 
-      <BrandInfo />
+        <ScrollView
+          style={{ flex: 1, backgroundColor: AppColors.primaryLightGreen }}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 40 }}
+        >
+          <Text
+            style={{
+              fontFamily: 'NunitoSans_700Bold',
+              fontSize: 14.5,
+              color: AppColors.secondaryDarkGreen,
+              opacity: 0.78,
+              lineHeight: 20,
+              marginBottom: 18,
+              letterSpacing: -0.05,
+            }}
+          >
+            Pick what best describes the problem. Your report is sent to the
+            UniPool moderation team and the other person isn't notified.
+          </Text>
 
-      <View style={[chatMessagesStyles.chatHeader, { flexDirection: 'row', alignItems: 'center' }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginRight: 12 }}>
-          <Image source={require('../../assets/arrow-square-left.png')} style={{ width: 24, height: 24 }} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+          {/* Reason chips — single-select. Forest fill for the
+              selected one, outlined forest for the rest. */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}>
+            {REPORT_REASONS.map((r) => {
+              const selected = reportReason === r.key;
+              return (
+                <TouchableOpacity
+                  key={r.key}
+                  activeOpacity={0.85}
+                  onPress={() => setReportReason(r.key)}
+                  style={{
+                    paddingHorizontal: 14,
+                    paddingVertical: 9,
+                    borderRadius: 999,
+                    backgroundColor: selected
+                      ? AppColors.secondaryDarkGreen
+                      : 'transparent',
+                    borderWidth: 1.5,
+                    borderColor: AppColors.secondaryDarkGreen,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: 'NunitoSans_800ExtraBold',
+                      fontSize: 13,
+                      letterSpacing: 0.1,
+                      color: selected
+                        ? AppColors.primaryLightGreen
+                        : AppColors.secondaryDarkGreen,
+                    }}
+                  >
+                    {r.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text
+            style={{
+              fontFamily: 'NunitoSans_800ExtraBold',
+              fontSize: 11.5,
+              color: AppColors.secondaryDarkGreen,
+              opacity: 0.7,
+              letterSpacing: 0.6,
+              marginBottom: 8,
+              textTransform: 'uppercase',
+            }}
+          >
+            More details (optional)
+          </Text>
+          <TextInput
+            value={reportDetails}
+            onChangeText={setReportDetails}
+            multiline
+            placeholder="Anything else our team should know"
+            placeholderTextColor="rgba(38,59,51,0.45)"
+            style={{
+              minHeight: 110,
+              backgroundColor: AppColors.basicWhite,
+              borderRadius: 14,
+              paddingHorizontal: 14,
+              paddingTop: 12,
+              paddingBottom: 12,
+              fontSize: 14.5,
+              lineHeight: 20,
+              color: AppColors.secondaryDarkGreen,
+              fontFamily: 'NunitoSans_600SemiBold',
+              textAlignVertical: 'top',
+              borderWidth: 1,
+              borderColor: 'rgba(38,59,51,0.12)',
+            }}
+            maxLength={600}
+          />
+
+          <TouchableOpacity
+            activeOpacity={0.85}
+            disabled={!reportReason || reportSubmitting}
+            onPress={submitReport}
+            style={{
+              marginTop: 22,
+              paddingVertical: 15,
+              borderRadius: 16,
+              backgroundColor:
+                !reportReason || reportSubmitting
+                  ? 'rgba(38,59,51,0.35)'
+                  : AppColors.secondaryDarkGreen,
+              alignItems: 'center',
+            }}
+          >
             <Text
               style={{
-                color: '#273B33',
-                fontSize: 20,
-                fontFamily: 'Nunito Sans',
-                flex: 1,
-                minWidth: 0,
+                fontFamily: 'NunitoSans_800ExtraBold',
+                fontSize: 15.5,
+                color: AppColors.primaryLightGreen,
+                letterSpacing: 0.2,
               }}
-              numberOfLines={1}
-              ellipsizeMode="tail"
             >
-              {chatTitle}
+              {reportSubmitting ? 'Sending…' : 'Send report'}
             </Text>
-            <TouchableOpacity onPress={() => setShowSettings(true)} style={chatMessagesStyles.settingsButton}>
-              <Settings size={24} color="#273B33" />
-            </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+
+  return (
+    <View style={[chatMessagesStyles.container, { flex: 1 }]}>
+      <StatusBar backgroundColor={AppColors.secondaryDarkGreen} barStyle="light-content" />
+
+      {/* Mobbin pattern (Grab, Uber, Bolt): single header row with
+          avatar circle + name + route subtitle. Back arrow left,
+          settings icon right. No BrandInfo strip — keeps the chat
+          surface focused on the conversation. */}
+      <View style={chatMessagesStyles.chatHeaderRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={chatMessagesStyles.chatHeaderBack} hitSlop={8}>
+          <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M15 6 L 9 12 L 15 18"
+              stroke={AppColors.primaryLightGreen}
+              strokeWidth={2.4}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+        </TouchableOpacity>
+
+        {/* No avatar circle. The "A" we were showing was the first
+            letter of the *trip title* (a route, not a person) which
+            didn't make sense. The title + subtitle do the job. */}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={chatMessagesStyles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">
+            {chatTitle}
+          </Text>
+          {chatSubtitle ? (
+            <Text style={chatMessagesStyles.chatHeaderSubtitle} numberOfLines={1} ellipsizeMode="tail">
+              {chatSubtitle}
+            </Text>
+          ) : null}
         </View>
+
+        <TouchableOpacity onPress={() => setShowSettings(true)} style={chatMessagesStyles.chatHeaderSettings} hitSlop={8}>
+          {/* Three-dot "more" glyph — cleaner than the cog, which read
+              as a settings icon shouting at the user. */}
+          <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+            <Path d="M12 6 A 1.7 1.7 0 1 1 12 5.999" stroke={AppColors.primaryLightGreen} strokeWidth={2.6} strokeLinecap="round" />
+            <Path d="M12 12 A 1.7 1.7 0 1 1 12 11.999" stroke={AppColors.primaryLightGreen} strokeWidth={2.6} strokeLinecap="round" />
+            <Path d="M12 18 A 1.7 1.7 0 1 1 12 17.999" stroke={AppColors.primaryLightGreen} strokeWidth={2.6} strokeLinecap="round" />
+          </Svg>
+        </TouchableOpacity>
       </View>
 
+      {/* Safety notice now lives inside the FlatList as the first
+          row (rendered by `kind: "safety"` below), so it only
+          appears at the top of the conversation and scrolls away
+          with the messages rather than permanently sitting under
+          the header. */}
+
+      {isLoadingInitial ? (
+        // Suspense skeleton — three ghost bubbles alternating sides,
+        // pulsing via opacity. Reads as "the chat exists, just give it
+        // a moment" instead of dumping an empty pane on the user.
+        <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 28, gap: 14 }}>
+          {[
+            { width: '62%', side: 'left' as const },
+            { width: '48%', side: 'right' as const },
+            { width: '74%', side: 'left' as const },
+            { width: '40%', side: 'right' as const },
+          ].map((b, i) => (
+            <View
+              key={i}
+              style={{
+                alignSelf: b.side === 'left' ? 'flex-start' : 'flex-end',
+                width: b.width as any,
+                height: 38,
+                borderRadius: 18,
+                borderBottomLeftRadius: b.side === 'left' ? 6 : 18,
+                borderBottomRightRadius: b.side === 'right' ? 6 : 18,
+                backgroundColor:
+                  b.side === 'left'
+                    ? 'rgba(38,59,51,0.18)'
+                    : 'rgba(127,163,54,0.30)',
+                opacity: 0.55,
+              }}
+            />
+          ))}
+        </View>
+      ) : (
       <FlatList
         ref={flatListRef}
         style={[chatMessagesStyles.messagesContainer, { flex: 1 }]}
-        data={messages}
+        data={buildRows(messages)}
         extraData={messages}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => renderMessage(item)}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => {
+          if (item.kind === 'sep') {
+            return (
+              <View style={{ alignItems: 'center', marginVertical: 14 }}>
+                <View
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 5,
+                    borderRadius: 999,
+                    backgroundColor: 'rgba(38,59,51,0.10)',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: 'NunitoSans_800ExtraBold',
+                      fontSize: 11,
+                      letterSpacing: 0.5,
+                      color: AppColors.secondaryDarkGreen,
+                      opacity: 0.7,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {item.label}
+                  </Text>
+                </View>
+              </View>
+            );
+          }
+          if (item.kind === 'safety') {
+            // Pending host inquiry: text-only banner explaining why
+            // this is a 1:1 with the host instead of a group chat.
+            // Pending users haven't joined the trip yet, so the chat
+            // is host-only until they're accepted.
+            if (isPendingHostInquiry) {
+              return (
+                <View
+                  style={{
+                    backgroundColor: '#FFF1DF',
+                    paddingHorizontal: 18,
+                    paddingVertical: 14,
+                    marginHorizontal: 16,
+                    marginTop: 10,
+                    marginBottom: 10,
+                    borderRadius: 14,
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: 'rgba(196,106,45,0.30)',
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: 'NunitoSans_800ExtraBold',
+                      fontSize: 13,
+                      color: AppColors.secondaryDarkGreen,
+                      letterSpacing: -0.1,
+                      marginBottom: 4,
+                      textAlign: 'center',
+                    }}
+                  >
+                    Your request is pending
+                  </Text>
+                  <Text
+                    style={{
+                      fontFamily: 'NunitoSans_600SemiBold',
+                      fontSize: 12,
+                      color: AppColors.secondaryDarkGreen,
+                      opacity: 0.75,
+                      lineHeight: 17,
+                      textAlign: 'center',
+                    }}
+                  >
+                    This conversation is only between you and {pendingHostFirstName}.
+                    Once you're accepted, you'll join the trip's group chat.
+                  </Text>
+                </View>
+              );
+            }
+            // Standard safety strip — centred text on a soft forest
+            // wash. No icon. The point is the message, not a glyph
+            // shouting next to it.
+            return (
+              <View
+                style={{
+                  alignItems: 'center',
+                  paddingHorizontal: 24,
+                  paddingTop: 14,
+                  paddingBottom: 16,
+                }}
+              >
+                <View
+                  style={{
+                    backgroundColor: 'rgba(38,59,51,0.10)',
+                    paddingHorizontal: 18,
+                    paddingVertical: 12,
+                    borderRadius: 14,
+                    alignItems: 'center',
+                    maxWidth: 320,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: 'NunitoSans_800ExtraBold',
+                      fontSize: 11.5,
+                      letterSpacing: 0.8,
+                      color: AppColors.secondaryDarkGreen,
+                      opacity: 0.7,
+                      marginBottom: 4,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Be kind, ride safe
+                  </Text>
+                  <Text
+                    style={{
+                      fontFamily: 'NunitoSans_600SemiBold',
+                      fontSize: 12.5,
+                      lineHeight: 17,
+                      color: AppColors.secondaryDarkGreen,
+                      opacity: 0.78,
+                      textAlign: 'center',
+                      letterSpacing: -0.05,
+                    }}
+                  >
+                    Keep payments, OTPs and personal IDs out of chat. UniPool is
+                    here if anything goes wrong — you can report a problem from
+                    chat settings.
+                  </Text>
+                </View>
+              </View>
+            );
+          }
+          return renderMessage(item.message);
+        }}
         showsVerticalScrollIndicator={false}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        // Pulls the next older page when the user reaches the top of
+        // the list. RN renders top-down, so `onStartReached` only
+        // works with `inverted`; we instead key off `onScroll` below.
+        onScroll={(e) => {
+          const y = e.nativeEvent.contentOffset.y;
+          if (y < 40) loadOlderMessages();
+        }}
+        scrollEventThrottle={80}
+        ListHeaderComponent={
+          isLoadingOlder ? (
+            <View style={{ paddingVertical: 14, alignItems: 'center' }}>
+              <Text
+                style={{
+                  fontFamily: 'NunitoSans_600SemiBold',
+                  fontSize: 12,
+                  color: AppColors.secondaryDarkGreen,
+                  opacity: 0.6,
+                }}
+              >
+                Loading earlier messages…
+              </Text>
+            </View>
+          ) : null
+        }
       />
+      )}
 
       {Object.keys(typingUsers).length > 0 && (
         <View style={{
-          paddingHorizontal: 16, paddingVertical: 8,
-          backgroundColor: 'rgba(168,216,168,0.1)',
-          borderTopWidth: 1, borderTopColor: 'rgba(168,216,168,0.3)'
+          paddingHorizontal: 18,
+          paddingVertical: 6,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
         }}>
+          <View style={{ flexDirection: 'row', gap: 3 }}>
+            {[0, 1, 2].map((i) => (
+              <View
+                key={i}
+                style={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: 3,
+                  backgroundColor: AppColors.secondaryDarkGreen,
+                  opacity: 0.35 + i * 0.2,
+                }}
+              />
+            ))}
+          </View>
           <Text style={{
-            color: '#666', fontSize: 14, fontFamily: 'Nunito Sans', fontStyle: 'italic'
+            color: AppColors.inkMuted,
+            fontSize: 12.5,
+            fontFamily: 'NunitoSans_600SemiBold',
           }}>
             {Object.values(typingUsers).length === 1
-              ? `${Object.values(typingUsers)[0].name} is typing...`
+              ? `${Object.values(typingUsers)[0].name} is typing`
               : Object.values(typingUsers).length === 2
-                ? `${Object.values(typingUsers)[0].name} and ${Object.values(typingUsers)[1].name} are typing...`
-                : `${Object.values(typingUsers)[0].name} and ${Object.values(typingUsers).length - 1} others are typing...`
+                ? `${Object.values(typingUsers)[0].name} and ${Object.values(typingUsers)[1].name} are typing`
+                : `${Object.values(typingUsers)[0].name} and ${Object.values(typingUsers).length - 1} others are typing`
             }
           </Text>
         </View>
@@ -876,11 +1493,52 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
         behavior={Platform.select({ ios: 'padding', android: undefined })}
         keyboardVerticalOffset={Platform.select({ ios: 80, android: 0 })}
       >
+        {/* Quick replies — hidden once the user starts typing so they don't
+            crowd a real composition. Mobbin precedent: Gojek "Quick chat",
+            Bolt onboarding chips, Uber "I'm here / Be right there". */}
+        {newMessage.trim().length === 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{
+              paddingHorizontal: 12,
+              paddingTop: 8,
+              paddingBottom: 8,
+              gap: 8,
+            }}
+          >
+            {QUICK_REPLIES.map((q) => (
+              <TouchableOpacity
+                key={q}
+                onPress={() => sendMessage(q)}
+                activeOpacity={0.7}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 7,
+                  borderRadius: 999,
+                  backgroundColor: AppColors.basicWhite,
+                  borderWidth: 1,
+                  borderColor: AppColors.inkSoft,
+                  shadowColor: AppColors.secondaryDarkGreen,
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.06,
+                  shadowRadius: 3,
+                  elevation: 1,
+                }}
+              >
+                <Text style={{ fontFamily: 'NunitoSans_700Bold', fontSize: 13, color: AppColors.secondaryDarkGreen }}>
+                  {q}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : null}
         <View style={chatMessagesStyles.typingBarContainer}>
           <TextInput
-            style={[chatMessagesStyles.typingBarText, { flex: 1, color: '#000', fontFamily: 'Nunito Sans' }]}
-            placeholder="Start typing..."
-            placeholderTextColor="#000"
+            style={chatMessagesStyles.typingBarText}
+            placeholder="Message"
+            placeholderTextColor={'rgba(255,255,255,0.45)'}
             value={newMessage}
             onChangeText={text => {
               setNewMessage(text);
@@ -893,17 +1551,25 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
               newMessage.trim() && sendMessage();
             }}
           />
-          <TouchableOpacity onPress={sendMessage} style={chatMessagesStyles.typingBarIconContainer}>
-            <Image
-              source={require('../../assets/arrow-square-left.png')}
-              style={{ width: 40, height: 40, transform: [{ rotate: '90deg' }] }}
-              resizeMode="contain"
-            />
+          <TouchableOpacity onPress={() => sendMessage()} style={chatMessagesStyles.typingBarIconContainer}>
+            {/* Paper-plane on the lime send button. Forest stroke +
+                fill so it reads as a strong glyph against the lime. */}
+            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M3.5 11.5 L 21 4 L 13.5 21.5 L 11 13 L 3.5 11.5 Z"
+                stroke={AppColors.secondaryDarkGreen}
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                fill={AppColors.secondaryDarkGreen}
+              />
+            </Svg>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
 
       {renderSettingsModal()}
+      {renderReportSheet()}
     </View>
   );
 };

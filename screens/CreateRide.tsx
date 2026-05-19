@@ -131,11 +131,11 @@ const CreateRide: React.FC = () => {
 
   const handleCreateRide = async () => {
     if (!fromLocation || !toLocation) {
-      Alert.alert("Missing Information", "Please select both from and to locations");
+      Alert.alert("One more detail", "Pick where you're starting and where you're going.");
       return;
     }
     if (fromLocation === toLocation) {
-      Alert.alert("Invalid Route", "From and To locations cannot be the same");
+      Alert.alert("Same place?", "Your pickup and drop-off can't be identical.");
       return;
     }
 
@@ -165,7 +165,7 @@ const CreateRide: React.FC = () => {
       navigation.navigate("RideCreatedScreen" as never);
     } catch (error: any) {
       console.error("Error creating ride:", error);
-      let errorMessage = "Failed to create ride. Please try again.";
+      let errorMessage = "Couldn't post your ride. Try again in a moment.";
       if (error.response?.data) {
         const d = error.response.data;
         errorMessage =
@@ -175,7 +175,7 @@ const CreateRide: React.FC = () => {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      Alert.alert("Error", errorMessage);
+      Alert.alert("Couldn't post your ride", errorMessage);
     } finally {
       setIsCreating(false);
     }
@@ -368,26 +368,27 @@ const CreateRide: React.FC = () => {
           />
         </View>
 
-        <Text style={styles.label}>Pick the cost per person</Text>
-        <View style={styles.costContainer}>
+        <Text style={styles.label}>Per-seat fare</Text>
+        <View style={styles.stepperCard}>
           <TouchableOpacity
             onPress={decreaseCost}
-            style={styles.costButton}
+            style={styles.stepperBtn}
             disabled={isEditingCost}
+            activeOpacity={0.7}
           >
-            <Text style={styles.costButtonText}>−</Text>
+            <Text style={styles.stepperBtnText}>−</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.costValueContainer}
+            style={styles.stepperValueWrap}
             onPress={handleCostPress}
             activeOpacity={0.7}
             disabled={isEditingCost}
           >
-            <Text style={styles.currencySymbol}>₹</Text>
+            <Text style={styles.stepperCurrency}>₹</Text>
             {isEditingCost ? (
               <TextInput
                 ref={costInputRef}
-                style={styles.costValueInput}
+                style={styles.stepperValueInput}
                 value={customCost}
                 onChangeText={handleCostChange}
                 onBlur={handleCostSubmit}
@@ -399,34 +400,41 @@ const CreateRide: React.FC = () => {
                 autoFocus
               />
             ) : (
-              <Text style={styles.costValue}>{costPerPerson}</Text>
+              <Text style={styles.stepperValue}>{costPerPerson}</Text>
             )}
           </TouchableOpacity>
           <TouchableOpacity
             onPress={increaseCost}
-            style={styles.costButton}
+            style={styles.stepperBtn}
             disabled={isEditingCost}
+            activeOpacity={0.7}
           >
-            <Text style={styles.costButtonText}>+</Text>
+            <Text style={styles.stepperBtnText}>+</Text>
           </TouchableOpacity>
         </View>
+        <Text style={styles.fieldHint}>Co-riders pay this each. Total trip cost = fare × seats.</Text>
 
-        <Text style={styles.label}>Number of Passengers</Text>
-        <View style={styles.counterContainer}>
+        <Text style={styles.label}>Seats you're offering</Text>
+        <View style={styles.stepperCard}>
           <TouchableOpacity
             onPress={decreasePassengers}
-            style={styles.counterButton}
+            style={styles.stepperBtn}
+            activeOpacity={0.7}
           >
-            <Text style={styles.counterText}>−</Text>
+            <Text style={styles.stepperBtnText}>−</Text>
           </TouchableOpacity>
-          <View style={styles.counterValueContainer}>
-            <Text style={styles.counterValue}>{passengerCount}</Text>
+          <View style={styles.stepperValueWrap}>
+            <Text style={styles.stepperValue}>{passengerCount}</Text>
+            <Text style={styles.stepperUnit}>
+              {passengerCount === 1 ? "seat" : "seats"}
+            </Text>
           </View>
           <TouchableOpacity
             onPress={increasePassengers}
-            style={styles.counterButton}
+            style={styles.stepperBtn}
+            activeOpacity={0.7}
           >
-            <Text style={styles.counterText}>+</Text>
+            <Text style={styles.stepperBtnText}>+</Text>
           </TouchableOpacity>
         </View>
 
@@ -490,7 +498,7 @@ const styles = StyleSheet.create({
   backIcon: {
     width: 24,
     height: 24,
-    tintColor: AppColors.basicBlack,
+    tintColor: AppColors.secondaryDarkGreen,
   },
   mainContent: {
     flex: 1,
@@ -498,10 +506,10 @@ const styles = StyleSheet.create({
     paddingTop: 5,
   },
   title: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: AppColors.basicBlack,
-    fontFamily: "NunitoSans_600SemiBold",
+    fontSize: 24,
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: -0.5,
   },
   section: {
     width: "100%",
@@ -510,98 +518,95 @@ const styles = StyleSheet.create({
     paddingBottom: "2.5%",
   },
   label: {
-    paddingTop: "6%",
-    paddingBottom: "3%",
-    fontWeight: "500",
-    fontSize: 18,
-    color: AppColors.basicBlack,
-    fontFamily: "NunitoSans_500Medium",
+    paddingTop: "5%",
+    paddingBottom: "2.5%",
+    fontSize: 13,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.75,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
   },
-  costContainer: {
+  // Forest dark stepper card on lime canvas — matches the rest of the
+  // surface system (lime sheet, forest content cards, lime accents).
+  stepperCard: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: AppColors.basicBlack,
-    borderRadius: 15,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    justifyContent: "space-between",
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 18,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     width: "100%",
     alignSelf: "center",
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  costButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+  stepperBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: AppColors.primaryLightGreen,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  costButtonText: {
-    color: AppColors.primaryLightGreen,
-    fontSize: 30,
-    fontWeight: "bold",
-    fontFamily: "NunitoSans_700Bold",
+  stepperBtnText: {
+    color: AppColors.secondaryDarkGreen,
+    fontSize: 24,
+    fontFamily: "NunitoSans_800ExtraBold",
+    lineHeight: 28,
   },
-  costValueContainer: {
+  stepperValueWrap: {
     flex: 1,
     flexDirection: "row",
+    alignItems: "baseline",
     justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: AppColors.basicBlack,
-    paddingVertical: 5,
-    paddingHorizontal: 15,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
   },
-  currencySymbol: {
+  stepperCurrency: {
     color: AppColors.primaryLightGreen,
-    fontSize: 35,
-    fontWeight: "bold",
+    opacity: 0.65,
+    fontSize: 18,
     fontFamily: "NunitoSans_700Bold",
-    marginRight: 5,
+    marginRight: 4,
   },
-  costValue: {
+  stepperValue: {
     color: AppColors.basicWhite,
-    fontSize: 35,
-    fontWeight: "bold",
-    fontFamily: "NunitoSans_700Bold",
+    fontSize: 30,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: -0.6,
   },
-  costValueInput: {
+  stepperUnit: {
+    marginLeft: 6,
+    color: AppColors.primaryLightGreen,
+    opacity: 0.65,
+    fontSize: 13,
+    fontFamily: "NunitoSans_600SemiBold",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  stepperValueInput: {
     color: AppColors.basicWhite,
-    fontSize: 35,
-    fontWeight: "bold",
-    fontFamily: "NunitoSans_700Bold",
+    fontSize: 30,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: -0.6,
     backgroundColor: "transparent",
     padding: 0,
     margin: 0,
-    width: 80,
+    width: 90,
     textAlign: "center",
   },
-  counterContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: AppColors.basicBlack,
-    borderRadius: 15,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    width: "50%",
-    alignSelf: "center",
-  },
-  counterButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  counterText: {
-    color: AppColors.primaryLightGreen,
-    fontSize: 22,
-    fontWeight: "bold",
-    fontFamily: "NunitoSans_700Bold",
-  },
-  counterValueContainer: {
-    backgroundColor: AppColors.basicBlack,
-    paddingVertical: 5,
-    paddingHorizontal: 15,
-  },
-  counterValue: {
-    color: AppColors.basicWhite,
-    fontSize: 20,
-    fontWeight: "bold",
-    fontFamily: "NunitoSans_700Bold",
+  fieldHint: {
+    marginTop: 8,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.6,
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: "NunitoSans_600SemiBold",
   },
   passengerImage: {
     width: 170,

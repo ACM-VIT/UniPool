@@ -10,6 +10,8 @@ import { RootStackParamList } from "./navigation/RootStackParamList";
 import AuthScreen from "./screens/AuthScreen";
 import SignInScreen from "./screens/SignInScreen";
 import SignUpScreen from "./screens/SignUpScreen";
+import OnboardingScreen from "./screens/OnboardingScreen";
+import LocationPermissionScreen from "./screens/LocationPermissionScreen";
 import SplashScreenComponent from "./screens/SplashScreen";
 import ErrorScreen from "./screens/ErrorScreen";
 import RideCreatedScreen from "./screens/RideCreatedScreen";
@@ -45,6 +47,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithCredential } from "@react-native-firebase/auth";
 
 import { LocationProvider } from "./contexts/location-context";
+import { AuthGateProvider } from "./contexts/AuthGate";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
@@ -302,7 +305,7 @@ const AppContent = () => {
                   setInitialRoute("HomeScreen");
                 } else {
                   console.log("Network timeout and no valid cached auth, redirecting to AuthScreen");
-                  setInitialRoute("AuthScreen");
+                  setInitialRoute("HomeScreen");
                 }
               } else if (userDetailsError.status >= 500) {
                 if (isCachedAuthValid()) {
@@ -310,12 +313,12 @@ const AppContent = () => {
                   setInitialRoute("HomeScreen");
                 } else {
                   console.log("Server error and no valid cached auth, redirecting to AuthScreen");
-                  setInitialRoute("AuthScreen");
+                  setInitialRoute("HomeScreen");
                 }
               } else {
                 console.error("Error checking user details:", userDetailsError);
                 console.log("Redirecting to AuthScreen due to user details error");
-                setInitialRoute("AuthScreen");
+                setInitialRoute("HomeScreen");
               }
             }
           } else {
@@ -340,7 +343,7 @@ const AppContent = () => {
                   setInitialRoute("HomeScreen");
                 } else {
                   console.log("Network timeout and no valid cached auth, redirecting to AuthScreen");
-                  setInitialRoute("AuthScreen");
+                  setInitialRoute("HomeScreen");
                 }
               } else if (userDetailsError.status >= 500) {
                 if (isCachedAuthValid()) {
@@ -348,25 +351,41 @@ const AppContent = () => {
                   setInitialRoute("HomeScreen");
                 } else {
                   console.log("Server error and no valid cached auth, redirecting to AuthScreen");
-                  setInitialRoute("AuthScreen");
+                  setInitialRoute("HomeScreen");
                 }
               } else {
                 console.error("Error checking user details:", userDetailsError);
                 console.log("Redirecting to AuthScreen due to user details error");
-                setInitialRoute("AuthScreen");
+                setInitialRoute("HomeScreen");
               }
             }
           }
         } catch (tokenError) {
           console.error("Token validation error:", tokenError);
           console.log("Redirecting to AuthScreen due to token error");
-          setInitialRoute("AuthScreen");
+          setInitialRoute("HomeScreen");
         }
       } else {
-        console.log("No user, setting route to AuthScreen");
-        setInitialRoute("AuthScreen");
+        // No Firebase user. We no longer hard-gate on auth — let guests browse
+        // the app and we'll prompt for sign-in only at gated actions
+        // (CreateRide, Book, Profile). First-launch users still see the
+        // onboarding carousel; everyone else lands on Home.
+        try {
+          const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+          const seen = await AsyncStorage.getItem("hasSeenOnboarding");
+          if (seen === "true") {
+            console.log("No user, onboarding seen — HomeScreen (guest)");
+            setInitialRoute("HomeScreen");
+          } else {
+            console.log("No user, first run — OnboardingScreen");
+            setInitialRoute("OnboardingScreen");
+          }
+        } catch (e) {
+          console.log("Onboarding flag check failed, defaulting to OnboardingScreen", e);
+          setInitialRoute("OnboardingScreen");
+        }
       }
-      
+
       setLoading(false);
     });
     
@@ -406,7 +425,7 @@ const AppContent = () => {
                   setInitialRoute("HomeScreen");
                 } else {
                   console.log("Network timeout and no valid cached auth, redirecting to AuthScreen");
-                  setInitialRoute("AuthScreen");
+                  setInitialRoute("HomeScreen");
                 }
               } else if (userDetailsError.status >= 500) {
                 if (isCachedAuthValid()) {
@@ -414,21 +433,27 @@ const AppContent = () => {
                   setInitialRoute("HomeScreen");
                 } else {
                   console.log("Server error and no valid cached auth, redirecting to AuthScreen");
-                  setInitialRoute("AuthScreen");
+                  setInitialRoute("HomeScreen");
                 }
               } else {
                 console.error("Error checking user details:", userDetailsError);
                 console.log("Redirecting to AuthScreen due to user details error");
-                setInitialRoute("AuthScreen");
+                setInitialRoute("HomeScreen");
               }
             }
           } catch (tokenError: any) {
             console.error("Token refresh failed:", tokenError);
-            setInitialRoute("AuthScreen");
+            setInitialRoute("HomeScreen");
           }
         } else {
-          console.log("No current user found - redirecting to auth");
-          setInitialRoute("AuthScreen");
+          // Same guest-mode logic as above (timeout path).
+          try {
+            const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+            const seen = await AsyncStorage.getItem("hasSeenOnboarding");
+            setInitialRoute(seen === "true" ? "HomeScreen" : "OnboardingScreen");
+          } catch (e) {
+            setInitialRoute("OnboardingScreen");
+          }
         }
         setAuthStateResolved(true);
         setLoading(false);
@@ -522,13 +547,24 @@ const AppContent = () => {
   }
 
   const currentRouteName = getCurrentRouteName();
+  // Hide the nav on these flows. We check `initialRoute` in addition
+  // to `currentRouteName` so the bar doesn't flash in during the
+  // navigator's first render — when `getCurrentRoute()` is still
+  // returning the fallback and the state-change event hasn't fired
+  // yet.
+  const NAVBAR_HIDDEN_ROUTES = [
+    "OnboardingScreen",
+    "LocationPermissionScreen",
+    "AuthScreen",
+    "SignUpScreen",
+    "CreateRide",
+    "AvailableRidesSelectedScreen",
+    "ChatMessages",
+    "RideDetailsScreen",
+  ];
   const showNavBar =
-    currentRouteName !== "AuthScreen" && 
-    currentRouteName !== "SignUpScreen" && 
-    currentRouteName !== "CreateRide" && 
-    currentRouteName !== "AvailableRidesSelectedScreen" &&
-    currentRouteName !== "ChatMessages" &&
-    currentRouteName !== "RideDetailsScreen"
+    !NAVBAR_HIDDEN_ROUTES.includes(currentRouteName as string) &&
+    !NAVBAR_HIDDEN_ROUTES.includes(initialRoute as string);
   
   return (
     <View style={{ flex: 1 }}>
@@ -554,9 +590,19 @@ const AppContent = () => {
               options={{ headerShown: false }}
             />
             <Stack.Screen
+              name="OnboardingScreen"
+              component={OnboardingScreen}
+              options={{ headerShown: false, animation: "fade" }}
+            />
+            <Stack.Screen
+              name="LocationPermissionScreen"
+              component={LocationPermissionScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
               name="AuthScreen"
               component={AuthScreen}
-              options={{ headerShown: false }}
+              options={{ headerShown: false, presentation: "modal", animation: "slide_from_bottom" }}
             />
             <Stack.Screen
               name="SignInScreen"
@@ -597,6 +643,11 @@ const AppContent = () => {
             <Stack.Screen
               name="BookingScreen"
               component={BookingScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="NearbyRidesScreen"
+              component={require("./screens/NearbyRidesScreen/NearbyRidesScreen").default}
               options={{ headerShown: false }}
             />
             <Stack.Screen
@@ -708,6 +759,14 @@ const AppContent = () => {
                     setNavBarIcon(require("./assets/wallet.png"));
                     setNavBarItems(bottomNavItems);
                   }}
+                  // Close X — defers to a handler set by the active
+                  // screen (HomeScreen wires this up to clear its
+                  // From / To selection). Same `window`-bag pattern
+                  // already used for `mainNavBarOnPress` above.
+                  onClose={() => {
+                    const handler = (window as any).mainNavBarOnClose;
+                    if (typeof handler === "function") handler();
+                  }}
                 />
               ) : navBarVariant === 2 ? (
                 <MainNavBar
@@ -740,9 +799,11 @@ const App = () => {
         <StatusBar backgroundColor="#A8D8A8" barStyle="dark-content" />
         <ErrorProvider navigationRef={navigationRef}>
           <ApiProvider navigationRef={navigationRef}>
-            <LocationProvider>
-              <AppContent />
-            </LocationProvider>
+            <AuthGateProvider>
+              <LocationProvider>
+                <AppContent />
+              </LocationProvider>
+            </AuthGateProvider>
           </ApiProvider>
         </ErrorProvider>
       </GestureHandlerRootView>

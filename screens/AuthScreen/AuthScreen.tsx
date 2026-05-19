@@ -1,39 +1,59 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Image, Alert, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
+import {
+  View,
+  Text,
+  Image,
+  Alert,
+  TouchableOpacity,
+  ActivityIndicator,
+  Platform,
+  StatusBar,
+} from "react-native";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
-import { getAuth, GoogleAuthProvider, AppleAuthProvider, signInWithCredential } from "@react-native-firebase/auth";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  AppleAuthProvider,
+  signInWithCredential,
+} from "@react-native-firebase/auth";
 let appleAuth: any = null;
-if (Platform.OS === 'ios') {
+if (Platform.OS === "ios") {
   appleAuth = require("@invertase/react-native-apple-authentication").appleAuth;
 }
-import LottieView from 'lottie-react-native';
-import Svg, { Path } from 'react-native-svg';
+import LottieView from "lottie-react-native";
+import Svg, { Path } from "react-native-svg";
 import { AuthScreenProps } from "./AuthScreen.types";
 import styles from "./AuthScreen.styles";
 import { useApi } from "../../utils/ApiUtil";
+import AppColors from "../../design_systems/colors";
 
-const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
+const AuthScreen: React.FC<AuthScreenProps> = ({ navigation, route }) => {
   const { apiUtil } = useApi();
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const returnTo = route?.params?.returnTo;
+
+  const navigateAfterAuth = () => {
+    if (returnTo) {
+      navigation.replace(returnTo.screen as any, returnTo.params as any);
+    } else {
+      navigation.replace("HomeScreen");
+    }
+  };
 
   useEffect(() => {
     const checkExistingAuth = async () => {
       const auth = getAuth();
       const currentUser = auth.currentUser;
-      
+
       if (currentUser) {
-        console.log("AuthScreen: User already authenticated, checking backend");
         try {
           await currentUser.getIdToken(true);
           await apiUtil.get("/user/details");
-          navigation.replace("HomeScreen");
+          navigateAfterAuth();
         } catch (err: any) {
           if (err.response?.status === 404) {
-            console.log("AuthScreen: User not found in backend, signing out");
             await auth.signOut();
             await GoogleSignin.signOut();
-          } else {
-            console.log("AuthScreen: Backend check failed, but keeping auth:", err.response?.status);
           }
         }
       }
@@ -41,48 +61,43 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
     checkExistingAuth();
   }, [navigation, apiUtil]);
 
-  const handleGoogleSignIn = async () => {
-    if (isSigningIn) {
-      return;
-    }
-
-    setIsSigningIn(true);
-    
+  const routeAfterAuth = async () => {
     try {
-      await GoogleSignin.hasPlayServices({
-        showPlayServicesUpdateDialog: true,
-      });
-      
+      await apiUtil.get("/user/details");
+      navigateAfterAuth();
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        navigation.replace("SignUpScreen", {
+          newUser: err.response?.data?.newUser || null,
+          returnTo,
+        });
+      } else if (err.response?.status === 400) {
+        Alert.alert("Hmm, something's off", err.response?.data?.message || "Try that again in a moment.");
+      } else {
+        Alert.alert("Couldn't sign you in", err.message || "Try again in a moment.");
+      }
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (isSigningIn) return;
+    setIsSigningIn(true);
+
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
-      
       if (!idToken) {
         Alert.alert("Sign-In Failed", "Unable to complete sign-in. Please try again.");
         return;
       }
-      
       const googleCredential = GoogleAuthProvider.credential(idToken);
       await signInWithCredential(getAuth(), googleCredential);
-      
-      try {
-        await apiUtil.get("/user/details");
-        navigation.navigate("HomeScreen");
-      } catch (err: any) {
-        if (err.response?.status === 404 && err.response?.data?.newUser) {
-          navigation.navigate("SignUpScreen", {
-            newUser: err.response.data.newUser,
-          });
-        } else if (err.response?.status === 400) {
-          Alert.alert("Error", err.response?.data?.message || "Unknown error");
-        } else if (err.response?.status === 404) {
-          Alert.alert("Sign-Up Required", "User not found. Please sign up.");
-        } else {
-          Alert.alert("Sign-In Failed", err.message || "An unknown error occurred");
-        }
-      }
+      await routeAfterAuth();
     } catch (error: any) {
-      const message =
-        error instanceof Error ? error.message : "An unknown error occurred";
+      const code = error?.code;
+      if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
+      const message = error instanceof Error ? error.message : "An unknown error occurred";
       Alert.alert("Sign-In Failed", message);
     } finally {
       setIsSigningIn(false);
@@ -90,102 +105,130 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation }) => {
   };
 
   const handleAppleSignIn = async () => {
-    if (Platform.OS !== 'ios' || !appleAuth) {
-      Alert.alert("Error", "Apple Sign In is only available on iOS");
-      return;
-    }
-    
+    if (Platform.OS !== "ios" || !appleAuth) return;
+    if (isSigningIn) return;
+    setIsSigningIn(true);
+
     try {
-      const appleAuthRequestResponse = await appleAuth.performRequest({
+      const resp = await appleAuth.performRequest({
         requestedOperation: appleAuth.Operation.LOGIN,
         requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
       });
-  
-      if (!appleAuthRequestResponse.identityToken) {
-        throw new Error('Apple Sign-In failed - no identify token returned');
-      }
-  
-      const { identityToken, nonce } = appleAuthRequestResponse;
+
+      if (!resp.identityToken) throw new Error("Apple Sign-In failed - no identity token returned");
+      const { identityToken, nonce } = resp;
       const appleCredential = AppleAuthProvider.credential(identityToken, nonce);
-  
       await signInWithCredential(getAuth(), appleCredential);
-      
-      try {
-        await apiUtil.get("/user/details");
-        navigation.navigate("HomeScreen");
-      } catch (err: any) {
-        if (err.response?.status === 404 && err.response?.data?.newUser) {
-          navigation.navigate("SignUpScreen", { newUser: err.response.data.newUser });
-        } else if (err.response?.status === 400) {
-          Alert.alert("Error", err.response?.data?.message || "Unknown error");
-        } else if (err.response?.status === 404) {
-          Alert.alert("Sign-Up Required", "User not found. Please sign up.");
-        } else {
-          Alert.alert("Sign-In Failed", err.message || "An unknown error occurred");
-        }
-      }
+      await routeAfterAuth();
     } catch (error: any) {
-      if (error.code === 'ERR_REQUEST_CANCELED') {
-        return;
-      }
+      if (error.code === "ERR_REQUEST_CANCELED") return;
       const message = error instanceof Error ? error.message : "An unknown error occurred";
       Alert.alert("Apple Sign-In Failed", message);
+    } finally {
+      setIsSigningIn(false);
     }
   };
-  
+
+  const canGoBack = navigation.canGoBack();
+
   return (
     <View style={styles.container}>
-      <Text style={styles.greeting}>Hello!</Text>
-      <Text style={styles.subtext}>Welcome to UniPool</Text>
-      
-      <View style={styles.lottieContainer}>
-        <LottieView
-          source={require("../../assets/artboard.json")}
-          autoPlay
-          loop
-          style={styles.lottieAnimation}
-        />
-        <View style={styles.watermarkHide} />
+      <StatusBar barStyle="dark-content" backgroundColor={AppColors.primaryLightGreen} />
+      <View style={styles.topRow}>
+        {canGoBack ? (
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+              <Path d="M15 6 L 9 12 L 15 18" stroke={AppColors.secondaryDarkGreen} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
+        {/* Single forest "UniPool" wordmark. The previous lime
+            second-half ("Pool") was invisible against the lime
+            canvas behind it, so the header read as just "Uni". */}
+        <Text style={styles.wordmark}>UniPool</Text>
+        <View style={{ width: 40 }} />
       </View>
-      
-      <View>
-        <Text style={styles.label}>Authentication</Text>
-        <TouchableOpacity 
-          style={[styles.button, isSigningIn && styles.buttonDisabled]} 
-          onPress={handleGoogleSignIn}
-          disabled={isSigningIn}
-          activeOpacity={isSigningIn ? 1 : 0.7}
-        >
-          <View style={styles.googleIcon}>
-            {isSigningIn ? (
-              <ActivityIndicator size="small" color="#4285F4" />
-            ) : (
-              <Image
-                source={require("../../assets/google.png")}
-                style={{ width: 20, height: 20, resizeMode: "contain" }}
-              />
-            )}
-          </View>
-          <Text style={[styles.text, isSigningIn && styles.textDisabled]}>
-            {isSigningIn ? "Signing In..." : "Sign In with Google"}
-          </Text>
-        </TouchableOpacity>
-        
-        {Platform.OS === 'ios' && (
-          <TouchableOpacity 
-            style={[styles.button, isSigningIn && styles.buttonDisabled, { marginTop: 10 }]} 
-            onPress={handleAppleSignIn} 
-            disabled={isSigningIn}>
-              <View style={styles.googleIcon}>
-                <Svg width={20} height={20} viewBox="0 0 384 512" fill="#FFFFFF">
-                  <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
-                </Svg>
-              </View>
-              <Text style={styles.text}>Sign In with Apple</Text>
+
+      <View style={styles.heroBlock}>
+        <Text style={styles.greeting}>Welcome.</Text>
+        <Text style={styles.subtext}>Sign in to find a ride, share a seat, and split the fare with people taking your route.</Text>
+        <View style={styles.lottieContainer}>
+          <LottieView source={require("../../assets/artboard.json")} autoPlay loop style={styles.lottieAnimation} />
+          {/* Hide the Lottielab free-tier watermark stamped on the artboard. */}
+          <View style={styles.watermarkHide} pointerEvents="none" />
+        </View>
+      </View>
+
+      <View style={styles.authBlock}>
+        {/* No "CONTINUE WITH" label — the button labels already say
+            "Sign in with Apple / Google", so a separate eyebrow was
+            redundant chrome. */}
+
+        {Platform.OS === "ios" && (
+          <TouchableOpacity
+            style={[styles.button, styles.appleButton, isSigningIn && styles.buttonDisabled]}
+            onPress={handleAppleSignIn}
+            disabled={isSigningIn}
+            activeOpacity={0.85}
+          >
+            <View style={styles.iconWrap}>
+              {/* Apple HIG: white glyph on a black button. */}
+              <Svg width={18} height={20} viewBox="0 0 384 512" fill={AppColors.basicWhite}>
+                <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+              </Svg>
+            </View>
+            <Text style={styles.appleButtonText}>Sign in with Apple</Text>
           </TouchableOpacity>
         )}
+
+        <TouchableOpacity
+          style={[styles.button, styles.googleButton, isSigningIn && styles.buttonDisabled]}
+          onPress={handleGoogleSignIn}
+          disabled={isSigningIn}
+          activeOpacity={0.85}
+        >
+          <View style={styles.iconWrap}>
+            {isSigningIn ? (
+              <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} />
+            ) : (
+              // Google G — inline SVG with brand colors. PNG version
+              // we shipped earlier flattened to a single color and
+              // didn't read as the Google brand.
+              <Svg width={20} height={20} viewBox="0 0 24 24">
+                <Path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                <Path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                <Path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                <Path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+              </Svg>
+            )}
+          </View>
+          <Text style={styles.googleButtonText}>
+            {isSigningIn ? "Signing in…" : "Sign in with Google"}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            By continuing, you agree to UniPool's{" "}
+            <Text
+              style={styles.footerLink}
+              onPress={() => navigation.navigate("TermsOfServiceScreen")}
+            >
+              Terms
+            </Text>{" "}
+            and{" "}
+            <Text
+              style={styles.footerLink}
+              onPress={() => navigation.navigate("PrivacyPolicyScreen")}
+            >
+              Privacy Policy
+            </Text>
+            .
+          </Text>
+        </View>
       </View>
-      <Image source={require("../../assets/ramp.png")} style={styles.image} />
     </View>
   );
 };

@@ -1,6 +1,8 @@
 export type RootStackParamList = {
-  AuthScreen: undefined;
-  SignUpScreen: { newUser: any };
+  OnboardingScreen: undefined;
+  LocationPermissionScreen: { returnTo?: { screen: keyof RootStackParamList; params?: any } } | undefined;
+  AuthScreen: { returnTo?: { screen: keyof RootStackParamList; params?: any } } | undefined;
+  SignUpScreen: { newUser?: any; returnTo?: { screen: keyof RootStackParamList; params?: any } } | undefined;
   SignInScreen: undefined;
   SplashScreen: undefined;
   ErrorScreen: undefined;
@@ -32,6 +34,7 @@ export type RootStackParamList = {
   };
   TripsListScreen: undefined;
   RideDetailsScreen: { ride: any };
+  NearbyRidesScreen: undefined;
   PrivacyPolicyScreen: undefined;
   TermsOfServiceScreen: undefined;
 };

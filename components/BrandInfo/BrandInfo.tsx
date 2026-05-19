@@ -25,9 +25,11 @@ const BrandInfo: React.FC<BrandInfoProps> = ({ style }) => {
         />
         <View>
           <Text style={styles.locationText}>
-            {loading ? "Fetching location..." : locationText || "—"}
+            {loading ? "Locating you…" : locationText || "Unknown area"}
           </Text>
-          {pincode ? <Text style={styles.pincodeText}>{pincode}</Text> : null}
+          {/* Always reserve a slot for the pincode so the header row's
+              vertical position doesn't jump when the value arrives. */}
+          <Text style={styles.pincodeText}>{pincode || " "}</Text>
         </View>
       </View>
       <Text style={styles.brandText}>UniPool</Text>

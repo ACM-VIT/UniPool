@@ -173,18 +173,20 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: AppColors.basicWhite,
+    // Lime canvas footer — matches the rest of the lime/forest system so the
+    // bottom action row doesn't read as a white pop-up against the screen.
+    backgroundColor: AppColors.primaryLightGreen,
     paddingTop: 12,
     paddingBottom: 20,
     paddingHorizontal: 20,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    shadowColor: "#000",
+    shadowColor: AppColors.basicBlack,
     shadowOffset: {
       width: 0,
       height: -2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 5,
   },
@@ -220,55 +222,56 @@ const styles = StyleSheet.create({
     fontFamily: 'NunitoSans_600SemiBold',
   },
   rideCardWrapper: {
+    // The RideCard inside is already a forest tile with its own radius +
+    // shadow. The wrapper just needs spacing — no surface, no double-shadow.
     marginBottom: 16,
-    backgroundColor: AppColors.basicWhite,
     borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: "transparent",
   },
   rideEnhancements: {
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f5f5f5',
+    // Sub-row that lives *under* the forest RideCard on the lime canvas.
+    // Forest-tinted body text reads strongly on lime without a tile.
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginTop: -4,
+    marginBottom: 14,
   },
   relevanceContainer: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
   relevanceScore: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FF6B35',
-    fontFamily: 'NunitoSans_600SemiBold',
+    fontSize: 12,
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: 'NunitoSans_700Bold',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   matchReason: {
     fontSize: 12,
     color: AppColors.secondaryDarkGreen,
     fontFamily: 'NunitoSans_400Regular',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   distanceInfo: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
   },
   distanceText: {
     fontSize: 12,
     color: AppColors.secondaryDarkGreen,
-    fontFamily: 'NunitoSans_400Regular',
+    opacity: 0.7,
+    fontFamily: 'NunitoSans_600SemiBold',
   },
   hostInfo: {
     marginTop: 4,
   },
   hostName: {
-    fontSize: 12,
-    color: AppColors.basicBlack,
-    fontFamily: 'NunitoSans_500Medium',
+    fontSize: 13,
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: 'NunitoSans_700Bold',
+    letterSpacing: -0.1,
   },
   modalOverlay: {
     flex: 1,
@@ -276,7 +279,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   filterModal: {
-    backgroundColor: AppColors.basicWhite,
+    // Legacy filter modal. Kept forest dark so the unified style holds if
+    // the old modal is ever rendered. The active modal uses
+    // `filterModalContent` below.
+    backgroundColor: AppColors.secondaryDarkGreen,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '85%',
@@ -413,7 +419,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    // Lime hairline on forest — matches the rest of the modal system.
+    borderBottomColor: 'rgba(181,215,80,0.15)',
   },
   filterTitle: {
     fontSize: 20,
@@ -424,13 +431,13 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'rgba(181,215,80,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   closeButtonText: {
     fontSize: 18,
-    color: AppColors.secondaryDarkGreen,
+    color: AppColors.primaryLightGreen,
     fontWeight: '600',
   },
   filterContent: {
@@ -460,9 +467,9 @@ const styles = StyleSheet.create({
   },
   picker: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: 'rgba(181,215,80,0.20)',
     borderRadius: 8,
-    backgroundColor: '#fafafa',
+    backgroundColor: AppColors.basicBlack,
   },
   filterButtons: {
     flexDirection: 'row',
@@ -470,34 +477,45 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingBottom: 34,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: 'rgba(181,215,80,0.15)',
     gap: 12,
   },
   clearButton: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    // Lime-tint ghost button on the forest modal — same chip system as
+    // the rest of the surfaces.
+    backgroundColor: 'rgba(181,215,80,0.15)',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
   clearButtonText: {
-    color: AppColors.secondaryDarkGreen,
+    color: AppColors.primaryLightGreen,
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'NunitoSans_600SemiBold',
   },
   applyButton: {
     flex: 2,
-    backgroundColor: AppColors.secondaryDarkGreen,
+    // Inverse rule: on the forest modal, the primary CTA is lime with
+    // forest label — same pattern as RideCard's "Tap to view" / UpNextCard
+    // primary buttons.
+    backgroundColor: AppColors.primaryLightGreen,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 2,
   },
   applyButtonText: {
-    color: AppColors.basicWhite,
+    color: AppColors.secondaryDarkGreen,
     fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'NunitoSans_600SemiBold',
+    fontWeight: '700',
+    fontFamily: 'NunitoSans_800ExtraBold',
+    letterSpacing: 0.2,
   },
   
   // Original styles from the old stylesheet

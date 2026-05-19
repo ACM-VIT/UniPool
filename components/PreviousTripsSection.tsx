@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { View, Text, ScrollView, StyleSheet, Dimensions } from "react-native";
 import PreviousTripsCompressed from "../components/PreviousTripsCompressed";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootStackParamList';
 import { useApi } from "../utils/ApiUtil";
+import { useAuthGate } from "../contexts/AuthGate";
 import AppColors from "../design_systems/colors";
 import LoadingComponent from "./LoadingComponent";
+import PreviousTripsSkeleton from "./PreviousTripsSkeleton";
 
 interface UserRideData {
     ride_id: string;
@@ -30,17 +32,23 @@ const PreviousTripsSection: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const { apiUtil } = useApi();
+    const { isGuest } = useAuthGate();
     const screenWidth = Dimensions.get("window").width;
     const maxDots = 5;
 
-    const uniqueRidesMap = new Map<string, UserRideData>();
-    rideData.forEach((ride) => {
-        if (ride.ride_id && !uniqueRidesMap.has(ride.ride_id)) {
-            uniqueRidesMap.set(ride.ride_id, ride);
+    // Memoize the de-dupe + slice so re-renders driven by pagination dot
+    // taps (currentIndex changes) don't rebuild this work each time.
+    const { uniqueRides, displayedRides } = useMemo(() => {
+        const seen = new Map<string, UserRideData>();
+        for (const ride of rideData) {
+            if (ride.ride_id && !seen.has(ride.ride_id)) {
+                seen.set(ride.ride_id, ride);
+            }
         }
-    });
-    const uniqueRides = Array.from(uniqueRidesMap.values());
-    const displayedRides = uniqueRides.slice(Math.max(uniqueRides.length - 5, 0));
+        const unique = Array.from(seen.values());
+        const display = unique.slice(Math.max(unique.length - 5, 0));
+        return { uniqueRides: unique, displayedRides: display };
+    }, [rideData]);
 
     const fetchUserRides = async () => {
         try {
@@ -74,8 +82,14 @@ const PreviousTripsSection: React.FC = () => {
     };
 
     useEffect(() => {
+        // Guests have no rides — render the empty state without poking the API.
+        if (isGuest) {
+            setLoading(false);
+            setRideData([]);
+            return;
+        }
         fetchUserRides();
-    }, [apiUtil]);
+    }, [apiUtil, isGuest]);
 
     const handleScroll = (event: any) => {
         const contentOffset = event.nativeEvent.contentOffset.x;
@@ -140,20 +154,27 @@ const PreviousTripsSection: React.FC = () => {
     return (
         <View style={styles.section}>
             <View style={styles.yourTripsSection}>
-                <Text style={styles.sectionTitle}>Your Trips</Text>
+                <Text style={styles.sectionTitle}>
+                    {isGuest ? "Recent trips" : "Your trips"}
+                </Text>
             </View>
 
             {loading ? (
-                <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>Loading...</Text>
-                </View>
+                // Skeleton matches the loaded trip card geometry exactly so
+                // the section doesn't grow + push the rest of the sheet
+                // down when /user/rides resolves.
+                <PreviousTripsSkeleton />
             ) : error ? (
                 <View style={styles.errorContainer}>
                     <Text style={styles.errorText}>{error}</Text>
                 </View>
             ) : displayedRides.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>No trips found</Text>
+                    <Text style={styles.emptyText}>
+                        {isGuest
+                            ? "Sign in to see trips you've booked or posted."
+                            : "Book a seat or post a ride. It'll show up here."}
+                    </Text>
                 </View>
             ) : (
                 <>
@@ -198,10 +219,15 @@ const styles = StyleSheet.create({
     yourTripsSection: {
     },
     sectionTitle: {
-        paddingHorizontal:"2.5%",
-        fontSize: 20,
-        color: "#000",
-        fontFamily: "NunitoSans_400Regular",
+        // Matches the HomeScreen sectionTitle — sentence-case sub-
+        // header, calm weight, slight dim. Keeps the home sheet from
+        // having multiple competing ExtraBold blocks.
+        paddingHorizontal: "2.5%",
+        fontSize: 14,
+        color: AppColors.secondaryDarkGreen,
+        fontFamily: "NunitoSans_600SemiBold",
+        letterSpacing: -0.05,
+        opacity: 0.7,
     },
     tripContainer: {
         display: "flex",
@@ -216,15 +242,15 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     paginationDot: {
-        width: 4,
-        height: 4,
+        width: 5,
+        height: 5,
         borderRadius: 4,
-        backgroundColor: AppColors.basicWhite,
+        backgroundColor: "rgba(38,59,51,0.30)",
         marginHorizontal: 3,
     },
     paginationDotActive: {
         opacity: 1,
-        backgroundColor: AppColors.basicBlack,
+        backgroundColor: AppColors.secondaryDarkGreen,
     },
     loadingContainer: {
         width: "100%",
@@ -258,17 +284,24 @@ const styles = StyleSheet.create({
     },
     emptyContainer: {
         width: "100%",
+        // Forest card on the lime canvas — the same surface system that
+        // UpNextCard already nails. Bold dark slab on lime reads premium;
+        // washed cream tiles read cheap.
         backgroundColor: AppColors.secondaryDarkGreen,
-        borderRadius: 15,
+        borderRadius: 18,
         justifyContent: "center",
         alignItems: "center",
-        minHeight: 100,
+        paddingVertical: 28,
+        paddingHorizontal: 22,
+        minHeight: 110,
     },
     emptyText: {
-        fontSize: 16,
+        fontSize: 15,
+        lineHeight: 22,
         color: AppColors.primaryLightGreen,
         textAlign: "center",
-        fontFamily: "NunitoSans_400Regular",
+        fontFamily: "NunitoSans_700Bold",
+        letterSpacing: 0.1,
     },
 });
 

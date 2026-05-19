@@ -1,103 +1,162 @@
-import { StyleSheet, Dimensions } from "react-native";
+import { StyleSheet, Dimensions, Platform } from "react-native";
 import AppColors from "../../design_systems/colors";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    width: "100%",
     backgroundColor: AppColors.primaryLightGreen,
-    paddingHorizontal: screenWidth * 0.05,
-    paddingTop: screenHeight * 0.1,
+    paddingHorizontal: 28,
+    paddingTop: Platform.OS === "ios" ? 76 : 48,
+    paddingBottom: 0,
   },
-  greeting: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: AppColors.basicBlack,
-    marginBottom: 8,
-    fontFamily: "NunitoSans_700Bold",
-  },
-  subtext: {
-    fontSize: 22,
-    fontWeight: "600",
-    color: AppColors.secondaryDarkGreen,
-    marginBottom: screenHeight * 0.15,
-    fontFamily: "NunitoSans_600SemiBold",
-  },
-  lottieContainer: {
-    width: 200,
-    height: 200,
-    alignSelf: 'center',
-    marginTop: -100,
-    position: 'relative',
-  },
-  lottieAnimation: {
-    width: '120%',
-    height: '120%',
-  },
-  watermarkHide: {
-    position: 'absolute',
-    bottom: screenHeight * 0.002,
-    left: screenWidth * 0.44,
-    width: screenWidth * 0.17,
-    height: screenHeight * 0.02, 
-    backgroundColor: AppColors.primaryLightGreen,
-    zIndex: 10,
-  },
-  label: {
-    fontSize: 22,
-    fontWeight: "600",
-    color: AppColors.basicBlack,
-    marginTop: screenHeight * 0.05,
-    marginBottom: screenHeight * 0.015,
-    fontFamily: "NunitoSans_600SemiBold",
-    textAlign: 'left',
-  },
-  image: {
-    width: screenWidth * 0.9,
-    height: screenHeight * 0.3,
-    position: "absolute",
-    bottom: 0,
-    alignSelf: "center",
-  },
-  button: {
-    backgroundColor: AppColors.secondaryDarkGreen,
+  topRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
-    paddingVertical: 12,
-    paddingLeft: 24,
-    borderRadius: 14.452,
-    marginVertical: 12,
-    borderWidth: 1.5,
-    width: '90%',
-    alignSelf: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    justifyContent: "space-between",
   },
-  text: {
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: AppColors.cardSurfaceTinted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wordmark: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 20,
+    letterSpacing: -0.4,
+    color: AppColors.secondaryDarkGreen,
+  },
+  wordmarkPool: {
     color: AppColors.primaryLightGreen,
-    fontWeight: "600",
-    fontFamily: "NunitoSans_600SemiBold",
-    fontSize: 22,
-    marginLeft: 16,
   },
-  googleIcon: {
-    width: 24,
-    height: 24,
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+  heroBlock: {
+    flex: 1,
+    justifyContent: "center",
+    paddingTop: 32,
+  },
+  greeting: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 36,
+    lineHeight: 42,
+    letterSpacing: -0.8,
+    color: AppColors.secondaryDarkGreen,
+    marginBottom: 12,
+  },
+  subtext: {
+    fontFamily: "NunitoSans_400Regular",
+    fontSize: 17,
+    lineHeight: 24,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.65,
+    marginBottom: 8,
+  },
+  lottieContainer: {
+    height: height * 0.28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    overflow: "hidden",
+    position: "relative",
+  },
+  lottieAnimation: {
+    width: "120%",
+    height: "120%",
+  },
+  watermarkHide: {
+    // Lottielab tags free-tier exports with a tiny watermark in the
+    // bottom-right of the artboard. Patch sized to the badge — colour
+    // now matches the lime canvas behind it.
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 92,
+    height: 22,
+    backgroundColor: AppColors.primaryLightGreen,
+    zIndex: 5,
+  },
+  authBlock: {
+    // Forest dark anchor card at the bottom of the lime canvas. Bold,
+    // confident, and the auth buttons read crisp against deep dark.
+    // Two-tone brand: lime hero on top, forest base below.
+    backgroundColor: AppColors.secondaryDarkGreen,
+    marginHorizontal: -28,
+    paddingHorizontal: 28,
+    paddingTop: 30,
+    paddingBottom: Platform.OS === "ios" ? 44 : 30,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  button: {
+    height: 56,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  // Apple HIG-compliant: black surface with the white Apple glyph
+  // and white "Sign in with Apple" label. The previous lime variant
+  // had a white glyph on a lime surface (invisible) and is also
+  // off-spec for App Store review purposes.
+  appleButton: {
+    backgroundColor: "#000000",
+  },
+  appleButtonText: {
+    fontFamily: "NunitoSans_700Bold",
+    fontSize: 16,
+    color: AppColors.basicWhite,
+    marginLeft: 10,
+    letterSpacing: 0.2,
+  },
+  googleButton: {
+    // White button stays white — it's the Google-branded surface.
+    // Reads as the "secondary" option against the lime primary.
+    backgroundColor: AppColors.basicWhite,
+    borderWidth: 0,
+  },
+  googleButtonText: {
+    fontFamily: "NunitoSans_700Bold",
+    fontSize: 16,
+    color: AppColors.secondaryDarkGreen,
+    marginLeft: 10,
+    letterSpacing: 0.2,
+  },
+  iconWrap: {
+    width: 22,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.55,
   },
-  textDisabled: {
-    opacity: 0.7,
+  footer: {
+    paddingTop: 12,
+    paddingHorizontal: 8,
+  },
+  footerText: {
+    fontFamily: "NunitoSans_400Regular",
+    fontSize: 12,
+    lineHeight: 18,
+    color: AppColors.primaryLightGreen,
+    opacity: 0.55,
+    textAlign: "center",
+  },
+  footerLink: {
+    fontFamily: "NunitoSans_700Bold",
+    color: AppColors.primaryLightGreen,
+    opacity: 1,
+    textDecorationLine: "underline",
   },
 });
 

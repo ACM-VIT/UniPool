@@ -53,9 +53,6 @@ const PassengersHistoryScreen: React.FC = () => {
         </View>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <Text style={{ color: '#888', textAlign: 'center', marginTop: 12, fontSize: 14 }}>
-            Please check your connection or try again later.
-          </Text>
         </View>
       </View>
     );
@@ -78,31 +75,30 @@ const PassengersHistoryScreen: React.FC = () => {
           <Text style={styles.headerTitle}>Passengers History</Text>
         </View>
       </View>
-      <View style={styles.newSection}>
-        <View style={styles.menuContainer}>
-          {passengers.length === 0 ? (
-            <View style={{
-              minHeight: 120,
-              justifyContent: 'center',
-              alignItems: 'flex-start',
-              padding: 32,
-            }}>
-              <Text style={{ fontSize: 18, color: styles.headerTitle.color, textAlign: 'left', marginBottom: 12, fontWeight: '600', fontFamily: 'NunitoSans_600SemiBold' }}>
-                You haven't travelled with any passengers yet.
-              </Text>
-              <Text style={{ fontSize: 14, color: AppColors.secondaryDarkGreen, textAlign: 'left', fontFamily: 'NunitoSans_400Regular' }}>
-                Book a ride or join one to see passengers here!
-              </Text>
-            </View>
-          ) : (
+      {passengers.length === 0 ? (
+        // Title-only empty state, same shape the BookingScreen uses.
+        // No body help-text — the title is enough.
+        <View style={{ alignItems: 'center', paddingHorizontal: 28, paddingTop: 36 }}>
+          <Text style={{
+            fontFamily: 'NunitoSans_800ExtraBold',
+            fontSize: 22,
+            color: AppColors.secondaryDarkGreen,
+            letterSpacing: -0.4,
+          }}>
+            No co-riders yet
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.newSection}>
+          <View style={styles.menuContainer}>
             <FlatList
               data={passengers}
               keyExtractor={(item) => item.id}
               renderItem={renderPassenger}
             />
-          )}
+          </View>
         </View>
-      </View>
+      )}
     </View>
   );
 };

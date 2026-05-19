@@ -1,202 +1,186 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   SafeAreaView,
   View,
   Platform,
   KeyboardAvoidingView,
-  Image,
   Alert,
   TouchableOpacity,
   Text,
   ScrollView,
+  TextInput,
+  StatusBar,
 } from "react-native";
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 import { SignUpScreenProps } from "./SignUpScreen.types";
-import HeaderText from "../../components/HeaderText";
-import CustomInput from "../../components/CustomInput";
-import GenderSelector from "../../components/GenderSelector";
 import { useApi } from "../../utils/ApiUtil";
 import styles from "./SignUpScreen.styles";
+import AppColors from "../../design_systems/colors";
+
+type FieldKey = "phone" | "yob" | null;
 
 const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
   const { apiUtil } = useApi();
   const insets = useSafeAreaInsets();
-  const newUser = route?.params?.newUser;
+  const returnTo = route?.params?.returnTo;
 
   const [contactNumber, setContactNumber] = useState("");
   const [yob, setYob] = useState("");
   const [gender, setGender] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [focused, setFocused] = useState<FieldKey>(null);
 
-  const validateForm = () => {
-    if (!contactNumber.trim()) {
-      Alert.alert("Missing Information", "Please enter your contact number.");
-      return false;
-    }
-    
-    const phoneRegex = /^\d{10}$/;
-    if (!phoneRegex.test(contactNumber)) {
-      Alert.alert("Invalid Phone Number", "Please enter a valid 10-digit phone number (numbers only, no spaces or symbols).");
-      return false;
-    }
-
-    if (!yob.trim()) {
-      Alert.alert("Missing Information", "Please enter your year of birth.");
-      return false;
-    }
-
-    const yobNum = parseInt(yob, 10);
-    const currentYear = new Date().getFullYear();
-    if (yobNum < 1900 || yobNum > currentYear || isNaN(yobNum)) {
-      Alert.alert("Invalid Year of Birth", "Please enter a valid year of birth.");
-      return false;
-    }
-
-    if (!gender) {
-      Alert.alert("Missing Information", "Please select your gender.");
-      return false;
-    }
-
+  const isValid = useMemo(() => {
+    if (!/^\d{10}$/.test(contactNumber)) return false;
+    const yn = parseInt(yob, 10);
+    if (isNaN(yn) || yn < 1900 || yn > new Date().getFullYear()) return false;
+    if (!gender) return false;
     return true;
-  };
+  }, [contactNumber, yob, gender]);
 
   const handleProfileCompletion = async () => {
-    if (!validateForm() || loading) return;
-
+    if (!isValid || loading) return;
     try {
       setLoading(true);
-      console.log("Completing profile with data:", { contactNumber, yob, gender });
-      
       const yobNum = parseInt(yob, 10);
-      
-      // Complete the user profile
-      const response = await apiUtil.post("/user", {
+      await apiUtil.post("/user", {
         contact_number: contactNumber,
         gender,
         yob: yobNum,
       });
-      
-      console.log("Profile completion successful:", response);
-      console.log("Navigating to HomeScreen");
-      
-      // Navigate to HomeScreen after successful profile completion
       navigation.reset({
         index: 0,
-        routes: [{ name: 'HomeScreen' }],
+        routes: [{ name: "LocationPermissionScreen", params: { returnTo } }],
       });
-      
     } catch (error: any) {
-      console.error("Profile completion error:", error);
       setLoading(false);
-      
-      // Handle specific error cases
       if (error?.message === "AUTHENTICATION_REDIRECT") {
-        console.log("Authentication redirect during signup - user may need to sign in again");
-        Alert.alert(
-          "Authentication Issue", 
-          "Please try signing in again.", 
-          [
-            {
-              text: "OK",
-              onPress: () => navigation.reset({
-                index: 0,
-                routes: [{ name: 'AuthScreen' }],
-              })
-            }
-          ]
-        );
+        Alert.alert("Let's get you back in", "Sign in again to continue.", [
+          { text: "OK", onPress: () => navigation.reset({ index: 0, routes: [{ name: "AuthScreen", params: { returnTo } }] }) },
+        ]);
         return;
       }
-      
-      // Handle user already exists error
-      if (error?.response?.status === 409 || 
-          (error?.response?.data?.message && error.response.data.message.includes("already exists"))) {
-        console.log("User already exists, navigating to HomeScreen");
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'HomeScreen' }],
-        });
+      if (
+        error?.response?.status === 409 ||
+        (error?.response?.data?.message && error.response.data.message.includes("already exists"))
+      ) {
+        navigation.reset({ index: 0, routes: [{ name: "LocationPermissionScreen", params: { returnTo } }] });
         return;
       }
-      
-      // Handle other errors
-      const errorMessage = error?.response?.data?.message || 
-        error?.message || 
-        "An unknown error occurred while completing your profile";
-      
-      Alert.alert("Profile Completion Failed", errorMessage);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Something went wrong while saving your profile. Try again?";
+      Alert.alert("Couldn't save your profile", errorMessage);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={AppColors.primaryLightGreen} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        <ScrollView 
+        <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={[
-            styles.scrollContentContainer,
-            { paddingBottom: Math.max(insets.bottom + 30, 50) }
-          ]}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          bounces={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.contentContainer}>
-            <View style={{ flex: 1 }}>
-              <HeaderText>
-                To make it easier for us to find you a ride, please provide us with the
-                following information:
-              </HeaderText>
-              <HeaderText>Contact Number</HeaderText>
-              <CustomInput
-                placeholder="Do not prefix with 0"
-                value={contactNumber}
-                onChangeText={setContactNumber}
-                keyboardType="numeric"
-                maxLength={10}
-              />
-              <HeaderText>Year of Birth</HeaderText>
-              <CustomInput
-                placeholder="YYYY"
-                value={yob}
-                onChangeText={setYob}
-                keyboardType="numeric"
-                maxLength={4}
-              />
-              <HeaderText>Gender</HeaderText>
-              <View style={styles.genderContainer}>
-                <GenderSelector value={gender} onChange={setGender} />
-              </View>
-            </View>
-
+          <View style={styles.topRow}>
             <TouchableOpacity
-              style={[
-                styles.completeButton,
-                (!contactNumber.trim() || !yob.trim() || !gender || loading) && styles.completeButtonDisabled
-              ]}
-              onPress={handleProfileCompletion}
-              disabled={!contactNumber.trim() || !yob.trim() || !gender || loading}
-              activeOpacity={0.8}
+              style={styles.backBtn}
+              onPress={() => (navigation.canGoBack() ? navigation.goBack() : null)}
+              activeOpacity={0.7}
             >
-              <Text style={[
-                styles.completeButtonText,
-                (!contactNumber.trim() || !yob.trim() || !gender || loading) && styles.completeButtonTextDisabled
-              ]}>
-                {loading ? "Completing Profile..." : "Complete Profile"}
-              </Text>
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                <Path d="M15 6 L 9 12 L 15 18" stroke={AppColors.secondaryDarkGreen} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
             </TouchableOpacity>
+            <View style={styles.stepPill}>
+              <Text style={styles.stepPillText}>STEP 2 of 2</Text>
+            </View>
+            <View style={{ width: 40 }} />
           </View>
+
+          <View style={styles.heroBlock}>
+            <Text style={styles.headline}>One last thing.</Text>
+            <Text style={styles.subhead}>
+              We need a few details so drivers can reach you and we can keep the community safe.
+            </Text>
+          </View>
+
+          <Text style={styles.fieldLabel}>Phone number</Text>
+          <View style={[styles.inputWrap, focused === "phone" && styles.inputWrapFocused]}>
+            <Text style={styles.prefix}>+91</Text>
+            <TextInput
+              style={styles.input}
+              value={contactNumber}
+              onChangeText={(t) => setContactNumber(t.replace(/[^\d]/g, ""))}
+              keyboardType="number-pad"
+              maxLength={10}
+              placeholder="98765 43210"
+              placeholderTextColor="rgba(38,59,51,0.30)"
+              onFocus={() => setFocused("phone")}
+              onBlur={() => setFocused(null)}
+            />
+          </View>
+          <Text style={styles.helper}>10-digit Indian number. Shared only with co-riders you book with.</Text>
+
+          <Text style={styles.fieldLabel}>Year of birth</Text>
+          <View style={[styles.inputWrap, focused === "yob" && styles.inputWrapFocused]}>
+            <TextInput
+              style={styles.input}
+              value={yob}
+              onChangeText={(t) => setYob(t.replace(/[^\d]/g, ""))}
+              keyboardType="number-pad"
+              maxLength={4}
+              placeholder="YYYY"
+              placeholderTextColor="rgba(38,59,51,0.30)"
+              onFocus={() => setFocused("yob")}
+              onBlur={() => setFocused(null)}
+            />
+          </View>
+
+          <Text style={styles.fieldLabel}>Gender</Text>
+          <View style={styles.genderRow}>
+            {["Male", "Female"].map((g) => {
+              const selected = gender === g;
+              return (
+                <TouchableOpacity
+                  key={g}
+                  style={[styles.genderChip, selected && styles.genderChipSelected]}
+                  activeOpacity={0.8}
+                  onPress={() => setGender(g)}
+                >
+                  <Text style={[styles.genderChipText, selected && styles.genderChipTextSelected]}>{g}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={{ height: 32 }} />
         </ScrollView>
+
+        <View style={styles.ctaWrap}>
+          <TouchableOpacity
+            style={[styles.primaryBtn, (!isValid || loading) && styles.primaryBtnDisabled]}
+            onPress={handleProfileCompletion}
+            disabled={!isValid || loading}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryBtnText}>
+              {loading ? "Setting up…" : "Complete profile"}
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.privacyNote}>
+            We never share your data without your permission.
+          </Text>
+        </View>
       </KeyboardAvoidingView>
-      <Image
-        source={require("../../assets/Warning2.png")}
-        style={styles.bottomIcon}
-        resizeMode="contain"
-      />
     </SafeAreaView>
   );
 };
