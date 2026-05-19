@@ -33,6 +33,10 @@ export type EmptyStateProps = {
   /** Tighten vertical padding on smaller surfaces (e.g. when the
    *  state lives inside a card rather than full-screen). */
   compact?: boolean;
+  /** When true, the content sits in the upper portion of the
+   *  available space instead of vertical-centering. Use this when
+   *  there's decoration below (e.g. the BookingScreen airplane). */
+  topAlign?: boolean;
 };
 
 const EmptyState: React.FC<EmptyStateProps> = ({
@@ -43,9 +47,16 @@ const EmptyState: React.FC<EmptyStateProps> = ({
   onPressCta,
   imageSize = 160,
   compact = false,
+  topAlign = false,
 }) => {
   return (
-    <View style={[styles.wrap, compact && styles.wrapCompact]}>
+    <View
+      style={[
+        styles.wrap,
+        compact && styles.wrapCompact,
+        topAlign && styles.wrapTopAlign,
+      ]}
+    >
       {image ? (
         <Image
           source={image}
@@ -81,6 +92,14 @@ const styles = StyleSheet.create({
     flex: 0,
     paddingTop: 32,
     paddingBottom: 24,
+  },
+  // Anchor content to the upper portion of the available space so
+  // anything decorative below (e.g. the BookingScreen airplane) has
+  // breathing room. Use this when there's something behind / below
+  // the empty state that needs to stay visible.
+  wrapTopAlign: {
+    justifyContent: "flex-start",
+    paddingTop: 56,
   },
   title: {
     fontFamily: "NunitoSans_800ExtraBold",
