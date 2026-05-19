@@ -16,7 +16,7 @@ import ChevronBack from "../components/ChevronBack";
 import RideCard from "../components/RideCard";
 import UpNextCard from "../components/UpNextCard";
 import AppColors from "../design_systems/colors";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "../navigation/router-compat";
 import LoadingComponent from "../components/LoadingComponent";
 
 interface RawRide {

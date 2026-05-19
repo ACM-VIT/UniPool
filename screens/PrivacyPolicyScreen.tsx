@@ -9,7 +9,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from '../navigation/router-compat';
 import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
 import AppColors from '../design_systems/colors';

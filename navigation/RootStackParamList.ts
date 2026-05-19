@@ -33,7 +33,7 @@ export type RootStackParamList = {
     isGroupChat: boolean;
   };
   TripsListScreen: undefined;
-  RideDetailsScreen: { ride: any };
+  RideDetailsScreen: { ride?: any; rideId?: string };
   NearbyRidesScreen: undefined;
   PrivacyPolicyScreen: undefined;
   TermsOfServiceScreen: undefined;

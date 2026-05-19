@@ -12,7 +12,7 @@ import {
   Dimensions,
 } from "react-native";
 import * as Location from "expo-location";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "../../navigation/router-compat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../../design_systems/colors";
 import baseURL from "../../config/urlconfig";

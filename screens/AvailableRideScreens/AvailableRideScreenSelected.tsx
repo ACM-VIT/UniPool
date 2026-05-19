@@ -5,7 +5,7 @@ import * as Location from 'expo-location';
 
 const { width, height } = Dimensions.get("window");
 
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from '../../navigation/router-compat';
 import ChevronBack from '../../components/ChevronBack/ChevronBack';
 import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
 import BrandInfo from '../../components/BrandInfo/BrandInfo';
@@ -530,8 +530,11 @@ const AvailableRideScreenSelected: React.FC<AvailableRideScreenSelectedProps> = 
   useEffect(() => {
     if (!ride?.id) return;
     if (viewerState !== "pending_passenger" && viewerState !== "rejected_passenger") return;
-    (nav as any).replace?.("RideDetailsScreen", { rideId: ride.id })
-      ?? (nav as any).navigate("RideDetailsScreen", { rideId: ride.id });
+    if (typeof (nav as any).replace === "function") {
+      (nav as any).replace("RideDetailsScreen", { rideId: ride.id });
+    } else {
+      (nav as any).navigate("RideDetailsScreen", { rideId: ride.id });
+    }
   }, [viewerState, ride?.id]);
 
   useEffect(() => {

@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import {
   NavigationState,
-} from "@react-navigation/native";
+} from "../navigation/router-compat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { navigationRef } from "../navigation/navigationRef";
 import AppColors from "../design_systems/colors";

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from '../navigation/router-compat';
 
 export interface ErrorState {
   hasError: boolean;

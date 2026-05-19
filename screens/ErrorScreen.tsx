@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   Dimensions,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "../navigation/router-compat";
 import AppColors from "../design_systems/colors";
 
 const win = Dimensions.get("window");

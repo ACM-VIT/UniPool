@@ -1,6 +1,6 @@
 import React from "react";
 import { TouchableOpacity, Image } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "../../navigation/router-compat";
 import styles from "./ChevronBack.styles";
 import { ChevronBackProps } from "./ChevronBack.types";
 

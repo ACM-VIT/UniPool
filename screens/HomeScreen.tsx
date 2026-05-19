@@ -4,8 +4,8 @@ import navigationImg from "../assets/navigation.png";
 import locationPinImg from "../assets/location-pin-2.png";
 import MapView, { Marker, Polyline, Circle, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
-import { useNavigation, useIsFocused } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useNavigation, useIsFocused } from "../navigation/router-compat";
+import { NativeStackNavigationProp } from "../navigation/router-compat";
 
 import { useApi } from "../utils/ApiUtil";
 import baseURL from "../config/urlconfig";

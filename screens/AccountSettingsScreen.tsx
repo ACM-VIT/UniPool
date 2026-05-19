@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-na
 import styles from './ProfileScreen/ProfileScreen.styles';
 import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from '../navigation/router-compat';
 import { useApi } from '../utils/ApiUtil';
 import BrandedAlert from "../components/BrandedAlert";
 
