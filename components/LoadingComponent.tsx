@@ -41,7 +41,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     // Translucent lime overlay so the screen behind hints through but
     // the brand colour still wins.
     backgroundColor: "rgba(181,215,80,0.94)",

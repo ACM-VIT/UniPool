@@ -108,9 +108,11 @@ const PressableScale: React.FC<PressableScaleProps> = ({
 
   return (
     <Pressable {...rest} onPressIn={handlePressIn} onPressOut={handlePressOut}>
-      <Animated.View style={[style, { transform: [{ scale }] }]}>
-        {children}
-      </Animated.View>
+      {(state) => (
+        <Animated.View style={[style, { transform: [{ scale }] }]}>
+          {typeof children === "function" ? children(state) : children}
+        </Animated.View>
+      )}
     </Pressable>
   );
 };

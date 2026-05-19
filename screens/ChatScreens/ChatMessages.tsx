@@ -64,6 +64,11 @@ interface RideDetails {
   isUserHost?: boolean;
 }
 
+type ChatRow =
+  | { kind: 'msg'; message: ChatMessage; id: string }
+  | { kind: 'sep'; label: string; id: string }
+  | { kind: 'safety'; id: string };
+
 const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
   navigation,
   route,
@@ -111,7 +116,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
   const wsRef = useRef<WebSocket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const flatListRef = useRef<FlatList<ChatMessage> | null>(null);
+  const flatListRef = useRef<FlatList<ChatRow> | null>(null);
 
   type ChatRouteParams = {
     chatId?: string;
@@ -735,13 +740,8 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
    * messages that span a calendar-day boundary. Returns a tagged list
    * the FlatList can render through a discriminated `renderItem`.
    */
-  type Row =
-    | { kind: 'msg'; message: ChatMessage; id: string }
-    | { kind: 'sep'; label: string; id: string }
-    | { kind: 'safety'; id: string };
-
-  const buildRows = (msgs: ChatMessage[]): Row[] => {
-    const rows: Row[] = [];
+  const buildRows = (msgs: ChatMessage[]): ChatRow[] => {
+    const rows: ChatRow[] = [];
     // Pin the safety notice as the very first row in the conversation.
     // Lives inside the FlatList so it scrolls away with the chat
     // instead of permanently parking under the header.

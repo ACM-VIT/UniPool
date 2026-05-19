@@ -7,7 +7,7 @@ podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties
 ENV['RCT_NEW_ARCH_ENABLED'] = '0' if podfile_properties['newArchEnabled'] == 'false'
 ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] = podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
 
-platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
+platform :ios, podfile_properties['ios.deploymentTarget'] || '16.4'
 install! 'cocoapods',
   :deterministic_uuids => false
 
@@ -30,7 +30,8 @@ target 'UniPool' do
   end
 
 # @generated begin react-native-maps - expo prebuild (DO NOT MODIFY) sync-e9cc66c360abe50bc66d89fffb3c55b034d7d369
-  pod 'react-native-google-maps', path: File.dirname(`node --print "require.resolve('react-native-maps/package.json')"`)
+  rn_maps_path = File.dirname(`node --print "require.resolve('react-native-maps/package.json')"`)
+  pod 'react-native-maps/Google', :path => rn_maps_path
 # @generated end react-native-maps
   config = use_native_modules!(config_command)
 
@@ -63,6 +64,41 @@ target 'UniPool' do
         '#elif defined(__apple_build_version__)'
       )
       File.write(fmt_base, patched) unless src == patched
+    end
+
+    # Generated codegen headers are imported through both <react/...> and
+    # <ReactCodegen/...>. With static frameworks, CocoaPods does not expose
+    # these generated roots early enough for every target that needs them.
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = podfile_properties['ios.deploymentTarget'] || '16.4'
+
+        paths = Array(config.build_settings['HEADER_SEARCH_PATHS'])
+
+        if ['ReactCodegen', 'react-native-safe-area-context'].include?(target.name)
+          generated_codegen_path = '"${PODS_ROOT}/../build/generated/ios/ReactCodegen"'
+          paths << generated_codegen_path unless paths.include?(generated_codegen_path)
+        end
+
+        if ['ReactCodegen', 'ReactAppDependencyProvider'].include?(target.name)
+          generated_ios_path = '"${PODS_ROOT}/../build/generated/ios"'
+          paths << generated_ios_path unless paths.include?(generated_ios_path)
+        end
+
+        config.build_settings['HEADER_SEARCH_PATHS'] = paths
+
+        if target.name == 'ReactCodegen'
+          flags = Array(config.build_settings['OTHER_CFLAGS'])
+          generated_codegen_include = '-I"${PODS_ROOT}/../build/generated/ios/ReactCodegen"'
+          flags.unshift(generated_codegen_include) unless flags.include?(generated_codegen_include)
+          flags << '$(inherited)' unless flags.include?('$(inherited)')
+          config.build_settings['OTHER_CFLAGS'] = flags
+        end
+
+        if ['RNFBApp', 'RNFBAuth'].include?(target.name)
+          config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        end
+      end
     end
 
     # This is necessary for Xcode 14, because it signs resource bundles by default

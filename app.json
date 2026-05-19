@@ -6,9 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon2.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
-    "statusBarStyle": "dark",
-    "statusBarBackgroundColor": "#B5D750",
 
 
     "ios": {
@@ -16,7 +13,6 @@
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.carpoolitapp",
-      "statusBarStyle": "dark",
       "config": {
         "googleMapsApiKey": "$GOOGLE_MAPS_API_KEY_IOS"
       }
@@ -24,14 +20,11 @@
 
     "android": {
       "googleServicesFile": "./google-services.json",
-      "edgeToEdgeEnabled": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon2.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.carpoolitapp",
-      "statusBarStyle": "dark",
-      "statusBarBackgroundColor": "#B5D750",
       "config": {
         "googleMaps": {
           "apiKey": "$GOOGLE_MAPS_API_KEY_ANDROID"

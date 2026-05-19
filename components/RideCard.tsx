@@ -50,6 +50,8 @@ interface RideCardProps {
   pricePerPerson?: boolean;
   variant?: "upcoming" | "inprogress";
   date?: string;
+  status?: string;
+  matchReason?: string;
   /**
    * Booking is awaiting the host's accept/reject. Card dims slightly
    * and surfaces a "Waiting for host approval" pill so the user knows

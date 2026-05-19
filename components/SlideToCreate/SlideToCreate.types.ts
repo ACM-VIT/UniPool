@@ -23,3 +23,5 @@ export interface UniversalSliderProps {
   textColor?: string;
   iconTintColor?: string;
 }
+
+export type SlideToCreateProps = UniversalSliderProps;
