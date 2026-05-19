@@ -47,6 +47,7 @@ type ChatRoom = {
   host_user_id: string;
   host_user_name: string;
   host_profile_picture_url?: string;
+  host_is_verified?: boolean;
   viewer_role:
     | "host"
     | "confirmed_passenger"

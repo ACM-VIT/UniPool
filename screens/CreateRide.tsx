@@ -106,6 +106,10 @@ const CreateRide: React.FC = () => {
   const [isEditingCost, setIsEditingCost] = useState<boolean>(false);
   const [customCost, setCustomCost] = useState<string>("");
   const costInputRef = useRef<TextInput>(null);
+  // Optional vehicle description — surfaced to accepted passengers
+  // at pickup so they can find the right car. Free-form, e.g.
+  // "Black Honda City, plate ends 4321".
+  const [vehicleInfo, setVehicleInfo] = useState<string>("");
 
   // Animation states
   const [currentVehicleImage, setCurrentVehicleImage] = useState(require("../assets/Taxi.png"));
@@ -154,6 +158,7 @@ const CreateRide: React.FC = () => {
         start_longitude: fromCoordinates?.longitude || null,
         end_latitude: toCoordinates?.latitude || null,
         end_longitude: toCoordinates?.longitude || null,
+        vehicle_info: vehicleInfo.trim(),
       };
       console.log("Creating ride with data:", rideData);
 
@@ -438,6 +443,27 @@ const CreateRide: React.FC = () => {
           </TouchableOpacity>
         </View>
 
+        {/* Vehicle ID for pickup — only visible to confirmed
+            passengers (the server gates the field). Optional, but
+            strongly nudged: "Black Honda City, plate ends 4321"
+            cuts the wrong-car-at-pickup risk to ~zero. */}
+        <Text style={styles.label}>What to look for at pickup</Text>
+        <View style={styles.vehicleInfoInputWrap}>
+          <TextInput
+            value={vehicleInfo}
+            onChangeText={setVehicleInfo}
+            placeholder="e.g. Black Honda City, plate ends 4321"
+            placeholderTextColor="rgba(255,255,255,0.45)"
+            style={styles.vehicleInfoInput}
+            maxLength={200}
+            multiline
+            numberOfLines={2}
+          />
+        </View>
+        <Text style={styles.fieldHint}>
+          Optional, but accepted passengers see this so they can find the right vehicle.
+        </Text>
+
         <Animated.View
           style={[
             styles.vehicleImageContainer,
@@ -607,6 +633,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     fontFamily: "NunitoSans_600SemiBold",
+  },
+  // Vehicle-ID input — forest dark card matching the other inputs
+  // on this form, multi-line so longer descriptions fit cleanly.
+  vehicleInfoInputWrap: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  vehicleInfoInput: {
+    color: AppColors.basicWhite,
+    fontFamily: "NunitoSans_700Bold",
+    fontSize: 14.5,
+    lineHeight: 20,
+    letterSpacing: -0.1,
+    minHeight: 44,
+    textAlignVertical: "top",
   },
   passengerImage: {
     width: 170,
