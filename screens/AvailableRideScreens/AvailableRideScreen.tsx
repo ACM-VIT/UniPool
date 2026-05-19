@@ -12,7 +12,7 @@ import { useApi } from "../../utils/ApiUtil";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import styles from "./AvailableRideScreens.styles";
 import BrandedAlert from "../../components/BrandedAlert";
-import { useDecodedLocalSearchParams } from "../../navigation/routes";
+import { appHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 
 interface AvailableRideScreenProps {
   setNavBarVariant: (variant: 0 | 1 | 2) => void;
@@ -250,9 +250,9 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const handleRideSelection = (rideId: string) => {
     const selectedRide = rides.find(ride => ride.id === rideId);
     if (selectedRide) {
-      (navigation as any).navigate("AvailableRidesSelectedScreen", { 
-        ride: selectedRide 
-      });
+      router.navigate(appHref("AvailableRidesSelectedScreen", {
+        ride: selectedRide,
+      } as any));
     } else {
       setSelectedRideId((prev) => (prev === rideId ? null : rideId));
     }
@@ -563,7 +563,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         <View style={styles.ridesHeaderRight}>
           <TouchableOpacity
             style={styles.createRideButton}
-            onPress={() => (navigation as any).navigate("CreateRide")}
+            onPress={() => router.navigate(appHref("CreateRide"))}
           >
             <Text style={styles.createRideButtonText}>Create Ride</Text>
           </TouchableOpacity>
@@ -605,7 +605,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.adjustFiltersButton, { backgroundColor: 'rgba(38,59,51,0.10)' }]}
-                  onPress={() => (navigation as any).navigate("CreateRide")}
+                  onPress={() => router.navigate(appHref("CreateRide"))}
                 >
                   <Text style={[styles.adjustFiltersButtonText, { color: require('../../design_systems/colors').default.secondaryDarkGreen, fontFamily: 'NunitoSans_800ExtraBold' }]}>Post a ride</Text>
                 </TouchableOpacity>

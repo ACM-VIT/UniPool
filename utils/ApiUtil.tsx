@@ -203,10 +203,9 @@ export default class ApiUtil {
       
       try {
         if (!responseText.trim()) {
-          // For DELETE requests, an empty response might be acceptable
-          if (method === 'DELETE' && response.ok) {
-            console.log("DELETE request returned empty response but was successful (200/204)");
-            return {} as T; // Return empty object for successful DELETE with no content
+          if (response.ok) {
+            console.log(`${method} ${url} returned an empty successful response`);
+            return {} as T;
           }
           throw new Error("Empty response");
         }
@@ -227,9 +226,8 @@ export default class ApiUtil {
         console.error("JSON Parse Error:", parseError);
         console.error("Raw response text:", responseText.substring(0, 200));
         
-        // For DELETE requests that return empty content but are successful, don't treat as error
-        if (method === 'DELETE' && response.ok && !responseText.trim()) {
-          console.log("DELETE request had empty response but was successful - treating as success");
+        if (response.ok && !responseText.trim()) {
+          console.log(`${method} ${url} had an empty successful response - treating as success`);
           return {} as T;
         }
         

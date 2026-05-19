@@ -882,6 +882,7 @@ const customMapStyle = [
   };
 
   const isMapLoaded = location && mapRegion && hasPermission;
+  const shouldRenderMap = Boolean(isFocused && isMapLoaded);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -890,7 +891,7 @@ const customMapStyle = [
       </View>
 
       <View style={styles.mapContainer}>
-        {isMapLoaded ? (
+        {shouldRenderMap ? (
           <>
           <MapView
             ref={mapRef}
@@ -898,8 +899,8 @@ const customMapStyle = [
             style={styles.map}
             initialRegion={initialRegion}
             region={mapRegion}
-            showsUserLocation={true}
-            showsMyLocationButton={true}
+            showsUserLocation={isFocused}
+            showsMyLocationButton={isFocused}
             toolbarEnabled={false}
             customMapStyle={customMapStyle}
             onMapReady={() => console.log("Map ready")}
