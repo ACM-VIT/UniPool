@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  TextInput,
-  Alert,
-  Image,
-  Dimensions,
-} from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions } from "react-native";
 import { useNavigation, useIsFocused, useRoute } from "@react-navigation/native";
 
 import BrandInfo from "../../components/BrandInfo";
@@ -21,6 +11,7 @@ import SearchingForRidesLoader from "../../components/SearchingForRidesLoader";
 import { useApi } from "../../utils/ApiUtil";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import styles from "./AvailableRideScreens.styles";
+import BrandedAlert from "../../components/BrandedAlert";
 
 interface AvailableRideScreenProps {
   setNavBarVariant: (variant: 0 | 1 | 2) => void;
@@ -222,7 +213,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         console.error("API error:", err);
         setRides([]);
         setSearchMeta(null);
-        Alert.alert("Error", "Failed to fetch rides. Please try again.");
+        BrandedAlert.alert("Error", "Failed to fetch rides. Please try again.");
       })
       .finally(() => setLoading(false));
   };

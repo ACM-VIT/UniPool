@@ -1,16 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  ScrollView,
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  Alert,
-  Platform,
-  Linking,
-} from "react-native";
+import { ScrollView, View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, Platform, Linking } from "react-native";
 import { Share } from 'react-native';
 // const shareIcon = require('../assets/megaphone.png');
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -23,6 +12,7 @@ import SlideToCreate from '../components/SlideToCreate/SlideToCreate';
 import BrandInfo from '../components/BrandInfo/BrandInfo';
 import LoadingComponent from "../components/LoadingComponent";
 import RideCard from "../components/RideCard";
+import BrandedAlert from "../components/BrandedAlert";
 
 const { width, height } = Dimensions.get("window");
 
@@ -771,7 +761,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
     if (isActionLoading) return;
 
     if (isHost) {
-      Alert.alert(
+      BrandedAlert.alert(
         "Delete this ride?",
         "Riders who booked will be notified. This can't be undone.",
         [
@@ -788,7 +778,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                   const deleteResponse = await apiUtil.delete(`/ride/delete/${rideId}`);
                   console.log("Delete ride response:", deleteResponse);
                   
-                  Alert.alert("Ride deleted", "It's no longer visible to anyone.", [
+                  BrandedAlert.alert("Ride deleted", "It's no longer visible to anyone.", [
                     {
                       text: "OK",
                       onPress: () => navigation.goBack()
@@ -800,7 +790,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                   // If it's just an empty response error, treat as success since backend likely processed it
                   if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
                     console.log("Got empty response from delete ride - treating as success");
-                    Alert.alert("Ride deleted", "It's no longer visible to anyone.", [
+                    BrandedAlert.alert("Ride deleted", "It's no longer visible to anyone.", [
                       {
                         text: "OK",
                         onPress: () => navigation.goBack()
@@ -826,7 +816,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                   errorMessage = "Our server hiccupped. Give it a moment and try again.";
                 }
 
-                Alert.alert("Couldn't delete the ride", errorMessage);
+                BrandedAlert.alert("Couldn't delete the ride", errorMessage);
               } finally {
                 setIsActionLoading(false); 
               }
@@ -849,7 +839,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         alertMessage = "It'll disappear from your trips.";
       }
       
-      Alert.alert(
+      BrandedAlert.alert(
         alertTitle,
         alertMessage,
         [
@@ -867,7 +857,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                     const deleteResponse = await apiUtil.delete(`/booking/delete/${userBooking.id}`);
                     console.log("Cancel booking response:", deleteResponse);
                     
-                    Alert.alert("Booking cancelled", "Your seat is no longer reserved.", [
+                    BrandedAlert.alert("Booking cancelled", "Your seat is no longer reserved.", [
                       {
                         text: "OK",
                         onPress: () => navigation.goBack()
@@ -879,7 +869,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                     // If it's just an empty response error, treat as success since backend likely processed it
                     if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
                       console.log("Got empty response from cancel booking - treating as success");
-                      Alert.alert("Booking cancelled", "Your seat is no longer reserved.", [
+                      BrandedAlert.alert("Booking cancelled", "Your seat is no longer reserved.", [
                         {
                           text: "OK",
                           onPress: () => navigation.goBack()
@@ -890,11 +880,11 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                     }
                   }
                 } else {
-                  Alert.alert("Nothing to cancel", "We couldn't find that booking.");
+                  BrandedAlert.alert("Nothing to cancel", "We couldn't find that booking.");
                 }
               } catch (error: any) {
                 console.error("Error cancelling booking:", error);
-                Alert.alert("Couldn't cancel", error.message || "Try again in a moment.");
+                BrandedAlert.alert("Couldn't cancel", error.message || "Try again in a moment.");
               } finally {
                 setIsActionLoading(false); 
               }
@@ -910,7 +900,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
       const { status } = await Calendar.requestCalendarPermissionsAsync();
       
       if (status !== 'granted') {
-        Alert.alert(
+        BrandedAlert.alert(
           "Calendar access off",
           "Turn on calendar access in Settings so we can add your ride.",
           [
@@ -958,7 +948,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
       }
 
       if (!defaultCalendar) {
-        Alert.alert(
+        BrandedAlert.alert(
           "No calendar to add to",
           "We couldn't find a writable calendar on this device. Set one up in your Calendar app and try again.",
           [{ text: "OK" }]
@@ -974,7 +964,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
 
       const startDate = new Date(rideData!.start_time);
       if (isNaN(startDate.getTime())) {
-        Alert.alert("Hmm, weird time", "We couldn't read this ride's time. Skipping the calendar event.");
+        BrandedAlert.alert("Hmm, weird time", "We couldn't read this ride's time. Skipping the calendar event.");
         return;
       }
       
@@ -1027,7 +1017,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
       const eventId = await Calendar.createEventAsync(defaultCalendar.id, eventDetails);
 
       if (eventId) {
-        Alert.alert(
+        BrandedAlert.alert(
           "Added to your calendar",
           `Saved to "${defaultCalendar.title}". You'll get reminders 1 hour and 15 minutes before departure.`,
           [
@@ -1043,7 +1033,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
           ]
         );
       } else {
-        Alert.alert("Couldn't add to calendar", "Try again in a moment.");
+        BrandedAlert.alert("Couldn't add to calendar", "Try again in a moment.");
       }
     } catch (error: any) {
       console.error("Calendar error:", error);
@@ -1055,7 +1045,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         errorMessage = "We couldn't find a calendar app on this device.";
       }
 
-      Alert.alert("Couldn't add to calendar", errorMessage);
+      BrandedAlert.alert("Couldn't add to calendar", errorMessage);
     }
   };
 
@@ -1131,7 +1121,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         title: 'Join my ride on UniPool!'
       });
     } catch (error) {
-      Alert.alert('Error', 'Could not share ride details.');
+      BrandedAlert.alert('Error', 'Could not share ride details.');
     }
   };
 

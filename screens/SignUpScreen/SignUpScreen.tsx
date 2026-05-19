@@ -1,22 +1,12 @@
 import React, { useMemo, useState } from "react";
-import {
-  SafeAreaView,
-  View,
-  Platform,
-  KeyboardAvoidingView,
-  Alert,
-  TouchableOpacity,
-  Text,
-  ScrollView,
-  TextInput,
-  StatusBar,
-} from "react-native";
+import { SafeAreaView, View, Platform, KeyboardAvoidingView, TouchableOpacity, Text, ScrollView, TextInput, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { SignUpScreenProps } from "./SignUpScreen.types";
 import { useApi } from "../../utils/ApiUtil";
 import styles from "./SignUpScreen.styles";
 import AppColors from "../../design_systems/colors";
+import BrandedAlert from "../../components/BrandedAlert";
 
 type FieldKey = "phone" | "yob" | null;
 
@@ -56,7 +46,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
     } catch (error: any) {
       setLoading(false);
       if (error?.message === "AUTHENTICATION_REDIRECT") {
-        Alert.alert("Let's get you back in", "Sign in again to continue.", [
+        BrandedAlert.alert("Let's get you back in", "Sign in again to continue.", [
           { text: "OK", onPress: () => navigation.reset({ index: 0, routes: [{ name: "AuthScreen", params: { returnTo } }] }) },
         ]);
         return;
@@ -72,7 +62,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation, route }) => {
         error?.response?.data?.message ||
         error?.message ||
         "Something went wrong while saving your profile. Try again?";
-      Alert.alert("Couldn't save your profile", errorMessage);
+      BrandedAlert.alert("Couldn't save your profile", errorMessage);
     }
   };
 

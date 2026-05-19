@@ -23,13 +23,19 @@ const BrandInfo: React.FC<BrandInfoProps> = ({ style }) => {
           style={styles.icon}
           resizeMode="contain"
         />
-        <View>
-          <Text style={styles.locationText}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text
+            style={styles.locationText}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {loading ? "Locating you…" : locationText || "Unknown area"}
           </Text>
           {/* Always reserve a slot for the pincode so the header row's
               vertical position doesn't jump when the value arrives. */}
-          <Text style={styles.pincodeText}>{pincode || " "}</Text>
+          <Text style={styles.pincodeText} numberOfLines={1}>
+            {pincode || " "}
+          </Text>
         </View>
       </View>
       <Text style={styles.brandText}>UniPool</Text>

@@ -15,6 +15,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
 import LoadingComponent from "../../components/LoadingComponent";
+import EmptyState from "../../components/EmptyState";
 
 const clockIcon = require("../../assets/clock.png");
 
@@ -363,19 +364,13 @@ const TripsListScreen: React.FC<Props> = ({ navigation, setNavBarVariant }) => {
       {loading ? (
         <LoadingComponent />
       ) : chats.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyTitle}>No trip chats yet</Text>
-          <Text style={styles.emptyBody}>
-            Once you book a seat or post a ride, the trip chat shows up here.
-          </Text>
-          <TouchableOpacity
-            style={styles.emptyCta}
-            activeOpacity={0.85}
-            onPress={() => navigation?.navigate("HomeScreen")}
-          >
-            <Text style={styles.emptyCtaText}>Find a ride</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          image={require("../../assets/no-rides.png")}
+          title="No trip chats yet"
+          body="Book a seat or post a ride and the conversation will land here."
+          ctaLabel="Find a ride"
+          onPressCta={() => navigation?.navigate("HomeScreen")}
+        />
       ) : (
         <FlatList
           data={chats}

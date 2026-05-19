@@ -18,6 +18,7 @@ import AppColors from "../../design_systems/colors";
 import baseURL from "../../config/urlconfig";
 import ChevronBack from "../../components/ChevronBack";
 import LoadingComponent from "../../components/LoadingComponent";
+import EmptyState from "../../components/EmptyState";
 
 const { width, height } = Dimensions.get("window");
 const isSmallDevice = width < 350;
@@ -234,23 +235,21 @@ const NearbyRidesScreen: React.FC = () => {
       {loading ? (
         <LoadingComponent />
       ) : error ? (
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyTitle}>{error}</Text>
-          <TouchableOpacity style={styles.primaryCta} onPress={onRefresh} activeOpacity={0.85}>
-            <Text style={styles.primaryCtaText}>Try again</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          image={require("../../assets/sad.png")}
+          title="We hit a snag"
+          body={error}
+          ctaLabel="Try again"
+          onPressCta={onRefresh}
+        />
       ) : rides.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyTitle}>No carpools near you</Text>
-          <TouchableOpacity
-            style={styles.primaryCta}
-            onPress={() => navigation.navigate("HomeScreen")}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.primaryCtaText}>Search by destination</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          image={require("../../assets/no-rides.png")}
+          title="No carpools near you"
+          body="Be the first to post one going your way — your co-riders will roll in."
+          ctaLabel="Post a ride"
+          onPressCta={() => navigation.navigate("CreateRide")}
+        />
       ) : (
         <FlatList
           data={rides}

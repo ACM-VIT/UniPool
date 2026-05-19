@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text, StyleSheet, Alert, Dimensions, Switch } from "react-native";
+import { View, Text, StyleSheet, Dimensions, Switch } from "react-native";
 import { TouchableOpacity, ScrollView } from "react-native";
 import ChevronBack from "../components/ChevronBack";
 import BrandInfo from "../components/BrandInfo";
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import { useNavigation } from "@react-navigation/native";
+import BrandedAlert from "../components/BrandedAlert";
 
 const { width, height } = Dimensions.get("window");
 
@@ -77,7 +78,7 @@ const NotificationsScreen: React.FC = () => {
       console.error("Error updating notification settings:", error);
       // Revert the change if API call fails
       setSettings(settings);
-      Alert.alert("Couldn't update", "We couldn't save that change. Try again in a moment.");
+      BrandedAlert.alert("Couldn't update", "We couldn't save that change. Try again in a moment.");
     }
   };
 

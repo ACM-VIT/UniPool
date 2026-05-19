@@ -23,6 +23,7 @@ import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
 import ChatService from '../../utils/ChatService';
+import BrandedAlert from "../../components/BrandedAlert";
 
 /**
  * Quick-reply chips shown above the keyboard when the input is empty.
@@ -565,7 +566,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     } catch (error: any) {
       console.warn('[Chat] mute toggle failed:', error?.response?.status);
       if (error?.response?.status === 403) {
-        Alert.alert('Permission Denied', 'You do not have permission to change settings for this ride.');
+        BrandedAlert.alert('Permission Denied', 'You do not have permission to change settings for this ride.');
         return; 
       }
       setNotificationsMuted(val);
@@ -588,7 +589,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
     } catch (error: any) {
       console.warn('[Chat] rename failed:', error?.response?.status);
       if (error?.response?.status === 403) {
-        Alert.alert('Permission Denied', 'You do not have permission to rename this chat.');
+        BrandedAlert.alert('Permission Denied', 'You do not have permission to rename this chat.');
         setEditingChatName(false);
         setNewChatName('');
         return;
@@ -626,13 +627,13 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
       setShowReportSheet(false);
       setReportReason(null);
       setReportDetails('');
-      Alert.alert(
+      BrandedAlert.alert(
         'Report sent',
         "Thanks for letting us know. Our team will review it and follow up if we need more info.",
       );
     } catch (err: any) {
       console.warn('[Chat] report submit failed', err);
-      Alert.alert(
+      BrandedAlert.alert(
         "Couldn't send report",
         err?.response?.data?.error ||
           "We hit a snag sending your report. Try again in a moment.",
@@ -648,7 +649,7 @@ const ChatConversationScreen: React.FC<ChatMessagesScreenProps> = ({
       navigation.goBack();
       return;
     }
-    Alert.alert(
+    BrandedAlert.alert(
       'Leave Ride',
       "Are you sure you want to leave this ride? You won't be able to rejoin unless invited again.",
       [

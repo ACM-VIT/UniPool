@@ -25,7 +25,15 @@ interface UserRideData {
 }
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'HomeScreen'>;
-const PreviousTripsSection: React.FC = () => {
+
+interface PreviousTripsSectionProps {
+    // Fires whenever the "do we have trips to show?" answer changes —
+    // lets HomeScreen swap between this section and the "Rides around
+    // you" tile without showing both at once.
+    onHasTripsChange?: (hasTrips: boolean) => void;
+}
+
+const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsChange }) => {
     const navigation = useNavigation<NavigationProp>();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [rideData, setRideData] = useState<UserRideData[]>([]);
@@ -151,6 +159,22 @@ const PreviousTripsSection: React.FC = () => {
         }
     };
 
+    const hasTrips = !loading && !error && displayedRides.length > 0;
+
+    // Notify the parent (HomeScreen) whenever the answer changes. The
+    // parent uses this to swap to the "Rides around you" tile when no
+    // trips exist.
+    useEffect(() => {
+        onHasTripsChange?.(hasTrips);
+    }, [hasTrips, onHasTripsChange]);
+
+    // Errors and empty results render nothing — the parent shows the
+    // alternative surface (Rides around you) instead. Loading still
+    // shows the skeleton so the layout doesn't jump on first paint.
+    if (error || (!loading && displayedRides.length === 0)) {
+        return null;
+    }
+
     return (
         <View style={styles.section}>
             <View style={styles.yourTripsSection}>
@@ -164,18 +188,6 @@ const PreviousTripsSection: React.FC = () => {
                 // the section doesn't grow + push the rest of the sheet
                 // down when /user/rides resolves.
                 <PreviousTripsSkeleton />
-            ) : error ? (
-                <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{error}</Text>
-                </View>
-            ) : displayedRides.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>
-                        {isGuest
-                            ? "Sign in to see trips you've booked or posted."
-                            : "Book a seat or post a ride. It'll show up here."}
-                    </Text>
-                </View>
             ) : (
                 <>
                     <ScrollView
