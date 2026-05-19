@@ -10,6 +10,7 @@ import {
   Platform,
 } from "react-native";
 import AppColors from "../design_systems/colors";
+import { haptic } from "./PressableScale";
 
 /**
  * Brand-styled replacement for `Alert.alert`. The native iOS / Android
@@ -126,6 +127,15 @@ export const BrandedAlertHost: React.FC = () => {
 
   useEffect(() => {
     if (visible) {
+      // Light tap as the alert lands — confirms the system has
+      // something to say. Use `warning` haptic when the alert is
+      // destructive-looking; default `selection` is unobtrusive
+      // enough for everything else.
+      haptic(
+        opts?.buttons?.some((b) => b.style === "destructive")
+          ? "warning"
+          : "selection",
+      );
       Animated.parallel([
         Animated.spring(scale, {
           toValue: 1,
@@ -144,7 +154,7 @@ export const BrandedAlertHost: React.FC = () => {
       scale.setValue(0.9);
       opacity.setValue(0);
     }
-  }, [visible, scale, opacity]);
+  }, [visible, scale, opacity, opts]);
 
   const close = () => {
     Animated.timing(opacity, {

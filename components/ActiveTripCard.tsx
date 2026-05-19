@@ -200,6 +200,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.16,
     shadowRadius: 12,
     elevation: 2,
+    marginBottom: 10,
   },
   cardCompact: {
     paddingTop: 12,

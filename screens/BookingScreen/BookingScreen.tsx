@@ -195,11 +195,19 @@ const BookingScreen: React.FC = () => {
 
     return (
       <EmptyState
-        image={require("../../assets/no-rides.png")}
+        // Emoji-only crop of the no-rides illustration — the
+        // original asset has "Uh Oh! No Rides Available" text baked
+        // in, which collided with our own title + body below it.
+        image={require("../../assets/no-rides-emoji.png")}
+        imageSize={140}
         title={copy.title}
         body={copy.body}
         ctaLabel={copy.cta.label}
         onPressCta={() => (navigation as any).navigate(copy.cta.to)}
+        // Anchor the content to the top half of the screen so the
+        // BookingScreen's airplane decoration at the bottom stays
+        // visible without overlapping the CTA.
+        topAlign
       />
     );
   };

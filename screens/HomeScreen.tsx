@@ -14,10 +14,12 @@ import AppColors from "../design_systems/colors";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import PreviousTripsSection from "../components/PreviousTripsSection";
 import ActiveTripCard from "../components/ActiveTripCard";
+import { MAIN_NAV_BAR_TOP_OFFSET } from "../components/MainNavBar";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { RootStackParamList } from "../navigation/RootStackParamList";
 import BrandInfo from "../components/BrandInfo";
 import BrandedAlert from "../components/BrandedAlert";
+import { haptic } from "../components/PressableScale";
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -45,15 +47,13 @@ const responsiveWidth = (percentage: number) => {
   return (screenWidth * percentage) / 100;
 };
 
-// Hard cap for the physical sheet surface. The real expanded snap is
-// measured from content below; this cap only prevents impossible heights
-// on small screens or very long signed-in content.
-const BOTTOM_SHEET_MAX_HEIGHT = Math.min(screenHeight * 0.78, screenHeight - 180);
+// Hard cap for the physical sheet surface. The expanded snap is still
+// measured from content; this only gives dense signed-in layouts enough
+// room on shorter Android screens without forcing short guest content up.
+const SHEET_MAP_RESERVE = Math.max(112, screenHeight * 0.16);
+const BOTTOM_SHEET_MAX_HEIGHT = Math.min(screenHeight * 0.88, screenHeight - SHEET_MAP_RESERVE);
 const BOTTOM_SHEET_MIN_HEIGHT = Math.max(screenHeight * 0.32, 220);
-const SHEET_BOTTOM_BREATHING_ROOM = Math.min(
-  165,
-  Math.max(120, screenHeight * 0.18),
-);
+const SHEET_BOTTOM_BREATHING_ROOM = MAIN_NAV_BAR_TOP_OFFSET + 28;
 const heightToSheetOffset = (height: number) => BOTTOM_SHEET_MAX_HEIGHT - height;
 const sheetOffsetToHeight = (offset: number) => BOTTOM_SHEET_MAX_HEIGHT - offset;
 
@@ -240,7 +240,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     setScrollContentHeight((prev) => (prev === h ? prev : h));
   }, []);
 
-  const DRAG_HANDLE_RESERVED = 42;
+  const DRAG_HANDLE_RESERVED = 30;
 
   const userHasDragged = useRef(false);
   const hasAppliedInitialSize = useRef(false);
@@ -604,6 +604,14 @@ const customMapStyle = [
 
       if (Math.abs(gestureState.vy) > 0.8) {
         targetHeight = gestureState.vy < 0 ? naturalRestHeight.current : BOTTOM_SHEET_MIN_HEIGHT;
+      }
+
+      // Light haptic when the sheet locks into a new snap point.
+      // Only fires if we're actually settling somewhere different
+      // from where the gesture started — quietly skips the no-op
+      // case where the user dragged a tiny amount and bounced back.
+      if (Math.abs(targetHeight - currentHeight) > 4) {
+        haptic("light");
       }
 
       const targetOffset = heightToSheetOffset(targetHeight);
@@ -1018,10 +1026,7 @@ const customMapStyle = [
         <View style={styles.bottomSheetContent}>
           <ScrollView
             style={styles.scrollView}
-            contentContainerStyle={{
-              ...styles.scrollableContent,
-              minHeight: 0,
-            }}
+            contentContainerStyle={styles.scrollableContent}
             showsVerticalScrollIndicator={false}
             bounces={false}
             onContentSizeChange={onScrollContentSizeChange}
@@ -1033,13 +1038,11 @@ const customMapStyle = [
                 nothing relevant (204), so there's no empty UI to
                 manage from here. */}
             {!isGuest && (
-              <View style={styles.activeTripWrapper}>
-                <ActiveTripCard
-                  onPressOpen={(rideId) =>
-                    navigation.navigate("RideDetailsScreen", { rideId } as any)
-                  }
-                />
-              </View>
+              <ActiveTripCard
+                onPressOpen={(rideId) =>
+                  navigation.navigate("RideDetailsScreen", { rideId } as any)
+                }
+              />
             )}
 
             {/* Mutually exclusive: when the signed-in user has trips,
@@ -1269,8 +1272,8 @@ const styles = StyleSheet.create({
   // sits clearly on top of anything else inside the sheet.
   dragHandleHitArea: {
     width: "100%",
-    paddingTop: 14,
-    paddingBottom: 22,
+    paddingTop: 10,
+    paddingBottom: 14,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 5,
@@ -1293,10 +1296,10 @@ const styles = StyleSheet.create({
   },
   scrollableContent: {
     paddingHorizontal: responsiveWidth(2.5),
-    // Keeps the same visual air above the floating navbar, scaled
-    // down on shorter screens so the expanded snap follows content.
+    // Keeps content clear of the floating navbar. The expanded snap
+    // measures this too, so the final row rests above the nav instead
+    // of touching it on shorter Android screens.
     paddingBottom: SHEET_BOTTOM_BREATHING_ROOM,
-    minHeight: BOTTOM_SHEET_MAX_HEIGHT - 60,
   },
   previousTripsWrapper: {
     // Transparent wrapper — the inner card (PreviousTripsSection's
@@ -1306,14 +1309,6 @@ const styles = StyleSheet.create({
     borderRadius: normalize(18),
     paddingVertical: responsiveHeight(0.3),
     paddingHorizontal: 0,
-  },
-  // ActiveTripCard wrapper. No extra horizontal margin — the parent
-  // `scrollableContent` already insets every child by 2.5% on each
-  // side, so adding more here would make this card narrower than
-  // the nearby tile / Create Ride button (which sit directly inside
-  // `scrollableContent`).
-  activeTripWrapper: {
-    marginBottom: responsiveHeight(1.2),
   },
   // "Rides around you" — mirrors `createRideButton` exactly so the
   // two CTAs read as a matched pair on the home sheet (forest fill,
