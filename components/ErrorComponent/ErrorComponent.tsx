@@ -91,7 +91,9 @@ const ErrorComponent: React.FC<ErrorComponentProps> = ({
     right: animW * 0.01,
     width: animW * 0.27,
     height: animH * 0.1,
-    backgroundColor: AppColors.basicWhite,
+    // Cover for the Lottie watermark — has to match the sheet surface
+    // colour or it shows up as a patch. Sheet is now lime.
+    backgroundColor: AppColors.primaryLightGreen,
   };
 
   return (
@@ -105,7 +107,7 @@ const ErrorComponent: React.FC<ErrorComponentProps> = ({
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
           <X
             size={Math.min(width, height) * 0.06}
-            color={AppColors.secondaryDarkGreen}
+            color={AppColors.primaryLightGreen}
           />
         </TouchableOpacity>
 
@@ -144,7 +146,7 @@ const ErrorComponent: React.FC<ErrorComponentProps> = ({
             <TouchableOpacity style={styles.homeButton} onPress={onGoHome}>
               <Home
                 size={Math.min(width, height) * 0.05}
-                color={AppColors.basicWhite}
+                color={AppColors.primaryLightGreen}
                 style={styles.buttonIcon}
               />
               <Text style={styles.homeButtonText}>Go Home</Text>
@@ -164,16 +166,19 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   content: {
-    backgroundColor: AppColors.basicWhite,
+    // Lime brand sheet — the error sheet sits in the same surface
+    // family as Auth, SignUp, LocationPermission. Forest content
+    // (title/message/CTA) reads strongly on lime.
+    backgroundColor: AppColors.primaryLightGreen,
     borderTopLeftRadius: Math.min(width, height) * 0.08,
     borderTopRightRadius: Math.min(width, height) * 0.08,
     paddingHorizontal: width * 0.05,
     paddingTop: height * 0.015,
     paddingBottom: height * 0.12,
     maxHeight: height * 0.75,
-    shadowColor: "#000",
+    shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.22,
     shadowRadius: 3.84,
     elevation: 5,
   },
@@ -237,12 +242,13 @@ const styles = StyleSheet.create({
     width: Math.min(width, height) * 0.08,
     height: Math.min(width, height) * 0.08,
     borderRadius: Math.min(width, height) * 0.04,
-    backgroundColor: AppColors.basicWhite,
+    // Forest dot close — sits on the lime sheet like a stop-button.
+    backgroundColor: AppColors.secondaryDarkGreen,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.18,
     shadowRadius: 2,
     elevation: 2,
   },
@@ -252,25 +258,27 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   homeButton: {
+    // Forest CTA on the lime sheet — same button system as Home,
+    // SignUp, LocationPermission.
     backgroundColor: AppColors.secondaryDarkGreen,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: height * 0.02,
     paddingHorizontal: width * 0.08,
-    borderRadius: Math.min(width, height) * 0.015,
+    borderRadius: 14,
     minWidth: width * 0.75,
     shadowColor: AppColors.basicBlack,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
     elevation: 3,
   },
   homeButtonText: {
-    color: AppColors.basicWhite,
+    color: AppColors.primaryLightGreen,
     fontSize: Math.min(width, height) * 0.04,
-    fontWeight: "600",
-    fontFamily: "NunitoSans_600SemiBold",
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: 0.2,
   },
   buttonIcon: {
     marginRight: width * 0.02,

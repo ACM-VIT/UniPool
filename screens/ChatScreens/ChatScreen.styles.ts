@@ -1,9 +1,12 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import AppColors from '../../design_systems/colors';
 
 export const chatScreenStyles = StyleSheet.create({
   container: {
     flex: 1,
+    // Lime brand canvas — on-brand. Bubbles use forest + white so
+    // they pop clearly against the lime without the canvas going off
+    // brand.
     backgroundColor: AppColors.primaryLightGreen,
   },
   header: {
@@ -230,6 +233,65 @@ export const chatMessagesStyles = StyleSheet.create({
     ...chatScreenStyles.chatHeader,
     paddingVertical: 12,
   },
+  // ---------------------------------------------------------------
+  // Conversation header. Forest "rail" pill from the status-bar
+  // inset to a comfortable height, with avatar + name + subtitle on
+  // the left and a settings icon on the right. Sits on the lime
+  // canvas as a bold brand-anchored chrome bar.
+  // ---------------------------------------------------------------
+  chatHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: AppColors.secondaryDarkGreen,
+    paddingTop: Platform.OS === 'ios' ? 54 : 32,
+    paddingBottom: 14,
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  chatHeaderBack: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(181,215,80,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatHeaderAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: AppColors.primaryLightGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatHeaderAvatarText: {
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 17,
+    color: AppColors.secondaryDarkGreen,
+    letterSpacing: -0.4,
+  },
+  chatHeaderTitle: {
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 17,
+    color: AppColors.primaryLightGreen,
+    letterSpacing: -0.3,
+  },
+  chatHeaderSubtitle: {
+    fontFamily: 'NunitoSans_600SemiBold',
+    fontSize: 12,
+    color: AppColors.primaryLightGreen,
+    opacity: 0.7,
+    marginTop: 2,
+    letterSpacing: 0.1,
+  },
+  chatHeaderSettings: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(181,215,80,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   chatInfo: {
     flex: 1,
     marginLeft: 12,
@@ -247,79 +309,112 @@ export const chatMessagesStyles = StyleSheet.create({
     fontFamily: 'NunitoSans-Regular',
   },
   carIcon: {
-    backgroundColor: AppColors.basicWhite,
+    // Forest circle on the lime canvas — matches the rest of the chat
+    // surface system. Tucked-in icon, not a hard white blob.
+    backgroundColor: AppColors.secondaryDarkGreen,
     padding: 8,
     borderRadius: 20,
   },
   senderName: {
+    // Sender name above other-person bubbles in a group chat. Lime
+    // text on the forest received bubble — same pattern as Slack's
+    // colored sender names on dark.
     color: AppColors.primaryLightGreen,
-    fontSize: 11,
-    fontWeight: '600',
-    marginBottom: 4,
-    fontFamily: 'NunitoSans-SemiBold',
-    opacity: 0.9,
+    fontSize: 11.5,
+    marginBottom: 3,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    letterSpacing: 0.2,
+    opacity: 0.95,
   },
   infoMessage: {
-    backgroundColor: AppColors.basicWhite,
+    // System notices on the chat — sit on the lime canvas as a darker
+    // tinted pill so they read as system, not as a sent message.
+    backgroundColor: "rgba(38,59,51,0.10)",
     marginHorizontal: 16,
     marginVertical: 8,
     padding: 12,
     borderRadius: 15,
-    opacity: 0.9,
   },
   infoText: {
     fontSize: 12,
-    color: AppColors.basicBlack,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.75,
     textAlign: 'center',
-    fontFamily: 'NunitoSans-Regular',
+    fontFamily: 'NunitoSans_600SemiBold',
   },
   messagesContainer: {
     flex: 1,
     paddingHorizontal: 16,
   },
   messageReceived: {
+    // Other-person bubble: forest dark on the lime canvas. Big shape,
+    // tail-less rounded rect with asymmetric bottom-left corner.
     backgroundColor: AppColors.secondaryDarkGreen,
-    padding: 12,
-    borderRadius: 15,
-    marginVertical: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderBottomLeftRadius: 6,
+    marginVertical: 3,
     maxWidth: '80%',
     alignSelf: 'flex-start',
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 2,
   },
   messageSent: {
-    backgroundColor: AppColors.basicWhite,
-    padding: 12,
-    borderRadius: 15,
-    marginVertical: 4,
+    // Self bubble: a deeper olive lime (`midOliveGreen`). Still in
+    // the brand family but darker than the canvas, so the edge of
+    // the bubble is unambiguous without injecting a white surface.
+    backgroundColor: AppColors.midOliveGreen,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderBottomRightRadius: 6,
+    marginVertical: 3,
     maxWidth: '80%',
     alignSelf: 'flex-end',
+    shadowColor: AppColors.secondaryDarkGreen,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.20,
+    shadowRadius: 8,
+    elevation: 2,
   },
   messageText: {
     color: AppColors.basicWhite,
-    fontSize: 14,
-    lineHeight: 18,
-    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 15,
+    lineHeight: 20,
+    fontFamily: 'NunitoSans_600SemiBold',
+    letterSpacing: -0.05,
   },
   messageTextSent: {
-    color: AppColors.basicBlack,
-    fontSize: 14,
-    lineHeight: 18,
-    fontFamily: 'NunitoSans_400Regular',
+    // White on the olive bubble — the olive is dark enough that
+    // white reads cleanly without going off-brand.
+    color: AppColors.basicWhite,
+    fontSize: 15,
+    lineHeight: 20,
+    fontFamily: 'NunitoSans_700Bold',
+    letterSpacing: -0.05,
   },
   messageTime: {
-    color: AppColors.basicWhite,
-    fontSize: 10,
-    marginTop: 4,
+    // Inside forest received bubble — lime, faded so it reads as
+    // metadata rather than text.
+    color: AppColors.primaryLightGreen,
+    fontSize: 10.5,
+    marginTop: 3,
     alignSelf: 'flex-end',
     opacity: 0.7,
-    fontFamily: 'NunitoSans_400Regular',
+    fontFamily: 'NunitoSans_600SemiBold',
   },
   messageTimeSent: {
-    color: AppColors.basicBlack,
-    fontSize: 10,
-    marginTop: 4,
+    // Inside olive self bubble — soft white.
+    color: AppColors.basicWhite,
+    fontSize: 10.5,
+    marginTop: 3,
     alignSelf: 'flex-end',
-    opacity: 0.7,
-    fontFamily: 'NunitoSans_400Regular',
+    opacity: 0.78,
+    fontFamily: 'NunitoSans_600SemiBold',
   },
   inputContainer: {
     flexDirection: 'row',
@@ -329,12 +424,14 @@ export const chatMessagesStyles = StyleSheet.create({
   },
   textInput: {
     flex: 1,
-    backgroundColor: AppColors.basicWhite,
+    // Forest input on the lime canvas — same as SignUpScreen inputs.
+    backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 25,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: AppColors.basicBlack,
+    color: AppColors.basicWhite,
+    fontFamily: "NunitoSans_600SemiBold",
     maxHeight: 100,
   },
   sendButton: {
@@ -342,33 +439,45 @@ export const chatMessagesStyles = StyleSheet.create({
     padding: 12,
   },
   typingBarContainer: {
-    paddingHorizontal: 26,
-    paddingVertical: 10,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 44,
-    borderWidth: 2.28,
+    // Composer pill. Forest fill on the lime canvas — matches the
+    // chat header and the rest of the brand inputs. Sits with
+    // generous side margins so it doesn't graze the screen edges.
+    paddingLeft: 18,
+    paddingRight: 6,
+    paddingVertical: 5,
+    marginHorizontal: 18,
+    marginBottom: Platform.OS === 'ios' ? 22 : 14,
     marginTop: 8,
-    borderColor: AppColors.secondaryDarkGreen,
-    backgroundColor: 'transparent',
+    borderRadius: 26,
+    backgroundColor: AppColors.secondaryDarkGreen,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 3,
   },
   typingBarText: {
-    color: AppColors.basicBlack,
-    fontSize: 16,
+    // Lime text on the forest composer pill — same colour pattern as
+    // the SignUp / RideDetails inputs.
+    color: AppColors.basicWhite,
+    fontSize: 15,
     flex: 1,
-    fontFamily: 'NunitoSans_400Regular',
+    paddingVertical: 8,
+    fontFamily: 'NunitoSans_600SemiBold',
   },
   typingBarIconContainer: {
-    width: 35,
-    height: 35,
-    backgroundColor: 'transparent',
-    borderRadius: 17.5,
+    // Lime send button on the forest pill — inverse of the rest of
+    // the system (lime fill on forest surface).
+    width: 38,
+    height: 38,
+    backgroundColor: AppColors.primaryLightGreen,
+    borderRadius: 19,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 11,
+    marginLeft: 6,
   },
   
   // Settings Button
@@ -377,82 +486,101 @@ export const chatMessagesStyles = StyleSheet.create({
     marginLeft: 8,
   },
   
-  // Settings Modal Styles
+  // ---------------------------------------------------------------
+  // Settings Modal — slide-up sheet from the chat header. Lime canvas
+  // matches the rest of the app; forest section blocks group related
+  // settings rows; tinted-forest hairlines (vs. solid forest, which
+  // was overpowering) separate rows.
+  // ---------------------------------------------------------------
+  // pageSheet modals on iOS don't sit behind the status bar, so the
+  // SafeAreaView top inset is ~0. Without an explicit paddingTop the
+  // Cancel / Done buttons hug the sheet's rounded top edge. Bumped to
+  // 18 so the row breathes the same as the rest of the chrome.
   settingsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: AppColors.secondaryDarkGreen,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 16,
     backgroundColor: AppColors.primaryLightGreen,
   },
   settingsCloseButton: {
-    fontSize: 16,
+    fontSize: 15,
     color: AppColors.secondaryDarkGreen,
-    fontWeight: '600',
-    fontFamily: 'NunitoSans-SemiBold',
+    fontFamily: 'NunitoSans_800ExtraBold',
+    letterSpacing: 0.2,
   },
   settingsTitle: {
-    fontSize: 18,
-    color: AppColors.basicBlack,
-    fontWeight: '600',
-    fontFamily: 'NunitoSans-SemiBold',
+    fontSize: 17,
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    letterSpacing: -0.2,
   },
   settingsContent: {
     flex: 1,
     backgroundColor: AppColors.primaryLightGreen,
   },
   settingsSection: {
-    marginBottom: 24,
-    paddingHorizontal: 16,
+    marginBottom: 18,
+    marginHorizontal: 16,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 6,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  
+
   // Chat Info Section
   chatInfoHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    marginTop: 16,
+    marginBottom: 12,
   },
   chatAvatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: AppColors.secondaryDarkGreen,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: AppColors.primaryLightGreen,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 14,
   },
   chatAvatarText: {
-    fontSize: 24,
-    color: AppColors.basicWhite,
-    fontWeight: '600',
-    fontFamily: 'NunitoSans-SemiBold',
+    fontSize: 22,
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    letterSpacing: -0.4,
   },
   chatInfoDetails: {
     flex: 1,
   },
   chatTitleLarge: {
-    fontSize: 20,
-    color: AppColors.basicBlack,
-    fontWeight: '600',
-    fontFamily: 'NunitoSans-SemiBold',
-    marginBottom: 4,
+    fontSize: 18,
+    color: AppColors.primaryLightGreen,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    letterSpacing: -0.2,
+    marginBottom: 2,
   },
   tapToEdit: {
-    fontSize: 12,
-    color: AppColors.secondaryDarkGreen,
-    opacity: 0.7,
-    fontFamily: 'NunitoSans-Regular',
-    marginBottom: 4,
+    fontSize: 11,
+    color: AppColors.primaryLightGreen,
+    opacity: 0.6,
+    fontFamily: 'NunitoSans_700Bold',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: 2,
   },
   participantCount: {
-    fontSize: 14,
-    color: AppColors.basicBlack,
+    fontSize: 13,
+    color: AppColors.primaryLightGreen,
     opacity: 0.7,
-    fontFamily: 'NunitoSans-Regular',
+    fontFamily: 'NunitoSans_600SemiBold',
   },
   editNameContainer: {
     flexDirection: 'row',
@@ -461,139 +589,168 @@ export const chatMessagesStyles = StyleSheet.create({
   },
   editNameInput: {
     flex: 1,
-    fontSize: 18,
-    color: AppColors.basicBlack,
+    fontSize: 17,
+    color: AppColors.basicWhite,
     borderBottomWidth: 1,
-    borderBottomColor: AppColors.secondaryDarkGreen,
+    borderBottomColor: 'rgba(181,215,80,0.4)',
     paddingVertical: 4,
-    fontFamily: 'NunitoSans-Regular',
+    fontFamily: 'NunitoSans_700Bold',
   },
   saveButton: {
-    fontSize: 16,
-    color: AppColors.secondaryDarkGreen,
-    fontWeight: '600',
+    fontSize: 14,
+    color: AppColors.primaryLightGreen,
+    fontFamily: 'NunitoSans_800ExtraBold',
     marginLeft: 12,
-    fontFamily: 'NunitoSans-SemiBold',
+    letterSpacing: 0.3,
   },
-  
-  // Section Titles
+
+  // Section Titles — matches the ProfileScreen / HomeScreen pattern
+  // (14pt 600SemiBold, sentence-case, dimmed) so every settings-style
+  // surface in the app reads with the same calm hierarchy. Lime here
+  // because these titles sit inside forest dark settings cards;
+  // ProfileScreen uses the forest variant on its lime canvas.
   sectionTitle: {
-    fontSize: 16,
-    color: AppColors.basicBlack,
-    fontWeight: '600',
-    marginBottom: 12,
-    fontFamily: 'NunitoSans-SemiBold',
+    fontSize: 14,
+    color: AppColors.primaryLightGreen,
+    fontFamily: 'NunitoSans_600SemiBold',
+    marginBottom: 8,
+    letterSpacing: -0.05,
+    opacity: 0.7,
   },
-  
+
   // Participants Section
   participantItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: AppColors.secondaryDarkGreen,
+    borderBottomColor: 'rgba(181,215,80,0.14)',
   },
   participantAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: AppColors.secondaryDarkGreen,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: AppColors.primaryLightGreen,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
     position: 'relative',
   },
   participantAvatarText: {
-    fontSize: 16,
-    color: AppColors.basicWhite,
-    fontWeight: '600',
-    fontFamily: 'NunitoSans-SemiBold',
+    fontSize: 15,
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    letterSpacing: -0.3,
   },
-  onlineIndicator: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
+  // New: simple coloured-dot identifier per participant. Same colour
+  // they wear in the conversation. No letters, no busy circles.
+  participantDotWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+    position: 'relative',
+  },
+  participantDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#4CAF50',
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: '#4CD964',
     borderWidth: 2,
-    borderColor: AppColors.primaryLightGreen,
+    borderColor: AppColors.secondaryDarkGreen,
   },
   participantInfo: {
     flex: 1,
   },
   participantName: {
-    fontSize: 16,
-    color: AppColors.basicBlack,
-    fontWeight: '500',
-    fontFamily: 'NunitoSans-Medium',
+    fontSize: 15,
+    color: AppColors.basicWhite,
+    fontFamily: 'NunitoSans_700Bold',
     marginBottom: 2,
+    letterSpacing: -0.1,
   },
   participantRole: {
-    fontSize: 12,
-    color: AppColors.basicBlack,
-    opacity: 0.7,
-    fontFamily: 'NunitoSans-Regular',
+    fontSize: 11.5,
+    color: AppColors.primaryLightGreen,
+    opacity: 0.6,
+    fontFamily: 'NunitoSans_600SemiBold',
+    letterSpacing: 0.2,
   },
-  
+
   // Ride Details Section
   rideDetailItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: AppColors.secondaryDarkGreen,
+    borderBottomColor: 'rgba(181,215,80,0.14)',
   },
   rideDetailLabel: {
-    fontSize: 14,
-    color: AppColors.basicBlack,
-    opacity: 0.7,
-    fontFamily: 'NunitoSans-Regular',
+    fontSize: 13,
+    color: AppColors.primaryLightGreen,
+    opacity: 0.65,
+    fontFamily: 'NunitoSans_700Bold',
     flex: 1,
+    letterSpacing: 0.2,
   },
   rideDetailValue: {
     fontSize: 14,
-    color: AppColors.basicBlack,
-    fontWeight: '500',
-    fontFamily: 'NunitoSans-Medium',
+    color: AppColors.basicWhite,
+    fontFamily: 'NunitoSans_700Bold',
     flex: 2,
     textAlign: 'right',
+    letterSpacing: -0.1,
   },
-  
+
   // Settings Items
   settingItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: AppColors.secondaryDarkGreen,
+    borderBottomColor: 'rgba(181,215,80,0.14)',
   },
   settingLabel: {
-    fontSize: 16,
-    color: AppColors.basicBlack,
-    fontFamily: 'NunitoSans-Regular',
+    fontSize: 14.5,
+    color: AppColors.basicWhite,
+    fontFamily: 'NunitoSans_700Bold',
+    letterSpacing: -0.1,
   },
   
-  // Action Buttons
+  // Action Buttons — these live inside the forest settings cards, so
+  // they invert to lime fill with forest label (matches the rest of
+  // the inverse-button pattern on forest surfaces).
   actionButton: {
-    backgroundColor: AppColors.secondaryDarkGreen,
-    paddingVertical: 14,
+    backgroundColor: AppColors.primaryLightGreen,
+    paddingVertical: 13,
     paddingHorizontal: 20,
-    borderRadius: 12,
-    marginBottom: 12,
+    borderRadius: 14,
+    marginBottom: 10,
+    marginTop: 4,
     alignItems: 'center',
   },
   actionButtonText: {
-    fontSize: 16,
-    color: AppColors.basicWhite,
-    fontWeight: '600',
-    fontFamily: 'NunitoSans-SemiBold',
+    fontSize: 15,
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    letterSpacing: 0.2,
   },
+  // Destructive ("Leave Ride") — warm coral that reads as warning on
+  // the forest surface without going pure red.
   destructiveButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#FF6B5B',
   },
   destructiveButtonText: {
     color: AppColors.basicWhite,

@@ -53,6 +53,18 @@ target 'UniPool' do
       :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
     )
 
+    # Fix for Xcode 16+ where fmt's consteval format strings fail to compile.
+    # Patch fmt/base.h so FMT_USE_CONSTEVAL stays 0 on all Apple toolchains.
+    fmt_base = File.join(installer.sandbox.root, 'fmt/include/fmt/base.h')
+    if File.exist?(fmt_base)
+      src = File.read(fmt_base)
+      patched = src.sub(
+        '#elif defined(__apple_build_version__) && __apple_build_version__ < 14000029L',
+        '#elif defined(__apple_build_version__)'
+      )
+      File.write(fmt_base, patched) unless src == patched
+    end
+
     # This is necessary for Xcode 14, because it signs resource bundles by default
     # when building for devices.
     installer.target_installation_results.pod_target_installation_results

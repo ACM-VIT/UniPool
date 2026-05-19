@@ -6,6 +6,8 @@ const { width, height } = Dimensions.get("window");
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    // Lime brand canvas. Cream menu cards float inside (see menuContainer
+    // below). Identity-first.
     backgroundColor: AppColors.primaryLightGreen,
   },
   brandInfoHeaderRow: {
@@ -16,11 +18,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.051,
     marginBottom: height * 0.02,
   },
+  // Page title for all settings sub-pages (Profile, Personal Info,
+  // Passengers History, Account Settings, etc.). Dialed from 800
+  // ExtraBold @ 27pt to 700Bold @ 24pt — same pattern as the rest of
+  // the calmed-down typography pass. Confident page header, not a
+  // shouty banner.
   headerTitle: {
-    fontSize: width * 0.062,
-    fontWeight: "600",
-    color: AppColors.basicBlack,
-    fontFamily: "NunitoSans_600SemiBold",
+    fontSize: 24,
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: -0.3,
+    marginLeft: 6,
   },
   scrollContainer: {
     flex: 1,
@@ -42,13 +50,17 @@ const styles = StyleSheet.create({
     width: width * 0.205,
     height: width * 0.205,
     borderRadius: width * 0.103,
-    backgroundColor: AppColors.basicWhite,
+    // Forest avatar slot on the lime canvas — when no image is loaded,
+    // it reads as an empty slot, not a white pop.
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderWidth: 2,
+    borderColor: AppColors.primaryLightGreen,
   },
   userName: {
-    fontSize: width * 0.046,
-    fontWeight: "600",
-    color: AppColors.basicBlack,
-    fontFamily: "NunitoSans_600SemiBold",
+    fontSize: width * 0.054,
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: -0.2,
   },
   statsContainer: {
     flexDirection: "row",
@@ -57,39 +69,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.026,
   },
   statsCard: {
+    // Forest card on the lime canvas — bold, palette-matched, lifted
+    // by a deeper shadow. Inverts the typography (lime numerals on
+    // forest surface).
     backgroundColor: AppColors.secondaryDarkGreen,
-    borderRadius: width * 0.041,
-    padding: width * 0.041,
+    borderRadius: width * 0.04,
+    paddingVertical: width * 0.045,
+    paddingHorizontal: width * 0.03,
     alignItems: "center",
     justifyContent: "center",
     flex: 1,
-    marginHorizontal: width * 0.01,
+    marginHorizontal: width * 0.012,
     minHeight: height * 0.1,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
   },
   statsIcon: {
     width: width * 0.064,
     height: width * 0.064,
     marginBottom: height * 0.008,
+    // Lime tint so the icon reads on the forest statsCard.
+    tintColor: AppColors.primaryLightGreen,
   },
   statsValue: {
-    fontSize: width * 0.051,
-    fontWeight: "700",
+    fontSize: width * 0.062,
     color: AppColors.primaryLightGreen,
-    fontFamily: "NunitoSans_700Bold",
-    marginBottom: height * 0.005,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: -0.4,
   },
   statsLabel: {
-    fontSize: width * 0.031,
+    fontSize: width * 0.032,
     color: AppColors.primaryLightGreen,
-    fontFamily: "NunitoSans_400Regular",
+    opacity: 0.75,
+    fontFamily: "NunitoSans_600SemiBold",
     textAlign: "center",
+    marginTop: 2,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
   },
   statsUnit: {
-    fontSize: width * 0.026,
+    fontSize: width * 0.028,
     color: AppColors.primaryLightGreen,
     fontFamily: "NunitoSans_400Regular",
-    opacity: 0.8,
-    marginTop: width * 0.005,
+    opacity: 0.6,
   },
   section: {
     marginBottom: height * 0.025,
@@ -100,40 +125,57 @@ const styles = StyleSheet.create({
     marginRight: width * 0.064,
   },
   sectionTitle: {
-    fontSize: width * 0.046,
-    fontWeight: "600",
-    color: AppColors.basicBlack,
+    // Matches the HomeScreen + chat-list section titles: sentence-
+    // case, 600SemiBold, dimmed. The point is that these are quiet
+    // mile-markers above their menu card, not headlines competing
+    // for the eye. Was 800ExtraBold uppercase — too "shouty" for the
+    // overall screen rhythm.
+    fontSize: 14,
+    color: AppColors.secondaryDarkGreen,
     fontFamily: "NunitoSans_600SemiBold",
-    marginBottom: height * 0.015,
+    marginBottom: height * 0.01,
+    marginLeft: 2,
+    letterSpacing: -0.05,
+    opacity: 0.7,
   },
   menuContainer: {
-    backgroundColor: AppColors.primaryLightGreen,
-    borderRadius: width * 0.046,
-    borderWidth: 1,
-    borderColor: AppColors.secondaryDarkGreen,
-    marginBottom: height * 0.03,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: width * 0.04,
+    marginBottom: height * 0.025,
     overflow: "hidden",
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
   },
   menuItem: {
     flexDirection: "row",
     justifyContent: "flex-start",
     alignItems: "center",
-    paddingHorizontal: width * 0.041,
-    paddingVertical: height * 0.0175,
-    backgroundColor: AppColors.primaryLightGreen,
-    borderBottomWidth: 0.5,
-    borderBottomColor: AppColors.secondaryDarkGreen,
+    paddingHorizontal: width * 0.045,
+    paddingVertical: height * 0.018,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderBottomWidth: 1,
+    // Light hairline on the forest card matches RideDetailsSelector's
+    // row separators.
+    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   menuItemIcon: {
-    width: width * 0.056,
-    height: width * 0.056,
-    marginRight: height * 0.015,
+    width: width * 0.058,
+    height: width * 0.058,
+    marginRight: height * 0.016,
     resizeMode: 'contain',
+    // Lime tint on every menu icon — without this, the PNGs render in
+    // their native dark forest tone and disappear on the forest tile.
+    tintColor: AppColors.primaryLightGreen,
   },
   menuItemText: {
-    fontSize: width * 0.041,
-    fontFamily: "NunitoSans_400Regular",
+    fontSize: width * 0.042,
+    color: AppColors.basicWhite,
+    fontFamily: "NunitoSans_600SemiBold",
     flex: 1,
+    letterSpacing: -0.1,
   },
   checkmarkIcon: {
     width: width * 0.041,

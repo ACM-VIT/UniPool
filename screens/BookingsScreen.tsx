@@ -1,131 +1,173 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, ListRenderItem, TouchableOpacity, StyleSheet } from 'react-native';
-import styles from './ProfileScreen/ProfileScreen.styles';
-import { useApi } from '../utils/ApiUtil';
-import BrandInfo from '../components/BrandInfo';
-import ChevronBack from '../components/ChevronBack';
-import RideCard from '../components/RideCard';
-import AppColors from '../design_systems/colors';
-import { useNavigation } from '@react-navigation/native';
-import LoadingComponent from '../components/LoadingComponent';
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  ListRenderItem,
+  TouchableOpacity,
+  Image,
+  ScrollView,
+  RefreshControl,
+} from "react-native";
+import styles from "./ProfileScreen/ProfileScreen.styles";
+import { useApi } from "../utils/ApiUtil";
+import BrandInfo from "../components/BrandInfo";
+import ChevronBack from "../components/ChevronBack";
+import RideCard from "../components/RideCard";
+import UpNextCard from "../components/UpNextCard";
+import AppColors from "../design_systems/colors";
+import { useNavigation } from "@react-navigation/native";
+import LoadingComponent from "../components/LoadingComponent";
 
-interface Booking {
+interface RawRide {
+  id?: string;
+  ride_id?: string;
+  start_location?: string;
+  end_location?: string;
+  start_time?: string;
+  total_seats?: number;
+  booked_seats?: number;
+  total_price?: number;
+  request_status?: "pending" | "accepted" | "rejected";
+  host_user_name?: string;
+  host_user_profile_picture_url?: string | null;
+  // Hosted-ride payload from /user/rides flattens fields differently
+  is_user_host?: boolean;
+  [key: string]: any;
+}
+
+interface RawBooking {
   id: string;
   ride_id?: string;
-  ride_details: {
-    start_location?: string;
-    end_location?: string;
-    start_time?: string;
-    [key: string]: any;
-  };
-  type?: 'booking' | 'hosted';
+  request_status?: "pending" | "accepted" | "rejected";
+  ride_details?: RawRide;
+  ride?: RawRide;
   [key: string]: any;
 }
 
 interface BookingsResponse {
-  bookings: Booking[];
+  bookings: RawBooking[];
 }
 
-interface HostedRide {
-  id?: string;
-  ride_id?: string;
-  start_location: string;
-  end_location: string;
-  start_time: string;
-  total_seats: number;
-  booked_seats: number;
-  total_price: number;
-  is_ongoing: number;
-  is_same_gender: number;
-  [key: string]: any;
+type Status = "confirmed" | "pending" | "hosting" | "past" | "cancelled";
+
+interface TripItem {
+  id: string;
+  rideId?: string;
+  origin: string;
+  destination: string;
+  startAt: Date;
+  price?: number;
+  totalSeats?: number;
+  bookedSeats?: number;
+  hostName?: string;
+  hostAvatarUrl?: string | null;
+  /** "Confirmed" / "Pending" / "Hosting" / "Past" / "Cancelled" */
+  status: Status;
+  /** Where this trip belongs in the tab structure. */
+  bucket: "upcoming" | "hosting" | "past";
 }
+
+type Tab = "upcoming" | "hosting" | "past";
 
 const BookingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { apiUtil } = useApi();
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [trips, setTrips] = useState<TripItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("upcoming");
 
-  const dedupedBookings = React.useMemo(() => {
-    const seen = new Set();
-    return bookings.filter(b => {
-      const id = b.ride_id || b.id;
-      if (seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
-  }, [bookings]);
-
-  // Function to fetch both bookings and hosted rides
-  const fetchAllUserRides = async () => {
+  const fetchAllUserRides = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
       setError(null);
 
-      const auth = require('@react-native-firebase/auth').getAuth();
-      const currentUser = auth.currentUser;
-      
-      if (!currentUser) {
-        setError("Please sign in to view your bookings");
+      const auth = require("@react-native-firebase/auth").getAuth();
+      if (!auth.currentUser) {
+        setError("Sign in to see your trips.");
         return;
       }
 
-      console.log('Fetching bookings and hosted rides...');
-      
-      const [bookingsResponse, hostedRidesResponse] = await Promise.allSettled([
-        apiUtil.get<BookingsResponse>('/booking/list'),
-        apiUtil.get<HostedRide[]>('/user/rides')
+      const [bookingsRes, hostedRes] = await Promise.allSettled([
+        apiUtil.get<BookingsResponse>("/booking/list"),
+        apiUtil.get<RawRide[]>("/user/rides"),
       ]);
 
-      const allRides: Booking[] = [];
+      const now = new Date();
+      const collected: TripItem[] = [];
 
-      if (bookingsResponse.status === 'fulfilled' && bookingsResponse.value?.bookings) {
-        const passengerBookings = bookingsResponse.value.bookings.map(booking => ({
-          ...booking,
-          type: 'booking' as const
-        }));
-        allRides.push(...passengerBookings);
-        console.log(`Found ${passengerBookings.length} passenger bookings`);
-      } else {
-        console.log('No passenger bookings or failed to fetch:', bookingsResponse);
+      // 1. Passenger bookings
+      if (bookingsRes.status === "fulfilled" && bookingsRes.value?.bookings) {
+        for (const b of bookingsRes.value.bookings) {
+          const details = b.ride_details || b.ride || {};
+          const startAt = details.start_time ? new Date(details.start_time) : new Date(0);
+          const isPast = startAt.getTime() < now.getTime();
+          const status: Status =
+            b.request_status === "rejected"
+              ? "cancelled"
+              : b.request_status === "pending"
+              ? isPast ? "past" : "pending"
+              : isPast
+              ? "past"
+              : "confirmed";
+          collected.push({
+            id: b.id,
+            rideId: b.ride_id || details.ride_id || details.id,
+            origin: details.start_location || "Unknown",
+            destination: details.end_location || "Unknown",
+            startAt,
+            price: details.total_price !== undefined ? Number(details.total_price) : undefined,
+            totalSeats: details.total_seats,
+            bookedSeats: details.booked_seats,
+            hostName: details.host_user_name,
+            hostAvatarUrl: details.host_user_profile_picture_url ?? null,
+            status,
+            bucket: isPast ? "past" : "upcoming",
+          });
+        }
       }
 
-      if (hostedRidesResponse.status === 'fulfilled' && Array.isArray(hostedRidesResponse.value)) {
-        const hostedRides = hostedRidesResponse.value
-          .filter(ride => ride.is_user_host !== false) // Only include rides where user is host
-          .map(ride => ({
-            id: ride.ride_id || ride.id || `hosted-${Math.random()}`,
-            ride_id: ride.ride_id || ride.id,
-            ride_details: {
-              start_location: ride.start_location,
-              end_location: ride.end_location,
-              start_time: ride.start_time,
-              total_seats: ride.total_seats,
-              booked_seats: ride.booked_seats,
-              total_price: ride.total_price,
-            },
-            type: 'hosted' as const,
-            ...ride
-          }));
-        allRides.push(...hostedRides);
-        console.log(`Found ${hostedRides.length} hosted rides`);
-      } else {
-        console.log('No hosted rides or failed to fetch:', hostedRidesResponse);
+      // 2. Hosted rides
+      if (hostedRes.status === "fulfilled" && Array.isArray(hostedRes.value)) {
+        for (const r of hostedRes.value) {
+          if (r.is_user_host === false) continue;
+          const startAt = r.start_time ? new Date(r.start_time) : new Date(0);
+          const isPast = startAt.getTime() < now.getTime();
+          collected.push({
+            id: `host-${r.ride_id || r.id || Math.random()}`,
+            rideId: r.ride_id || r.id,
+            origin: r.start_location || "Unknown",
+            destination: r.end_location || "Unknown",
+            startAt,
+            price: r.total_price,
+            totalSeats: r.total_seats,
+            bookedSeats: r.booked_seats,
+            status: isPast ? "past" : "hosting",
+            bucket: isPast ? "past" : "hosting",
+          });
+        }
       }
 
-      console.log(`Total rides found: ${allRides.length}`);
-      setBookings(allRides);
+      // De-dupe by rideId (same ride could appear in both lists)
+      const seen = new Set<string>();
+      const deduped = collected.filter((t) => {
+        const key = `${t.rideId || t.id}-${t.bucket}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
 
-    } catch (error: any) {
-      console.error('Error fetching user rides:', error);
-      if (error.message === "AUTHENTICATION_REDIRECT") {
-        console.log('Authentication redirect in BookingsScreen - not showing error');
-        return;
-      }
-      setError('Failed to load bookings and rides');
+      setTrips(deduped);
+    } catch (e: any) {
+      if (e?.message === "AUTHENTICATION_REDIRECT") return;
+      console.error("Trips fetch failed:", e);
+      setError("We couldn't load your trips. Pull to try again.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -133,157 +175,319 @@ const BookingsScreen: React.FC = () => {
     fetchAllUserRides();
   }, [apiUtil]);
 
-  const formatTimeCompact = (timeString: string): string => {
+  // Soonest upcoming ride for the "Up next" hero. Must start within 24h to
+  // earn the slot — otherwise the hero would always be the next future
+  // event, even weeks out, which feels untruthful.
+  const upNext = useMemo<TripItem | null>(() => {
+    const candidates = trips
+      .filter((t) => (t.bucket === "upcoming" || t.bucket === "hosting") && t.status !== "cancelled")
+      .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+    if (!candidates.length) return null;
+    const first = candidates[0];
+    const diffMs = first.startAt.getTime() - Date.now();
+    if (diffMs > 24 * 60 * 60 * 1000) return null;
+    return first;
+  }, [trips]);
+
+  const tabbed = useMemo(() => {
+    const filtered = trips.filter((t) => t.bucket === tab);
+    return filtered.sort((a, b) =>
+      tab === "past"
+        ? b.startAt.getTime() - a.startAt.getTime()
+        : a.startAt.getTime() - b.startAt.getTime()
+    );
+  }, [trips, tab]);
+
+  const counts = useMemo(() => {
+    return {
+      upcoming: trips.filter((t) => t.bucket === "upcoming").length,
+      hosting: trips.filter((t) => t.bucket === "hosting").length,
+      past: trips.filter((t) => t.bucket === "past").length,
+    };
+  }, [trips]);
+
+  const navigateToRide = (rideId?: string) => {
+    if (!rideId) return;
     try {
-      const date = new Date(timeString);
-      const hours = date.getHours().toString().padStart(2, '0');
-      const minutes = date.getMinutes().toString().padStart(2, '0');
-      return `${hours}${minutes}hrs`;
-    } catch (error) {
-      return typeof timeString === 'string' ? timeString : '';
+      (navigation as any).navigate("RideDetailsScreen", { rideId: String(rideId) });
+    } catch (e) {
+      console.warn("Navigation to RideDetailsScreen failed", e);
     }
   };
 
-  if (loading) return (
-    <View style={styles.container}>
-      <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
+  const navigateToChat = (rideId?: string, route?: string) => {
+    if (!rideId) return;
+    try {
+      (navigation as any).navigate("ChatMessages", {
+        chatId: String(rideId),
+        chatTitle: route || "Ride chat",
+        chatSubtitle: "Group chat",
+        isGroupChat: true,
+      });
+    } catch (e) {
+      console.warn("Navigation to ChatMessages failed", e);
+    }
+  };
 
-      <View style={styles.headerRow}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <ChevronBack />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Bookings</Text>
-        </View>
-      </View>
-
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
-        <View style={{
-          width: '100%',
-          maxWidth: 680,
-          backgroundColor: styles.menuContainer.backgroundColor,
-          alignItems: 'center',
-          elevation: 2,
-        }}>
-          <LoadingComponent />
-        </View>
-      </View>
-    </View>
-  );
-
-  const renderBooking: ListRenderItem<Booking> = ({ item }) => {
-    const details = item.ride_details || item.ride || {};
-    const origin = details.start_location || 'Unknown';
-    const destination = details.end_location || 'Unknown';
-    const timeRaw = details.start_time || '';
-    const price = details.total_price !== undefined ? Number(details.total_price) : undefined;
-    const seatsAvailable = details.booked_seats !== undefined && details.total_seats !== undefined ? `${details.booked_seats}/${details.total_seats}` : (details.seatsAvailable || '0/0');
-
-    const rideId = item.ride_id || item.ride?.ride_id || item.ride?.id || item.ride_details?.ride_id || item.ride_details?.id || undefined;
-
+  const renderTrip: ListRenderItem<TripItem> = ({ item }) => {
+    const seats =
+      item.totalSeats !== undefined && item.bookedSeats !== undefined
+        ? `${item.bookedSeats}/${item.totalSeats}`
+        : "0/0";
+    const date = item.startAt
+      ? item.startAt.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })
+      : "";
+    const time = item.startAt
+      ? item.startAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : "";
     return (
       <RideCard
-        id={rideId ? String(rideId) : String(item.id || '')}
-        origin={origin}
-        destination={destination}
-        time={formatTimeCompact(timeRaw)}
-        price={price}
-        seatsAvailable={seatsAvailable}
-        totalSeats={details.total_seats}
-        onSelect={(id: string) => {
-          if (rideId) {
-            try {
-              (navigation as any).navigate('RideDetailsScreen', { rideId: String(rideId) });
-            } catch (e) {
-              console.warn('Navigation to RideDetailsScreen failed', e);
-            }
-          } else {
-            console.warn('No ride id available for this booking; cannot navigate to ride details', item);
-          }
-        }}
-        variant={item.type === 'hosted' ? 'upcoming' : 'upcoming'}
+        id={item.rideId || item.id}
+        origin={item.origin}
+        destination={item.destination}
+        time={time}
+        price={item.price}
+        seatsAvailable={seats}
+        totalSeats={item.totalSeats}
+        date={date}
+        status={item.status}
+        onSelect={() => navigateToRide(item.rideId)}
+        variant="upcoming"
       />
     );
   };
 
-  if (error) {
+  const renderEmpty = () => {
+    const cfg =
+      tab === "upcoming"
+        ? {
+            title: "No upcoming trips",
+            body: "Browse rides on your route or post your own. Anything you book will land here.",
+            ctaLabel: "Find a ride",
+            onPress: () => (navigation as any).navigate("HomeScreen"),
+          }
+        : tab === "hosting"
+        ? {
+            title: "Not hosting yet",
+            body: "Have a regular commute? Post it once and let classmates jump in.",
+            ctaLabel: "Post a ride",
+            onPress: () => (navigation as any).navigate("CreateRide"),
+          }
+        : {
+            title: "No past trips",
+            body: "Once you complete a ride it'll show up here so you can re-book or rate it.",
+            ctaLabel: "Find a ride",
+            onPress: () => (navigation as any).navigate("HomeScreen"),
+          };
+    return (
+      <View style={{ alignItems: "center", paddingTop: 32, paddingHorizontal: 24 }}>
+        <Image
+          source={require("../assets/no-rides.png")}
+          style={{ width: 160, height: 180, marginBottom: 16 }}
+          resizeMode="contain"
+        />
+        <Text
+          style={{
+            fontSize: 20,
+            color: AppColors.secondaryDarkGreen,
+            fontFamily: "NunitoSans_800ExtraBold",
+            letterSpacing: -0.3,
+            marginBottom: 6,
+          }}
+        >
+          {cfg.title}
+        </Text>
+        <Text
+          style={{
+            fontSize: 14,
+            lineHeight: 21,
+            color: AppColors.secondaryDarkGreen,
+            opacity: 0.65,
+            textAlign: "center",
+            fontFamily: "NunitoSans_400Regular",
+            marginBottom: 20,
+          }}
+        >
+          {cfg.body}
+        </Text>
+        <TouchableOpacity
+          onPress={cfg.onPress}
+          activeOpacity={0.85}
+          style={{
+            backgroundColor: AppColors.primaryLightGreen,
+            paddingVertical: 12,
+            paddingHorizontal: 24,
+            borderRadius: 12,
+          }}
+        >
+          <Text
+            style={{
+              color: AppColors.secondaryDarkGreen,
+              fontFamily: "NunitoSans_700Bold",
+              fontSize: 14,
+            }}
+          >
+            {cfg.ctaLabel}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const renderTab = (key: Tab, label: string, count: number) => {
+    const active = tab === key;
+    return (
+      <TouchableOpacity
+        key={key}
+        onPress={() => setTab(key)}
+        activeOpacity={0.7}
+        style={{
+          paddingVertical: 10,
+          paddingHorizontal: 14,
+          borderRadius: 999,
+          // Active tab = forest pill on the lime canvas (inverse for
+          // strong contrast). Inactive tabs sit transparent.
+          backgroundColor: active ? AppColors.secondaryDarkGreen : "transparent",
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: "NunitoSans_700Bold",
+            fontSize: 14,
+            color: active ? AppColors.primaryLightGreen : AppColors.inkStrong,
+            letterSpacing: -0.1,
+          }}
+        >
+          {label}
+        </Text>
+        {count > 0 ? (
+          <View
+            style={{
+              marginLeft: 6,
+              paddingHorizontal: 7,
+              paddingVertical: 1,
+              borderRadius: 999,
+              backgroundColor: active ? AppColors.primaryLightGreen : AppColors.cardSurface,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: "NunitoSans_700Bold",
+                fontSize: 11,
+                color: AppColors.secondaryDarkGreen,
+              }}
+            >
+              {count}
+            </Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
+
+  if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
+        <View style={styles.brandInfoHeaderRow}>
+          <BrandInfo />
+        </View>
         <View style={styles.headerRow}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
             <TouchableOpacity onPress={() => navigation.goBack()}>
               <ChevronBack />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>My Bookings</Text>
+            <Text style={styles.headerTitle}>Your trips</Text>
           </View>
         </View>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
-          <Text style={{ color: '#888', textAlign: 'center', marginTop: 12, fontSize: 14 }}>
-            Please check your connection or try again later.
-          </Text>
-        </View>
+        <LoadingComponent label="Pulling your trips…" />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
+      <View style={styles.brandInfoHeaderRow}>
+        <BrandInfo />
+      </View>
       <View style={styles.headerRow}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <ChevronBack />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>My Bookings</Text>
+          <Text style={styles.headerTitle}>Your trips</Text>
         </View>
       </View>
-      <View style={styles.newSection}>
-        {dedupedBookings.length === 0 ? (
-          <View style={styles.menuContainer}>
-            <View style={{
-              minHeight: 120,
-              justifyContent: 'center',
-              alignItems: 'flex-start',
-              padding: 24,
-            }}>
-              <Text style={{ fontSize: 18, color: styles.headerTitle.color, textAlign: 'left', marginBottom: 8, fontWeight: '600', fontFamily: 'NunitoSans_600SemiBold' }}>
-                You have no bookings or rides yet.
-              </Text>
-              <Text style={{ fontSize: 14, color: AppColors.secondaryDarkGreen, textAlign: 'left', marginBottom: 14, fontFamily: 'NunitoSans_400Regular' }}>
-                Book a ride or create one to see your activity here!
-              </Text>
 
-              <TouchableOpacity
-                onPress={() => {
-                  try {
-                    (navigation as any).navigate('CreateRide');
-                  } catch (e) {
-                    console.warn('Navigation to CreateRide failed', e);
-                  }
-                }}
-                style={{
-                  backgroundColor: AppColors.secondaryDarkGreen,
-                  paddingVertical: 10,
-                  paddingHorizontal: 18,
-                  borderRadius: 10,
-                }}
-              >
-                <Text style={{ color: AppColors.basicWhite, fontFamily: 'NunitoSans_600SemiBold' }}>Create a ride</Text>
-              </TouchableOpacity>
-            </View>
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => fetchAllUserRides(true)} />
+        }
+      >
+        {/* Up Next hero — only when something's starting in 24h */}
+        {upNext ? (
+          <UpNextCard
+            origin={upNext.origin}
+            destination={upNext.destination}
+            startTime={upNext.startAt}
+            hostName={upNext.hostName}
+            hostAvatarUrl={upNext.hostAvatarUrl}
+            isHost={upNext.status === "hosting"}
+            onChat={() => navigateToChat(upNext.rideId, `${upNext.origin} → ${upNext.destination}`)}
+            onOpen={() => navigateToRide(upNext.rideId)}
+          />
+        ) : null}
+
+        {/* Tab bar */}
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 6,
+            marginBottom: 16,
+            paddingVertical: 4,
+          }}
+        >
+          {renderTab("upcoming", "Upcoming", counts.upcoming)}
+          {renderTab("hosting", "Hosting", counts.hosting)}
+          {renderTab("past", "Past", counts.past)}
+        </View>
+
+        {error ? (
+          <View
+            style={{
+              backgroundColor: AppColors.cardSurface,
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 14,
+            }}
+          >
+            <Text
+              style={{
+                color: AppColors.basicRed,
+                fontFamily: "NunitoSans_600SemiBold",
+                fontSize: 14,
+                textAlign: "center",
+              }}
+            >
+              {error}
+            </Text>
           </View>
+        ) : null}
+
+        {tabbed.length === 0 ? (
+          renderEmpty()
         ) : (
-          <View style={styles.menuContainer}> 
-            <FlatList
-              data={dedupedBookings}
-              keyExtractor={(item) => item.id}
-              renderItem={renderBooking}
-            />
-          </View>
+          <FlatList
+            scrollEnabled={false}
+            data={tabbed}
+            keyExtractor={(t) => t.id}
+            renderItem={renderTrip}
+          />
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 };

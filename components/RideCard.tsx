@@ -11,8 +11,6 @@ import {
   TextStyle,
   ViewStyle,
 } from "react-native";
-const locationPinIcon = require("../assets/location-pin.png");
-const navigationIcon = require("../assets/navigation-2.png");
 const clockIcon = require("../assets/clock.png");
 const walletIcon = require("../assets/wallet.png");
 const sofaIcon = require("../assets/sofa.png");
@@ -52,6 +50,12 @@ interface RideCardProps {
   pricePerPerson?: boolean;
   variant?: "upcoming" | "inprogress";
   date?: string;
+  /**
+   * Booking is awaiting the host's accept/reject. Card dims slightly
+   * and surfaces a "Waiting for host approval" pill so the user knows
+   * the trip is not yet confirmed without hiding it from the list.
+   */
+  isPending?: boolean;
 }
 
 // Format time to add colon between hours (e.g., '1700 hrs' -> '17:00 hrs')
@@ -77,6 +81,7 @@ const RideCard: React.FC<RideCardProps> = ({
   pricePerPerson = false,
   variant = "upcoming",
   date = "",
+  isPending = false,
 }) => {
   const handleSelect = () => {
     onSelect(id);
@@ -95,23 +100,33 @@ const RideCard: React.FC<RideCardProps> = ({
 
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: isSelected ? AppColors.secondaryDarkGreen : AppColors.basicWhite }]}
+      style={[
+        styles.card,
+        { backgroundColor: isSelected ? AppColors.secondaryDarkGreen : AppColors.basicWhite },
+        // Pending booking: dim the whole card so it visually
+        // recedes vs. confirmed trips, but keep it tappable.
+        isPending && styles.cardPending,
+      ]}
       onPress={handleSelect}
     >
       <View style={styles.topContainer}>
         <View style={styles.routeContainer}>
+          {/* Route block — outlined dot for origin, filled dot for
+              destination, vertical dotted connector between. Same
+              idiom as RideDetailsSelector and PreviousTripsCompressed
+              so the visual language stays consistent. Replaces the
+              old pin / dashed-line / arrow PNG combo that read as
+              mismatched icons. */}
           <View style={styles.locationContainer}>
-            <Image
-              source={locationPinIcon}
+            <View
               style={[
-                styles.icon,
+                styles.dotOutline,
                 {
-                  tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
-                  width: getIconSize(16, 18, 20),
-                  height: getIconSize(16, 18, 20),
+                  borderColor: isSelected
+                    ? AppColors.primaryLightGreen
+                    : AppColors.secondaryDarkGreen,
                 },
               ]}
-              resizeMode="contain"
             />
             <Text
               style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}
@@ -121,23 +136,31 @@ const RideCard: React.FC<RideCardProps> = ({
               {origin}
             </Text>
           </View>
-          {isSelected ? (
-            <Image source={require("../assets/dotted_line_green.png")} style={styles.verticalLine} />
-          ) : (
-            <Image source={require("../assets/dotted_line.png")} style={styles.verticalLine} />
-          )}
+          <View style={styles.routeConnector}>
+            {[0, 1, 2].map((i) => (
+              <View
+                key={i}
+                style={[
+                  styles.routeConnectorDash,
+                  {
+                    backgroundColor: isSelected
+                      ? AppColors.primaryLightGreen
+                      : AppColors.secondaryDarkGreen,
+                  },
+                ]}
+              />
+            ))}
+          </View>
           <View style={styles.locationContainer}>
-            <Image
-              source={navigationIcon}
+            <View
               style={[
-                styles.icon,
+                styles.dotFilled,
                 {
-                  tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
-                  width: getIconSize(16, 18, 20),
-                  height: getIconSize(16, 18, 20),
+                  backgroundColor: isSelected
+                    ? AppColors.primaryLightGreen
+                    : AppColors.secondaryDarkGreen,
                 },
               ]}
-              resizeMode="contain"
             />
             <Text
               style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}
@@ -219,13 +242,19 @@ const RideCard: React.FC<RideCardProps> = ({
 
 interface Styles {
   card: ViewStyle;
+  cardPending: ViewStyle;
+  pendingPill: ViewStyle;
+  pendingDot: ViewStyle;
+  pendingText: TextStyle;
   topContainer: ViewStyle;
   selectedCard: ViewStyle;
   unselectedCard: ViewStyle;
   routeContainer: ViewStyle;
   locationContainer: ViewStyle;
-  verticalLine: ImageStyle;
-  icon: ImageStyle;
+  dotOutline: ViewStyle;
+  dotFilled: ViewStyle;
+  routeConnector: ViewStyle;
+  routeConnectorDash: ViewStyle;
   locationText: TextStyle;
   selectedText: TextStyle;
   unselectedText: TextStyle;
@@ -245,14 +274,38 @@ interface Styles {
 }
 
 const styles = StyleSheet.create<Styles>({
+  cardPending: {
+    // Cool greyed-out state. No pill, no label, no dashed border —
+    // just a calm shift in surface + opacity that reads as
+    // "not-yet-active." Pure-grey background (instead of brand
+    // lime or white) signals the pending state in the same way
+    // iOS uses lighter weights for in-flight content.
+    backgroundColor: "#EBECE5",
+    opacity: 0.78,
+    shadowOpacity: 0.04,
+  },
+  pendingPill: {
+    // Unused — retained as an empty style to avoid breaking the
+    // Styles interface; can be deleted once we're sure no other
+    // screen pulled it in.
+    display: "none",
+  },
+  pendingDot: { display: "none" },
+  pendingText: { display: "none" },
   card: {
-    height: hp(22),
+    // Slightly shorter + more refined: ~19% of screen height instead
+    // of 22%. Compact list of trips, less aggressive vertical real
+    // estate per row.
+    height: hp(19),
     width: "100%",
     borderRadius: wp(3),
     padding: wp(4),
     flexDirection: "column",
     justifyContent: "space-between",
     position: "relative",
+    // overflow: hidden is what makes the vehicle wheel-clip trick
+    // work — the image extends past the card's bottom edge and the
+    // padding-below-the-wheels gets clipped off here.
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -285,15 +338,35 @@ const styles = StyleSheet.create<Styles>({
     minHeight: hp(5),
     paddingVertical: hp(0.5),
   },
-  verticalLine: {
-    width: 2,
-    height: hp(3),
-    left: wp(2.5),
-    marginTop: hp(0.5),
-    marginBottom: hp(0.5),
+  // Route dots + connector — same dimensions as the
+  // PreviousTripsCompressed card so the route idiom is unified.
+  dotOutline: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    borderWidth: 2,
+    marginRight: wp(2.5),
   },
-  icon: {
-    marginRight: wp(2),
+  dotFilled: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    marginRight: wp(2.5),
+  },
+  routeConnector: {
+    // Vertical column of three 3pt-tall dashes between the two route
+    // dots — gives the dotted-line feel without an image asset.
+    marginLeft: 4.5,
+    marginVertical: 2,
+    width: 2,
+    alignItems: "center",
+    justifyContent: "space-between",
+    height: hp(2.2),
+  },
+  routeConnectorDash: {
+    width: 2,
+    height: 3,
+    borderRadius: 1,
   },
   locationText: {
     fontSize: getFontSize(14, 16, 18),
@@ -354,15 +427,31 @@ const styles = StyleSheet.create<Styles>({
     color: AppColors.basicBlack,
   },
   vehicleImageContainer: {
+    // Self-clipping wrapper. Empirical PIL measurement of the vehicle
+    // PNGs (255 × 271): opaque taxi pixels run y=75..195, leaving
+    // ~28% transparent above and ~28% transparent below the wheels.
+    // The wrapper ends at the card's bottom edge with overflow:hidden;
+    // the image inside is taller than the wrapper AND positioned with
+    // its bottom further below, so that bottom transparent strip
+    // falls off the wrapper and is clipped. Wheels read as resting
+    // on the card's bottom rail.
     position: "absolute",
-    right: 0,
-    bottom: 3,
-    top: -1,
-    width: "40%",
-    height: "100%",
+    right: -wp(3),
+    bottom: 0,
+    width: "52%",
+    height: hp(14),
+    overflow: "hidden",
   },
   vehicleImage: {
+    position: "absolute",
+    right: 0,
+    // Push the image's bottom edge ~28% of its rendered height below
+    // the wrapper — same fraction as the transparent strip in the
+    // PNG — so the wrapper's overflow:hidden clips the strip away
+    // and the wheels land flush with the wrapper's (= card's) edge.
+    bottom: -hp(4.5),
     width: "100%",
+    height: hp(17),
   },
 });
 

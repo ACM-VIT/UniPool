@@ -298,21 +298,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   }, [apiUtil]);
 
 
+  // "Bookings" row was removed — the Trips tab in the main nav is the
+  // canonical surface for booked / hosted / past rides, so a second
+  // entry point under Settings was redundant.
   const myDetailsItems: MenuItem[] = [
-    {
-      id: "bookings",
-      title: "Bookings",
-      icon: require("../../assets/calendar.png"),
-      onPress: () => {
-        console.log("Navigating to BookingsScreen");
-        try {
-          navigation.navigate("BookingsScreen");
-        } catch (error) {
-          console.error("Navigation error:", error);
-          Alert.alert("Navigation Error", "Unable to navigate to Bookings screen");
-        }
-      },
-    },
     {
       id: "personal_info",
       title: "Personal Information",
@@ -561,16 +550,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         }}
         activeOpacity={0.7}
       >
-         {item.icon && (
+        {item.icon && (
           <Image
             source={item.icon}
-            style={[
-              styles.menuItemIcon,
-              item.id === 'notifications' && { tintColor: AppColors.basicBlack }
-            ]}
+            style={styles.menuItemIcon}
             resizeMode="contain"
           />
-        )} 
+        )}
         <Text style={styles.menuItemText}>{item.title}</Text>
         {/* {item.hasCheckmark && (
           <Image
@@ -648,7 +634,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
         <View style={styles.statsContainer}>
           {renderStatsCard(
-            calculatedStats.completedTrips > 0 
+            calculatedStats.completedTrips > 0
               ? calculatedStats.completedTrips.toString()
               : (() => {
                   const bookings = userData.total_bookings ?? 0;
@@ -658,23 +644,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             "trips"
           )}
           {renderStatsCard(
-            calculatedStats.totalDistance > 0 
+            calculatedStats.totalDistance > 0
               ? calculatedStats.totalDistance.toString()
-              : (userData.distance_travelled?.toString() || "0"), 
-            "km", 
-            "travelled"
-          )}
-          {renderStatsCard(
-            calculatedStats.co2Saved > 0
-              ? calculatedStats.co2Saved.toString()
-              : (userData.weight_saved?.toString() || "0"), 
-            "kg", 
-            "CO₂ saved"
+              : (userData.distance_travelled?.toString() || "0"),
+            "travelled",
+            "km"
           )}
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My Details</Text>
+          <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.menuContainer}>
             {myDetailsItems.map(renderMenuItem)}
           </View>

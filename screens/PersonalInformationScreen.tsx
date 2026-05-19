@@ -6,6 +6,7 @@ import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
 import { useNavigation } from '@react-navigation/native';
 import LoadingComponent from '../components/LoadingComponent';
+import AppColors from '../design_systems/colors';
 
 interface User {
   name: string;
@@ -63,9 +64,6 @@ const PersonalInformationScreen: React.FC = () => {
       </View>
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>{error}</Text>
-        <Text style={{ color: '#888', textAlign: 'center', marginTop: 12, fontSize: 14 }}>
-          Please check your connection or try again later.
-        </Text>
       </View>
     </View>
   );
@@ -81,42 +79,43 @@ const PersonalInformationScreen: React.FC = () => {
           <Text style={styles.headerTitle}>Personal Information</Text>
         </View>
       </View>
-      <View style={styles.newSection}>
-        <Text style={styles.sectionTitle}>My Details</Text>
-        <View style={styles.menuContainer}>
-          {user ? (
-            <>
-              <View style={styles.menuItem}>
-                <Text style={[styles.menuItemText, {flex: 1}]}>Name</Text>
-                <Text style={[styles.menuItemText, {flex: 2, flexWrap: 'wrap'}]}>{user.name}</Text>
-              </View>
-              <View style={styles.menuItem}>
-                <Text style={[styles.menuItemText, {flex: 1}]}>Email</Text>
-                <Text style={[styles.menuItemText, {flex: 2, flexWrap: 'wrap'}]}>{user.email}</Text>
-              </View>
-              <View style={styles.menuItem}>
-                <Text style={[styles.menuItemText, {flex: 1}]}>Contact</Text>
-                <Text style={[styles.menuItemText, {flex: 2, flexWrap: 'wrap'}]}>{user.contact_number}</Text>
-              </View>
-              {user.gender && (
-                <View style={styles.menuItem}>
-                  <Text style={[styles.menuItemText, {flex: 1}]}>Gender</Text>
-                  <Text style={[styles.menuItemText, {flex: 2, flexWrap: 'wrap'}]}>{user.gender}</Text>
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-              <Text style={{ fontSize: 18, color: '#888', textAlign: 'center', marginBottom: 12 }}>
-                No personal information found.
-              </Text>
-              <Text style={{ fontSize: 14, color: '#aaa', textAlign: 'center' }}>
-                Please update your profile to see your information here!
-              </Text>
+      {user ? (
+        <View style={styles.newSection}>
+          <View style={styles.menuContainer}>
+            <View style={styles.menuItem}>
+              <Text style={[styles.menuItemText, {flex: 1}]}>Name</Text>
+              <Text style={[styles.menuItemText, {flex: 2, flexWrap: 'wrap', textAlign: 'right'}]}>{user.name}</Text>
             </View>
-          )}
+            <View style={styles.menuItem}>
+              <Text style={[styles.menuItemText, {flex: 1}]}>Email</Text>
+              <Text style={[styles.menuItemText, {flex: 2, flexWrap: 'wrap', textAlign: 'right'}]}>{user.email}</Text>
+            </View>
+            <View style={styles.menuItem}>
+              <Text style={[styles.menuItemText, {flex: 1}]}>Contact</Text>
+              <Text style={[styles.menuItemText, {flex: 2, flexWrap: 'wrap', textAlign: 'right'}]}>{user.contact_number}</Text>
+            </View>
+            {user.gender && (
+              <View style={styles.menuItem}>
+                <Text style={[styles.menuItemText, {flex: 1}]}>Gender</Text>
+                <Text style={[styles.menuItemText, {flex: 2, flexWrap: 'wrap', textAlign: 'right'}]}>{user.gender}</Text>
+              </View>
+            )}
+          </View>
         </View>
-      </View>
+      ) : (
+        // Same title-only empty state as the BookingScreen — no body
+        // copy, no extra hand-holding.
+        <View style={{ alignItems: 'center', paddingHorizontal: 28, paddingTop: 36 }}>
+          <Text style={{
+            fontFamily: 'NunitoSans_800ExtraBold',
+            fontSize: 22,
+            color: AppColors.secondaryDarkGreen,
+            letterSpacing: -0.4,
+          }}>
+            Nothing here yet
+          </Text>
+        </View>
+      )}
     </View>
   );
 };

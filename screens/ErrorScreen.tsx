@@ -5,26 +5,41 @@ import {
   Image,
   StyleSheet,
   SafeAreaView,
+  TouchableOpacity,
   Dimensions,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import AppColors from "../design_systems/colors";
 
 const win = Dimensions.get("window");
 
 const ErrorScreen: React.FC = () => {
+  const navigation = useNavigation();
+  const goBack = () => {
+    if (navigation.canGoBack()) navigation.goBack();
+    else (navigation as any).reset({ index: 0, routes: [{ name: "HomeScreen" }] });
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.imageContainer}>
+      <View style={styles.heroPanel}>
         <Image
           style={styles.imageStyle}
           source={require("../assets/Traffic-Cone.png")}
         />
-        <Text style={styles.headerText}>
-          Yikes! Traffic's a bit tangled here.
-        </Text>
+      </View>
+      <View style={styles.body}>
+        <Text style={styles.headerText}>Traffic's tangled.</Text>
         <Text style={styles.subText}>
-          Redirect yourself to the main route and keep moving forward!
+          Something went sideways. Head back and give it another go.
         </Text>
+        <TouchableOpacity
+          style={styles.cta}
+          activeOpacity={0.85}
+          onPress={goBack}
+        >
+          <Text style={styles.ctaText}>Try again</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -34,39 +49,74 @@ const styles = StyleSheet.create({
   container: {
     width: "100%",
     height: "100%",
+    // Lime brand canvas at the top with the traffic cone; cream anchor
+    // card at the bottom carries the message + CTA. Hero-on-brand /
+    // anchor-on-cream layout — same system as AuthScreen.
     backgroundColor: AppColors.primaryLightGreen,
-    color: AppColors.secondaryDarkGreen,
   },
-  imageContainer: {
-    justifyContent: "center",
+  heroPanel: {
+    flex: 1.1,
     alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 24,
+  },
+  body: {
     flex: 1,
-    paddingTop: 50, // Increased padding
-    paddingBottom: 5, // Increased padding
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 32,
+    paddingTop: 40,
+    paddingBottom: 32,
+    alignItems: "center",
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    elevation: 12,
   },
   imageStyle: {
-    width: win.width * 0.70, // Slightly increased size
-    height: win.width * 0.70, // Slightly increased size
+    width: win.width * 0.55,
+    height: win.width * 0.55,
     resizeMode: "contain",
   },
   headerText: {
-    color: "#263B33",
+    color: AppColors.basicWhite,
     textAlign: "center",
-    fontFamily: "Nunito Sans",
-    fontSize: 27, // Updated font size
-    fontWeight: "600",
-    maxWidth: win.width * 0.9,
-    marginTop: 50, // Increased gap
-    marginBottom: 24,
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 30,
+    letterSpacing: -0.6,
+    marginBottom: 10,
   },
   subText: {
-    color: "#263B33",
+    color: AppColors.primaryLightGreen,
+    opacity: 0.75,
     textAlign: "center",
-    fontFamily: "Nunito Sans",
-    fontSize: 27, // Updated font size
-    fontWeight: "600",
-    maxWidth: win.width * 0.9,
-    paddingHorizontal: 30,
+    fontFamily: "NunitoSans_400Regular",
+    fontSize: 16,
+    lineHeight: 24,
+    maxWidth: win.width * 0.78,
+    marginBottom: 28,
+  },
+  cta: {
+    // Lime CTA against the forest anchor card — inverse of the forest
+    // CTAs that live on the lime canvas. One palette, two button
+    // systems based on surface.
+    backgroundColor: AppColors.primaryLightGreen,
+    paddingVertical: 14,
+    paddingHorizontal: 36,
+    borderRadius: 14,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  ctaText: {
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 15,
+    letterSpacing: 0.2,
   },
 });
 

@@ -48,10 +48,13 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
         setError(null);
       }
 
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      // Only READ current permission — never prompt here. The dedicated
+      // LocationPermissionScreen owns the request UX. Prompting from the
+      // provider would fire the iOS dialog over the onboarding carousel.
+      const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== "granted") {
-        setError("Permission denied");
-        setLocationText("Permission denied");
+        setError("Permission not granted");
+        setLocationText("Tap to enable location");
         if (!isBackgroundRetry) {
           setLoading(false);
         }

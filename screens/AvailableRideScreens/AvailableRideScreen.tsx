@@ -16,6 +16,7 @@ import BrandInfo from "../../components/BrandInfo";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import RideCard from "../../components/RideCard";
 import LoadingComponent from "../../components/LoadingComponent";
+import SearchingForRidesLoader from "../../components/SearchingForRidesLoader";
 
 import { useApi } from "../../utils/ApiUtil";
 import bottomNavItems from "../../data/BottomNavigationItems";
@@ -589,7 +590,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         </View>
       </View>
 
-      {loading && <LoadingComponent />}
+      {loading && <SearchingForRidesLoader />}
 
       <ScrollView
         style={styles.scrollView}
@@ -598,23 +599,37 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         <View style={[styles.contentContainer, { backgroundColor: require('../../design_systems/colors').default.primaryLightGreen }]}>
           {rides.length === 0 && !loading ? (
             <View style={styles.noRidesContainer}>
-              <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+              <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                 <Image
                   source={require('../../assets/no-rides.png')}
                   style={{
-                    marginTop: 24,
-                    width: Math.min(Dimensions.get('window').width * 0.7, 320),
-                    height: Math.min(Dimensions.get('window').width * 0.7, 320),
+                    marginTop: 16,
+                    width: Math.min(Dimensions.get('window').width * 0.55, 240),
+                    height: Math.min(Dimensions.get('window').width * 0.55, 240),
                     resizeMode: 'contain',
                   }}
                 />
               </View>
-              <TouchableOpacity
-                style={styles.adjustFiltersButton}
-                onPress={() => setShowFilters(true)}
-              >
-                <Text style={styles.adjustFiltersButtonText}>Adjust Filters</Text>
-              </TouchableOpacity>
+              <Text style={{ fontFamily: 'NunitoSans_800ExtraBold', fontSize: 22, color: require('../../design_systems/colors').default.secondaryDarkGreen, letterSpacing: -0.4, textAlign: 'center', marginBottom: 6 }}>
+                No rides on this route yet
+              </Text>
+              <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 15, lineHeight: 22, color: require('../../design_systems/colors').default.secondaryDarkGreen, opacity: 0.7, textAlign: 'center', marginBottom: 24, paddingHorizontal: 16 }}>
+                Try a wider time window, or post your own ride and let others jump in.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
+                <TouchableOpacity
+                  style={[styles.adjustFiltersButton, { backgroundColor: require('../../design_systems/colors').default.secondaryDarkGreen }]}
+                  onPress={() => setShowFilters(true)}
+                >
+                  <Text style={[styles.adjustFiltersButtonText, { color: require('../../design_systems/colors').default.primaryLightGreen, fontFamily: 'NunitoSans_800ExtraBold' }]}>Adjust filters</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.adjustFiltersButton, { backgroundColor: 'rgba(38,59,51,0.10)' }]}
+                  onPress={() => (navigation as any).navigate("CreateRide")}
+                >
+                  <Text style={[styles.adjustFiltersButtonText, { color: require('../../design_systems/colors').default.secondaryDarkGreen, fontFamily: 'NunitoSans_800ExtraBold' }]}>Post a ride</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : (
             rides
@@ -634,41 +649,26 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                   seatsAvailable={`${ride.total_seats - ride.booked_seats}/${ride.total_seats}`}
                   onSelect={handleRideSelection}
                   pricePerPerson={false}
+                  matchReason={ride.match_reason}
                 />
-                
-                {/* Enhanced ride info */}
+
+                {/* Sub-row beneath card: host + walking distances. Kept compact
+                    so the BlaBlaCar-style card stays the visual anchor. */}
                 <View style={styles.rideEnhancements}>
-                  {ride.relevance_score && filters.sortBy === 'relevance' && (
-                    <View style={styles.relevanceContainer}>
-                      <Text style={styles.relevanceScore}>
-                        {getRelevanceLabel(ride.relevance_score)}
-                      </Text>
-                    </View>
-                  )}
-                  
-                  {ride.match_reason && (
-                    <Text style={styles.matchReason}>
-                      {ride.match_reason}
-                    </Text>
-                  )}
-                  
+                  <Text style={styles.hostName}>
+                    Hosted by {ride.host_user_name}
+                  </Text>
                   <View style={styles.distanceInfo}>
-                    {ride.start_distance && (
+                    {ride.start_distance ? (
                       <Text style={styles.distanceText}>
                         {formatDistance(ride.start_distance)} from pickup
                       </Text>
-                    )}
-                    {ride.end_distance && (
+                    ) : null}
+                    {ride.end_distance ? (
                       <Text style={styles.distanceText}>
-                        {formatDistance(ride.end_distance)} from destination
+                        {formatDistance(ride.end_distance)} from drop-off
                       </Text>
-                    )}
-                  </View>
-                  
-                  <View style={styles.hostInfo}>
-                    <Text style={styles.hostName}>
-                      Host: {ride.host_user_name}
-                    </Text>
+                    ) : null}
                   </View>
                 </View>
               </View>

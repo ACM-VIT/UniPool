@@ -375,10 +375,32 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
   const [rideData, setRideData] = useState<RideData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Server-computed UI state — the single source of truth. `isHost`
+  // and `userBookingStatus` below are now thin derivations of this
+  // so the existing JSX keeps working without conditional rewrites.
+  type ViewerState =
+    | "host"
+    | "confirmed_passenger"
+    | "pending_passenger"
+    | "rejected_passenger"
+    | "available"
+    | "full"
+    | "past";
+  const [viewerState, setViewerState] = useState<ViewerState | null>(null);
+  const [viewerActions, setViewerActions] = useState<{
+    can_request_seat?: boolean;
+    can_cancel_booking?: boolean;
+    can_cancel_ride?: boolean;
+    can_accept_passengers?: boolean;
+    can_open_chat?: boolean;
+  }>({});
+
   const [isHost, setIsHost] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  
-  // Passenger booking state
+
+  // Passenger booking state — derived from viewer_state. Kept as
+  // separate state variables only so the existing render conditionals
+  // continue to compile; we never compute them from raw fields anymore.
   const [userBookingStatus, setUserBookingStatus] = useState<'none' | 'pending' | 'accepted' | 'rejected'>('none');
   const [userBooking, setUserBooking] = useState<any>(null);
   
@@ -567,10 +589,25 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
 
         const completeRideData = await apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
         setRideData(completeRideData);
-        
-        const isUserHost = completeRideData.is_user_host || false;
+
+        // ----- Server-computed state -----
+        // Read viewer_state + actions directly. Everything else
+        // below (isHost, userBookingStatus, userBooking) is just a
+        // derivation of these two fields so the existing render
+        // conditionals keep working without rewrites.
+        const vs = (completeRideData as any).viewer_state as ViewerState | undefined;
+        const vAct = (completeRideData as any).actions || {};
+        const vBookingId = (completeRideData as any).viewer_booking_id as string | undefined;
+        if (vs) setViewerState(vs);
+        setViewerActions(vAct);
+
+        const isUserHost =
+          vs === 'host' ||
+          // Fallback for pre-migration backends.
+          completeRideData.is_user_host ||
+          false;
         setIsHost(isUserHost);
-        
+
         if (isUserHost) {
           setCurrentUser({
             id: completeRideData.host?.id || userId,
@@ -580,7 +617,8 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
           });
         }
 
-        if (isUserHost && completeRideData.bookings) {
+        // Bookings list (used by the host's "Requests" pane).
+        if (completeRideData.bookings) {
           const transformedBookings = completeRideData.bookings.map((booking: any) => ({
             id: booking.id,
             passenger_id: booking.passenger_id,
@@ -595,42 +633,53 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             },
           }));
           setRequests(transformedBookings);
-        } else if (!isUserHost && completeRideData.bookings && userId) {
-          // For passengers, find their own booking and set user booking status
-          const transformedBookings = completeRideData.bookings.map((booking: any) => ({
-            id: booking.id,
-            passenger_id: booking.passenger_id,
-            request_status: booking.request_status,
-            created_at: booking.booking_created_at || booking.created_at,
-            passenger: {
-              id: booking.passenger_id,
-              name: booking.passenger_name,
-              email: booking.passenger_email,
-              profile_picture_url: booking.passenger_profile_picture_url,
-              contact_number: booking.passenger_contact_number,
-            },
-          }));
-          setRequests(transformedBookings);
-          
-          const currentUserBooking = transformedBookings.find(booking => booking.passenger_id === userId);
-          if (currentUserBooking) {
-            setUserBooking(currentUserBooking);
-            setUserBookingStatus(currentUserBooking.request_status as 'pending' | 'accepted' | 'rejected');
-            console.log(`Current user booking status: ${currentUserBooking.request_status}`);
-          } else {
-            setUserBookingStatus('none');
-            setUserBooking(null);
-          }
-        } else if (!isUserHost) {
+        }
+
+        // Derive passenger-side state from viewer_state. The viewer
+        // booking ID came down with the response so we don't need to
+        // scan the bookings array — O(1) instead of O(N).
+        if (vs === 'pending_passenger') {
+          setUserBookingStatus('pending');
+        } else if (vs === 'confirmed_passenger') {
+          setUserBookingStatus('accepted');
+        } else if (vs === 'rejected_passenger') {
+          setUserBookingStatus('rejected');
+        } else {
           setUserBookingStatus('none');
+        }
+
+        if (vBookingId) {
+          // Hydrate userBooking from the bookings list (already
+          // loaded above) so cancel handlers have everything they
+          // need without an extra round-trip.
+          const found = completeRideData.bookings?.find(
+            (b: any) => b.id === vBookingId,
+          );
+          setUserBooking(
+            found
+              ? {
+                  id: found.id,
+                  passenger_id: found.passenger_id,
+                  request_status: found.request_status,
+                  created_at: found.booking_created_at || found.created_at,
+                  passenger: {
+                    id: found.passenger_id,
+                    name: found.passenger_name,
+                    email: found.passenger_email,
+                    profile_picture_url: found.passenger_profile_picture_url,
+                    contact_number: found.passenger_contact_number,
+                  },
+                }
+              : null,
+          );
+        } else {
           setUserBooking(null);
         }
         
         console.log("Ride details:", completeRideData);
         console.log("Current user ID:", userId);
+        console.log("Viewer state:", vs);
         console.log("Is host:", isUserHost);
-        console.log("User booking status:", userBookingStatus);
-        console.log("User booking:", userBooking);
         console.log("Bookings found:", completeRideData.bookings);
         console.log("Coordinates:", {
           start_lat: completeRideData.start_latitude,
@@ -723,12 +772,12 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
 
     if (isHost) {
       Alert.alert(
-        "Delete Ride",
-        "Are you sure you want to permanently delete this ride? This action cannot be undone.",
+        "Delete this ride?",
+        "Riders who booked will be notified. This can't be undone.",
         [
-          { text: "Cancel", style: "cancel" },
-          { 
-            text: "Delete", 
+          { text: "Keep ride", style: "cancel" },
+          {
+            text: "Delete",
             style: "destructive",
             onPress: async () => {
               setIsActionLoading(true);
@@ -739,10 +788,10 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                   const deleteResponse = await apiUtil.delete(`/ride/delete/${rideId}`);
                   console.log("Delete ride response:", deleteResponse);
                   
-                  Alert.alert("Success", "Ride deleted successfully", [
-                    { 
-                      text: "OK", 
-                      onPress: () => navigation.goBack() 
+                  Alert.alert("Ride deleted", "It's no longer visible to anyone.", [
+                    {
+                      text: "OK",
+                      onPress: () => navigation.goBack()
                     }
                   ]);
                 } catch (deleteError: any) {
@@ -751,10 +800,10 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                   // If it's just an empty response error, treat as success since backend likely processed it
                   if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
                     console.log("Got empty response from delete ride - treating as success");
-                    Alert.alert("Success", "Ride deleted successfully", [
-                      { 
-                        text: "OK", 
-                        onPress: () => navigation.goBack() 
+                    Alert.alert("Ride deleted", "It's no longer visible to anyone.", [
+                      {
+                        text: "OK",
+                        onPress: () => navigation.goBack()
                       }
                     ]);
                   } else {
@@ -764,21 +813,20 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
               } catch (error: any) {
                 console.error("Delete ride error:", error);
                 
-                // Provide more specific error messages based on the error
-                let errorMessage = "Failed to delete ride";
+                let errorMessage = "Couldn't delete the ride. Try again?";
                 if (error.message && error.message.includes("accepted bookings")) {
-                  errorMessage = "Cannot delete ride with accepted participants. Please remove all participants first.";
+                  errorMessage = "You've already accepted riders. Remove them first, then delete.";
                 } else if (error.status === 403) {
-                  errorMessage = "You don't have permission to delete this ride.";
+                  errorMessage = "Only the host can delete this ride.";
                 } else if (error.status === 404) {
-                  errorMessage = "This ride was not found. It may have already been deleted.";
+                  errorMessage = "This ride is already gone.";
                 } else if (error.status === 400) {
-                  errorMessage = error.message || "Invalid request. Please check the ride details.";
+                  errorMessage = error.message || "Something's off with this request.";
                 } else if (error.status === 500) {
-                  errorMessage = "Server error occurred while deleting the ride. Please try again.";
+                  errorMessage = "Our server hiccupped. Give it a moment and try again.";
                 }
-                
-                Alert.alert("Error", errorMessage);
+
+                Alert.alert("Couldn't delete the ride", errorMessage);
               } finally {
                 setIsActionLoading(false); 
               }
@@ -787,27 +835,27 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
         ]
       );
     } else {
-      let alertTitle = "Cancel Booking";
-      let alertMessage = "Are you sure you want to cancel your booking for this ride?";
-      
+      let alertTitle = "Cancel your booking?";
+      let alertMessage = "You'll give up your seat on this ride.";
+
       if (userBookingStatus === 'pending') {
-        alertTitle = "Cancel Booking Request";
-        alertMessage = "Are you sure you want to cancel your pending booking request for this ride?";
+        alertTitle = "Cancel your request?";
+        alertMessage = "Your seat request will be withdrawn.";
       } else if (userBookingStatus === 'accepted') {
-        alertTitle = "Cancel Confirmed Booking";
-        alertMessage = "Are you sure you want to cancel your confirmed booking for this ride? The host will be notified.";
+        alertTitle = "Cancel your seat?";
+        alertMessage = "The host will be notified. Repeat cancellations can affect your rating.";
       } else if (userBookingStatus === 'rejected') {
-        alertTitle = "Remove Rejected Booking";
-        alertMessage = "Remove this rejected booking from your view?";
+        alertTitle = "Remove this booking?";
+        alertMessage = "It'll disappear from your trips.";
       }
       
       Alert.alert(
         alertTitle,
         alertMessage,
         [
-          { text: "No", style: "cancel" },
-          { 
-            text: "Yes", 
+          { text: "Keep it", style: "cancel" },
+          {
+            text: "Yes, cancel",
             style: "destructive",
             onPress: async () => {
               setIsActionLoading(true);
@@ -819,10 +867,10 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                     const deleteResponse = await apiUtil.delete(`/booking/delete/${userBooking.id}`);
                     console.log("Cancel booking response:", deleteResponse);
                     
-                    Alert.alert("Success", "Your booking has been cancelled successfully.", [
-                      { 
-                        text: "OK", 
-                        onPress: () => navigation.goBack() 
+                    Alert.alert("Booking cancelled", "Your seat is no longer reserved.", [
+                      {
+                        text: "OK",
+                        onPress: () => navigation.goBack()
                       }
                     ]);
                   } catch (deleteError: any) {
@@ -831,10 +879,10 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                     // If it's just an empty response error, treat as success since backend likely processed it
                     if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
                       console.log("Got empty response from cancel booking - treating as success");
-                      Alert.alert("Success", "Your booking has been cancelled successfully.", [
-                        { 
-                          text: "OK", 
-                          onPress: () => navigation.goBack() 
+                      Alert.alert("Booking cancelled", "Your seat is no longer reserved.", [
+                        {
+                          text: "OK",
+                          onPress: () => navigation.goBack()
                         }
                       ]);
                     } else {
@@ -842,11 +890,11 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                     }
                   }
                 } else {
-                  Alert.alert("Error", "No booking found to cancel");
+                  Alert.alert("Nothing to cancel", "We couldn't find that booking.");
                 }
               } catch (error: any) {
                 console.error("Error cancelling booking:", error);
-                Alert.alert("Error", error.message || "Failed to cancel booking");
+                Alert.alert("Couldn't cancel", error.message || "Try again in a moment.");
               } finally {
                 setIsActionLoading(false); 
               }
@@ -863,12 +911,12 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
       
       if (status !== 'granted') {
         Alert.alert(
-          "Permission Required", 
-          "Calendar access is required to add events. Please enable calendar permissions in your device settings to use this feature.",
+          "Calendar access off",
+          "Turn on calendar access in Settings so we can add your ride.",
           [
-            { text: "Cancel", style: "cancel" },
-            { 
-              text: "Open Settings", 
+            { text: "Not now", style: "cancel" },
+            {
+              text: "Open Settings",
               onPress: () => {
                 if (Platform.OS === 'ios') {
                   Linking.openURL('app-settings:');
@@ -911,8 +959,8 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
 
       if (!defaultCalendar) {
         Alert.alert(
-          "Calendar Error", 
-          "No writable calendar found on your device. Please ensure you have a calendar app installed and configured.",
+          "No calendar to add to",
+          "We couldn't find a writable calendar on this device. Set one up in your Calendar app and try again.",
           [{ text: "OK" }]
         );
         return;
@@ -926,7 +974,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
 
       const startDate = new Date(rideData!.start_time);
       if (isNaN(startDate.getTime())) {
-        Alert.alert("Error", "Invalid ride time format. Cannot add to calendar.");
+        Alert.alert("Hmm, weird time", "We couldn't read this ride's time. Skipping the calendar event.");
         return;
       }
       
@@ -980,8 +1028,8 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
 
       if (eventId) {
         Alert.alert(
-          "✅ Added to Calendar", 
-          `Your ride has been added to "${defaultCalendar.title}" calendar.\n\nReminders are set for:\n• 1 hour before departure\n• 15 minutes before departure`,
+          "Added to your calendar",
+          `Saved to "${defaultCalendar.title}". You'll get reminders 1 hour and 15 minutes before departure.`,
           [
             { text: "View in Calendar", onPress: () => {
                 if (Platform.OS === "ios") {
@@ -991,25 +1039,23 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                 }
               }
             },
-            { text: "Great!" }
+            { text: "Great" }
           ]
         );
       } else {
-        Alert.alert("Error", "Failed to create calendar event. Please try again.");
+        Alert.alert("Couldn't add to calendar", "Try again in a moment.");
       }
     } catch (error: any) {
       console.error("Calendar error:", error);
       
-      let errorMessage = "Failed to add event to calendar. Please try again.";
-      if (error.message?.includes('permission')) {
-        errorMessage = "Calendar permission denied. Please enable calendar access in your device settings.";
+      let errorMessage = "Couldn't add to calendar. Try again in a moment.";
+      if (error.message?.includes('permission') || error.message?.includes('denied')) {
+        errorMessage = "Turn on Calendar access in Settings, then try again.";
       } else if (error.message?.includes('not found')) {
-        errorMessage = "No calendar app found on your device.";
-      } else if (error.message?.includes('denied')) {
-        errorMessage = "Calendar access was denied. Please enable calendar permissions in Settings.";
+        errorMessage = "We couldn't find a calendar app on this device.";
       }
-      
-      Alert.alert("Error", errorMessage);
+
+      Alert.alert("Couldn't add to calendar", errorMessage);
     }
   };
 
@@ -1383,7 +1429,7 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
                   <View style={styles.passengerInfo}>
                     <Text style={[styles.passengerName, isHostBooking && styles.hostPassengerName]}>{displayName}</Text>
                     <View style={[styles.statusBadge, isHostBooking && styles.hostStatusBadge]}>
-                      <Text style={styles.passengerStatusText}>
+                      <Text style={[styles.passengerStatusText, isHostBooking && styles.hostPassengerStatusText]}>
                         {req.request_status === "pending" ? "Pending" : "Accepted"}
                       </Text>
                     </View>
@@ -1455,71 +1501,137 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
             resizeMode="contain"
           />
           <Text style={{
-            fontSize: 24,
-            fontFamily: "NunitoSans_700Bold",
-            color: AppColors.basicBlack,
+            fontSize: 26,
+            fontFamily: "NunitoSans_800ExtraBold",
+            color: AppColors.secondaryDarkGreen,
+            letterSpacing: -0.5,
             textAlign: "center",
             marginBottom: 10
           }}>
-            {userBookingStatus === 'pending' ? 'Request Pending' : 'Request Rejected'}
+            {userBookingStatus === 'pending' ? 'Waiting on the host' : 'Request not accepted'}
           </Text>
           <Text style={{
-            fontSize: 16,
+            fontSize: 15,
+            lineHeight: 22,
             fontFamily: "NunitoSans_400Regular",
-            color: AppColors.basicBlack,
+            color: AppColors.secondaryDarkGreen,
+            opacity: 0.7,
             textAlign: "center",
-            marginBottom: 30
+            marginBottom: 28,
+            paddingHorizontal: 12,
           }}>
-            {userBookingStatus === 'pending' 
-              ? 'Waiting for host confirmation. You\'ll be notified once the host responds.'
-              : 'Unfortunately, your booking request was not accepted by the host.'
+            {userBookingStatus === 'pending'
+              ? `We'll ping you the moment ${rideData?.host_user_name?.split(' ')?.[0] || 'they'} respond${rideData?.host_user_name ? 's' : ''}. You can also message them directly while you wait.`
+              : "The host went a different direction this time. Plenty of other rides to choose from."
             }
           </Text>
-          <View style={{ flexDirection: "row", gap: 15 }}>
+
+          {/* Pending: primary CTA is "Message host" because that's the
+              only action the user can actually take to influence the
+              outcome. Find rides + Cancel request sit below as a
+              secondary row. Rejected: skip the message CTA — there's
+              nothing useful to say once the host has declined. */}
+          {userBookingStatus === 'pending' && (
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={{
+                alignSelf: "stretch",
+                backgroundColor: AppColors.secondaryDarkGreen,
+                paddingVertical: 16,
+                borderRadius: 16,
+                alignItems: "center",
+                marginBottom: 14,
+                shadowColor: AppColors.basicBlack,
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.18,
+                shadowRadius: 14,
+                elevation: 3,
+              }}
+              onPress={() => {
+                const hostUserId = rideData?.host_user_id;
+                const hostName = rideData?.host_user_name;
+                if (currentUserId && hostUserId) {
+                  // Real 1:1 with the host — same DM convention as the
+                  // chat list's pending rows.
+                  const sorted = [currentUserId, hostUserId].sort();
+                  const dmRoomId = `dm_${sorted[0]}_${sorted[1]}`;
+                  navigation.navigate("ChatMessages", {
+                    chatId: dmRoomId,
+                    chatTitle: hostName || "Host",
+                    chatSubtitle: `${rideData?.start_location} → ${rideData?.end_location}`,
+                    isGroupChat: false,
+                    otherUserId: hostUserId,
+                    pendingHostInquiry: true,
+                    pendingRideId: rideData?.id,
+                    pendingHostName: hostName,
+                  });
+                }
+              }}
+            >
+              <Text style={{
+                color: AppColors.primaryLightGreen,
+                fontSize: 16,
+                fontFamily: "NunitoSans_800ExtraBold",
+                letterSpacing: 0.2,
+              }}>
+                Message {rideData?.host_user_name?.split(' ')?.[0] || 'host'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          <View style={{ flexDirection: "row", gap: 12, alignSelf: "stretch" }}>
             <TouchableOpacity
               style={{
-                backgroundColor: AppColors.secondaryDarkGreen,
-                paddingHorizontal: 25,
-                paddingVertical: 12,
-                borderRadius: 25,
-                elevation: 2,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.25,
-                shadowRadius: 3.84,
+                flex: 1,
+                backgroundColor: userBookingStatus === 'pending'
+                  ? "transparent"
+                  : AppColors.secondaryDarkGreen,
+                borderWidth: userBookingStatus === 'pending' ? 1.5 : 0,
+                borderColor: AppColors.secondaryDarkGreen,
+                paddingVertical: 14,
+                borderRadius: 14,
+                alignItems: "center",
+                shadowColor: AppColors.basicBlack,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: userBookingStatus === 'pending' ? 0 : 0.18,
+                shadowRadius: 12,
+                elevation: userBookingStatus === 'pending' ? 0 : 2,
               }}
               onPress={() => navigation.navigate("HomeScreen")}
             >
               <Text style={{
-                color: "white",
-                fontSize: 16,
-                fontFamily: "NunitoSans_600SemiBold"
+                color: userBookingStatus === 'pending'
+                  ? AppColors.secondaryDarkGreen
+                  : AppColors.primaryLightGreen,
+                fontSize: 15,
+                fontFamily: "NunitoSans_800ExtraBold",
+                letterSpacing: 0.2,
               }}>
-                Find Rides
+                Find rides
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={{
-                backgroundColor: AppColors.primaryLightGreen,
-                paddingHorizontal: 25,
-                paddingVertical: 12,
-                borderRadius: 25,
-                borderWidth: 2,
-                borderColor: AppColors.secondaryDarkGreen,
+                flex: 1,
+                backgroundColor: "rgba(38,59,51,0.10)",
+                paddingVertical: 14,
+                borderRadius: 14,
+                alignItems: "center",
               }}
               onPress={handleCancelRide}
               disabled={isActionLoading}
             >
               <Text style={{
                 color: AppColors.secondaryDarkGreen,
-                fontSize: 16,
-                fontFamily: "NunitoSans_600SemiBold"
+                fontSize: 15,
+                fontFamily: "NunitoSans_700Bold",
+                letterSpacing: 0.2,
               }}>
-                {isActionLoading 
-                  ? "Removing..." 
+                {isActionLoading
+                  ? "Removing…"
                   : userBookingStatus === 'pending'
-                  ? "Cancel Request"
-                  : "Remove Booking"
+                  ? "Cancel request"
+                  : "Remove"
                 }
               </Text>
             </TouchableOpacity>
@@ -1686,6 +1798,8 @@ const RideDetailsScreen: React.FC<any> = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    // Lime brand canvas — matches the rest of the app. Forest content
+    // cards (rideCard, combinedContainer) float on top.
     backgroundColor: AppColors.primaryLightGreen,
   },
   header: {
@@ -1708,10 +1822,10 @@ const styles = StyleSheet.create({
     marginTop: 7,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    fontFamily: 'NunitoSans_600SemiBold',
-    color: AppColors.basicBlack,
+    fontSize: 22,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    color: AppColors.secondaryDarkGreen,
+    letterSpacing: -0.4,
   },
   errorContainer: {
     flex: 1,
@@ -1721,21 +1835,27 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: 'red',
+    color: AppColors.secondaryDarkGreen,
     textAlign: 'center',
     marginBottom: 20,
-    fontFamily: 'NunitoSans_400Regular',
+    fontFamily: 'NunitoSans_700Bold',
   },
   retryButton: {
     backgroundColor: AppColors.secondaryDarkGreen,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 14,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 2,
   },
   retryButtonText: {
-    color: AppColors.basicWhite,
-    fontSize: 16,
-    fontFamily: 'NunitoSans_600SemiBold',
+    color: AppColors.primaryLightGreen,
+    fontSize: 15,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    letterSpacing: 0.2,
   },
   scrollContainer: {
     flex: 1,
@@ -1977,12 +2097,15 @@ const styles = StyleSheet.create({
   },
   // Booking management styles
   requestsHeader: {
-    fontSize: 18,
-    fontFamily: "NunitoSans_700Bold",
-    color: AppColors.basicBlack,
+    fontSize: 14,
+    fontFamily: "NunitoSans_800ExtraBold",
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.75,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
     marginLeft: 16,
-    marginTop: 16,
-    marginBottom: 16,
+    marginTop: 20,
+    marginBottom: 12,
   },
   inlineLoadingContainer: {
     height: 120,
@@ -1991,13 +2114,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   emptyText: {
-    color: AppColors.basicBlack,
-    fontSize: 16,
-    fontFamily: "NunitoSans_400Regular",
-    marginLeft: 16,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.65,
+    fontSize: 15,
+    fontFamily: "NunitoSans_600SemiBold",
+    marginHorizontal: 16,
   },
   pendingRequestCard: {
-    backgroundColor: AppColors.basicBlack,
+    // Forest card on the lime canvas — matches the unified surface system.
+    backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 16,
@@ -2006,6 +2131,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
   },
   pendingRequestName: {
     color: AppColors.basicWhite,
@@ -2065,27 +2195,31 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   confirmedPassengerCard: {
-    backgroundColor: AppColors.basicWhite,
+    // Forest passenger tile on the lime canvas — matches RideCard /
+    // UpNextCard surface system. Lime text inside.
+    backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 16,
     marginHorizontal: 16,
     marginBottom: 12,
     elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   hostPassengerCard: {
+    // The host's own row — inverts to lime fill so they stand out as
+    // the route owner. Forest border keeps it within the system.
     backgroundColor: AppColors.primaryLightGreen,
     borderWidth: 2,
     borderColor: AppColors.secondaryDarkGreen,
     elevation: 3,
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.18,
   },
   passengerInfo: {
     flex: 1,
@@ -2095,28 +2229,37 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   passengerName: {
-    color: AppColors.basicBlack,
+    color: AppColors.primaryLightGreen,
     fontSize: 16,
-    fontFamily: "NunitoSans_600SemiBold",
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: -0.1,
     flex: 1,
   },
   hostPassengerName: {
     color: AppColors.secondaryDarkGreen,
-    fontFamily: "NunitoSans_700Bold",
+    fontFamily: "NunitoSans_800ExtraBold",
   },
   statusBadge: {
-    backgroundColor: AppColors.secondaryDarkGreen,
+    // Lime status pill on the forest passenger tile — inverts the
+    // tile typography for the "Confirmed" badge.
+    backgroundColor: AppColors.primaryLightGreen,
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   hostStatusBadge: {
-    backgroundColor: AppColors.basicBlack,
+    backgroundColor: AppColors.secondaryDarkGreen,
   },
   passengerStatusText: {
-    color: AppColors.basicWhite,
+    color: AppColors.secondaryDarkGreen,
     fontSize: 11,
-    fontFamily: "NunitoSans_600SemiBold",
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: 0.4,
+  },
+  hostPassengerStatusText: {
+    // Host's tile is lime, so its forest badge wears lime label —
+    // mirror of the rest of the inverse rules.
+    color: AppColors.primaryLightGreen,
   },
   removeButton: {
     backgroundColor: "#FF3B30",
@@ -2136,52 +2279,61 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   acceptedStatusBanner: {
-    backgroundColor: '#D4EDDA',
-    borderColor: '#C3E6CB',
-    borderWidth: 1,
-    borderRadius: 8,
+    // "You're confirmed" banner — forest dark tile with lime title and
+    // soft lime body. Matches the rest of the system (UpNextCard,
+    // RideCard, confirmedPassengerCard).
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 14,
     margin: 16,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    elevation: 2,
   },
   statusBannerIcon: {
     width: 24,
     height: 24,
     marginRight: 12,
-    tintColor: AppColors.basicBlack,
+    tintColor: AppColors.primaryLightGreen,
   },
   statusBannerContent: {
     flex: 1,
   },
   statusBannerTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'NunitoSans_600SemiBold',
-    color: AppColors.basicBlack,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    color: AppColors.primaryLightGreen,
+    letterSpacing: -0.2,
     marginBottom: 4,
   },
   statusBannerText: {
     fontSize: 14,
-    fontFamily: 'NunitoSans_400Regular',
-    color: AppColors.basicBlack + 'CC',
+    fontFamily: 'NunitoSans_600SemiBold',
+    color: AppColors.basicWhite,
+    opacity: 0.78,
     lineHeight: 20,
   },
   rideOverBanner: {
-    padding: 12,
+    // Forest "ride is over" banner — reads as a past-state tag without
+    // any harsh white panel.
+    padding: 14,
     marginHorizontal: 16,
     marginVertical: 8,
     borderRadius: 12,
-    backgroundColor: AppColors.basicWhite,
+    backgroundColor: AppColors.secondaryDarkGreen,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E6E6E6',
   },
   rideOverText: {
-    color: AppColors.basicBlack,
-    fontSize: 16,
-    fontFamily: 'NunitoSans_600SemiBold',
+    color: AppColors.primaryLightGreen,
+    fontSize: 14,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
 });
 

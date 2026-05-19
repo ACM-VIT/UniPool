@@ -77,7 +77,7 @@ const NotificationsScreen: React.FC = () => {
       console.error("Error updating notification settings:", error);
       // Revert the change if API call fails
       setSettings(settings);
-      Alert.alert("Error", "Failed to update notification settings. Please try again.");
+      Alert.alert("Couldn't update", "We couldn't save that change. Try again in a moment.");
     }
   };
 

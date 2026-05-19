@@ -1,25 +1,18 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  ScrollView,
   View,
   Text,
-  Image,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
-  Dimensions,
-  Platform,
-  StatusBar,
-  Alert,
   TouchableOpacity,
+  FlatList,
+  Image,
+  StatusBar,
 } from "react-native";
-import RideCard from "../../components/RideCard";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import styles from "./BookingScreen.styles";
 import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
-import bottomNavItems from "../../data/BottomNavigationItems";
-import BrandInfo from "../../components/BrandInfo";
-import LottieView from "lottie-react-native";
 import LoadingComponent from "../../components/LoadingComponent";
+import RideCard from "../../components/RideCard";
 
 export interface RideData {
   id?: string;
@@ -32,446 +25,268 @@ export interface RideData {
   total_price: number;
   is_ongoing: number;
   is_same_gender: number;
-  vehicle_type?: "scooter" | "van" | "car" | "suv";
   host_user_id?: string;
   is_user_host?: boolean;
+  request_status?: string;
+  // Server-computed UI state. New canonical source of truth for
+  // "what's my relationship to this ride?" — see ResolveViewerState
+  // in the backend.
+  viewer_state?:
+    | "host"
+    | "confirmed_passenger"
+    | "pending_passenger"
+    | "rejected_passenger"
+    | "available"
+    | "full"
+    | "past";
+  viewer_booking_id?: string;
 }
 
-const window = Dimensions.get("window");
+type TabKey = "upcoming" | "hosting" | "past";
+
+const formatHHMM = (iso: string): string => {
+  try {
+    const d = new Date(iso);
+    const hh = d.getHours().toString().padStart(2, "0");
+    const mm = d.getMinutes().toString().padStart(2, "0");
+    return `${hh}${mm} hrs`;
+  } catch {
+    return "";
+  }
+};
+
+const formatDate = (iso: string): string => {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  } catch {
+    return "";
+  }
+};
 
 const BookingScreen: React.FC = () => {
-  const [activeUpcomingPage, setActiveUpcomingPage] = useState(0);
-  const [activeInProgressPage, setActiveInProgressPage] = useState(0);
-  const [upcomingRides, setUpcomingRides] = useState<RideData[]>([]);
-  const [inProgressRides, setInProgressRides] = useState<RideData[]>([]);
+  const [rides, setRides] = useState<RideData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
+  const [tab, setTab] = useState<TabKey>("upcoming");
+  // Backend UUID for the current user — NOT the Firebase uid.
+  // `host_user_id` on a ride comes from the backend's `users.id`
+  // column; the Firebase uid is unrelated. Comparing the two
+  // (the old behaviour) meant "Hosting" never matched any ride.
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { apiUtil } = useApi();
   const navigation = require("@react-navigation/native").useNavigation();
-
-  const bookingScreenNavItems = bottomNavItems.map((item, index) => ({
-    ...item,
-    isActive: index === 1,
-  }));
-
-  const formatTime = (timeString: string): string => {
-    try {
-      const date = new Date(timeString);
-      const hours = date.getHours().toString().padStart(2, '0');
-      const minutes = date.getMinutes().toString().padStart(2, '0');
-      return `${hours}${minutes}hrs`;
-    } catch (error) {
-      return timeString;
-    }
-  };
-
-  const calculateAvailableSeats = (ride: RideData): string => {
-    const auth = require('@react-native-firebase/auth').getAuth();
-    const currentUser = auth.currentUser;
-    const isHost = currentUser && ride.host_user_id === currentUser.uid;
-    
-    const actualBookedSeats = isHost ? ride.booked_seats + 1 : ride.booked_seats;
-    const availableSeats = ride.total_seats - actualBookedSeats;
-    
-    console.log(`Seat calculation for ride ${ride.ride_id || ride.id}: isHost=${isHost}, booked=${ride.booked_seats}, total=${ride.total_seats}, available=${availableSeats}`);
-    
-    return `${availableSeats}/${ride.total_seats}`;
-  };
-
-  const categorizeRide = (ride: RideData, currentTime: Date): 'upcoming' | 'inprogress' | 'completed' => {
-    try {
-      const rideStartTime = new Date(ride.start_time);
-      if (isNaN(rideStartTime.getTime())) {
-        return 'upcoming';
-      }
-      
-      const timeDiffHours = (rideStartTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60);
-      
-      if (timeDiffHours < -24) {
-        return 'completed';
-      }
-      
-      if (timeDiffHours > 1) {
-        return 'upcoming';
-      }
-      
-      if (timeDiffHours >= -6 && timeDiffHours <= 1) {
-        if (ride.is_ongoing === 1) return 'inprogress';
-        if (ride.is_ongoing === 0 && timeDiffHours > 0) return 'upcoming';
-        
-        return timeDiffHours <= 0 ? 'inprogress' : 'upcoming';
-      }
-      
-      return 'completed';
-      
-    } catch (error) {
-      console.warn('Error categorizing ride:', error);
-      return 'upcoming';
-    }
-  };
-
-  const handleUpcomingScroll = (
-    event: NativeSyntheticEvent<NativeScrollEvent>
-  ) => {
-    const scrollX = event.nativeEvent.contentOffset.x;
-    const pageIndex = Math.round(scrollX / window.width);
-    setActiveUpcomingPage(pageIndex);
-  };
-
-  const handleInProgressScroll = (
-    event: NativeSyntheticEvent<NativeScrollEvent>
-  ) => {
-    const scrollX = event.nativeEvent.contentOffset.x;
-    const pageIndex = Math.round(scrollX / window.width);
-    setActiveInProgressPage(pageIndex);
-  };
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    const fetchRides = async () => {
+    const fetchAll = async () => {
       setLoading(true);
       setError(null);
       try {
-        const auth = require('@react-native-firebase/auth').getAuth();
-        const currentUser = auth.currentUser;
-        
-        if (!currentUser) {
-          console.log("Unauthenticated user found in BookingScreen");
-          setError("Please sign in to view your rides");
+        const auth = require("@react-native-firebase/auth").getAuth();
+        if (!auth.currentUser) {
+          setError("Please sign in to view your trips");
           return;
         }
-
-        console.log("User authenticated, fetching rides...");
-        const bookings = await apiUtil.get<any>("/user/rides");
-        const upcoming: RideData[] = [];
-        const inProgress: RideData[] = [];
-        const seenIds = new Set<string>();
-        const currentTime = new Date();
-        
-        if (Array.isArray(bookings)) {
-          bookings.forEach((ride: RideData) => {
-            const rideId = ride.ride_id || ride.id;
-            if (!rideId || seenIds.has(rideId)) return;
-            seenIds.add(rideId);
-            
-            const isHost = currentUser && ride.host_user_id === currentUser.uid;
-            console.log(`Processing ride ${rideId}: host_user_id=${ride.host_user_id}, current_user_id=${currentUser?.uid}, is_host=${isHost}`);
-            
-            if (!ride.start_time || !ride.start_location || !ride.end_location) {
-              console.warn("Skipping ride with missing required fields:", ride);
-              return;
-            }
-            
-            let rideStartTime: Date;
-            try {
-              rideStartTime = new Date(ride.start_time);
-              if (isNaN(rideStartTime.getTime())) {
-                throw new Error("Invalid date");
-              }
-            } catch (error) {
-              console.warn("Skipping ride with invalid start_time:", ride.start_time, ride);
-              return;
-            }
-            
-            const category = categorizeRide(ride, currentTime);
-            const timeDiffHours = (rideStartTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60);
-            
-            console.log(`Categorizing ride ${rideId}: start_time=${ride.start_time}, is_ongoing=${ride.is_ongoing}, timeDiff=${timeDiffHours.toFixed(2)}h, category=${category}`);
-            
-            if (category === 'completed') {
-              console.log(`Skipping completed ride ${rideId}`);
-              return;
-            }
-            
-            if (category === 'inprogress') {
-              inProgress.push(ride);
-            } else {
-              upcoming.push(ride);
-            }
-          });
-          
-          upcoming.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-          
-          inProgress.sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
-        }
-        
-        console.log("Categorized rides:");
-        console.log("Upcoming Rides:", upcoming.length, upcoming.map(r => ({ 
-          id: r.ride_id || r.id, 
-          start_time: r.start_time, 
-          is_ongoing: r.is_ongoing 
-        })));
-        console.log("In-Progress Rides:", inProgress.length, inProgress.map(r => ({ 
-          id: r.ride_id || r.id, 
-          start_time: r.start_time, 
-          is_ongoing: r.is_ongoing 
-        })));
-        
-        setUpcomingRides(upcoming);
-        setInProgressRides(inProgress);
+        // Resolve the backend user id + the user's rides in parallel
+        // so the Hosting / Upcoming bucketing has the right key to
+        // compare against `host_user_id`.
+        const [details, ridesData] = await Promise.all([
+          apiUtil.get<any>("/user/details").catch(() => null),
+          apiUtil.get<any>("/user/rides"),
+        ]);
+        const myId: string | undefined = details?.user?.id ?? details?.id;
+        if (myId) setCurrentUserId(myId);
+        setRides(Array.isArray(ridesData) ? ridesData : []);
       } catch (err: any) {
-        console.log('Error fetching user rides:', err);
-        if (err.message === "AUTHENTICATION_REDIRECT") {
-          console.log('Authentication redirect in BookingScreen - not showing error');
-          return;
-        }
-        setError(err.message || "Failed to fetch rides");
+        if (err.message === "AUTHENTICATION_REDIRECT") return;
+        setError(err.message || "Failed to fetch trips");
       } finally {
         setLoading(false);
       }
     };
-    fetchRides();
+    fetchAll();
   }, [apiUtil]);
 
-  // Debug: Log all rides once before rendering
-  console.log('upcomingRides:', upcomingRides);
-  console.log('inProgressRides:', inProgressRides);
+  // Bucket rides into the three tabs by the server-computed
+  // viewer_state. No more client-side "isHost && hasBooking" math —
+  // the API tells us exactly what the user's relationship to each
+  // ride is.
+  const buckets = useMemo(() => {
+    const upcoming: RideData[] = [];
+    const hosting: RideData[] = [];
+    const past: RideData[] = [];
+    const seen = new Set<string>();
+    for (const ride of rides) {
+      const rid = ride.ride_id || ride.id;
+      if (!rid || seen.has(rid)) continue;
+      seen.add(rid);
+      const startMs = new Date(ride.start_time).getTime();
+      if (Number.isNaN(startMs)) continue;
+
+      // Prefer the server's viewer_state. Fall back to legacy
+      // derivation only if the API hasn't been updated yet (e.g.
+      // pre-migration clients hitting an older build).
+      const state =
+        ride.viewer_state ??
+        (ride.is_user_host || ride.host_user_id === currentUserId
+          ? "host"
+          : startMs < Date.now() - 24 * 60 * 60 * 1000
+          ? "past"
+          : "available");
+
+      switch (state) {
+        case "past":
+          past.push(ride);
+          break;
+        case "host":
+          hosting.push(ride);
+          break;
+        case "confirmed_passenger":
+        case "pending_passenger":
+        case "rejected_passenger":
+        case "available":
+        case "full":
+        default:
+          upcoming.push(ride);
+          break;
+      }
+    }
+    upcoming.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+    hosting.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+    past.sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
+    return { upcoming, hosting, past };
+  }, [rides, currentUserId]);
+
+  const tabRides = buckets[tab];
+  const counts = {
+    upcoming: buckets.upcoming.length,
+    hosting: buckets.hosting.length,
+    past: buckets.past.length,
+  };
+
+  const openRide = (rideId: string) => {
+    if (!rideId) return;
+    navigation.navigate("RideDetailsScreen", { rideId });
+  };
+
+  // Empty-state copy is intentionally terse. Mobbin pattern across
+  // Uber / Bolt / inDrive: one line + one CTA, nothing else.
+  const renderEmpty = () => {
+    const copy =
+      tab === "upcoming"
+        ? { title: "Nothing booked yet", cta: { label: "Find a ride", to: "HomeScreen" as const } }
+        : tab === "hosting"
+        ? { title: "Not hosting yet", cta: { label: "Post a ride", to: "CreateRide" as const } }
+        : { title: "No past trips", cta: { label: "Find a ride", to: "HomeScreen" as const } };
+
+    return (
+      <View style={styles.emptyWrap}>
+        <Text style={styles.emptyTitle}>{copy.title}</Text>
+        <TouchableOpacity
+          style={styles.primaryCta}
+          activeOpacity={0.85}
+          onPress={() => (navigation as any).navigate(copy.cta.to)}
+        >
+          <Text style={styles.primaryCtaText}>{copy.cta.label}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
-      <View
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 10,
-          backgroundColor: AppColors.primaryLightGreen,
-        }}
-      >
-        <BrandInfo />
+      <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
+
+      {/* Plane rendered first so it sits *behind* everything — list
+          cards float over it. Wrapper's bottom edge = navbar's top
+          edge; overflow:hidden clips the transparent padding under
+          the wheels so they rest on the rail.
+          Hidden once the list densifies past ~2 cards — beyond that
+          the plane peeks between cards as visual noise instead of a
+          friendly empty-state cue. The list scrolls naturally to
+          show the rest. */}
+      {tabRides.length <= 2 ? (
+        <View style={styles.airplaneWrap} pointerEvents="none">
+          <Image
+            source={require("../../assets/airplane.png")}
+            style={styles.airplaneImage}
+            resizeMode="contain"
+          />
+        </View>
+      ) : null}
+
+      {/* Header — title only. Mobbin pattern across Uber, Bolt,
+          inDrive: bold title, no help copy, tabs do the explaining. */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 4 }]}>
+        <Text style={styles.headerTitle}>Your trips</Text>
+      </View>
+
+      {/* Tab pills — three buckets with counts. */}
+      <View style={styles.tabsRow}>
+        {(["upcoming", "hosting", "past"] as const).map((key) => {
+          const active = tab === key;
+          const label = key === "upcoming" ? "Upcoming" : key === "hosting" ? "Hosting" : "Past";
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[styles.tabBtn, active && styles.tabBtnActive]}
+              activeOpacity={0.8}
+              onPress={() => setTab(key)}
+            >
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
+              {counts[key] > 0 ? (
+                <View style={[styles.tabBadge, active && styles.tabBadgeActive]}>
+                  <Text style={[styles.tabBadgeText, active && styles.tabBadgeTextActive]}>
+                    {counts[key]}
+                  </Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {loading ? (
         <LoadingComponent />
       ) : error ? (
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <Text style={{ color: "red" }}>{error}</Text>
+        <View style={styles.errorWrap}>
+          <Text style={styles.errorText}>{error}</Text>
         </View>
-      ) : upcomingRides.length === 0 && inProgressRides.length === 0 ? (
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20 }}>
-          <View style={{ position: "relative", marginBottom: 20 }}>
-            <LottieView
-              source={require("../../assets/bookings.json")}
-              autoPlay
-              loop
-              resizeMode="cover"
-              style={{ width: 200, height: 200 }}
-            />
-            <View style={{
-              position: "absolute",
-              bottom: 0,
-              right: 0,
-              width: 53,
-              height: 20,
-              backgroundColor: AppColors.primaryLightGreen,
-            }} />
-          </View>
-          <Text style={{
-            fontSize: 24,
-            fontFamily: "NunitoSans_700Bold",
-            color: AppColors.basicBlack,
-            textAlign: "center",
-            marginBottom: 10
-          }}>
-            No Rides
-          </Text>
-          <Text style={{
-            fontSize: 16,
-            fontFamily: "NunitoSans_400Regular",
-            color: AppColors.basicBlack,
-            textAlign: "center",
-            marginBottom: 30
-          }}>
-            All dressed up, but nowhere to ride?
-          </Text>
-          <View style={{ flexDirection: "row", gap: 15 }}>
-            <TouchableOpacity
-              style={{
-                backgroundColor: AppColors.secondaryDarkGreen,
-                paddingHorizontal: 25,
-                paddingVertical: 12,
-                borderRadius: 25,
-                elevation: 2,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.25,
-                shadowRadius: 3.84,
-              }}
-              onPress={() => navigation.navigate("HomeScreen")}
-            >
-              <Text style={{
-                color: "white",
-                fontSize: 16,
-                fontFamily: "NunitoSans_600SemiBold"
-              }}>
-                Book Ride
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{
-                backgroundColor: AppColors.primaryLightGreen,
-                paddingHorizontal: 25,
-                paddingVertical: 12,
-                borderRadius: 25,
-                borderWidth: 2,
-                borderColor: AppColors.secondaryDarkGreen,
-              }}
-              onPress={() => navigation.navigate("CreateRide")}
-            >
-              <Text style={{
-                color: AppColors.secondaryDarkGreen,
-                fontSize: 16,
-                fontFamily: "NunitoSans_600SemiBold"
-              }}>
-                Create Ride
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+      ) : tabRides.length === 0 ? (
+        renderEmpty()
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.sectionTitle}>Upcoming Rides</Text>
-          <View>
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onScroll={handleUpcomingScroll}
-              scrollEventThrottle={16}
-              snapToInterval={window.width}
-              decelerationRate="fast"
-              snapToAlignment="center"
-            >
-              {upcomingRides.length === 0 ? (
-                <View style={{ justifyContent: "center", alignItems: "center", width: window.width }}>
-                  <Text style={{ fontFamily: "NunitoSans_400Regular" }}>No upcoming rides found.</Text>
-                </View>
-              ) : (
-                upcomingRides.map((ride) => (
-                  <View key={ride.ride_id || ride.id || "unknown-ride"} style={styles.pageContainer}>
-                    <RideCard
-                      id={(ride.ride_id || ride.id) ?? ""}
-                      origin={ride.start_location}
-                      destination={ride.end_location}
-                      time={formatTime(ride.start_time)}
-                      price={ride.total_price}
-                      seatsAvailable={calculateAvailableSeats(ride)}
-                      totalSeats={ride.total_seats}
-                      variant="upcoming"
-                      date={ride.start_time ? new Date(ride.start_time).toLocaleDateString("en-GB") : ""}
-                      onSelect={() => {
-                        if (!ride.ride_id) {
-                          console.error("No ride_id found for this ride:", ride);
-                          Alert.alert("Error", "No ride ID found for this ride. Please try again later.");
-                          return;
-                        }
-                        console.log("Pressed rideId (upcoming):", ride.ride_id);
-                        navigation.navigate("RideDetailsScreen", { rideId: ride.ride_id });
-                      }}
-                    />
-                  </View>
-                ))
-              )}
-            </ScrollView>
-
-            <View style={styles.paginationContainer}>
-              {upcomingRides.length > 1 && upcomingRides.map((_, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.paginationDot,
-                    activeUpcomingPage === index
-                      ? styles.paginationDotActive
-                      : {},
-                  ]}
+        <FlatList
+          data={tabRides}
+          keyExtractor={(item) => item.ride_id || item.id || Math.random().toString()}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => {
+            const rideId = item.ride_id || item.id || "";
+            const remaining = `${item.booked_seats}/${item.total_seats}`;
+            return (
+              <View style={styles.cardSlot}>
+                <RideCard
+                  id={rideId}
+                  origin={item.start_location}
+                  destination={item.end_location}
+                  time={formatHHMM(item.start_time)}
+                  price={item.total_price}
+                  seatsAvailable={remaining}
+                  totalSeats={item.total_seats}
+                  variant={item.is_ongoing === 1 ? "inprogress" : "upcoming"}
+                  date={formatDate(item.start_time)}
+                  isPending={
+                    item.viewer_state === "pending_passenger" ||
+                    item.request_status === "pending"
+                  }
+                  onSelect={() => openRide(rideId)}
                 />
-              ))}
-            </View>
-          </View>
-
-          <Text style={styles.sectionTitle}>Rides In-Progress</Text>
-          <View>
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onScroll={handleInProgressScroll}
-              scrollEventThrottle={16}
-              snapToInterval={window.width}
-              decelerationRate="fast"
-              snapToAlignment="center"
-            >
-              {inProgressRides.length === 0 ? (
-                <View style={{ justifyContent: "center", alignItems: "center", width: window.width }}>
-                  <Text style={{ fontFamily: "NunitoSans_400Regular" }}>No in-progress rides found.</Text>
-                </View>
-              ) : (
-                inProgressRides.map((ride) => (
-                  <View key={ride.ride_id || ride.id || "unknown-ride"} style={styles.pageContainer}>
-                    <Text style={{
-                      textAlign: "left",
-                      fontSize: 18,
-                      marginBottom: 12,
-                      marginLeft: 4,
-                      fontFamily: "NunitoSans_400Regular",
-                      color: AppColors.basicBlack
-                    }}>
-                      {(() => {
-                        if (!ride.start_time) return "";
-                        const dateObj = new Date(ride.start_time);
-                        const day = dateObj.getDate();
-                        const month = dateObj.toLocaleString("en-US", { month: "long" });
-                        const year = dateObj.getFullYear();
-                        return `${day} ${month}, ${year}`;
-                      })()}
-                    </Text>
-                    <RideCard
-                      id={(ride.ride_id || ride.id) ?? ""}
-                      origin={ride.start_location}
-                      destination={ride.end_location}
-                      time={formatTime(ride.start_time)}
-                      price={ride.total_price}
-                      seatsAvailable={calculateAvailableSeats(ride)}
-                      totalSeats={ride.total_seats}
-                      isSelected={true}
-                      variant="inprogress"
-                      onSelect={() => {
-                        if (!ride.ride_id) {
-                          console.error("No ride_id found for this ride:", ride);
-                          Alert.alert("Error", "No ride ID found for this ride. Please try again later.");
-                          return;
-                        }
-                        console.log("Pressed rideId (inprogress):", ride.ride_id);
-                        navigation.navigate("RideDetailsScreen", { rideId: ride.ride_id });
-                      }}
-                    />
-                  </View>
-                ))
-              )}
-            </ScrollView>
-
-            <View style={styles.paginationContainer}>
-              {inProgressRides.length > 1 && inProgressRides.map((_, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.paginationDot,
-                    activeInProgressPage === index
-                      ? styles.paginationDotActive
-                      : {},
-                  ]}
-                />
-              ))}
-            </View>
-          </View>
-        </ScrollView>
+              </View>
+            );
+          }}
+        />
       )}
-
-      <Image
-        source={require("../../assets/airplane.png")}
-        style={styles.airplaneIcon}
-        resizeMode="contain"
-      />
     </View>
   );
 };

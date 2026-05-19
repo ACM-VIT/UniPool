@@ -4051,19 +4051,44 @@ export const getCityCoordinates = (cityName: string): { lat: number; lon: number
 // OpenStreetMap (Nominatim) API Functions
 // -----------------------------------------------------------------------------
 
+// Map a friendly region name to a Nominatim ISO 3166-1 alpha-2 code.
+// Returns `undefined` for an unknown / empty region so the caller can
+// fall back to a global search.
+const regionToCountryCode = (region?: string): string | undefined => {
+  if (!region) return undefined
+  const r = region.trim().toLowerCase()
+  if (r === "" || r === "global" || r === "any" || r === "world") return undefined
+  const map: Record<string, string> = {
+    india: "in",
+    in: "in",
+    usa: "us",
+    "united states": "us",
+    us: "us",
+    uk: "gb",
+    "united kingdom": "gb",
+    gb: "gb",
+  }
+  return map[r]
+}
+
 export const searchLocations = async (
   query: string,
-  region = "India",
+  region?: string,
   limit = 10
 ): Promise<LocationResult[]> => {
-  const cacheKey = `${query}_${region}_${limit}`
+  const cacheKey = `${query}_${region ?? "global"}_${limit}`
   if (searchCache.has(cacheKey)) {
     return searchCache.get(cacheKey)!
   }
 
   try {
     const encodedQuery = encodeURIComponent(query)
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedQuery}&countrycodes=in&limit=${limit}&addressdetails=1&extratags=1`
+    // Country restriction is opt-in. Was hard-coded to `countrycodes=in`,
+    // which silently dropped every non-Indian result. Now: no restriction
+    // by default → Nominatim returns global results ranked by importance.
+    const cc = regionToCountryCode(region)
+    const ccParam = cc ? `&countrycodes=${cc}` : ""
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedQuery}${ccParam}&limit=${limit}&addressdetails=1&extratags=1`
     
     const response = await fetch(url, {
       headers: {
@@ -4096,7 +4121,7 @@ export const debouncedSearchLocations = debounce(searchLocations, 300)
 
 export const searchLocationsWithFallback = async (
   query: string,
-  region = "India",
+  region?: string,
   limit = 10
 ): Promise<LocationResult[]> => {
   try {

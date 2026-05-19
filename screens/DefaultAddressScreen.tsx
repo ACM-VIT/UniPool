@@ -43,15 +43,15 @@ const DefaultAddressScreen: React.FC = () => {
     try {
       if (defaultAddress) {
         await apiUtil.put("/user/default-address", { address: details.from });
-        Alert.alert("Success", "Default address updated!");
+        Alert.alert("Saved", "Your default pickup is updated.");
       } else {
         await apiUtil.post("/user/default-address", { address: details.from });
-        Alert.alert("Success", "Default address set!");
+        Alert.alert("Saved", "We'll use this as your default pickup.");
       }
       setDefaultAddress(details.from);
       await AsyncStorage.setItem("defaultAddress", details.from);
     } catch (err) {
-      Alert.alert("Error", "Could not update default address.");
+      Alert.alert("Couldn't save", "We couldn't update your default pickup. Try again?");
     } finally {
       setLoading(false);
     }
@@ -154,12 +154,10 @@ const DefaultAddressScreen: React.FC = () => {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.cardWrapper}>
-          <Text style={styles.cardTitle}>Set Your Default Start Address</Text>
-          <Text style={styles.cardDescription}>
-            Choose a location that you frequently travel from to save time on future bookings.
-          </Text>
-          
-          <TouchableOpacity 
+          {/* No card title / description — the page header already
+              says "Default Start Address," and the input itself
+              ("Enter your default address…") is self-explanatory. */}
+          <TouchableOpacity
             style={styles.inputContainer}
             onPress={handleDropdownOpen}
             disabled={loading}
@@ -183,11 +181,11 @@ const DefaultAddressScreen: React.FC = () => {
                     clearAddress();
                   }}
                 >
-                  <X size={16} color={AppColors.basicBlack} />
+                  <X size={16} color={AppColors.basicWhite} />
                 </TouchableOpacity>
               )}
               {loading && (
-                <ActivityIndicator size="small" color={AppColors.basicBlack} style={styles.loadingIcon} />
+                <ActivityIndicator size="small" color={AppColors.primaryLightGreen} style={styles.loadingIcon} />
               )}
             </View>
           </TouchableOpacity>
@@ -289,7 +287,7 @@ const DefaultAddressScreen: React.FC = () => {
 
               {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
                 <Text style={styles.noResultsText}>
-                  No locations found. Try a different search term.
+                  No locations found.
                 </Text>
               )}
             </ScrollView>
@@ -338,11 +336,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: height * 0.02,
   },
+  // Matches the shared ProfileScreen headerTitle pattern so every
+  // settings sub-page (Profile, Personal Info, Passengers History,
+  // Default Address) wears the same crown.
   headerTitle: {
     fontSize: 24,
-    fontWeight: "600",
-    color: AppColors.basicBlack,
-    fontFamily: "NunitoSans_600SemiBold",
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: -0.3,
+    marginLeft: 6,
   },
   scrollContainer: {
     flex: 1,
@@ -351,35 +353,46 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
+  // Forest dark card on the lime canvas — same vocabulary as the
+  // ProfileScreen menuContainer cards. Was an outlined "ghost card"
+  // before, which made this screen feel like it lived in a different
+  // app.
   cardWrapper: {
+    backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: AppColors.secondaryDarkGreen,
     padding: 20,
     marginBottom: 20,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: AppColors.basicBlack,
-    fontFamily: "NunitoSans_600SemiBold",
-    marginBottom: 8,
+    fontSize: 17,
+    color: AppColors.primaryLightGreen,
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: -0.2,
+    marginBottom: 6,
     textAlign: "left",
   },
   cardDescription: {
-    fontSize: 14,
-    color: AppColors.basicBlack + "CC",
-    fontFamily: "NunitoSans_400Regular",
+    fontSize: 13,
+    color: AppColors.basicWhite,
+    opacity: 0.7,
+    fontFamily: "NunitoSans_600SemiBold",
     textAlign: "left",
-    marginBottom: 20,
-    lineHeight: 20,
+    marginBottom: 16,
+    lineHeight: 19,
   },
   inputContainer: {
     width: "100%",
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    borderTopWidth: 1,
-    borderTopColor: AppColors.secondaryDarkGreen,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: "rgba(181,215,80,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(181,215,80,0.25)",
   },
   inputContent: {
     flexDirection: "row",
@@ -389,17 +402,22 @@ const styles = StyleSheet.create({
     height: height * 0.03,
     width: height * 0.04,
     resizeMode: "contain",
+    // Lime tint so the location pin reads on the forest dark card.
+    tintColor: AppColors.primaryLightGreen,
   },
   selectedText: {
-    fontSize: 18,
-    color: AppColors.basicBlack,
-    fontFamily: "NunitoSans_600SemiBold",
+    // Sits inside the forest dark cardWrapper now — so text reads as
+    // white, not basicBlack-on-lime.
+    fontSize: 16,
+    color: AppColors.basicWhite,
+    fontFamily: "NunitoSans_700Bold",
     marginLeft: 12,
     flex: 1,
+    letterSpacing: -0.1,
   },
   placeholderText: {
-    color: AppColors.basicBlack + "80",
-    fontFamily: "NunitoSans_400Regular",
+    color: "rgba(255,255,255,0.45)",
+    fontFamily: "NunitoSans_600SemiBold",
   },
   clearIconContainer: {
     marginLeft: 12,

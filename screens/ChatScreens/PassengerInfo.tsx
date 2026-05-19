@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StatusBar,
   ScrollView,
+  Image,
 } from 'react-native';
 import { passengerInfoStyles } from './ChatScreen.styles';
 import { PassengerInfoScreenProps, User } from './ChatScreen.types';
@@ -138,9 +139,17 @@ const PassengerInfoScreen: React.FC<PassengerInfoScreenProps> = ({ navigation, r
           </View>
         ) : (
           passengers.length === 0 ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, paddingBottom: 200 }}>
-              <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 18, color: AppColors.basicBlack, textAlign: 'center' }}>
-                No passengers found. When you join a ride as a passenger, they will appear here.
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, paddingBottom: 180 }}>
+              <Image
+                source={require('../../assets/happy-emoji.png')}
+                style={{ width: 96, height: 96, marginBottom: 20 }}
+                resizeMode="contain"
+              />
+              <Text style={{ fontFamily: 'NunitoSans_800ExtraBold', fontSize: 20, color: AppColors.secondaryDarkGreen, textAlign: 'center', marginBottom: 6, letterSpacing: -0.3 }}>
+                No co-riders yet
+              </Text>
+              <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 15, lineHeight: 22, color: AppColors.secondaryDarkGreen, opacity: 0.65, textAlign: 'center' }}>
+                When you share a ride, the people you've travelled with show up here for direct messages.
               </Text>
             </View>
           ) : (
