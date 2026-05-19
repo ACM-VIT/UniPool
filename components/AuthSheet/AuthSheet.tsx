@@ -1,17 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Modal,
-  Animated,
-  Easing,
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  Alert,
-  Dimensions,
-} from "react-native";
+import { View, Text, TouchableOpacity, Modal, Animated, Easing, ActivityIndicator, Platform, Pressable, Dimensions } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import {
@@ -29,6 +17,7 @@ import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
 import { navigationRef } from "../../navigation/navigationRef";
 import type { RootStackParamList } from "../../navigation/RootStackParamList";
+import BrandedAlert from "../BrandedAlert";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -121,7 +110,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
           });
         }
       } else {
-        Alert.alert("Couldn't finish sign-in", err.message || "Try again in a moment.");
+        BrandedAlert.alert("Couldn't finish sign-in", err.message || "Try again in a moment.");
       }
     }
   };
@@ -134,7 +123,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
       if (!idToken) {
-        Alert.alert("Sign-in cancelled", "Tap Continue with Google to try again.");
+        BrandedAlert.alert("Sign-in cancelled", "Tap Continue with Google to try again.");
         return;
       }
       const cred = GoogleAuthProvider.credential(idToken);
@@ -143,7 +132,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
     } catch (error: any) {
       const code = error?.code;
       if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
-      Alert.alert("Couldn't sign you in", error?.message || "Try again in a moment.");
+      BrandedAlert.alert("Couldn't sign you in", error?.message || "Try again in a moment.");
     } finally {
       setSigningIn(null);
     }
@@ -163,7 +152,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
       await handleSuccess();
     } catch (error: any) {
       if (error?.code === "ERR_REQUEST_CANCELED") return;
-      Alert.alert("Couldn't sign you in", error?.message || "Try again in a moment.");
+      BrandedAlert.alert("Couldn't sign you in", error?.message || "Try again in a moment.");
     } finally {
       setSigningIn(null);
     }

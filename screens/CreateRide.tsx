@@ -1,22 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
-import {
-  View,
-  Text,
-  Image,
-  StyleSheet,
-  SafeAreaView,
-  Dimensions,
-  TouchableOpacity,
-  Alert,
-  TextInput,
-  Animated,
-} from "react-native";
+import { View, Text, Image, StyleSheet, SafeAreaView, Dimensions, TouchableOpacity, TextInput, Animated } from "react-native";
 import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
 import AppColors from "../design_systems/colors";
 import SlideToCreate from "../components/SlideToCreate";
 import { useApi } from "../utils/ApiUtil";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
+import BrandedAlert from "../components/BrandedAlert";
 
 const { width, height } = Dimensions.get("window");
 
@@ -135,11 +125,11 @@ const CreateRide: React.FC = () => {
 
   const handleCreateRide = async () => {
     if (!fromLocation || !toLocation) {
-      Alert.alert("One more detail", "Pick where you're starting and where you're going.");
+      BrandedAlert.alert("One more detail", "Pick where you're starting and where you're going.");
       return;
     }
     if (fromLocation === toLocation) {
-      Alert.alert("Same place?", "Your pickup and drop-off can't be identical.");
+      BrandedAlert.alert("Same place?", "Your pickup and drop-off can't be identical.");
       return;
     }
 
@@ -180,7 +170,7 @@ const CreateRide: React.FC = () => {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      Alert.alert("Couldn't post your ride", errorMessage);
+      BrandedAlert.alert("Couldn't post your ride", errorMessage);
     } finally {
       setIsCreating(false);
     }

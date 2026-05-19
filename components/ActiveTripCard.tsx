@@ -1,15 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Linking,
-  Alert,
-  Platform,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Linking, Platform } from "react-native";
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
+import BrandedAlert from "./BrandedAlert";
 
 export type TripCardStage = "upcoming" | "in_window" | "stale";
 
@@ -82,7 +75,7 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({ onPressOpen }) => {
       setCard(null);
     } catch (err) {
       console.warn("[ActiveTripCard] dismiss failed", err);
-      Alert.alert("Couldn't update", "Try again in a moment.");
+      BrandedAlert.alert("Couldn't update", "Try again in a moment.");
     } finally {
       setBusy(false);
     }
@@ -92,7 +85,7 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({ onPressOpen }) => {
     if (!card.host_upi_vpa) {
       // No VPA on file — still record paid as the intent, but tell
       // the user we couldn't open UPI directly.
-      Alert.alert(
+      BrandedAlert.alert(
         "Pay outside the app",
         `${hostFirst} hasn't added a UPI ID — settle the fare directly.`,
         [
@@ -114,7 +107,7 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({ onPressOpen }) => {
       // to verify the UPI app actually completed the payment.
       dismiss("paid");
     } catch {
-      Alert.alert(
+      BrandedAlert.alert(
         "No UPI app installed",
         `Install GPay / PhonePe / any UPI app to pay ${hostFirst}, or pay outside the app.`,
       );

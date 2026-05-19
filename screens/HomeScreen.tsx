@@ -1,19 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  SafeAreaView,
-  StyleSheet,
-  Dimensions,
-  Platform,
-  PixelRatio,
-  PanResponder,
-  Animated,
-  Easing,
-  ScrollView,
-  LayoutChangeEvent,
-} from "react-native";
+import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView } from "react-native";
 import navigationImg from "../assets/navigation.png";
 import locationPinImg from "../assets/location-pin-2.png";
 import MapView, { Marker, Polyline, Circle, PROVIDER_GOOGLE } from "react-native-maps";
@@ -31,6 +17,7 @@ import ActiveTripCard from "../components/ActiveTripCard";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { RootStackParamList } from "../navigation/RootStackParamList";
 import BrandInfo from "../components/BrandInfo";
+import BrandedAlert from "../components/BrandedAlert";
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -38,8 +25,6 @@ type HomeScreenNavigationProp = NativeStackNavigationProp<
 >;
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
-const pixelRatio = PixelRatio.get();
-const fontScale = PixelRatio.getFontScale();
 
 const normalize = (size: number) => {
   const scale = screenWidth / 375;
@@ -67,7 +52,9 @@ const responsiveWidth = (percentage: number) => {
 // (~105 pt footprint from bottom) so the date row never hides under it.
 const BOTTOM_SHEET_MAX_HEIGHT = Math.min(screenHeight * 0.78, screenHeight - 180);
 const BOTTOM_SHEET_MIN_HEIGHT = Math.max(screenHeight * 0.32, 220);
-const SNAP_POINTS = [BOTTOM_SHEET_MIN_HEIGHT, BOTTOM_SHEET_MAX_HEIGHT];
+const SHEET_DRAG_RANGE = BOTTOM_SHEET_MAX_HEIGHT - BOTTOM_SHEET_MIN_HEIGHT;
+const heightToSheetOffset = (height: number) => BOTTOM_SHEET_MAX_HEIGHT - height;
+const sheetOffsetToHeight = (offset: number) => BOTTOM_SHEET_MAX_HEIGHT - offset;
 
 interface LocationCoords {
   latitude: number;
@@ -160,6 +147,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   // `window.mainNavBarOnClose` global (set up next to
   // `mainNavBarOnPress` in the variant-1 effect below).
   const [clearRideTrigger, setClearRideTrigger] = useState(0);
+  // Set by `PreviousTripsSection` when its API resolves with at least
+  // one trip. Drives the "Your trips ↔ Rides around you" mutual
+  // exclusion on the home sheet.
+  const [hasUserTrips, setHasUserTrips] = useState(false);
   const [rideDetails, setRideDetails] = useState<{ 
     from: string; 
     to: string; 
@@ -233,14 +224,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
   const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
 
-  // Sheet height. We start at MAX so first paint shows the full
-  // input stack, then collapse to whatever the actual content needs
-  // once the inner View reports its layout (see the onLayout on the
-  // measuring wrapper inside the ScrollView). This is the principled
-  // version of the older "guess 62% of screen for guests" heuristic
-  // — the sheet ends up exactly as tall as its children + chrome.
-  const bottomSheetY = useRef(new Animated.Value(BOTTOM_SHEET_MAX_HEIGHT)).current;
-  const lastGestureY = useRef(BOTTOM_SHEET_MAX_HEIGHT);
+  // The sheet keeps a fixed max height and moves with translateY.
+  // Animating `height` during a drag forced a full layout pass through
+  // the ScrollView every frame, which made the sheet stutter badly.
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  const sheetOffset = useRef(0);
+  const dragStartOffset = useRef(0);
 
   // Measured natural height of the ScrollView's content container —
   // INCLUDES the `paddingBottom: 165` from `scrollableContent`. Driven
@@ -256,16 +245,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   // (height) + 14 (marginBottom) = 29pt.
   const DRAG_HANDLE_RESERVED = 29;
 
-  // Whether the user has already manually dragged the sheet — once
-  // they have, we stop auto-snapping (don't fight their input).
   const userHasDragged = useRef(false);
   const hasAppliedInitialSize = useRef(false);
 
-  // Sheet's natural "resting" height, derived from the measured
-  // content. Stored in a ref so the PanResponder (which closes over
-  // its props only once at create time) always reads the current
-  // value. Falls back to MIN until the first measurement comes in.
   const naturalRestHeight = useRef<number>(BOTTOM_SHEET_MIN_HEIGHT);
+
+  useEffect(() => {
+    const listenerId = sheetTranslateY.addListener(({ value }) => {
+      sheetOffset.current = value;
+    });
+    return () => {
+      sheetTranslateY.removeListener(listenerId);
+    };
+  }, [sheetTranslateY]);
 
   useEffect(() => {
     if (scrollContentHeight == null) return;
@@ -277,24 +269,21 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     );
     naturalRestHeight.current = target;
 
-    // Don't auto-resize once the user has chosen a drag position —
-    // they're driving the sheet now, our auto-snap shouldn't fight.
     if (userHasDragged.current) return;
 
+    const targetOffset = heightToSheetOffset(target);
     if (!hasAppliedInitialSize.current) {
-      // First measurement: snap directly so the user doesn't see
-      // the sheet flash open at MAX_HEIGHT then animate down.
-      bottomSheetY.setValue(target);
+      sheetTranslateY.setValue(targetOffset);
       hasAppliedInitialSize.current = true;
     } else {
-      Animated.spring(bottomSheetY, {
-        toValue: target,
-        useNativeDriver: false,
+      Animated.spring(sheetTranslateY, {
+        toValue: targetOffset,
+        useNativeDriver: true,
         bounciness: 4,
       }).start();
     }
-    lastGestureY.current = target;
-  }, [scrollContentHeight]);
+    sheetOffset.current = targetOffset;
+  }, [scrollContentHeight, sheetTranslateY]);
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371;
@@ -563,48 +552,32 @@ const customMapStyle = [
 ];
 
 
-  // PanResponder lives on the drag-handle grab zone only — that
-  // surface has no child gesture handlers competing for the touch,
-  // so we don't need any of the capture-vs-bubble heuristics that
-  // earlier introduced stutter (the parent + ScrollView fought for
-  // the gesture and the sheet height jumped around). Trade-off: the
-  // user has to grab the drag handle to resize the sheet, but the
-  // hit zone is full-width and ~27pt tall so it's easy to find.
-  const panResponder = PanResponder.create({
+  const panResponder = React.useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: (_evt, gestureState) =>
       Math.abs(gestureState.dy) > DRAG_THRESHOLD,
     onPanResponderGrant: () => {
-      // Once the user touches the sheet, stop the auto-snap effect
-      // from re-positioning it on their next render.
       userHasDragged.current = true;
-      // @ts-ignore: access private property for current value
-      lastGestureY.current = bottomSheetY['__getValue']();
+      sheetTranslateY.stopAnimation((value) => {
+        sheetOffset.current = value;
+        dragStartOffset.current = value;
+      });
     },
-    onPanResponderMove: (evt, gestureState) => {
-      const newHeight = lastGestureY.current - gestureState.dy;
-      
-      if (newHeight < BOTTOM_SHEET_MIN_HEIGHT) {
-        const overscroll = BOTTOM_SHEET_MIN_HEIGHT - newHeight;
-        const resistedHeight = BOTTOM_SHEET_MIN_HEIGHT - overscroll * 0.3;
-        bottomSheetY.setValue(Math.max(resistedHeight, BOTTOM_SHEET_MIN_HEIGHT - 50));
-      } else if (newHeight > BOTTOM_SHEET_MAX_HEIGHT) {
-        const overscroll = newHeight - BOTTOM_SHEET_MAX_HEIGHT;
-        const resistedHeight = BOTTOM_SHEET_MAX_HEIGHT + overscroll * 0.3;
-        bottomSheetY.setValue(Math.min(resistedHeight, BOTTOM_SHEET_MAX_HEIGHT + 50));
-      } else {
-        bottomSheetY.setValue(newHeight);
-      }
-    },
-    onPanResponderRelease: (evt, gestureState) => {
-      const velocity = -gestureState.vy;
-      // @ts-ignore: access private property for current value
-      const currentHeight = bottomSheetY['__getValue']();
+    onPanResponderMove: (_evt, gestureState) => {
+      const rawOffset = dragStartOffset.current + gestureState.dy;
+      const resistedOffset =
+        rawOffset < 0
+          ? Math.max(rawOffset * 0.3, -50)
+          : rawOffset > SHEET_DRAG_RANGE
+            ? Math.min(SHEET_DRAG_RANGE + (rawOffset - SHEET_DRAG_RANGE) * 0.3, SHEET_DRAG_RANGE + 50)
+            : rawOffset;
 
-      // Dynamic snap points — include the content-natural height so
-      // a small drag down from MAX can rest at the natural size
-      // instead of being yanked back to MAX. De-duped + sorted in
-      // case natural equals MIN or MAX (e.g. very long content).
+      sheetTranslateY.setValue(resistedOffset);
+      sheetOffset.current = resistedOffset;
+    },
+    onPanResponderRelease: (_evt, gestureState) => {
+      const currentOffset = Math.min(Math.max(sheetOffset.current, 0), SHEET_DRAG_RANGE);
+      const currentHeight = sheetOffsetToHeight(currentOffset);
       const dynamicSnapPoints = Array.from(
         new Set([
           BOTTOM_SHEET_MIN_HEIGHT,
@@ -617,22 +590,21 @@ const customMapStyle = [
         Math.abs(curr - currentHeight) < Math.abs(prev - currentHeight) ? curr : prev,
       );
 
-      // Strong flicks override the nearest-snap calculation — flick
-      // up → MAX, flick down → MIN.
-      if (Math.abs(velocity) > 500) {
-        targetHeight = velocity > 0 ? BOTTOM_SHEET_MAX_HEIGHT : BOTTOM_SHEET_MIN_HEIGHT;
+      if (Math.abs(gestureState.vy) > 0.8) {
+        targetHeight = gestureState.vy < 0 ? BOTTOM_SHEET_MAX_HEIGHT : BOTTOM_SHEET_MIN_HEIGHT;
       }
 
-      Animated.spring(bottomSheetY, {
-        toValue: targetHeight,
-        velocity: velocity,
+      const targetOffset = heightToSheetOffset(targetHeight);
+      Animated.spring(sheetTranslateY, {
+        toValue: targetOffset,
+        velocity: gestureState.vy,
         tension: 300,
         friction: 30,
-        useNativeDriver: false,
+        useNativeDriver: true,
       }).start();
-      lastGestureY.current = targetHeight;
+      sheetOffset.current = targetOffset;
     },
-  });
+  }), [sheetTranslateY]);
 
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -773,7 +745,7 @@ const customMapStyle = [
       setToCoords(toLocation);
       fitMapToWaypoints(fromLocation, toLocation, location);
     } else {
-      // Alert.alert(
+      // BrandedAlert.alert(
       //   "Could not find location",
       //   "Please check your 'From' and 'To' addresses and try again."
       // );
@@ -1017,37 +989,29 @@ const customMapStyle = [
         style={[
           styles.bottomSheet,
           {
-            height: bottomSheetY,
+            height: BOTTOM_SHEET_MAX_HEIGHT,
+            transform: [{ translateY: sheetTranslateY }],
           },
         ]}
       >
-        {/* Generous grab zone for the drag handle. PanResponder
-            lives here (not on the whole sheet) so the gesture has
-            no competition with the inner ScrollView — that was the
-            source of the stutter. The hit area is full-width and
-            ~27pt tall so the user can find it easily. */}
-        <View style={styles.dragHandleHitArea} {...panResponder.panHandlers}>
+        <View
+          collapsable={false}
+          hitSlop={{ top: 8, bottom: 18, left: 0, right: 0 }}
+          style={styles.dragHandleHitArea}
+          {...panResponder.panHandlers}
+        >
           <View style={styles.dragHandle} />
         </View>
 
         <View style={styles.bottomSheetContent}>
           <ScrollView
             style={styles.scrollView}
-            // No `minHeight` floor — the sheet sizes itself to the
-            // ScrollView's `onContentSizeChange` measurement. Forcing
-            // a `minHeight` would defeat that. We spread the base
-            // style and explicitly zero `minHeight` (rather than set
-            // `undefined`) because RN's StyleSheet merging keeps the
-            // base value when a later object is `undefined`.
             contentContainerStyle={{
               ...styles.scrollableContent,
               minHeight: 0,
             }}
             showsVerticalScrollIndicator={false}
             bounces={false}
-            // Reports the contentContainer's actual height
-            // (children + paddingHorizontal + paddingBottom). Drives
-            // the sheet's resting height via the effect above.
             onContentSizeChange={onScrollContentSizeChange}
           >
             {/* Active trip card — the highest-signal surface on the
@@ -1066,27 +1030,26 @@ const customMapStyle = [
               </View>
             )}
 
-            {/* Recent trips only shows for signed-in users. Showing an empty
-                "Sign in to see trips" card when unauthed wastes vertical space
-                that should stay on the map / search inputs. */}
+            {/* Mutually exclusive: when the signed-in user has trips,
+                show "Your trips" and hide "Rides around you" — and
+                vice versa. Guests never see the trips carousel; they
+                always see the nearby tile. This avoids the home sheet
+                looking like a catalog of redundant CTAs. */}
             {!isGuest && (
               <View style={styles.previousTripsWrapper}>
-                <PreviousTripsSection />
+                <PreviousTripsSection onHasTripsChange={setHasUserTrips} />
               </View>
             )}
 
-            {/* "Rides around you" — quick browse entry that doesn't
-                require typing a destination. The unauth experience
-                especially needs this: it's the fastest way for a
-                guest to see what's on offer without committing to a
-                trip. */}
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={styles.nearbyTile}
-              onPress={() => navigation.navigate("NearbyRidesScreen" as any)}
-            >
-              <Text style={styles.nearbyTileText}>Rides around you</Text>
-            </TouchableOpacity>
+            {!hasUserTrips && (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.nearbyTile}
+                onPress={() => navigation.navigate("NearbyRidesScreen" as any)}
+              >
+                <Text style={styles.nearbyTileText}>Rides around you</Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.section}>
               <View style={styles.createRideText}>
@@ -1287,21 +1250,26 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 8,
   },
-  // Wrapper around the visible drag-handle pill — gives the user a
-  // generous full-width touch target above the ScrollView so the
-  // sheet's PanResponder can reliably catch the gesture without
-  // fighting ScrollView's own gesture handling.
+  // Wrapper around the visible drag-handle pill — a generous full-
+  // width touch target above the ScrollView so the sheet's
+  // PanResponder reliably catches the gesture. ≥48pt tall to meet
+  // Android's minimum touch-target spec, with `elevation` so it
+  // sits clearly on top of anything else inside the sheet.
   dragHandleHitArea: {
     width: "100%",
-    paddingTop: 8,
-    paddingBottom: 14,
+    paddingTop: 14,
+    paddingBottom: 22,
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 5,
+    elevation: 4,
   },
+  // Visible pill — was nearly invisible (rgba 0.28 forest on lime).
+  // Bigger, more contrasted: 56×6, forest at 0.45 opacity.
   dragHandle: {
-    width: 44,
-    height: 5,
-    backgroundColor: AppColors.inkLine,
+    width: 56,
+    height: 6,
+    backgroundColor: "rgba(38,59,51,0.55)",
     borderRadius: 3,
   },
   bottomSheetContent: {
@@ -1339,9 +1307,14 @@ const styles = StyleSheet.create({
   // "Rides around you" — mirrors `createRideButton` exactly so the
   // two CTAs read as a matched pair on the home sheet (forest fill,
   // lime label, identical padding / radius / shadow).
+  //
+  // Hard-coded vertical padding (no `normalize`) because `normalize`
+  // subtracts 2pt on Android, which made the pills feel cramped on
+  // smaller devices (Samsung F14 etc.). iOS keeps the same value so
+  // the two platforms render with matching heights.
   nearbyTile: {
     backgroundColor: AppColors.secondaryDarkGreen,
-    paddingVertical: normalize(15),
+    paddingVertical: 18,
     paddingHorizontal: responsiveWidth(2.5),
     borderRadius: normalize(14),
     alignItems: "center",
@@ -1388,8 +1361,11 @@ const styles = StyleSheet.create({
     // Forest fill on the lime canvas — inverse pattern. Cash App uses
     // the same trick (black pill on lime background) and it always
     // reads premium. Don't lime-on-lime; the button vanishes.
+    //
+    // Hard-coded paddingVertical (same reason as `nearbyTile`) so the
+    // CTA reads as a real touch target on smaller Android screens.
     backgroundColor: AppColors.secondaryDarkGreen,
-    paddingVertical: normalize(15),
+    paddingVertical: 18,
     paddingHorizontal: responsiveWidth(2.5),
     borderRadius: normalize(14),
     alignItems: "center",

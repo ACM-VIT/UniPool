@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Image, Text, Alert } from "react-native";
+import { View, Image, Text } from "react-native";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import {
   getAuth,
@@ -9,6 +9,7 @@ import {
 import { SignInScreenProps } from "./SignInScreen.types";
 import styles from "./SignInScreen.styles";
 import GoogleAuthButton from "../../components/GoogleAuthBox";
+import BrandedAlert from "../../components/BrandedAlert";
 
 const SignInScreen: React.FC<SignInScreenProps> = ({ navigation }) => {
   const handleGoogleSignIn = async () => {
@@ -36,7 +37,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation }) => {
         err instanceof Error
           ? err.message
           : "An unknown error occurred during sign-in";
-      Alert.alert("Sign-In Failed", message);
+      BrandedAlert.alert("Sign-In Failed", message);
     }
   };
 

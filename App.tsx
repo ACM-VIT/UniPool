@@ -31,6 +31,7 @@ import AvailableRideScreenSelected from "./screens/AvailableRideScreens/Availabl
 import { PassengerInfoScreen, ChatConversationScreen, TripsListScreen } from "./screens/ChatScreens";
 
 import MainNavBar from "./components/MainNavBar";
+import { BrandedAlertHost } from "./components/BrandedAlert";
 import bottomNavItems from "./data/BottomNavigationItems";
 import { ApiProvider, useApi } from "./utils/ApiUtil";
 import { ErrorProvider } from "./contexts/ErrorContext";
@@ -104,6 +105,14 @@ const globalStyles = StyleSheet.create({
     justifyContent: "center",
     pointerEvents: "box-none",
     zIndex: 20,
+    // On Android, `elevation` beats `zIndex` for stacking. The bottom
+    // sheet uses `elevation: 8`, which was making it draw over the
+    // floating navbar (and the navbar looked invisible even though it
+    // was rendered — touches still went through to it via `box-none`
+    // on the wrapper, which is why tapping where the nav should be
+    // still triggered the auth sheet). Setting a higher elevation
+    // forces the navbar back on top on Android.
+    elevation: 30,
   },
 });
 
@@ -568,6 +577,10 @@ const AppContent = () => {
   
   return (
     <View style={{ flex: 1 }}>
+      {/* Brand-styled replacement for `Alert.alert`. Mounted once at
+          the top of the tree; any code can call BrandedAlert.show()
+          to surface a dialog without touching the native chrome. */}
+      <BrandedAlertHost />
       <NavigationContainer
         ref={navigationRef}
         onStateChange={() => setNavStateVersion((v) => v + 1)}

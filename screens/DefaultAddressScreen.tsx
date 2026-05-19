@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text, StyleSheet, Alert, Dimensions } from "react-native";
+import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Modal, Image } from "react-native";
 import { X } from "lucide-react-native";
 import ChevronBack from "../components/ChevronBack";
 import BrandInfo from "../components/BrandInfo";
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
+import BrandedAlert from "../components/BrandedAlert";
 
 const { width, height } = Dimensions.get("window");
 
@@ -43,15 +44,15 @@ const DefaultAddressScreen: React.FC = () => {
     try {
       if (defaultAddress) {
         await apiUtil.put("/user/default-address", { address: details.from });
-        Alert.alert("Saved", "Your default pickup is updated.");
+        BrandedAlert.alert("Saved", "Your default pickup is updated.");
       } else {
         await apiUtil.post("/user/default-address", { address: details.from });
-        Alert.alert("Saved", "We'll use this as your default pickup.");
+        BrandedAlert.alert("Saved", "We'll use this as your default pickup.");
       }
       setDefaultAddress(details.from);
       await AsyncStorage.setItem("defaultAddress", details.from);
     } catch (err) {
-      Alert.alert("Couldn't save", "We couldn't update your default pickup. Try again?");
+      BrandedAlert.alert("Couldn't save", "We couldn't update your default pickup. Try again?");
     } finally {
       setLoading(false);
     }

@@ -13,6 +13,7 @@ import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
 import LoadingComponent from "../../components/LoadingComponent";
 import RideCard from "../../components/RideCard";
+import EmptyState from "../../components/EmptyState";
 
 export interface RideData {
   id?: string;
@@ -175,22 +176,31 @@ const BookingScreen: React.FC = () => {
   const renderEmpty = () => {
     const copy =
       tab === "upcoming"
-        ? { title: "Nothing booked yet", cta: { label: "Find a ride", to: "HomeScreen" as const } }
+        ? {
+            title: "Nothing booked yet",
+            body: "When you grab a seat or post a ride, it'll show up here.",
+            cta: { label: "Find a ride", to: "HomeScreen" as const },
+          }
         : tab === "hosting"
-        ? { title: "Not hosting yet", cta: { label: "Post a ride", to: "CreateRide" as const } }
-        : { title: "No past trips", cta: { label: "Find a ride", to: "HomeScreen" as const } };
+        ? {
+            title: "Not hosting yet",
+            body: "Got a free seat next trip? Post it and split the fare.",
+            cta: { label: "Post a ride", to: "CreateRide" as const },
+          }
+        : {
+            title: "No past trips",
+            body: "Your ride history shows up here once you've taken one.",
+            cta: { label: "Find a ride", to: "HomeScreen" as const },
+          };
 
     return (
-      <View style={styles.emptyWrap}>
-        <Text style={styles.emptyTitle}>{copy.title}</Text>
-        <TouchableOpacity
-          style={styles.primaryCta}
-          activeOpacity={0.85}
-          onPress={() => (navigation as any).navigate(copy.cta.to)}
-        >
-          <Text style={styles.primaryCtaText}>{copy.cta.label}</Text>
-        </TouchableOpacity>
-      </View>
+      <EmptyState
+        image={require("../../assets/no-rides.png")}
+        title={copy.title}
+        body={copy.body}
+        ctaLabel={copy.cta.label}
+        onPressCta={() => (navigation as any).navigate(copy.cta.to)}
+      />
     );
   };
 

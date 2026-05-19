@@ -1,14 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  Image,
-  Alert,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  StatusBar,
-} from "react-native";
+import { View, Text, Image, ScrollView, TouchableOpacity, Platform, StatusBar } from "react-native";
 import { ProfileScreenProps } from "./ProfileScreen.types";
 import BrandInfo from "../../components/BrandInfo";
 import styles from "./ProfileScreen.styles";
@@ -17,6 +8,7 @@ import LoadingComponent from "../../components/LoadingComponent";
 import { useApi } from "../../utils/ApiUtil";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
+import BrandedAlert from "../../components/BrandedAlert";
 
 interface UserData {
   id: string;
@@ -286,7 +278,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           ? String((error as { message?: unknown }).message)
           : "Failed to load user data";
       setError(errorMessage);
-      Alert.alert("Error", errorMessage);
+      BrandedAlert.alert("Error", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -313,7 +305,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           navigation.navigate("PersonalInformationScreen");
         } catch (error) {
           console.error("Navigation error:", error);
-          Alert.alert("Navigation Error", "Unable to navigate to Personal Information screen");
+          BrandedAlert.alert("Navigation Error", "Unable to navigate to Personal Information screen");
         }
       },
     },
@@ -328,7 +320,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           navigation.navigate("PassengersHistoryScreen");
         } catch (error) {
           console.error("Navigation error:", error);
-          Alert.alert("Navigation Error", "Unable to navigate to Passengers History screen");
+          BrandedAlert.alert("Navigation Error", "Unable to navigate to Passengers History screen");
         }
       },
     },
@@ -345,7 +337,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           navigation.navigate("DefaultAddressScreen");
         } catch (error) {
           console.error("Navigation error:", error);
-          Alert.alert("Navigation Error", "Unable to navigate to Default Address screen");
+          BrandedAlert.alert("Navigation Error", "Unable to navigate to Default Address screen");
         }
       },
     },
@@ -366,7 +358,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     //       navigation.navigate("NotificationsScreen");
     //     } catch (error) {
     //       console.error("Navigation error:", error);
-    //       Alert.alert("Navigation Error", "Unable to navigate to Notifications screen");
+    //       BrandedAlert.alert("Navigation Error", "Unable to navigate to Notifications screen");
     //     }
     //   },
     // },
@@ -400,14 +392,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       const appStoreUrl = 'https://apps.apple.com/app/unipool/id6740000000';
       const url = Platform.OS === 'ios' ? appStoreUrl : playStoreUrl;
       Linking.openURL(url).catch(() => {
-        Alert.alert('Error', 'Unable to open app store. Please search for UniPool manually.');
+        BrandedAlert.alert('Error', 'Unable to open app store. Please search for UniPool manually.');
       });
     });
   };
 
   const handleLogout = () => {
     console.log("Logout button pressed");
-    Alert.alert(
+    BrandedAlert.alert(
       "Logout",
       "Are you sure you want to log out?",
       [
@@ -439,11 +431,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 console.log("Navigation reset completed");
               } else {
                 console.error("Navigation or reset method not available");
-                Alert.alert("Logout Error", "Navigation is not available. Please restart the app.");
+                BrandedAlert.alert("Logout Error", "Navigation is not available. Please restart the app.");
               }
             } catch (e) {
               console.error('Logout error:', e);
-              Alert.alert('Logout Failed', 'An error occurred while logging out.');
+              BrandedAlert.alert('Logout Failed', 'An error occurred while logging out.');
             }
           },
         },
@@ -514,11 +506,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             console.log("Navigation to AccountSettingsScreen completed");
           } else {
             console.error("Navigation object or navigate method not available");
-            Alert.alert("Navigation Error", "Unable to navigate to Account Settings");
+            BrandedAlert.alert("Navigation Error", "Unable to navigate to Account Settings");
           }
         } catch (error) {
           console.error("Navigation error:", error);
-          Alert.alert("Navigation Error", "Unable to navigate to Account Settings");
+          BrandedAlert.alert("Navigation Error", "Unable to navigate to Account Settings");
         }
       },
     },

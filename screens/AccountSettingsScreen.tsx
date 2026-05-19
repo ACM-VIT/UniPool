@@ -5,6 +5,7 @@ import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
 import { useNavigation } from '@react-navigation/native';
 import { useApi } from '../utils/ApiUtil';
+import BrandedAlert from "../components/BrandedAlert";
 
 // Brand coral the rest of the app already uses for destructive
 // states (Leave ride, declined badge). Avoids dropping a raw red
@@ -17,7 +18,7 @@ const AccountSettingsScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const handleDeleteAccount = async () => {
-    Alert.alert(
+    BrandedAlert.alert(
       'Delete your account?',
       'Your profile, posted rides, and bookings will be erased for good. This can\'t be undone.',
       [
@@ -48,7 +49,7 @@ const AccountSettingsScreen: React.FC = () => {
                 console.error('AsyncStorage cleanup error:', e);
               }
 
-              Alert.alert('Account deleted', 'See you around. We\'ve removed your data.');
+              BrandedAlert.alert('Account deleted', 'See you around. We\'ve removed your data.');
               if (navigation && typeof (navigation as any).reset === 'function') {
                 (navigation as any).reset({ index: 0, routes: [{ name: 'AuthScreen' }] });
               } else {
@@ -56,7 +57,7 @@ const AccountSettingsScreen: React.FC = () => {
               }
             } catch (err) {
               console.error('Account deletion error:', err);
-              Alert.alert('Couldn\'t delete', 'Something went wrong. Try again in a moment.');
+              BrandedAlert.alert('Couldn\'t delete', 'Something went wrong. Try again in a moment.');
             } finally {
               setLoading(false);
             } 

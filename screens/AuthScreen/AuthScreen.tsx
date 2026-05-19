@@ -1,14 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  Image,
-  Alert,
-  TouchableOpacity,
-  ActivityIndicator,
-  Platform,
-  StatusBar,
-} from "react-native";
+import { View, Text, Image, TouchableOpacity, ActivityIndicator, Platform, StatusBar } from "react-native";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import {
   getAuth,
@@ -26,6 +17,7 @@ import { AuthScreenProps } from "./AuthScreen.types";
 import styles from "./AuthScreen.styles";
 import { useApi } from "../../utils/ApiUtil";
 import AppColors from "../../design_systems/colors";
+import BrandedAlert from "../../components/BrandedAlert";
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ navigation, route }) => {
   const { apiUtil } = useApi();
@@ -72,9 +64,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation, route }) => {
           returnTo,
         });
       } else if (err.response?.status === 400) {
-        Alert.alert("Hmm, something's off", err.response?.data?.message || "Try that again in a moment.");
+        BrandedAlert.alert("Hmm, something's off", err.response?.data?.message || "Try that again in a moment.");
       } else {
-        Alert.alert("Couldn't sign you in", err.message || "Try again in a moment.");
+        BrandedAlert.alert("Couldn't sign you in", err.message || "Try again in a moment.");
       }
     }
   };
@@ -88,7 +80,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation, route }) => {
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
       if (!idToken) {
-        Alert.alert("Sign-In Failed", "Unable to complete sign-in. Please try again.");
+        BrandedAlert.alert("Sign-In Failed", "Unable to complete sign-in. Please try again.");
         return;
       }
       const googleCredential = GoogleAuthProvider.credential(idToken);
@@ -98,7 +90,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation, route }) => {
       const code = error?.code;
       if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
       const message = error instanceof Error ? error.message : "An unknown error occurred";
-      Alert.alert("Sign-In Failed", message);
+      BrandedAlert.alert("Sign-In Failed", message);
     } finally {
       setIsSigningIn(false);
     }
@@ -123,7 +115,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ navigation, route }) => {
     } catch (error: any) {
       if (error.code === "ERR_REQUEST_CANCELED") return;
       const message = error instanceof Error ? error.message : "An unknown error occurred";
-      Alert.alert("Apple Sign-In Failed", message);
+      BrandedAlert.alert("Apple Sign-In Failed", message);
     } finally {
       setIsSigningIn(false);
     }

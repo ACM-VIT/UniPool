@@ -16,6 +16,7 @@ import ChevronBack from '../components/ChevronBack';
 import { useNavigation } from '@react-navigation/native';
 import LoadingComponent from '../components/LoadingComponent';
 import AppColors from '../design_systems/colors';
+import BrandedAlert from "../components/BrandedAlert";
 
 interface User {
   name: string;
@@ -83,7 +84,7 @@ const PersonalInformationScreen: React.FC = () => {
   const saveVpa = async () => {
     const next = vpaEdit.draft.trim();
     if (next && !next.includes('@')) {
-      Alert.alert('Invalid UPI ID', 'A UPI ID looks like name@bank — for example yash@upi.');
+      BrandedAlert.alert('Invalid UPI ID', 'A UPI ID looks like name@bank — for example yash@upi.');
       return;
     }
     setVpaEdit((s) => ({ ...s, busy: true }));
@@ -96,7 +97,7 @@ const PersonalInformationScreen: React.FC = () => {
       setVpaEdit({ open: false, draft: '', busy: false });
     } catch (err: any) {
       setVpaEdit((s) => ({ ...s, busy: false }));
-      Alert.alert(
+      BrandedAlert.alert(
         "Couldn't save",
         err?.response?.data?.error || "We hit a snag saving your UPI ID. Try again.",
       );

@@ -7,6 +7,7 @@ import ChevronBack from '../components/ChevronBack';
 import { useNavigation } from '@react-navigation/native';
 import LoadingComponent from '../components/LoadingComponent';
 import AppColors from '../design_systems/colors';
+import EmptyState from '../components/EmptyState';
 
 interface Passenger {
   id: string;
@@ -76,18 +77,13 @@ const PassengersHistoryScreen: React.FC = () => {
         </View>
       </View>
       {passengers.length === 0 ? (
-        // Title-only empty state, same shape the BookingScreen uses.
-        // No body help-text — the title is enough.
-        <View style={{ alignItems: 'center', paddingHorizontal: 28, paddingTop: 36 }}>
-          <Text style={{
-            fontFamily: 'NunitoSans_800ExtraBold',
-            fontSize: 22,
-            color: AppColors.secondaryDarkGreen,
-            letterSpacing: -0.4,
-          }}>
-            No co-riders yet
-          </Text>
-        </View>
+        <EmptyState
+          image={require('../assets/happy-emoji.png')}
+          title="No co-riders yet"
+          body="The people you share a ride with will live here once you've taken your first trip together."
+          ctaLabel="Find a ride"
+          onPressCta={() => (navigation as any).navigate('HomeScreen')}
+        />
       ) : (
         <View style={styles.newSection}>
           <View style={styles.menuContainer}>

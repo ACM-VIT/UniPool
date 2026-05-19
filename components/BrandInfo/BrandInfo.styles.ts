@@ -1,37 +1,48 @@
 import { StyleSheet } from "react-native";
+import AppColors from "../../design_systems/colors";
 
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
   },
   leftSection: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+    minWidth: 0,
+    marginRight: 12,
   },
   icon: {
     width: 20,
     height: 20,
-    marginRight: 6,
+    marginRight: 8,
   },
+  // Was 16/bold-on-Regular-family which renders synthetic-bold + ugly
+  // on Android, plus a `#222` raw hex off-palette. Now uses the brand
+  // palette + a real bold weight; truncates cleanly when text is long.
   locationText: {
-    fontWeight: "bold",
-    fontFamily: "NunitoSans_400Regular",
-    fontSize: 16,
-    color: "#222",
+    fontFamily: "NunitoSans_700Bold",
+    fontSize: 14.5,
+    color: AppColors.secondaryDarkGreen,
+    letterSpacing: -0.15,
+    flexShrink: 1,
   },
   pincodeText: {
-    fontSize: 13,
-    color: "#222",
-    marginTop: -6,
+    fontFamily: "NunitoSans_600SemiBold",
+    fontSize: 12,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.6,
+    marginTop: 0,
+    letterSpacing: 0.1,
   },
   brandText: {
-    fontWeight: "normal",
     fontFamily: "Trap-Bold",
-    fontSize: 24,
-    color: "#222",
+    fontSize: 22,
+    color: AppColors.secondaryDarkGreen,
+    letterSpacing: -0.4,
   },
 });
 
