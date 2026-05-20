@@ -6,39 +6,60 @@ import { BrandInfoProps } from "./BrandInfo.types";
 import { useLocationInfo } from "../../contexts/location-context";
 
 const BrandInfo: React.FC<BrandInfoProps> = ({ style }) => {
-  const { loading, locationText, pincode } = useLocationInfo();
+  const { loading, locationText, pincode, error } = useLocationInfo();
   const insets = useSafeAreaInsets();
+
+  // Show the location strip only when we have a real, resolved
+  // address. Permission-denied / fetching / unknown states collapse
+  // to just the UniPool wordmark — without this, the lime header
+  // bar reads as a cluttered error message stacked under the brand.
+  const hasResolvedLocation =
+    !error &&
+    !loading &&
+    !!locationText &&
+    locationText !== "Fetching location..." &&
+    locationText !== "Locating you…" &&
+    locationText !== "Tap to enable location" &&
+    locationText !== "Unknown area";
 
   return (
     <View style={[
-      styles.container, 
+      styles.container,
       Platform.OS === 'ios' && {
         paddingTop: Math.max(insets.top, 20),
       },
-      style
+      // Android: the wordmark was sitting ~flush with the notification
+      // bar because SafeAreaView only respects top inset on iOS. Push
+      // it down by the actual status-bar inset so the header has air
+      // to breathe. iOS path above untouched.
+      Platform.OS === 'android' && {
+        paddingTop: Math.max(insets.top, 16) + 6,
+      },
+      !hasResolvedLocation && styles.containerSolo,
+      style,
     ]}>
-      <View style={styles.leftSection}>
-        <Image
-          source={require("../../assets/beep-beep-location.png")}
-          style={styles.icon}
-          resizeMode="contain"
-        />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text
-            style={styles.locationText}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {loading ? "Locating you…" : locationText || "Unknown area"}
-          </Text>
-          {/* Always reserve a slot for the pincode so the header row's
-              vertical position doesn't jump when the value arrives. */}
-          <Text style={styles.pincodeText} numberOfLines={1}>
-            {pincode || " "}
-          </Text>
+      {hasResolvedLocation ? (
+        <View style={styles.leftSection}>
+          <Image
+            source={require("../../assets/beep-beep-location.png")}
+            style={styles.icon}
+            resizeMode="contain"
+          />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              style={styles.locationText}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {locationText}
+            </Text>
+            <Text style={styles.pincodeText} numberOfLines={1}>
+              {pincode || " "}
+            </Text>
+          </View>
         </View>
-      </View>
-      <Text style={styles.brandText}>UniPool</Text>
+      ) : null}
+      <Text style={styles.brandText} numberOfLines={1}>UniPool</Text>
     </View>
   );
 };

@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import baseURL from "../config/urlconfig";
 
 // -----------------------------------------------------------------------------
 // Interfaces and Types
@@ -10,6 +11,9 @@ export interface LocationResult {
   lon: string
   place_id: string
   name?: string
+  source?: string
+  distance_km?: number
+  score?: number
 }
 
 export interface UserLocation {
@@ -23,6 +27,10 @@ export interface NearbyPlace {
   distance?: number
   lat: number
   lon: number
+}
+
+type LocationSearchOptions = {
+  includeCurrentLocation?: boolean
 }
 
 export const POPULAR_LOCATIONS_WITH_COORDS = {
@@ -3757,7 +3765,7 @@ export const POPULAR_LOCATIONS = {
 // Configuration
 // -----------------------------------------------------------------------------
 
-export const USE_TEST_LOCATION = true
+export const USE_TEST_LOCATION = false
 export const TEST_LOCATION: UserLocation = {
   latitude: 28.7041,
   longitude: 77.1025
@@ -3771,6 +3779,7 @@ const searchCache = new Map<string, LocationResult[]>()
 const nearbyPlacesCache = new Map<string, NearbyPlace[]>()
 const popularLocationsCache = new Map<string, LocationResult[]>()
 const geocodingCache = new Map<string, {lat: number, lon: number}>()
+let localLocationIndex: LocationResult[] | null = null
 
 // -----------------------------------------------------------------------------
 // Utility Functions
@@ -3806,11 +3815,191 @@ export const getEffectiveLocation = (
   userLocation?: UserLocation
 ): UserLocation | undefined => {
   if (USE_TEST_LOCATION) {
-    console.log("Using test location (VIT Vellore):", TEST_LOCATION)
     return TEST_LOCATION
   }
-  console.log("Using real user location:", userLocation)
   return userLocation
+}
+
+const normalizeSearch = (value: string) =>
+  value.toLowerCase().trim().replace(/\s+/g, " ")
+
+const safeNumber = (value: string | number): number | null => {
+  const num = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(num) ? num : null
+}
+
+const distanceKm = (from: UserLocation, to: { latitude: number; longitude: number }) => {
+  const R = 6371
+  const dLat = ((to.latitude - from.latitude) * Math.PI) / 180
+  const dLon = ((to.longitude - from.longitude) * Math.PI) / 180
+  const lat1 = (from.latitude * Math.PI) / 180
+  const lat2 = (to.latitude * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+const makeLocalResult = (
+  locationName: string,
+  cityName: string,
+  coordinates: { lat: number; lon: number },
+  source = "local"
+): LocationResult => ({
+  display_name: `${locationName}, ${cityName}, India`,
+  lat: String(coordinates.lat),
+  lon: String(coordinates.lon),
+  place_id: `${source}_${normalizeSearch(cityName)}_${normalizeSearch(locationName)}`.replace(/[^a-z0-9]+/g, "_"),
+  name: locationName,
+  source,
+})
+
+const makeCurrentLocationResult = (userLocation: UserLocation): LocationResult => ({
+  display_name: "Current location",
+  lat: String(userLocation.latitude),
+  lon: String(userLocation.longitude),
+  place_id: `current_${userLocation.latitude.toFixed(5)}_${userLocation.longitude.toFixed(5)}`,
+  name: "Current location",
+  source: "current",
+  distance_km: 0,
+  score: 1000,
+})
+
+const getLocalLocationIndex = (): LocationResult[] => {
+  if (localLocationIndex) return localLocationIndex
+
+  const seen = new Set<string>()
+  const results: LocationResult[] = []
+
+  Object.entries(POPULAR_LOCATIONS_WITH_COORDS).forEach(([cityName, cityLocations]) => {
+    Object.entries(cityLocations as Record<string, { lat: number; lon: number }>).forEach(
+      ([locationName, coordinates]) => {
+        const key = `${normalizeSearch(locationName)}|${coordinates.lat.toFixed(5)}|${coordinates.lon.toFixed(5)}`
+        if (seen.has(key)) return
+        seen.add(key)
+        results.push(makeLocalResult(locationName, cityName, coordinates))
+      }
+    )
+  })
+
+  localLocationIndex = results
+  return results
+}
+
+const matchScore = (location: LocationResult, query: string, userLocation?: UserLocation) => {
+  const q = normalizeSearch(query)
+  const name = normalizeSearch(location.name || location.display_name.split(",")[0] || "")
+  const display = normalizeSearch(location.display_name)
+  let score = 0
+
+  if (!q) {
+    score = 40
+  } else if (name === q) {
+    score = 160
+  } else if (name.startsWith(q)) {
+    score = 130
+  } else if (name.includes(q)) {
+    score = 95
+  } else if (display.includes(q)) {
+    score = 60
+  } else {
+    const words = q.split(" ").filter((word) => word.length >= 2)
+    const matchedWords = words.filter((word) => display.includes(word)).length
+    if (words.length > 0 && matchedWords === words.length) score = 45
+  }
+
+  if (score <= 0) return 0
+
+  const lat = safeNumber(location.lat)
+  const lon = safeNumber(location.lon)
+  const effectiveLocation = getEffectiveLocation(userLocation)
+  if (effectiveLocation && lat !== null && lon !== null) {
+    const d = distanceKm(effectiveLocation, { latitude: lat, longitude: lon })
+    location.distance_km = d
+    if (d <= 2) score += 50
+    else if (d <= 10) score += 40
+    else if (d <= 50) score += 24
+    else if (d <= 150) score += 12
+  }
+
+  if (/(airport|junction|station|bus stand|university|college|hospital|mall)/i.test(location.name || "")) {
+    score += 12
+  }
+
+  return score
+}
+
+const dedupeAndRankLocations = (
+  locations: LocationResult[],
+  query: string,
+  userLocation?: UserLocation,
+  limit = 10
+) => {
+  const byKey = new Map<string, LocationResult>()
+
+  locations.forEach((location) => {
+    if (!location?.display_name || !location?.lat || !location?.lon) return
+    const score = location.score ?? matchScore(location, query, userLocation)
+    if (score <= 0) return
+    const key = `${normalizeSearch(location.name || location.display_name.split(",")[0])}|${Number(location.lat).toFixed(5)}|${Number(location.lon).toFixed(5)}`
+    const next = { ...location, score }
+    const existing = byKey.get(key)
+    if (!existing || (existing.score ?? 0) < score) byKey.set(key, next)
+  })
+
+  return Array.from(byKey.values())
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, limit)
+}
+
+export const getInstantLocationResults = (
+  query: string,
+  userLocation?: UserLocation,
+  limit = 8,
+  options: LocationSearchOptions = {}
+): LocationResult[] => {
+  const effectiveLocation = getEffectiveLocation(userLocation)
+  const q = normalizeSearch(query)
+  const includeCurrentLocation = options.includeCurrentLocation !== false
+  const localResults = getLocalLocationIndex().filter((location) => {
+    if (q !== "" || !effectiveLocation) return true
+    const lat = safeNumber(location.lat)
+    const lon = safeNumber(location.lon)
+    if (lat === null || lon === null) return false
+    return distanceKm(effectiveLocation, { latitude: lat, longitude: lon }) <= 150
+  })
+  const seed =
+    q === "" && effectiveLocation && includeCurrentLocation
+      ? [makeCurrentLocationResult(effectiveLocation), ...localResults]
+      : localResults
+
+  return dedupeAndRankLocations(seed, query, userLocation, limit)
+}
+
+const searchBackendLocations = async (
+  query: string,
+  userLocation?: UserLocation,
+  limit = 10,
+  signal?: AbortSignal,
+  options: LocationSearchOptions = {}
+): Promise<LocationResult[]> => {
+  const params = new URLSearchParams({
+    q: query,
+    limit: String(limit),
+  })
+  if (options.includeCurrentLocation === false) {
+    params.set("include_current", "false")
+  }
+  const effectiveLocation = getEffectiveLocation(userLocation)
+  if (effectiveLocation) {
+    params.set("lat", String(effectiveLocation.latitude))
+    params.set("lng", String(effectiveLocation.longitude))
+  }
+
+  const response = await fetch(`${baseURL}/locations/search?${params.toString()}`, { signal })
+  if (!response.ok) throw new Error(`Location search failed: ${response.status}`)
+  const json = await response.json()
+  return Array.isArray(json?.locations) ? json.locations : []
 }
 
 // -----------------------------------------------------------------------------
@@ -4122,26 +4311,52 @@ export const debouncedSearchLocations = debounce(searchLocations, 300)
 export const searchLocationsWithFallback = async (
   query: string,
   region?: string,
-  limit = 10
+  limit = 10,
+  userLocation?: UserLocation,
+  signal?: AbortSignal,
+  options: LocationSearchOptions = {}
 ): Promise<LocationResult[]> => {
+  const localResults = getInstantLocationResults(query, userLocation, limit, options)
+
   try {
-    const results = await searchLocations(query, region, limit)
-    if (results.length > 0) {
-      return results
+    const backendResults = await searchBackendLocations(query, userLocation, limit, signal, options)
+    const merged = dedupeAndRankLocations(
+      [...localResults, ...backendResults],
+      query,
+      userLocation,
+      limit
+    )
+    if (merged.length > 0) {
+      searchCache.set(`${query}_${region ?? "global"}_${limit}`, merged)
+      return merged
     }
 
     const broaderQuery = query.split(',')[0].trim()
     if (broaderQuery !== query) {
-      const broaderResults = await searchLocations(broaderQuery, region, limit)
-      if (broaderResults.length > 0) {
-        return broaderResults
+      const broaderResults = await searchBackendLocations(broaderQuery, userLocation, limit, signal, options)
+      const broaderMerged = dedupeAndRankLocations(
+        [...localResults, ...broaderResults],
+        broaderQuery,
+        userLocation,
+        limit
+      )
+      if (broaderMerged.length > 0) {
+        return broaderMerged
       }
     }
 
-    return []
+    if (query.trim().length >= 3) {
+      const osmResults = await searchLocations(query, region, limit)
+      return dedupeAndRankLocations([...localResults, ...osmResults], query, userLocation, limit)
+    }
+
+    return localResults
   } catch (error) {
+    if ((error as any)?.name === "AbortError") {
+      return localResults
+    }
     console.error("Error in searchLocationsWithFallback:", error)
-    return []
+    return localResults
   }
 }
 
@@ -4154,76 +4369,34 @@ export const debouncedSearchLocationsWithFallback = debounce(searchLocationsWith
 
 export const getPopularLocations = async (
   searchQuery: string,
-  userLocation?: UserLocation
+  userLocation?: UserLocation,
+  options: LocationSearchOptions = {}
 ): Promise<LocationResult[]> => {
-  const cacheKey = `${searchQuery}_${userLocation?.latitude}_${userLocation?.longitude}`
+  const cacheKey = `${searchQuery}_${userLocation?.latitude}_${userLocation?.longitude}_${options.includeCurrentLocation !== false}`
   
   if (popularLocationsCache.has(cacheKey)) {
     return popularLocationsCache.get(cacheKey)!
   }
 
+  const instantResults = getInstantLocationResults(searchQuery, userLocation, 12, options)
+  let results = instantResults
   try {
-    if (!userLocation) {
-      console.warn("No user location provided for getting popular locations")
-      return []
-    }
-    
-    const cityName = await getNearestCity(userLocation)
-    const cityLocations = POPULAR_LOCATIONS[cityName as keyof typeof POPULAR_LOCATIONS]
-    
-    if (!cityLocations) {
-      console.warn(`No popular locations found for city: ${cityName}`)
-      return []
-    }
-    
-    let filteredLocationNames: string[] = []
-    
-    if (searchQuery.trim() === "") {
-      filteredLocationNames = cityLocations
-    } else {
-      filteredLocationNames = cityLocations.filter(location =>
-        location.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    }
-    
-    const geocodedResults: LocationResult[] = []
-    
-    for (const locationName of filteredLocationNames) {
-      try {
-        const coordinates = await getCoordinatesForLocation(locationName, cityName)
-        if (coordinates) {
-          const locationResult: LocationResult = {
-            display_name: `${locationName}, ${cityName}, India`,
-            lat: coordinates.lat.toString(),
-            lon: coordinates.lon.toString(),
-            place_id: `popular_${locationName.replace(/\s+/g, '_').toLowerCase()}_${cityName}`,
-            name: locationName
-          }
-          geocodedResults.push(locationResult)
-        } else {
-          console.warn(`Failed to geocode popular location: ${locationName}`)
-        }
-      } catch (error) {
-        console.warn(`Error geocoding popular location "${locationName}":`, error)
-      }
-    }
-    
-    popularLocationsCache.set(cacheKey, geocodedResults)
-    
-    // Validate results before returning
-    const validatedResults = validateLocationResults(geocodedResults)
-    console.log(`Got ${validatedResults.length} valid popular locations out of ${geocodedResults.length} total`)
-    
-    return validatedResults
-  } catch (error) {
-    console.error("Error getting popular locations:", error)
-    return []
+    const backendResults = await searchBackendLocations(searchQuery, userLocation, 12, undefined, options)
+    results = dedupeAndRankLocations(
+      [...instantResults, ...backendResults],
+      searchQuery,
+      userLocation,
+      12
+    )
+  } catch {
+    results = instantResults
   }
+  popularLocationsCache.set(cacheKey, results)
+  return results
 }
 
 export const getPopularLocationsFallback = (searchQuery: string): LocationResult[] => {
-  console.warn("getPopularLocationsFallback called - this should not be used anymore without user location")
-  return []
+  return getInstantLocationResults(searchQuery, undefined, 8)
 }
 
 export const getPopularLocationsByCity = (cityName: string): LocationResult[] => {

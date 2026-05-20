@@ -62,6 +62,15 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
       // Selection haptic the moment the sheet starts to rise. Light
       // enough to feel like a confirmation, not an alert.
       haptic("selection");
+      // Force the start position before the spring. The previous
+      // close's native animation can be cancelled mid-flight when
+      // the Modal unmounts, leaving these Animated.Values stuck at
+      // the open position (translateY=0, backdrop=1). Without this
+      // reset, the next spring(translateY, 0) is a no-op and the
+      // sheet appears without animating on the second-and-later
+      // open.
+      translateY.setValue(SCREEN_HEIGHT);
+      backdrop.setValue(0);
       Animated.parallel([
         Animated.timing(backdrop, {
           toValue: 1,
@@ -91,7 +100,14 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
-      ]).start();
+      ]).start(() => {
+        // Belt and braces in case the Modal unmounts before the
+        // animation hands over to the JS callback path. Guarantees
+        // the values land at their off-screen target so the open
+        // reset above is paired with a known final state.
+        translateY.setValue(SCREEN_HEIGHT);
+        backdrop.setValue(0);
+      });
     }
   }, [visible]);
 

@@ -304,12 +304,18 @@ const AvailableRideScreenSelected: React.FC = () => {
     can_accept_passengers?: boolean;
     can_open_chat?: boolean;
   }>((routeParams?.ride as any)?.actions ?? {});
-  // Verification + same-campus signals — populated by the same
-  // /ride/details fetch as viewer_state. Drives the host checkmark
-  // and "Same campus" chip rendered alongside the host name.
+  // Verification + same-campus + name signals — populated by the
+  // /ride/details fetch. Drives the host checkmark, "Same campus"
+  // chip, and the "Hosted by …" line. The name is pulled from the
+  // detail endpoint as well because the upstream entry points to
+  // this screen are inconsistent: /ride/search passes the full host
+  // name in route params, but /rides/nearby (cluster sheet path)
+  // doesn't — so we re-fetch to guarantee a populated name.
   const [hostVerified, setHostVerified] = useState<boolean>(false);
   const [hostInstituteName, setHostInstituteName] = useState<string | null>(null);
   const [hostSameInstituteAsViewer, setHostSameInstituteAsViewer] = useState<boolean>(false);
+  const [hostUserNameFetched, setHostUserNameFetched] = useState<string | null>(null);
+  const [hostUserYobFetched, setHostUserYobFetched] = useState<number | null>(null);
 
   const [viewerBookingId, setViewerBookingId] = useState<string | null>(
     (routeParams?.ride as any)?.viewer_booking_id ?? null,
@@ -331,6 +337,11 @@ const AvailableRideScreenSelected: React.FC = () => {
     });
   }
 
+  // Defensive minimum-shape if rideData is somehow missing. NO fake
+  // host fallback ("Yash Raj Singh" used to live here) — if the
+  // backend hasn't returned a host name yet we'd rather hide the
+  // hosted-by row than print a misleading placeholder. Coordinates +
+  // route bits stay so the map doesn't crash on an empty render.
   const ride = rideData || {
     id: '1',
     start_location: 'VIT Vellore',
@@ -339,7 +350,7 @@ const AvailableRideScreenSelected: React.FC = () => {
     total_price: 500,
     total_seats: 2,
     booked_seats: 1,
-    host_user_name: 'Yash Raj Singh',
+    host_user_name: '',
     host_user_yob: 2004,
     is_same_gender: 0,
     start_latitude: 12.9698,
@@ -378,6 +389,20 @@ const AvailableRideScreenSelected: React.FC = () => {
 
   const getPriceText = (price: number): string => {
     return `₹ ${price} pp`;
+  };
+
+  // Vehicle illustration picker — same buckets as RideCard /
+  // CreateRide so a 4-seater shows the racer everywhere, an 8-seater
+  // the foodvan, etc. Single source of truth for "what's this ride's
+  // vehicle look like" lives across the app via this exact ladder.
+  const getVehicleIcon = (maxSeats: number) => {
+    if (maxSeats < 3) return require('../../assets/motorcycle.png');
+    if (maxSeats === 3) return require('../../assets/Taxi.png');
+    if (maxSeats === 4) return require('../../assets/racer.png');
+    if (maxSeats < 8) return require('../../assets/wagon.png');
+    if (maxSeats < 11) return require('../../assets/foodvan.png');
+    if (maxSeats < 20) return require('../../assets/Bus.png');
+    return require('../../assets/UFO.png');
   };
 
   const isValidCoordinate = (lat: number | null | undefined, lon: number | null | undefined): boolean => {
@@ -450,13 +475,15 @@ const AvailableRideScreenSelected: React.FC = () => {
   };
 
   const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    // READ ONLY — the native prompt belongs exclusively to
+    // LocationPermissionScreen. Here we just check current state and
+    // silently no-op if the user hasn't granted it yet.
+    const { status } = await Location.getForegroundPermissionsAsync();
     if (status === "granted") {
       getUserLocation();
       setHasPermission(true);
     } else {
       setHasPermission(false);
-      console.log("Location permission denied");
     }
   };
 
@@ -497,11 +524,14 @@ const AvailableRideScreenSelected: React.FC = () => {
         if (details?.viewer_state) setViewerState(details.viewer_state);
         if (details?.actions) setViewerActions(details.actions);
         if (details?.viewer_booking_id) setViewerBookingId(details.viewer_booking_id);
-        // Verified-host + same-campus surfaces. Always read fresh —
-        // the params version of the ride row doesn't carry them.
+        // Verified-host + same-campus + name surfaces. Always read
+        // fresh — the params version of the ride row doesn't always
+        // carry them (e.g. cluster-sheet path lacks host_user_name).
         setHostVerified(!!details?.host_is_verified);
         setHostInstituteName(details?.host_institute_name ?? null);
         setHostSameInstituteAsViewer(!!details?.host_same_institute_as_viewer);
+        if (details?.host_user_name) setHostUserNameFetched(details.host_user_name);
+        if (typeof details?.host_user_yob === 'number') setHostUserYobFetched(details.host_user_yob);
       } catch (err) {
         console.warn('viewer_state fetch failed', err);
       }
@@ -569,7 +599,9 @@ const AvailableRideScreenSelected: React.FC = () => {
     }
 
     setIsRequesting(true);
-    
+    // Notification permission is owned by the onboarding permissions
+    // sheet now. No mid-action prompt here.
+
     try {
       const requestPayload: RideRequestPayload = {
         ride_id: ride.id,
@@ -643,10 +675,15 @@ const AvailableRideScreenSelected: React.FC = () => {
           >
             <ChevronBack />
           </TouchableOpacity>
+          {/* Header title — was missing entirely before, leaving an
+              orphan chevron in its own row. Sits next to the back
+              control like the rest of the app's secondary screens
+              (Booking Details, Ride Management, etc.). */}
+          <Text style={styles.navigationTitle}>Ride details</Text>
         </View>
-        {/* No "Create Ride" CTA here — this screen is the *preview*
-            for booking someone else's ride. The composer lives on
-            Home; surfacing it here just confuses the action. */}
+        {/* No right-side action — this screen is the *preview* for
+            booking someone else's ride. Sharing lives on the card
+            below (long-press) and on RideDetailsScreen. */}
       </View>
 
       <View style={styles.mainContent}>
@@ -672,7 +709,14 @@ const AvailableRideScreenSelected: React.FC = () => {
               </View>
               
               <View style={styles.scooterContainer}>
-                <Image source={require('../../assets/beep-beep-motorcycle.png')} style={styles.scooterImage} resizeMode="contain" />
+                {/* Asset picked from the same ladder RideCard +
+                    CreateRide use — match the ride's actual seat
+                    capacity instead of always showing the Vespa. */}
+                <Image
+                  source={getVehicleIcon(ride.total_seats || 0)}
+                  style={styles.scooterImage}
+                  resizeMode="contain"
+                />
               </View>
             </View>
             
@@ -686,16 +730,27 @@ const AvailableRideScreenSelected: React.FC = () => {
               </View>
             </View>
             
-            <View style={styles.hostRow}>
-              <Text style={styles.creatorText} numberOfLines={1} ellipsizeMode="tail">
-                Hosted by {ride.host_user_name || 'Yash Raj Singh'}
-              </Text>
-              {hostVerified ? (
-                <View style={styles.verifiedDot}>
-                  <Text style={styles.verifiedGlyph}>✓</Text>
+            {/* Host row — prefer the name from route params (passed
+                in by search-result entry points) but fall back to the
+                /ride/details fetch (cluster-sheet entry points don't
+                carry it). No "Yash Raj Singh" placeholder; row is
+                hidden entirely if neither source has a name yet. */}
+            {(() => {
+              const displayHostName = ride.host_user_name || hostUserNameFetched;
+              if (!displayHostName) return null;
+              return (
+                <View style={styles.hostRow}>
+                  <Text style={styles.creatorText} numberOfLines={1} ellipsizeMode="tail">
+                    Hosted by {displayHostName}
+                  </Text>
+                  {hostVerified ? (
+                    <View style={styles.verifiedDot}>
+                      <Text style={styles.verifiedGlyph}>✓</Text>
+                    </View>
+                  ) : null}
                 </View>
-              ) : null}
-            </View>
+              );
+            })()}
             {hostInstituteName ? (
               <View style={styles.instituteRow}>
                 <Text style={styles.instituteText} numberOfLines={1} ellipsizeMode="tail">
@@ -708,7 +763,10 @@ const AvailableRideScreenSelected: React.FC = () => {
                 ) : null}
               </View>
             ) : null}
-            <Text style={styles.yobText}>{getAgeText(ride.host_user_yob)}</Text>
+            {/* YOB — same source-merge pattern as the host name. */}
+            <Text style={styles.yobText}>
+              {getAgeText(ride.host_user_yob || hostUserYobFetched || undefined)}
+            </Text>
             
             <View style={styles.dateTimeContainer}>
               <View style={styles.dateTimeBox}>
@@ -870,9 +928,21 @@ const styles = StyleSheet.create({
   navigationLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
   },
   backButton: {
     marginRight: 1,
+    marginTop: 7,
+  },
+  // Title that sits next to the back chevron on screens that don't
+  // need a dedicated app bar. Matches the visual weight + colour of
+  // RideDetailsScreen's `headerTitle` so the navigation chrome reads
+  // consistently across the booking flow.
+  navigationTitle: {
+    fontSize: 18,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    color: AppColors.secondaryDarkGreen,
+    letterSpacing: -0.3,
     marginTop: 7,
   },
   createRideBtn: {
@@ -1001,20 +1071,29 @@ const styles = StyleSheet.create({
     color: AppColors.basicWhite,
     fontSize: 14,
     fontFamily: 'NunitoSans_400Regular',
-    marginBottom: 4,
+    // Explicit lineHeight makes the Text box height predictable so
+    // the row's `alignItems: 'center'` lines up the verified dot with
+    // the text's optical center instead of with the default
+    // platform-specific font metrics box. No vertical margin here —
+    // the row owns the bottom spacing.
+    lineHeight: 18,
+    includeFontPadding: false,
   },
   // Host row — name + optional verified checkmark glyph. Sits in
-  // the forest dark trip card, so the checkmark is lime.
+  // the forest dark trip card, so the checkmark is lime. The text
+  // owns its own line height, the dot is sized to match the text's
+  // cap height (~16pt) so the badge feels like a punctuation mark
+  // sitting next to the name rather than a clip-art element bolted on.
   hostRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     marginBottom: 4,
   },
   verifiedDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: AppColors.primaryLightGreen,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1022,8 +1101,10 @@ const styles = StyleSheet.create({
   verifiedGlyph: {
     color: AppColors.secondaryDarkGreen,
     fontFamily: 'NunitoSans_800ExtraBold',
-    fontSize: 11,
-    lineHeight: 13,
+    fontSize: 10,
+    lineHeight: 12,
+    includeFontPadding: false,
+    textAlign: 'center',
   },
   // Institute label + optional Same-campus chip on a second line.
   instituteRow: {

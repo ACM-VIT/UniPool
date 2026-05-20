@@ -9,7 +9,9 @@ import {
   Pressable,
   Dimensions,
   TouchableOpacity,
+  ScrollView,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import AppColors from "../design_systems/colors";
 import { haptic } from "./PressableScale";
@@ -40,6 +42,7 @@ const SheetShell: React.FC<Props> = ({
   dismissible = true,
   children,
 }) => {
+  const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
   const content = useRef(new Animated.Value(0)).current;
@@ -147,6 +150,11 @@ const SheetShell: React.FC<Props> = ({
             shadowOpacity: 0.22,
             shadowRadius: 28,
             elevation: 18,
+            // Cap the sheet so it never extends behind the (translucent)
+            // status bar when the keyboard forces it tall on Android.
+            // Without this the title row got clipped under the system
+            // chrome on smaller / shorter Android screens.
+            maxHeight: SCREEN_HEIGHT - insets.top - 8,
           }}
         >
           {/* Grab handle */}

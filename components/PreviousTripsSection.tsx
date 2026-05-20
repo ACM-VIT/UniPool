@@ -83,7 +83,11 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsC
         try {
             setLoading(true);
             setError(null);
-            const response = await apiUtil.get<UserRideData[]>("/user/rides");
+            // Home "Your trips" never wants finished rides — past
+            // trips live under Profile → Trip history. Server-side
+            // scope filter keeps the carousel honest even if a future
+            // viewer_state changes.
+            const response = await apiUtil.get<UserRideData[]>("/user/rides?scope=upcoming");
             console.log("Raw API Response:", response);
             
             if (!Array.isArray(response)) {
@@ -122,7 +126,10 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsC
 
     const handleScroll = (event: any) => {
         const contentOffset = event.nativeEvent.contentOffset.x;
-        const index = Math.round(contentOffset / screenWidth);
+        // Page width matches the snapToInterval on the ScrollView so
+        // the active dot tracks which card is actually centered.
+        const pageWidth = screenWidth * 0.95;
+        const index = Math.round(contentOffset / pageWidth);
         setCurrentIndex(index);
     };
 
@@ -219,7 +226,16 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsC
                 <>
                     <ScrollView
                         horizontal
-                        pagingEnabled
+                        // `pagingEnabled` snaps to the ScrollView's *viewport*
+                        // width, but each card is `screenWidth * 0.95` — so the
+                        // snap landed mid-card and the user saw two halves
+                        // overlapping during drag. `snapToInterval` snaps to
+                        // the actual card width regardless of viewport, with
+                        // `fast` deceleration so it still feels like paging.
+                        snapToInterval={screenWidth * 0.95}
+                        snapToAlignment="start"
+                        decelerationRate="fast"
+                        disableIntervalMomentum
                         showsHorizontalScrollIndicator={false}
                         onScroll={handleScroll}
                         scrollEventThrottle={16}
@@ -267,24 +283,28 @@ const styles = StyleSheet.create({
     yourTripsSection: {
     },
     sectionTitle: {
-        // Matches the HomeScreen sectionTitle — sentence-case sub-
-        // header, calm weight, slight dim. Keeps the home sheet from
-        // having multiple competing ExtraBold blocks.
+        // Matches the HomeScreen sectionTitle — same Bold weight and
+        // 0.95 opacity so "Your trips" reads at the same volume as
+        // "Where'd you like to go?" above it. The previous 0.7 dim
+        // was too faint on the lime canvas.
         paddingHorizontal: "2.5%",
         fontSize: 14,
         color: AppColors.secondaryDarkGreen,
-        fontFamily: "NunitoSans_600SemiBold",
+        fontFamily: "NunitoSans_700Bold",
         letterSpacing: -0.05,
-        opacity: 0.7,
+        opacity: 0.95,
     },
     tripContainer: {
-        // No horizontal margin — the page width is computed inline
-        // (`width: screenWidth * 0.95`) to match scrollableContent's
-        // inner width. Adding margin here would break the paging
-        // snap (each "page" must equal the ScrollView's width).
+        // Each carousel page is `screenWidth * 0.95` wide (set inline
+        // on the View). The inner padding here gives each card visible
+        // breathing room from its neighbour during drag — without it
+        // the leaving + arriving cards looked like one mashed slab.
+        // snapToInterval still matches page width so the snap lands
+        // cleanly on the next card.
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
+        paddingHorizontal: 8,
     },
     paginationContainer: {
         flexDirection: "row",

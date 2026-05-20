@@ -79,6 +79,13 @@ const AccountSettingsScreen: React.FC = () => {
         <View style={styles.menuContainer}>
           <TouchableOpacity
             style={styles.menuItem}
+            onPress={() => router.navigate(appHref("NotificationsScreen"))}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.menuItemText}>Notifications</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.menuItem, { borderBottomWidth: 0 }]}
             onPress={handleDeleteAccount}
             activeOpacity={0.7}
             disabled={loading}

@@ -11,10 +11,121 @@ import {
   TextStyle,
   ViewStyle,
 } from "react-native";
+import Svg, { Circle, Ellipse, Defs, RadialGradient, Stop } from "react-native-svg";
 const clockIcon = require("../assets/clock.png");
 const walletIcon = require("../assets/wallet.png");
 const sofaIcon = require("../assets/sofa.png");
+// Same calendar glyph used on AvailableRideScreenSelected + RideDetails,
+// so the visual vocabulary stays consistent across the booking flow.
+const calendarIcon = require("../assets/calendar.png");
 import AppColors from "../design_systems/colors";
+import ShareRideSheet from "./ShareRideSheet";
+
+/**
+ * BlushTexture — full-bleed pink confetti pattern painted behind a
+ * ride card's content. Used when the viewer + host both resolve to
+ * female. Replaces the earlier "two blobs in opposite corners" attempt,
+ * which read as floating clip-art rather than a textured surface.
+ *
+ * Layout strategy: a handful of large soft radial-gradient blobs lay
+ * down a watercolor base, then ~30 small/medium opaque dots in a couple
+ * of warm pink shades sit on top for the confetti grain. Positions are
+ * hand-tuned (not randomised at render time) so the texture is stable
+ * across re-renders and reads as composed, not noisy.
+ *
+ * Drawn in a 340×160 viewBox with preserveAspectRatio="none" so it
+ * stretches to whatever the card's real dimensions are.
+ */
+const BlushTexture: React.FC = () => (
+  <Svg
+    width="100%"
+    height="100%"
+    viewBox="0 0 340 160"
+    preserveAspectRatio="none"
+    style={StyleSheet.absoluteFill}
+    pointerEvents="none"
+  >
+    <Defs>
+      {/* Soft watercolor blobs — radial gradient from saturated pink
+          center to transparent edge. Gives the surface depth so the
+          confetti dots on top don't read as floating on a flat plane. */}
+      <RadialGradient id="blushBlob" cx="50%" cy="50%" r="50%">
+        <Stop offset="0" stopColor="#F4A4BC" stopOpacity="0.55" />
+        <Stop offset="1" stopColor="#F4A4BC" stopOpacity="0" />
+      </RadialGradient>
+      <RadialGradient id="blushBlobWarm" cx="50%" cy="50%" r="50%">
+        <Stop offset="0" stopColor="#F1B0A8" stopOpacity="0.40" />
+        <Stop offset="1" stopColor="#F1B0A8" stopOpacity="0" />
+      </RadialGradient>
+    </Defs>
+
+    {/* Watercolor base — three overlapping soft blobs scattered across
+        the card. Different sizes / colors so they read as organic
+        gradient bands rather than three identical balls. */}
+    <Ellipse cx="60" cy="40" rx="90" ry="70" fill="url(#blushBlob)" />
+    <Ellipse cx="270" cy="120" rx="110" ry="80" fill="url(#blushBlobWarm)" />
+    <Ellipse cx="200" cy="30" rx="80" ry="55" fill="url(#blushBlob)" />
+    <Ellipse cx="40" cy="140" rx="70" ry="50" fill="url(#blushBlobWarm)" />
+
+    {/* Confetti dots — hand-placed scatter. Mix of sizes + opacities +
+        two pink shades to break up the regularity. Numbers tuned by
+        eye to feel "speckled paper" rather than "polka dot wrapping
+        paper." */}
+    {/* Row 1 — top band */}
+    <Circle cx="22"  cy="14" r="2.5" fill="#E991AE" opacity="0.55" />
+    <Circle cx="56"  cy="22" r="4"   fill="#F4B6C8" opacity="0.7"  />
+    <Circle cx="92"  cy="10" r="2"   fill="#E991AE" opacity="0.5"  />
+    <Circle cx="128" cy="18" r="3"   fill="#F4B6C8" opacity="0.6"  />
+    <Circle cx="170" cy="8"  r="2.5" fill="#E991AE" opacity="0.45" />
+    <Circle cx="208" cy="22" r="4.5" fill="#F4B6C8" opacity="0.65" />
+    <Circle cx="248" cy="14" r="2"   fill="#E991AE" opacity="0.5"  />
+    <Circle cx="282" cy="20" r="3"   fill="#F4B6C8" opacity="0.55" />
+    <Circle cx="318" cy="12" r="2.5" fill="#E991AE" opacity="0.5"  />
+
+    {/* Row 2 — upper-middle */}
+    <Circle cx="14"  cy="48" r="3"   fill="#F4B6C8" opacity="0.55" />
+    <Circle cx="44"  cy="58" r="2"   fill="#E991AE" opacity="0.5"  />
+    <Circle cx="80"  cy="50" r="4"   fill="#F4B6C8" opacity="0.6"  />
+    <Circle cx="116" cy="62" r="2.5" fill="#E991AE" opacity="0.55" />
+    <Circle cx="152" cy="46" r="3.5" fill="#F4B6C8" opacity="0.65" />
+    <Circle cx="190" cy="56" r="2"   fill="#E991AE" opacity="0.45" />
+    <Circle cx="226" cy="50" r="4"   fill="#F4B6C8" opacity="0.6"  />
+    <Circle cx="262" cy="60" r="2.5" fill="#E991AE" opacity="0.5"  />
+    <Circle cx="298" cy="48" r="3"   fill="#F4B6C8" opacity="0.55" />
+
+    {/* Row 3 — lower-middle */}
+    <Circle cx="28"  cy="92" r="2.5" fill="#E991AE" opacity="0.5"  />
+    <Circle cx="64"  cy="100" r="3.5" fill="#F4B6C8" opacity="0.6"  />
+    <Circle cx="98"  cy="88"  r="2"   fill="#E991AE" opacity="0.45" />
+    <Circle cx="136" cy="96"  r="4"   fill="#F4B6C8" opacity="0.65" />
+    <Circle cx="172" cy="106" r="2.5" fill="#E991AE" opacity="0.5"  />
+    <Circle cx="210" cy="94"  r="3"   fill="#F4B6C8" opacity="0.6"  />
+    <Circle cx="246" cy="102" r="2"   fill="#E991AE" opacity="0.45" />
+    <Circle cx="282" cy="92"  r="3.5" fill="#F4B6C8" opacity="0.55" />
+    <Circle cx="316" cy="100" r="2.5" fill="#E991AE" opacity="0.5"  />
+
+    {/* Row 4 — bottom band */}
+    <Circle cx="18"  cy="138" r="3"   fill="#F4B6C8" opacity="0.55" />
+    <Circle cx="52"  cy="148" r="2"   fill="#E991AE" opacity="0.5"  />
+    <Circle cx="86"  cy="140" r="4"   fill="#F4B6C8" opacity="0.6"  />
+    <Circle cx="122" cy="150" r="2.5" fill="#E991AE" opacity="0.55" />
+    <Circle cx="158" cy="140" r="3"   fill="#F4B6C8" opacity="0.6"  />
+    <Circle cx="196" cy="148" r="2"   fill="#E991AE" opacity="0.5"  />
+    <Circle cx="232" cy="142" r="3.5" fill="#F4B6C8" opacity="0.6"  />
+    <Circle cx="268" cy="150" r="2.5" fill="#E991AE" opacity="0.55" />
+    <Circle cx="306" cy="140" r="3"   fill="#F4B6C8" opacity="0.6"  />
+
+    {/* A few tiny white "sparkle" specks scattered across — adds the
+        last bit of grain so the texture feels like real paper rather
+        than a uniform dot field. */}
+    <Circle cx="38"  cy="32"  r="1" fill="#FFFFFF" opacity="0.7" />
+    <Circle cx="148" cy="74"  r="1" fill="#FFFFFF" opacity="0.7" />
+    <Circle cx="240" cy="32"  r="1" fill="#FFFFFF" opacity="0.7" />
+    <Circle cx="76"  cy="118" r="1" fill="#FFFFFF" opacity="0.7" />
+    <Circle cx="288" cy="128" r="1" fill="#FFFFFF" opacity="0.7" />
+    <Circle cx="182" cy="124" r="1" fill="#FFFFFF" opacity="0.7" />
+  </Svg>
+);
 
 const { width, height } = Dimensions.get("window");
 
@@ -58,6 +169,29 @@ interface RideCardProps {
    * the trip is not yet confirmed without hiding it from the list.
    */
   isPending?: boolean;
+  /**
+   * Same-gender female affinity tint. When the searching passenger is
+   * female AND the host is female, the card surface shifts from
+   * cream/white to a soft warm blush + carries a subtle blush
+   * decorative shape, signalling a same-gender match without putting
+   * a heavy badge on it. Purely a visual cue — no functional gate.
+   */
+  isSameGenderFemale?: boolean;
+  /**
+   * Opt-in: when true AND `startTimeIso` is provided, long-pressing
+   * the card opens the ShareRideSheet (same QR + native-share modal
+   * the host's "Share" pill uses). Available to passengers too, not
+   * just the host — anyone who has the ride card in front of them
+   * can hand the link to a friend.
+   */
+  shareable?: boolean;
+  /**
+   * ISO start time used for share-message formatting. Separate from
+   * the pre-formatted `time` + `date` props (which are display-only)
+   * because the share message needs to render its own date/time
+   * strings consistently across locales.
+   */
+  startTimeIso?: string;
 }
 
 // Format time to add colon between hours (e.g., '1700 hrs' -> '17:00 hrs')
@@ -84,10 +218,21 @@ const RideCard: React.FC<RideCardProps> = ({
   variant = "upcoming",
   date = "",
   isPending = false,
+  isSameGenderFemale = false,
+  shareable = false,
+  startTimeIso,
 }) => {
   const handleSelect = () => {
     onSelect(id);
   };
+
+  // Long-press → share sheet. Only enabled when the caller opts in
+  // (`shareable`) AND we have enough data to build a valid share
+  // message (origin, destination, ISO start time, ride id). Falls
+  // back to no-op so opt-out cards never trap a long-press.
+  const [shareOpen, setShareOpen] = React.useState(false);
+  const canShare = !!(shareable && startTimeIso && id && origin && destination);
+  const handleLongPress = canShare ? () => setShareOpen(true) : undefined;
 
   const maxSeats = typeof totalSeats === "number" ? totalSeats : parseInt(seatsAvailable.split("/")[1]) || 0;
   const getVehicleIcon = (): ImageSourcePropType => {
@@ -100,17 +245,35 @@ const RideCard: React.FC<RideCardProps> = ({
     return require("../assets/UFO.png");
   };
 
+  // Background priority: selected (forest) > same-gender female (blush)
+  // > pending (grey, applied via cardPending below) > default (white).
+  const baseBackground = isSelected
+    ? AppColors.secondaryDarkGreen
+    : isSameGenderFemale
+    ? "#FCE4EC"
+    : AppColors.basicWhite;
+
   return (
     <TouchableOpacity
       style={[
         styles.card,
-        { backgroundColor: isSelected ? AppColors.secondaryDarkGreen : AppColors.basicWhite },
+        { backgroundColor: baseBackground },
+        isSameGenderFemale && !isSelected && styles.cardSameGenderFemale,
         // Pending booking: dim the whole card so it visually
         // recedes vs. confirmed trips, but keep it tappable.
         isPending && styles.cardPending,
       ]}
       onPress={handleSelect}
+      onLongPress={handleLongPress}
+      delayLongPress={300}
     >
+      {/* Full-bleed blush confetti texture — only painted when the
+          same-gender affinity tint is active and the card isn't
+          selected. Sits behind all the card content (route, vehicle,
+          etc.) via StyleSheet.absoluteFill on the inner SVG. Replaces
+          the earlier two-corner-blob attempt which read as floating
+          clip-art instead of a textured surface. */}
+      {isSameGenderFemale && !isSelected ? <BlushTexture /> : null}
       <View style={styles.topContainer}>
         <View style={styles.routeContainer}>
           {/* Route block — outlined dot for origin, filled dot for
@@ -211,10 +374,34 @@ const RideCard: React.FC<RideCardProps> = ({
         </View>
       </View>
       {variant === "upcoming" ? (
+        // Bottom row for upcoming rides — calendar glyph + date string.
+        // Icon styled to match the clock + wallet icons in the top-right
+        // (same tint logic, same size buckets) so the card reads as a
+        // single iconographic system instead of mixing line and filled
+        // glyphs. Empty wrapper if no date prop is passed so the layout
+        // stays stable.
         <View style={styles.seatsContainer}>
-          <Text style={[styles.seatsText, isSelected ? styles.selectedText : styles.unselectedText]}>
-            {date}
-          </Text>
+          {date ? (
+            <>
+              <Image
+                source={calendarIcon}
+                style={[
+                  styles.smallIcon,
+                  {
+                    tintColor: isSelected
+                      ? AppColors.primaryLightGreen
+                      : AppColors.secondaryDarkGreen,
+                    width: getIconSize(14, 16, 16),
+                    height: getIconSize(14, 16, 16),
+                  },
+                ]}
+                resizeMode="contain"
+              />
+              <Text style={[styles.seatsText, isSelected ? styles.selectedText : styles.unselectedText]}>
+                {date}
+              </Text>
+            </>
+          ) : null}
         </View>
       ) : (
         <View style={styles.seatsContainer}>
@@ -238,6 +425,21 @@ const RideCard: React.FC<RideCardProps> = ({
       <View style={styles.vehicleImageContainer}>
         <Image source={getVehicleIcon()} style={styles.vehicleImage} resizeMode="contain" />
       </View>
+
+      {/* Share-on-long-press sheet — only rendered when the caller
+          enabled `shareable` and provided enough data to build a
+          valid share message. Modal portals itself above the rest of
+          the UI, so it's safe to mount from inside the card. */}
+      {canShare ? (
+        <ShareRideSheet
+          visible={shareOpen}
+          onClose={() => setShareOpen(false)}
+          rideId={id}
+          startLocation={origin || ""}
+          endLocation={destination || ""}
+          startTime={startTimeIso || ""}
+        />
+      ) : null}
     </TouchableOpacity>
   );
 };
@@ -245,6 +447,7 @@ const RideCard: React.FC<RideCardProps> = ({
 interface Styles {
   card: ViewStyle;
   cardPending: ViewStyle;
+  cardSameGenderFemale: ViewStyle;
   pendingPill: ViewStyle;
   pendingDot: ViewStyle;
   pendingText: TextStyle;
@@ -285,6 +488,14 @@ const styles = StyleSheet.create<Styles>({
     backgroundColor: "#EBECE5",
     opacity: 0.78,
     shadowOpacity: 0.04,
+  },
+  cardSameGenderFemale: {
+    // Same-gender affinity (female passenger ↔ female host).
+    // Hairline blush border so the card reads as gently tinted,
+    // not as a different component. The texture inside is rendered
+    // by the BlushTexture SVG above the card's content layer.
+    borderWidth: 1,
+    borderColor: "#E991AE",
   },
   pendingPill: {
     // Unused — retained as an empty style to avoid breaking the

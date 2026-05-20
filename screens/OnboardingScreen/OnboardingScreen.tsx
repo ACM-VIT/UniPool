@@ -42,22 +42,19 @@ const SLIDES: Slide[] = [
     key: "match",
     Hero: RouteHero,
     headline: "Going your way.",
-    subhead:
-      "Match with students heading the same direction. Campus commutes, airport runs, weekend trips home.",
+    subhead: "Match with students heading the same direction.",
   },
   {
     key: "fair",
     Hero: FairPriceHero,
     headline: "Fair price. Split clean.",
-    subhead:
-      "Per-seat fare is posted up front. Settle directly with your host over UPI when the trip ends.",
+    subhead: "Per-seat fare up front. Settle over UPI.",
   },
   {
     key: "trust",
     Hero: CampusVerifiedHero,
     headline: "Built for your campus.",
-    subhead:
-      "Verified student emails only. You see who's hosting and which institute they're from before you book.",
+    subhead: "Verified student emails. Know who you're riding with.",
   },
 ];
 
@@ -88,6 +85,31 @@ const OnboardingScreen: React.FC = () => {
       try {
         await AsyncStorage.setItem("hasSeenOnboarding", "true");
       } catch {}
+
+      // Permissions step is the final beat of onboarding. If the user
+      // hasn't already cleared the combined permissions sheet, route
+      // through it before dropping them on Home; the sheet handles its
+      // own returnTo back to `target`. Auth-screen target is left
+      // alone because that path is for users explicitly heading to
+      // sign in, not first-launch landings.
+      let needsPermissionsStep = false;
+      if (target === "HomeScreen") {
+        try {
+          const seen = await AsyncStorage.getItem("hasSeenPermissionsPrompt");
+          needsPermissionsStep = seen !== "true";
+        } catch {
+          needsPermissionsStep = true;
+        }
+      }
+
+      if (needsPermissionsStep) {
+        router.replace(
+          appHref("LocationPermissionScreen", {
+            returnTo: { screen: target },
+          } as any) as any,
+        );
+        return;
+      }
       router.replace(appHref(target));
     },
     [router],

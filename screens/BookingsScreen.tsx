@@ -17,6 +17,7 @@ import RideCard from "../components/RideCard";
 import UpNextCard from "../components/UpNextCard";
 import AppColors from "../design_systems/colors";
 import { useRouter } from "expo-router";
+import { useAuthGate } from "../contexts/AuthGate";
 import LoadingComponent from "../components/LoadingComponent";
 import { appHref } from "../navigation/routes";
 
@@ -73,6 +74,7 @@ type Tab = "upcoming" | "hosting" | "past";
 
 const BookingsScreen: React.FC = () => {
   const router = useRouter();
+  const { requireAuth } = useAuthGate();
   const { apiUtil } = useApi();
   const [trips, setTrips] = useState<TripItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -212,12 +214,20 @@ const BookingsScreen: React.FC = () => {
     router.navigate(appHref("RideDetailsScreen", { rideId: String(rideId) }));
   };
 
-  const navigateToChat = (rideId?: string, route?: string) => {
+  const navigateToChat = (rideId?: string, route?: string, destination?: string) => {
     if (!rideId) return;
+    // Prefer the short "Trip to <destination>" title — consistent
+    // with TripInfo openChat. Falls back to the full route string
+    // if the caller hasn't passed a destination separately.
+    const shortDest = (destination || "").split(",")[0].trim();
+    const title = shortDest
+      ? `Trip to ${shortDest}`
+      : (route || "Ride chat");
     router.navigate(appHref("ChatMessages", {
       chatId: String(rideId),
-      chatTitle: route || "Ride chat",
-      chatSubtitle: "Group chat",
+      chatTitle: title,
+      // No subtitle — date metadata doesn't belong under the chat
+      // title, matches the rest of the entry points.
       isGroupChat: true,
     }));
   };
@@ -246,6 +256,8 @@ const BookingsScreen: React.FC = () => {
         status={item.status}
         onSelect={() => navigateToRide(item.rideId)}
         variant="upcoming"
+        shareable
+        startTimeIso={item.startAt ? item.startAt.toISOString() : undefined}
       />
     );
   };
@@ -264,7 +276,10 @@ const BookingsScreen: React.FC = () => {
             title: "Not hosting yet",
             body: "Have a regular commute? Post it once and let classmates jump in.",
             ctaLabel: "Post a ride",
-            onPress: () => router.navigate(appHref("CreateRide")),
+            onPress: () => {
+              if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) return;
+              router.navigate(appHref("CreateRide"));
+            },
           }
         : {
             title: "No past trips",
@@ -429,7 +444,7 @@ const BookingsScreen: React.FC = () => {
             hostName={upNext.hostName}
             hostAvatarUrl={upNext.hostAvatarUrl}
             isHost={upNext.status === "hosting"}
-            onChat={() => navigateToChat(upNext.rideId, `${upNext.origin} → ${upNext.destination}`)}
+            onChat={() => navigateToChat(upNext.rideId, `${upNext.origin} → ${upNext.destination}`, upNext.destination)}
             onOpen={() => navigateToRide(upNext.rideId)}
           />
         ) : null}

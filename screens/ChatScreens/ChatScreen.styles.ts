@@ -234,61 +234,90 @@ export const chatMessagesStyles = StyleSheet.create({
     paddingVertical: 12,
   },
   // ---------------------------------------------------------------
-  // Conversation header. Forest "rail" pill from the status-bar
-  // inset to a comfortable height, with avatar + name + subtitle on
-  // the left and a settings icon on the right. Sits on the lime
-  // canvas as a bold brand-anchored chrome bar.
+  // Conversation header. Sits on the lime canvas like the rest of
+  // the app's nav chrome — the previous forest slab read as a heavy
+  // banner divorced from the surrounding sheet. Standard ChevronBack
+  // on the left, three-dot menu on the right, title + subtitle in
+  // between. Title wraps to two lines so long route titles don't
+  // truncate mid-name.
   // ---------------------------------------------------------------
   chatHeaderRow: {
+    // iMessage-style centered header. Stack chevron + menu absolutely
+    // at the edges so the centered title block isn't pushed off-center
+    // when one side is wider than the other. Single source of vertical
+    // truth for the chat top bar.
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: AppColors.secondaryDarkGreen,
+    justifyContent: 'center',
+    backgroundColor: AppColors.primaryLightGreen,
     paddingTop: Platform.OS === 'ios' ? 54 : 32,
     paddingBottom: 14,
     paddingHorizontal: 14,
-    gap: 12,
+    position: 'relative',
   },
-  chatHeaderBack: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(181,215,80,0.18)',
+  chatHeaderLeft: {
+    position: 'absolute',
+    left: 14,
+    top: Platform.OS === 'ios' ? 54 : 32,
+    bottom: 14,
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  chatHeaderRight: {
+    position: 'absolute',
+    right: 14,
+    top: Platform.OS === 'ios' ? 54 : 32,
+    bottom: 14,
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  chatHeaderCenter: {
     alignItems: 'center',
     justifyContent: 'center',
+    // Pull in from each side enough to clear the chevron + menu so a
+    // long station name truncates rather than crashing into them.
+    paddingHorizontal: 56,
+    maxWidth: '100%',
   },
   chatHeaderAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: AppColors.primaryLightGreen,
+    backgroundColor: AppColors.secondaryDarkGreen,
     alignItems: 'center',
     justifyContent: 'center',
   },
   chatHeaderAvatarText: {
     fontFamily: 'NunitoSans_800ExtraBold',
     fontSize: 17,
-    color: AppColors.secondaryDarkGreen,
+    color: AppColors.primaryLightGreen,
     letterSpacing: -0.4,
   },
   chatHeaderTitle: {
     fontFamily: 'NunitoSans_800ExtraBold',
-    fontSize: 17,
-    color: AppColors.primaryLightGreen,
+    fontSize: 16,
+    lineHeight: 20,
+    color: AppColors.secondaryDarkGreen,
     letterSpacing: -0.3,
+    textAlign: 'center',
+    maxWidth: '100%',
   },
   chatHeaderSubtitle: {
     fontFamily: 'NunitoSans_600SemiBold',
-    fontSize: 12,
-    color: AppColors.primaryLightGreen,
-    opacity: 0.7,
-    marginTop: 2,
-    letterSpacing: 0.1,
+    fontSize: 11,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.55,
+    marginTop: 4,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    textAlign: 'center',
   },
   chatHeaderSettings: {
     width: 38,
     height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(181,215,80,0.14)',
+    // No circle background — the muddy lime-tint puck looked dirty on
+    // the brand canvas. Three dots stand alone now, same as the menu
+    // glyphs Mobbin shows on Notion / Things / Linear.
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -754,6 +783,358 @@ export const chatMessagesStyles = StyleSheet.create({
   },
   destructiveButtonText: {
     color: AppColors.basicWhite,
+  },
+
+  // -----------------------------------------------------------------
+  // Pending-DM empty state — polished centered card shown when a host
+  // opens a pending request thread (or a pending passenger opens
+  // their host DM) and no messages exist yet. Once the conversation
+  // starts, this collapses and the regular chat scroll takes over.
+  // -----------------------------------------------------------------
+  pendingEmptyWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+    paddingBottom: 80,
+  },
+  pendingEmptyCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: AppColors.cardSurface,
+    borderRadius: 24,
+    // Snugger vertical rhythm now that the pill + title are gone —
+    // the route block is the only visual anchor, so the card can
+    // breathe horizontally instead of feeling top-heavy.
+    paddingVertical: 22,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 22,
+    elevation: 5,
+  },
+  pendingEmptyRouteBlock: {
+    width: '100%',
+    // No background tint — the cream card is already a distinct
+    // surface, and a forest-tinted inner block was reading as
+    // "card inside a card." Letting the route sit directly on the
+    // cream gives the focal point more weight.
+    paddingHorizontal: 4,
+    marginBottom: 14,
+  },
+  pendingRouteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pendingDotOutline: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: AppColors.secondaryDarkGreen,
+    marginRight: 12,
+  },
+  pendingDotFilled: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    marginRight: 12,
+  },
+  pendingRouteConnector: {
+    marginLeft: 4.5,
+    marginVertical: 3,
+    width: 2,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 14,
+  },
+  pendingRouteConnectorDash: {
+    width: 2,
+    height: 3,
+    borderRadius: 1,
+    backgroundColor: AppColors.secondaryDarkGreen,
+  },
+  pendingRoutePoint: {
+    flex: 1,
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 14.5,
+    lineHeight: 20,
+    color: AppColors.secondaryDarkGreen,
+    letterSpacing: -0.15,
+  },
+  pendingEmptyWhen: {
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 13.5,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.75,
+    letterSpacing: 0.1,
+    alignSelf: 'flex-start',
+    paddingLeft: 23, // line up with the route text (dot 11 + margin 12)
+  },
+  // Hairline between the trip summary (route + when) and the
+  // explanatory caption — gives the card a sense of two zones
+  // without needing a heavy divider or a section header.
+  pendingEmptyDivider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: 'rgba(38,59,51,0.10)',
+    marginTop: 18,
+    marginBottom: 16,
+  },
+  pendingEmptyHint: {
+    fontFamily: 'NunitoSans_600SemiBold',
+    fontSize: 13,
+    lineHeight: 19,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.7,
+    textAlign: 'center',
+    letterSpacing: 0.05,
+    paddingHorizontal: 6,
+  },
+
+  // Host-only accept/reject row inside the pending card. Two equal-
+  // weight columns separated by a soft gap. Reject sits on the left
+  // (lower visual priority — cream surface, forest text), Accept on
+  // the right as the affirmative forest primary. Both pills inherit
+  // the same height so the row reads as a single composed control.
+  pendingEmptyActions: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  pendingActionReject: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    // Soft coral wash (same hue as the destructive `#FF6B5B` we use
+    // elsewhere for unread/destructive states) so Reject reads as
+    // destructive at a glance without screaming. Deeper coral text on
+    // top supplies the actual contrast.
+    backgroundColor: 'rgba(255,107,91,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingActionRejectText: {
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 14.5,
+    color: '#D24432',
+    letterSpacing: 0.15,
+  },
+  pendingActionAccept: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  pendingActionAcceptText: {
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 14.5,
+    color: AppColors.primaryLightGreen,
+    letterSpacing: 0.15,
+  },
+  pendingActionDisabled: {
+    opacity: 0.55,
+  },
+  /* Persistent host decision strip — sits directly under the chat
+     header for a pending-request DM. Label on the left ("Priya wants
+     to ride along"), compact reject + accept buttons on the right. */
+  hostDecisionStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF1DF',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(196,106,45,0.18)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 12,
+  },
+  hostDecisionLabel: {
+    flex: 1,
+    fontFamily: 'NunitoSans_700Bold',
+    fontSize: 12.5,
+    color: AppColors.secondaryDarkGreen,
+    letterSpacing: -0.1,
+  },
+  hostDecisionActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  hostDecisionReject: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,107,91,0.14)',
+  },
+  hostDecisionRejectText: {
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 12,
+    color: '#D24432',
+    letterSpacing: 0.2,
+  },
+  hostDecisionAccept: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: AppColors.secondaryDarkGreen,
+  },
+  hostDecisionAcceptText: {
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 12,
+    color: AppColors.primaryLightGreen,
+    letterSpacing: 0.2,
+  },
+
+  // -----------------------------------------------------------------
+  // Host empty-state card — shown ABOVE messages when the host opens
+  // their own group ride chat before any passenger has been accepted
+  // in. Replaces the generic "Be kind, ride safe" safety banner for
+  // that specific moment, since the safety wording assumes a
+  // conversation is happening. This card frames the empty silence as
+  // "you're broadcasting" with an explicit Share CTA.
+  // -----------------------------------------------------------------
+  hostEmptyWrap: {
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 8,
+    alignItems: 'center',
+  },
+  // Forest-dark surface instead of the previous cream card. Reads as
+  // a premium dashboard widget against the lime canvas — the
+  // cream-on-lime version felt like a generic toast banner. The
+  // forest base lets the animated lime pulse + lime CTA pop with
+  // proper contrast and brand recognition.
+  hostEmptyCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 22,
+    alignItems: 'center',
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    elevation: 6,
+  },
+  // Chip + dot retained in the style sheet for backwards
+  // compatibility — superseded by the BroadcastPulse component in
+  // ChatMessages.tsx. Kept as inert fallback styles.
+  hostEmptyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(181,215,80,0.18)',
+    marginBottom: 14,
+  },
+  hostEmptyChipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: AppColors.primaryLightGreen,
+  },
+  hostEmptyChipText: {
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 10.5,
+    letterSpacing: 0.4,
+    color: AppColors.primaryLightGreen,
+  },
+  hostEmptyTitle: {
+    marginTop: 10,
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.5,
+    color: AppColors.basicWhite,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  hostEmptyBody: {
+    fontFamily: 'NunitoSans_600SemiBold',
+    fontSize: 13.5,
+    lineHeight: 19,
+    color: AppColors.primaryLightGreen,
+    opacity: 0.78,
+    textAlign: 'center',
+    letterSpacing: 0.05,
+    paddingHorizontal: 4,
+    marginBottom: 20,
+  },
+  // Lime CTA against the forest card — inverted from our usual
+  // forest-on-lime button system because the surface itself is
+  // forest. Forest text on lime gives full-contrast read.
+  hostEmptyShareBtn: {
+    alignSelf: 'stretch',
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: AppColors.primaryLightGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hostEmptyShareBtnText: {
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 15.5,
+    color: AppColors.secondaryDarkGreen,
+    letterSpacing: 0.15,
+  },
+
+  // -----------------------------------------------------------------
+  // Minimal host-empty state — centred text directly on the lime
+  // canvas, small Share pill below. No card surface. Replaces the
+  // earlier forest dashboard widget which was too imposing for what
+  // is functionally just "nothing to see yet, share to get started".
+  // -----------------------------------------------------------------
+  hostEmptyMinimalWrap: {
+    paddingTop: 56,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+  },
+  hostEmptyMinimalTitle: {
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 20,
+    lineHeight: 24,
+    letterSpacing: -0.4,
+    color: AppColors.secondaryDarkGreen,
+    textAlign: 'center',
+  },
+  hostEmptyMinimalBody: {
+    marginTop: 6,
+    fontFamily: 'NunitoSans_600SemiBold',
+    fontSize: 14,
+    lineHeight: 20,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.68,
+    textAlign: 'center',
+    letterSpacing: 0.05,
+  },
+  hostEmptyMinimalShareBtn: {
+    marginTop: 18,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: AppColors.secondaryDarkGreen,
+  },
+  hostEmptyMinimalShareBtnText: {
+    fontFamily: 'NunitoSans_800ExtraBold',
+    fontSize: 13.5,
+    color: AppColors.primaryLightGreen,
+    letterSpacing: 0.3,
   },
 });
 

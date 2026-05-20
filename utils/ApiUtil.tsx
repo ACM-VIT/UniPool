@@ -144,36 +144,41 @@ export default class ApiUtil {
         currentUser = firebaseUser ?? authInstance.currentUser;
       }
     }
-    if (!currentUser) {
-      console.warn("❌ No authenticated user found");
-      throw this.createAuthenticationError();
-    }
-    
-    let token: string;
-    try {
-      const tokenResult = await getIdTokenResult(currentUser, true);
-      token = tokenResult.token;
-      
-      const expirationTime = new Date(tokenResult.expirationTime);
-      const now = new Date();
-      const minutesUntilExpiry = (expirationTime.getTime() - now.getTime()) / (1000 * 60);
-      
-      if (minutesUntilExpiry < 5) {
-        console.log("Token expires soon, forcing refresh...");
-        const freshTokenResult = await getIdTokenResult(currentUser, true);
-        token = freshTokenResult.token;
+
+    // Guest path: previously we'd pre-fail with AUTHENTICATION_REDIRECT
+    // here, which broke every public endpoint (most notably
+    // /ride/search via OptionalAuthenticate, /institutes, /rides/nearby).
+    // Now we just skip the Authorization header and let the BACKEND
+    // decide — public routes succeed, gated routes return 401 and
+    // bubble back through the same redirect flow further down.
+    let token: string | null = null;
+    if (currentUser) {
+      try {
+        const tokenResult = await getIdTokenResult(currentUser, true);
+        token = tokenResult.token;
+
+        const expirationTime = new Date(tokenResult.expirationTime);
+        const now = new Date();
+        const minutesUntilExpiry = (expirationTime.getTime() - now.getTime()) / (1000 * 60);
+
+        if (minutesUntilExpiry < 5) {
+          console.log("Token expires soon, forcing refresh...");
+          const freshTokenResult = await getIdTokenResult(currentUser, true);
+          token = freshTokenResult.token;
+        }
+      } catch (tokenError) {
+        // Token fetch failed for an EXISTING user — that's a real auth
+        // problem (revoked credentials, etc.), bail out properly.
+        console.error("Failed to get authentication token:", tokenError);
+        throw this.createAuthenticationError();
       }
-      
-    } catch (tokenError) {
-      console.error("Failed to get authentication token:", tokenError);
-      throw this.createAuthenticationError();
     }
 
     const options: RequestInit = {
       method,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
       body: body ? JSON.stringify(body) : undefined,

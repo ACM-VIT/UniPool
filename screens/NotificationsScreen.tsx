@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, Text, StyleSheet, Dimensions, Switch } from "react-native";
+import { View, Text, StyleSheet, Dimensions, Switch, ActivityIndicator } from "react-native";
 import { TouchableOpacity, ScrollView } from "react-native";
 import ChevronBack from "../components/ChevronBack";
 import BrandInfo from "../components/BrandInfo";
@@ -8,209 +7,174 @@ import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import { useRouter } from "expo-router";
 import BrandedAlert from "../components/BrandedAlert";
+import profileStyles from "./ProfileScreen/ProfileScreen.styles";
 
 const { width, height } = Dimensions.get("window");
 
-interface NotificationSettings {
-  pushNotifications: boolean;
-  rideUpdates: boolean;
-  bookingConfirmations: boolean;
-  chatMessages: boolean;
-  promotions: boolean;
-}
+// Canonical categories, mirrored from helpers.AllNotifCategories on
+// the backend. Order here drives the order rendered in the UI.
+type Category = "chat_messages" | "ride_updates" | "trip_reminders" | "rating_prompts";
+
+const CATEGORY_META: { key: Category; title: string; description: string; sectionTitle: string }[] = [
+  {
+    key: "chat_messages",
+    sectionTitle: "Communication",
+    title: "Chat messages",
+    description: "New messages from your ride hosts and passengers",
+  },
+  {
+    key: "ride_updates",
+    sectionTitle: "Ride activity",
+    title: "Booking updates",
+    description: "When your request is accepted, rejected, or a ride is cancelled",
+  },
+  {
+    key: "trip_reminders",
+    sectionTitle: "Ride activity",
+    title: "Trip reminders",
+    description: "A nudge 30 minutes before a ride you're on starts",
+  },
+  {
+    key: "rating_prompts",
+    sectionTitle: "After the trip",
+    title: "Rate-your-ride prompts",
+    description: "A reminder ~12 hours after a trip to leave a rating",
+  },
+];
+
+type PrefsState = Record<Category, boolean>;
+
+const DEFAULT_STATE: PrefsState = {
+  chat_messages: true,
+  ride_updates: true,
+  trip_reminders: true,
+  rating_prompts: true,
+};
 
 const NotificationsScreen: React.FC = () => {
   const router = useRouter();
-  const [settings, setSettings] = useState<NotificationSettings>({
-    pushNotifications: true,
-    rideUpdates: true,
-    bookingConfirmations: true,
-    chatMessages: true,
-    promotions: false,
-  });
-  const [loading, setLoading] = useState(false);
   const { apiUtil } = useApi();
+  const [prefs, setPrefs] = useState<PrefsState>(DEFAULT_STATE);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchNotificationSettings = async () => {
-      setLoading(true);
+    const fetchPrefs = async () => {
       try {
-        // Try to get cached settings first
-        const cachedSettings = await AsyncStorage.getItem("notificationSettings");
-        if (cachedSettings) {
-          setSettings(JSON.parse(cachedSettings));
-        } else {
-          // Try to fetch from API
-          try {
-            const response = await apiUtil.get("/user/notification-settings");
-            if (response && typeof response === "object") {
-              const apiSettings = response as NotificationSettings;
-              setSettings(apiSettings);
-              await AsyncStorage.setItem("notificationSettings", JSON.stringify(apiSettings));
-            }
-          } catch (apiError) {
-            console.log("No existing notification settings found, using defaults");
+        const response: any = await apiUtil.get("/user/notification-prefs");
+        const list: { category: Category; enabled: boolean }[] = response?.preferences ?? [];
+        const next: PrefsState = { ...DEFAULT_STATE };
+        for (const row of list) {
+          if (row.category in next) {
+            next[row.category] = row.enabled;
           }
         }
+        setPrefs(next);
       } catch (error) {
-        console.error("Error fetching notification settings:", error);
+        console.error("Error fetching notification preferences:", error);
       } finally {
         setLoading(false);
       }
     };
-
-    fetchNotificationSettings();
+    fetchPrefs();
   }, [apiUtil]);
 
-  const updateSetting = async (key: keyof NotificationSettings, value: boolean) => {
-    const newSettings = { ...settings, [key]: value };
-    setSettings(newSettings);
-
+  const updatePref = async (category: Category, value: boolean) => {
+    const prior = prefs[category];
+    setPrefs((s) => ({ ...s, [category]: value }));
     try {
-      // Save to AsyncStorage
-      await AsyncStorage.setItem("notificationSettings", JSON.stringify(newSettings));
-      
-      // Save to API
-      await apiUtil.put("/user/notification-settings", newSettings);
-      
-      console.log(`Updated ${key} to ${value}`);
+      await apiUtil.put("/user/notification-prefs", { category, enabled: value });
     } catch (error) {
-      console.error("Error updating notification settings:", error);
-      // Revert the change if API call fails
-      setSettings(settings);
+      console.error("Error updating notification preference:", error);
+      setPrefs((s) => ({ ...s, [category]: prior }));
       BrandedAlert.alert("Couldn't update", "We couldn't save that change. Try again in a moment.");
     }
   };
 
-  const renderSettingItem = (
-    key: keyof NotificationSettings,
-    title: string,
-    description: string
-  ) => (
-    <View style={styles.settingItem} key={key}>
-      <View style={styles.settingTextContainer}>
-        <Text style={styles.settingTitle}>{title}</Text>
-        <Text style={styles.settingDescription}>{description}</Text>
-      </View>
-      <Switch
-        value={settings[key]}
-        onValueChange={(value) => updateSetting(key, value)}
-        trackColor={{ 
-          false: AppColors.secondaryDarkGreen + "30", 
-          true: AppColors.secondaryDarkGreen 
-        }}
-        thumbColor={settings[key] ? AppColors.primaryLightGreen : AppColors.basicWhite}
-        ios_backgroundColor={AppColors.secondaryDarkGreen + "30"}
-        style={styles.switch}
-      />
-    </View>
-  );
+  // Group categories by their section so the layout reads as a few
+  // tidy panels instead of a flat wall of switches.
+  const sections = CATEGORY_META.reduce<Record<string, typeof CATEGORY_META>>((acc, item) => {
+    (acc[item.sectionTitle] ||= []).push(item);
+    return acc;
+  }, {});
 
   return (
-    <View style={styles.container}>
-      <View style={styles.brandInfoHeaderRow}>
-        <BrandInfo />
+    <View style={profileStyles.container}>
+      <View style={profileStyles.brandInfoHeaderRow}><BrandInfo /></View>
+      <View style={profileStyles.headerRow}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <ChevronBack />
+          </TouchableOpacity>
+          <Text style={profileStyles.headerTitle}>Notifications</Text>
+        </View>
       </View>
 
-      <View style={styles.headerRowWithChevron}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <ChevronBack />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notifications</Text>
-      </View>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={AppColors.secondaryDarkGreen} />
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {Object.entries(sections).map(([sectionTitle, items]) => (
+            <View style={styles.section} key={sectionTitle}>
+              <Text style={styles.sectionTitle}>{sectionTitle}</Text>
+              <View style={styles.menuContainer}>
+                {items.map((item, idx) => (
+                  <View
+                    style={[
+                      styles.settingItem,
+                      idx === items.length - 1 && { borderBottomWidth: 0 },
+                    ]}
+                    key={item.key}
+                  >
+                    <View style={styles.settingTextContainer}>
+                      <Text style={styles.settingTitle}>{item.title}</Text>
+                      <Text style={styles.settingDescription}>{item.description}</Text>
+                    </View>
+                    <Switch
+                      value={prefs[item.key]}
+                      onValueChange={(value) => updatePref(item.key, value)}
+                      trackColor={{
+                        false: AppColors.secondaryDarkGreen + "30",
+                        true: AppColors.secondaryDarkGreen,
+                      }}
+                      thumbColor={prefs[item.key] ? AppColors.primaryLightGreen : AppColors.basicWhite}
+                      ios_backgroundColor={AppColors.secondaryDarkGreen + "30"}
+                      style={styles.switch}
+                    />
+                  </View>
+                ))}
+              </View>
+            </View>
+          ))}
 
-      <ScrollView 
-        style={styles.scrollContainer} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Push Notifications</Text>
-          <View style={styles.menuContainer}>
-            {renderSettingItem(
-              "pushNotifications",
-              "Enable Push Notifications",
-              "Receive notifications on your device"
-            )}
+          <View style={styles.infoSection}>
+            <Text style={styles.infoText}>
+              You can mute notifications for a specific ride from inside that ride's chat.
+            </Text>
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Ride Notifications</Text>
-          <View style={styles.menuContainer}>
-            {renderSettingItem(
-              "rideUpdates",
-              "Ride Updates",
-              "Get notified about ride status changes"
-            )}
-            {renderSettingItem(
-              "bookingConfirmations",
-              "Booking Confirmations",
-              "Receive booking confirmations and cancellations"
-            )}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Communication</Text>
-          <View style={styles.menuContainer}>
-            {renderSettingItem(
-              "chatMessages",
-              "Chat Messages",
-              "Get notified about new messages"
-            )}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Marketing</Text>
-          <View style={styles.menuContainer}>
-            {renderSettingItem(
-              "promotions",
-              "Promotions & Offers",
-              "Receive promotional notifications and special offers"
-            )}
-          </View>
-        </View>
-
-        <View style={styles.infoSection}>
-          <Text style={styles.infoText}>
-            You can manage your notification preferences here. Changes will be saved automatically.
-          </Text>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: AppColors.primaryLightGreen,
-  },
-  brandInfoHeaderRow: {
-    paddingHorizontal: "2.5%",
-    paddingVertical: "2%",
-  },
-  headerRowWithChevron: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: "2.5%",
-    paddingVertical: "2%",
-    gap: 16,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: AppColors.basicBlack,
-    fontFamily: "NunitoSans_600SemiBold",
-  },
   scrollContainer: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: width * 0.051,
     paddingBottom: height * 0.15,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   section: {
     marginBottom: height * 0.025,

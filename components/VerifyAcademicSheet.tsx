@@ -206,9 +206,13 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search universities"
+              placeholder="University name or email domain"
               placeholderTextColor={AppColors.inkMuted}
-              autoCapitalize="words"
+              // Universities are usually proper nouns OR lowercase email
+              // domains — disabling auto-capitalisation lets users type
+              // "vitstudent" or "iitb" without the system uppercasing
+              // the first letter and breaking the match.
+              autoCapitalize="none"
               autoCorrect={false}
               style={sheetUi.input}
               autoFocus
@@ -217,11 +221,18 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
 
           <View style={styles.resultsWrap}>
             {searchQuery.trim().length < 2 ? (
-              <Text style={styles.resultsHint}>Type at least 2 letters.</Text>
+              <Text style={styles.resultsHint}>
+                Type at least 2 letters. You can search by name (e.g.
+                "Vellore"), by acronym ("VIT") or by email domain
+                ("vitstudent").
+              </Text>
             ) : searching ? (
               <SearchSkeleton />
             ) : searchResults.length === 0 ? (
-              <Text style={styles.resultsHint}>No matches. Try the full university name.</Text>
+              <Text style={styles.resultsHint}>
+                No matches. Try the full school name or your email's
+                domain (the part after the @).
+              </Text>
             ) : (
               <ScrollView
                 keyboardShouldPersistTaps="handled"

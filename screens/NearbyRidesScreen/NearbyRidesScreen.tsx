@@ -12,13 +12,15 @@ import {
   Dimensions,
 } from "react-native";
 import * as Location from "expo-location";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useAuthGate } from "../../contexts/AuthGate";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../../design_systems/colors";
 import baseURL from "../../config/urlconfig";
 import ChevronBack from "../../components/ChevronBack";
 import LoadingComponent from "../../components/LoadingComponent";
 import EmptyState from "../../components/EmptyState";
+import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar";
 import { appHref } from "../../navigation/routes";
 
 const { width, height } = Dimensions.get("window");
@@ -93,22 +95,29 @@ const haversineKm = (
  */
 const NearbyRidesScreen: React.FC = () => {
   const router = useRouter();
+  const { requireAuth } = useAuthGate();
   const insets = useSafeAreaInsets();
   const [rides, setRides] = useState<NearbyRide[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Distinct flag for the "permission needed" empty state — keeps the
+  // generic `error` strictly for fetch failures so the two surfaces
+  // don't share copy ("We hit a snag" doesn't fit a permission gate).
+  const [needsLocation, setNeedsLocation] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
+    setNeedsLocation(false);
     try {
       // Use the device's current location to centre the query.
-      // Falls back to a polite empty list if permissions weren't
-      // granted earlier (LocationPermissionScreen handles that flow).
+      // If permission isn't granted, surface a dedicated empty state
+      // with a working "Allow location" CTA — don't fall through to
+      // the generic error path.
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== "granted") {
-        setError("Allow location access to see rides starting near you.");
+        setNeedsLocation(true);
         setRides([]);
         return;
       }
@@ -137,13 +146,23 @@ const NearbyRidesScreen: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await load();
-      setLoading(false);
-    })();
-  }, [load]);
+  // Reload on every focus so coming back from LocationPermissionScreen
+  // (after the user granted permission) actually refreshes the list
+  // instead of leaving them stuck on the "Allow location" empty state.
+  // Initial mount also fires this.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        setLoading(true);
+        await load();
+        if (active) setLoading(false);
+      })();
+      return () => {
+        active = false;
+      };
+    }, [load]),
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -235,6 +254,24 @@ const NearbyRidesScreen: React.FC = () => {
 
       {loading ? (
         <LoadingComponent />
+      ) : needsLocation ? (
+        // Dedicated permission-gate state. Sends the user through
+        // LocationPermissionScreen (with the radar + reasoning) and
+        // brings them back here after they decide. Same flow we use
+        // on first launch.
+        <EmptyState
+          image={require("../../assets/happy-emoji.png")}
+          title="Allow location"
+          body="So we can show carpools heading your way on the map."
+          ctaLabel="Allow location"
+          onPressCta={() =>
+            router.navigate(
+              appHref("LocationPermissionScreen", {
+                returnTo: { screen: "NearbyRidesScreen" },
+              } as any),
+            )
+          }
+        />
       ) : error ? (
         <EmptyState
           image={require("../../assets/sad.png")}
@@ -249,7 +286,12 @@ const NearbyRidesScreen: React.FC = () => {
           title="No carpools near you"
           body="Be the first to post one going your way — your co-riders will roll in."
           ctaLabel="Post a ride"
-          onPressCta={() => router.navigate(appHref("CreateRide"))}
+          onPressCta={() => {
+            // Posting requires auth — show the AuthSheet first if the
+            // user is a guest, then navigate after sign-in.
+            if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) return;
+            router.navigate(appHref("CreateRide"));
+          }}
         />
       ) : (
         <FlatList
@@ -305,7 +347,10 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: wp(4),
     paddingTop: 4,
-    paddingBottom: 60,
+    // Clear the floating bottom nav so the last card has air below
+    // it. MAIN_NAV_BAR_TOP_OFFSET = distance from screen bottom to
+    // the *top* of the floating nav; +24 gives breathing room.
+    paddingBottom: MAIN_NAV_BAR_TOP_OFFSET + 24,
   },
 
   // Forest dark card, same vocabulary as RideCard + the chat list row.

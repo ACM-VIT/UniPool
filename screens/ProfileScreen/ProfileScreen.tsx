@@ -327,6 +327,20 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
         }
       },
     },
+    {
+      id: "trip_history",
+      title: "Trip history",
+      icon: require("../../assets/clock.png"),
+      hasCheckmark: true,
+      onPress: () => {
+        try {
+          router.navigate(appHref("TripHistoryScreen"));
+        } catch (error) {
+          console.error("Navigation error:", error);
+          BrandedAlert.alert("Navigation Error", "Unable to navigate to Trip history screen");
+        }
+      },
+    },
   ];
 
   const preferencesItems: MenuItem[] = [

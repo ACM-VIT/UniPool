@@ -22,6 +22,7 @@ import DateTimePicker, {
 import AppColors from "../design_systems/colors";
 import { 
   searchLocationsWithFallback,
+  getInstantLocationResults,
   getPopularLocations, 
   getPopularLocationsFallback,
   LocationResult,
@@ -60,6 +61,14 @@ interface LocationCoordinates {
   latitude: number;
   longitude: number;
 }
+
+const coordinatesFromLocationResult = (locationResult?: LocationResult): LocationCoordinates | null => {
+  if (!locationResult?.lat || !locationResult?.lon) return null;
+  const latitude = Number(locationResult.lat);
+  const longitude = Number(locationResult.lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { latitude, longitude };
+};
 
 interface RideDetails {
   from: string;
@@ -166,7 +175,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   
   const [fromCoordinates, setFromCoordinates] = useState<LocationCoordinates | null>(null);
   const [toCoordinates, setToCoordinates] = useState<LocationCoordinates | null>(null);
-  const [selectedLocationResult, setSelectedLocationResult] = useState<LocationResult | null>(null);
+  const coordinateResolveRequestRef = useRef({ from: 0, to: 0 });
 
   const [fromCleared, setFromCleared] = useState(false);
 
@@ -189,7 +198,9 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const [popularLocations, setPopularLocations] = useState<LocationResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingPopular, setIsLoadingPopular] = useState(false);
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchRequestRef = useRef(0);
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   const submitRideDetails = (from: string, to: string, date: Date, fromCoords?: LocationCoordinates, toCoords?: LocationCoordinates) => {
     // Only submit if all three fields are filled
@@ -217,104 +228,149 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const handleSearchInput = async (text: string) => {
     setSearchQuery(text);
     
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = null;
     }
-    
-    // Clear popular locations when user types more than 2 characters
-    // This prevents confusion between search results and popular locations
-    if (text.length > 2) {
-      setPopularLocations([]);
-    } else {
-      // Only show popular locations for short queries (0-2 characters)
+
+    searchAbortRef.current?.abort();
+    const requestId = ++searchRequestRef.current;
+    const includeCurrentLocation = showFromDropdown;
+    const instantResults = getInstantLocationResults(text, userLocation, 8, {
+      includeCurrentLocation,
+    });
+
+    if (text.trim().length === 0) {
+      setSearchResults([]);
+      setPopularLocations(instantResults);
+      setIsSearching(false);
+      setIsLoadingPopular(false);
+      return;
+    }
+
+    if (text.trim().length < 2) {
+      setSearchResults([]);
+      setPopularLocations(instantResults);
+      setIsSearching(false);
+      setIsLoadingPopular(false);
+      return;
+    }
+
+    setPopularLocations([]);
+    setSearchResults(instantResults);
+    setIsSearching(true);
+
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+
+    const timeout = setTimeout(async () => {
       try {
-        const popular = await getPopularLocations(text, userLocation);
-        setPopularLocations(popular);
+        const results = await searchLocationsWithFallback(
+          text,
+          undefined,
+          10,
+          userLocation,
+          controller.signal,
+          { includeCurrentLocation }
+        );
+        if (requestId !== searchRequestRef.current) return;
+        setSearchResults(results.length > 0 ? results : instantResults);
       } catch (error) {
-        const fallbackPopular = getPopularLocationsFallback(text);
-        setPopularLocations(fallbackPopular);
-      }
-    }
-    
-    if (text.length >= 2) {
-      setIsSearching(true);
-      const timeout = setTimeout(async () => {
-        try {
-          console.log('Starting search for:', text);
-          const results = await searchLocationsWithFallback(text);
-          console.log('Search completed, results:', results.length);
-          setSearchResults(results);
-        } catch (error) {
+        if (requestId !== searchRequestRef.current) return;
+        if ((error as any)?.name !== "AbortError") {
           console.error('Search failed:', error);
-          const fallbackResults = getPopularLocationsFallback(text).slice(0, 4);
-          setSearchResults(fallbackResults);
-        } finally {
+        }
+        setSearchResults(instantResults);
+      } finally {
+        if (requestId === searchRequestRef.current) {
           setIsSearching(false);
         }
-      }, 500);
-      setSearchTimeout(timeout);
-    } else {
-      setSearchResults([]);
-      setIsSearching(false);
-    }
+      }
+    }, 160);
+    searchTimeoutRef.current = timeout;
   };
 
-  const handleLocationSelect = async (location: string, isFrom: boolean, locationResult?: LocationResult) => {
+  const handleLocationSelect = (location: string, isFrom: boolean, locationResult?: LocationResult) => {
     console.log('Location selected:', location, 'isFrom:', isFrom, 'locationResult:', locationResult);
-    
-    try {
-      const coordinates = await getCoordinatesForLocation(location);
-      console.log('Generated coordinates:', coordinates);
-      
-      // Convert to the expected format
-      const locationCoords = coordinates ? {
+
+    const immediateCoords = coordinatesFromLocationResult(locationResult);
+
+    if (isFrom) {
+      coordinateResolveRequestRef.current.from += 1;
+      setFromLocation(location);
+      setFromCoordinates(immediateCoords);
+      setFromCleared(false);
+      setShowFromDropdown(false);
+    } else {
+      coordinateResolveRequestRef.current.to += 1;
+      setToLocation(location);
+      setToCoordinates(immediateCoords);
+      setShowToDropdown(false);
+    }
+
+    setSearchQuery("");
+    setSearchResults([]);
+    setPopularLocations([]);
+    setIsSearching(false);
+    setIsLoadingPopular(false);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = null;
+    }
+    searchAbortRef.current?.abort();
+    searchRequestRef.current += 1;
+
+    const updatedFrom = isFrom ? location : fromLocation;
+    const updatedTo = isFrom ? toLocation : location;
+    const updatedFromCoords = isFrom ? immediateCoords : fromCoordinates;
+    const updatedToCoords = isFrom ? toCoordinates : immediateCoords;
+
+    if (updatedFrom && updatedTo && selectedDate) {
+      submitRideDetails(
+        updatedFrom,
+        updatedTo,
+        selectedDate,
+        updatedFromCoords ?? undefined,
+        updatedToCoords ?? undefined
+      );
+    }
+
+    if (immediateCoords) return;
+
+    const field = isFrom ? "from" : "to";
+    const requestId = coordinateResolveRequestRef.current[field];
+
+    void getCoordinatesForLocation(location).then((coordinates) => {
+      if (coordinateResolveRequestRef.current[field] !== requestId) return;
+
+      const resolvedCoords = coordinates ? {
         latitude: coordinates.lat,
         longitude: coordinates.lon
       } : null;
-      
+
       if (isFrom) {
-        setFromLocation(location);
-        setFromCoordinates(locationCoords);
-        setShowFromDropdown(false);
+        setFromCoordinates(resolvedCoords);
       } else {
-        setToLocation(location);
-        setToCoordinates(locationCoords);
-        setShowToDropdown(false);
+        setToCoordinates(resolvedCoords);
       }
-      
-      setSearchQuery("");
-      setSearchResults([]);
-      setPopularLocations([]);
-      
-      const updatedFrom = isFrom ? location : fromLocation;
-      const updatedTo = isFrom ? toLocation : location;
-      const updatedFromCoords = isFrom ? locationCoords : fromCoordinates;
-      const updatedToCoords = isFrom ? toCoordinates : locationCoords;
-      
+
+      const finalFromCoords = isFrom ? resolvedCoords : fromCoordinates;
+      const finalToCoords = isFrom ? toCoordinates : resolvedCoords;
+
       if (updatedFrom && updatedTo && selectedDate) {
         submitRideDetails(
           updatedFrom,
           updatedTo,
           selectedDate,
-          updatedFromCoords ?? undefined,
-          updatedToCoords ?? undefined
+          finalFromCoords ?? undefined,
+          finalToCoords ?? undefined
         );
       }
-    } catch (error) {
-      console.error('Error getting coordinates for location:', location, error);
-      // Continue without coordinates
-      if (isFrom) {
-        setFromLocation(location);
-        setShowFromDropdown(false);
-      } else {
-        setToLocation(location);
-        setShowToDropdown(false);
+    }).catch((error) => {
+      if (coordinateResolveRequestRef.current[field] === requestId) {
+        console.error('Error getting coordinates for location:', location, error);
       }
-      
-      setSearchQuery("");
-      setSearchResults([]);
-      setPopularLocations([]);
-    }
+    });
   };
 
   const handleLocationSelectorOpen = async (isFrom: boolean) => {
@@ -326,24 +382,34 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       setShowToDropdown(true);
     }
     
-    setIsLoadingPopular(true);
-    setPopularLocations([]);
-    
+    searchAbortRef.current?.abort();
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = null;
+    }
+    searchRequestRef.current += 1;
+    setSearchQuery("");
+    setSearchResults([]);
+    setIsSearching(false);
+    setIsLoadingPopular(false);
+    const includeCurrentLocation = isFrom;
+    setPopularLocations(getInstantLocationResults("", userLocation, 10, {
+      includeCurrentLocation,
+    }));
+
     try {
-      console.log('Getting popular locations...');
-      const popular = await getPopularLocations("", userLocation);
-      console.log('Got popular locations:', popular);
+      const popular = await getPopularLocations("", userLocation, {
+        includeCurrentLocation,
+      });
       setPopularLocations(popular);
     } catch (error) {
       console.error('Error getting popular locations:', error);
-      console.log('Unable to get popular locations without user location');
-      setPopularLocations([]);
-    } finally {
-      setIsLoadingPopular(false);
+      setPopularLocations(
+        includeCurrentLocation
+          ? getPopularLocationsFallback("")
+          : getPopularLocationsFallback("").filter((location) => location.source !== "current")
+      );
     }
-    
-    setSearchQuery("");
-    setSearchResults([]);
   };
 
   const handleDateTimeChange = (event: any, selected?: Date) => {
@@ -493,6 +559,8 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     const tempLocation = fromLocation;
     const tempCoordinates = fromCoordinates;
 
+    coordinateResolveRequestRef.current.from += 1;
+    coordinateResolveRequestRef.current.to += 1;
     setFromLocation(toLocation);
     setToLocation(tempLocation);
     setFromCoordinates(toCoordinates);
@@ -515,10 +583,12 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
   const handleLocationClear = (isFrom: boolean) => {
     if (isFrom) {
+      coordinateResolveRequestRef.current.from += 1;
       setFromLocation("");
       setFromCoordinates(null);
       setFromCleared(true);
     } else {
+      coordinateResolveRequestRef.current.to += 1;
       setToLocation("");
       setToCoordinates(null);
     }
@@ -626,6 +696,8 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   // from immediately re-populating From after we wipe it.
   useEffect(() => {
     if (clearTrigger === undefined) return;
+    coordinateResolveRequestRef.current.from += 1;
+    coordinateResolveRequestRef.current.to += 1;
     setFromLocation("");
     setToLocation("");
     setFromCoordinates(null);
@@ -651,11 +723,12 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
   useEffect(() => {
     return () => {
-      if (searchTimeout) {
-        clearTimeout(searchTimeout);
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
       }
+      searchAbortRef.current?.abort();
     };
-  }, [searchTimeout]);
+  }, []);
 
   const getTextTruncationLength = () => {
     if (isSmallDevice) return 20;
@@ -872,6 +945,13 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                 setSearchQuery("");
                 setSearchResults([]);
                 setPopularLocations([]);
+                setIsSearching(false);
+                if (searchTimeoutRef.current) {
+                  clearTimeout(searchTimeoutRef.current);
+                  searchTimeoutRef.current = null;
+                }
+                searchAbortRef.current?.abort();
+                searchRequestRef.current += 1;
               }}
             >
               <Text style={styles.closeButtonText}>Close</Text>
@@ -1027,12 +1107,14 @@ const styles = StyleSheet.create({
   label: {
     marginLeft: wp(2),
     fontSize: getFontSize(15, 16, 17),
-    // Default state ("When", "From", "To") is a muted lime placeholder.
-    // When a real value is rendered (date / location), we swap to the
-    // brighter `selectedLabel` style below for full contrast.
+    // Default state ("When", "From", "To"). Was 0.55 SemiBold which
+    // washed out to near-invisible on the forest card — users
+    // couldn't see the placeholder labels. Bold @ 0.85 keeps the
+    // empty-state look distinct from a filled value (still slightly
+    // dimmer) while reading clearly at a glance.
     color: AppColors.primaryLightGreen,
-    opacity: 0.55,
-    fontFamily: "NunitoSans_600SemiBold",
+    opacity: 0.85,
+    fontFamily: "NunitoSans_700Bold",
   },
   // Filled From / To location — mirrors `selectedDateLabel` exactly
   // so the location row and the date row look like one design system,

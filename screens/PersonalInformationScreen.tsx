@@ -15,6 +15,7 @@ import {
   ScrollView,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
 import BrandInfo from '../components/BrandInfo';
@@ -291,6 +292,7 @@ type SheetShellProps = {
 };
 
 const SheetShell: React.FC<SheetShellProps> = ({ visible, onDismiss, busy, children }) => {
+  const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
   const content = useRef(new Animated.Value(0)).current;
@@ -396,6 +398,10 @@ const SheetShell: React.FC<SheetShellProps> = ({ visible, onDismiss, busy, child
             shadowOpacity: 0.22,
             shadowRadius: 28,
             elevation: 18,
+            // Same Android keyboard guard as components/SheetShell: cap
+            // the sheet so it can't slide behind the translucent status
+            // bar when an autofocused field opens the keyboard.
+            maxHeight: SCREEN_HEIGHT - insets.top - 8,
           }}
         >
           {/* Grab handle */}
@@ -729,9 +735,9 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search universities"
+              placeholder="University name or email domain"
               placeholderTextColor={AppColors.inkMuted}
-              autoCapitalize="words"
+              autoCapitalize="none"
               autoCorrect={false}
               style={ui.input}
               autoFocus
@@ -743,12 +749,17 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
               all occupy the same surface. */}
           <View style={ui.resultsWrap}>
             {searchQuery.trim().length < 2 ? (
-              <Text style={ui.resultsHint}>Type at least 2 letters.</Text>
+              <Text style={ui.resultsHint}>
+                Type at least 2 letters. You can search by name
+                ("Vellore"), acronym ("VIT") or email domain
+                ("vitstudent").
+              </Text>
             ) : searching ? (
               <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} style={{ marginTop: 12 }} />
             ) : searchResults.length === 0 ? (
               <Text style={ui.resultsHint}>
-                No matches. Try the full university name.
+                No matches. Try the full school name or your email's
+                domain (the part after the @).
               </Text>
             ) : (
               <ScrollView

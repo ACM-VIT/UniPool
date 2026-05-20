@@ -19,6 +19,7 @@ import styles from "./AuthScreen.styles";
 import { useApi } from "../../utils/ApiUtil";
 import AppColors from "../../design_systems/colors";
 import BrandedAlert from "../../components/BrandedAlert";
+import ChevronBack from "../../components/ChevronBack";
 import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import type { AppRouteTarget } from "../../navigation/routes";
 
@@ -143,18 +144,15 @@ const AuthScreen: React.FC = () => {
       <StatusBar barStyle="dark-content" backgroundColor={AppColors.primaryLightGreen} />
       <View style={styles.topRow}>
         {canGoBack ? (
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-              <Path d="M15 6 L 9 12 L 15 18" stroke={AppColors.secondaryDarkGreen} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
-          </TouchableOpacity>
+          <ChevronBack onPress={() => router.back()} />
         ) : (
           <View style={{ width: 40 }} />
         )}
-        {/* Single forest "UniPool" wordmark. The previous lime
-            second-half ("Pool") was invisible against the lime
-            canvas behind it, so the header read as just "Uni". */}
-        <Text style={styles.wordmark}>UniPool</Text>
+        {/* Brand wordmark in Trap-Bold — same display face the rest of
+            the app uses for the UniPool name (splash, brand strip,
+            chat brand chips). NunitoSans here read as a generic
+            heading instead of the wordmark. */}
+        <Text style={styles.wordmark} allowFontScaling={false}>UniPool</Text>
         <View style={{ width: 40 }} />
       </View>
 

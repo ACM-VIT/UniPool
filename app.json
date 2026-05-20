@@ -13,7 +13,7 @@
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.carpoolitapp",
       "config": {
-        "googleMapsApiKey": "$GOOGLE_MAPS_API_KEY_IOS"
+        "googleMapsApiKey": "$(GOOGLE_MAPS_API_KEY_IOS)"
       }
     },
     "android": {
@@ -25,7 +25,7 @@
       "package": "com.carpoolitapp",
       "config": {
         "googleMaps": {
-          "apiKey": "$GOOGLE_MAPS_API_KEY_ANDROID"
+          "apiKey": "${MAPS_API_KEY}"
         }
       }
     },

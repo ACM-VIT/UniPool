@@ -6,7 +6,7 @@ export type RootStackParamList = {
   SignInScreen: undefined;
   SplashScreen: undefined;
   ErrorScreen: undefined;
-  RideCreatedScreen: undefined;
+  RideCreatedScreen: { rideId?: string } | undefined;
   RideRequestedScreen:
     | {
         rideId?: string;
@@ -44,12 +44,23 @@ export type RootStackParamList = {
     hostUserId?: string;
     viewerRole?: string;
     pendingHostInquiry?: boolean;
+    // Set when the HOST is the one viewing a requester's pending DM.
+    // When unset, the same screen is rendering for the passenger
+    // (waiting on the host's decision) — copy + actions flip
+    // accordingly.
+    viewerIsHost?: boolean;
     pendingRideId?: string;
     pendingHostName?: string;
+    pendingRideStartLocation?: string;
+    pendingRideEndLocation?: string;
+    pendingRideStartTime?: string;
+    hostPendingRequestBookingId?: string;
   };
   TripsListScreen: undefined;
   RideDetailsScreen: { ride?: any; rideId?: string };
   NearbyRidesScreen: undefined;
   PrivacyPolicyScreen: undefined;
   TermsOfServiceScreen: undefined;
+  PostTripRatingScreen: { rideId: string };
+  TripHistoryScreen: undefined;
 };

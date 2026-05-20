@@ -6,7 +6,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 14,
+    // Bumped from 14 → 20 so the "UniPool" wordmark on the right has
+    // breathing room from the iPhone's rounded screen-corner curvature
+    // on Dynamic Island devices. The previous 14pt let the final "l"
+    // get clipped by the bezel curve.
+    paddingHorizontal: 20,
+  },
+  // When the location strip is hidden (permission denied / loading),
+  // the wordmark would otherwise drift to the right edge under
+  // space-between. Left-align it so it sits where the brand mark
+  // would naturally go.
+  containerSolo: {
+    justifyContent: "flex-start",
   },
   leftSection: {
     flexDirection: "row",
@@ -43,6 +54,16 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: AppColors.secondaryDarkGreen,
     letterSpacing: -0.4,
+    // Never let the wordmark be the flex-shrink target — the location
+    // strip on the left should shrink + ellipsize first if the row
+    // runs out of room. Previously the "l" in "UniPool" was getting
+    // chopped because Text in a flex row defaults to shrinkable.
+    flexShrink: 0,
+    // A pixel of padding so the rightmost glyph's antialiasing edge
+    // can't get clipped by the iPhone bezel curve on Dynamic Island
+    // devices, where the screen's curved corner eats into the last
+    // ~2pt of visible width.
+    paddingRight: 2,
   },
 });
 
