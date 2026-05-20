@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   Animated,
   StatusBar,
   NativeScrollEvent,
@@ -68,7 +67,12 @@ const SLIDES: Slide[] = [
 
 const OnboardingScreen: React.FC = () => {
   const router = useRouter();
-  const scrollRef = useRef<ScrollView>(null);
+  // `Animated.ScrollView` is required for `Animated.event` with
+  // `useNativeDriver: true` to work under Fabric. A plain
+  // `<ScrollView>` receives the `AnimatedEvent` instance as
+  // `onScroll` and crashes trying to call it as a function, which
+  // is what was killing slide 2 on every scroll event.
+  const scrollRef = useRef<any>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const [index, setIndex] = useState(0);
 
@@ -121,7 +125,7 @@ const OnboardingScreen: React.FC = () => {
         backgroundColor={AppColors.secondaryDarkGreen}
       />
 
-      <ScrollView
+      <Animated.ScrollView
         ref={scrollRef}
         horizontal
         pagingEnabled
@@ -201,7 +205,7 @@ const OnboardingScreen: React.FC = () => {
             </View>
           );
         })}
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Top chrome — wordmark left, Skip right. Skip stays muted so
           it doesn't compete with the swipe-forward CTA below. */}
