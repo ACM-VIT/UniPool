@@ -105,10 +105,9 @@ const OnboardingScreen: React.FC = () => {
       });
       return;
     }
-    // Fallback only — the last slide actually renders a dual-button
-    // row (Sign up / Sign in) instead of a single Continue, so this
-    // path mostly catches the "user scrolled past the last slide on
-    // the next-button-less Android back" edge case.
+    // Last slide tap hands off to AuthScreen. The OAuth flow there
+    // (Apple / Google) resolves new vs returning automatically, so
+    // there is no separate Sign-up vs Sign-in branch to make.
     finishOnboarding("AuthScreen");
   }, [index, finishOnboarding]);
 
@@ -254,38 +253,22 @@ const OnboardingScreen: React.FC = () => {
           })}
         </View>
 
-        {/* Slides 1-2: single "Continue" CTA that advances the
-            carousel. Slide 3: dual-button row — primary "Sign up"
-            (lime fill) + outlined "Sign in" — mirrors the
-            Robinhood / BlaBlaCar welcome-screen pattern. Both
-            routes drop into the auth flow with the appropriate
-            mode; AuthScreen handles new vs returning. */}
-        {isLastSlide ? (
-          <View style={styles.ctaRow}>
-            <TouchableOpacity
-              style={[styles.primaryBtn, styles.ctaHalf]}
-              activeOpacity={0.85}
-              onPress={() => finishOnboarding("AuthScreen")}
-            >
-              <Text style={styles.primaryBtnText}>Sign up</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.outlineBtn, styles.ctaHalf]}
-              activeOpacity={0.8}
-              onPress={() => finishOnboarding("AuthScreen")}
-            >
-              <Text style={styles.outlineBtnText}>Sign in</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            activeOpacity={0.85}
-            onPress={goNext}
-          >
-            <Text style={styles.primaryBtnText}>Continue</Text>
-          </TouchableOpacity>
-        )}
+        {/* Single primary CTA across every slide. Slides 1-2 advance
+            the carousel; the last slide hands off to the auth flow
+            (Apple / Google handle new vs returning automatically,
+            so we don't surface that decision in the UI). Action-led
+            label across the board matches the pattern used by
+            Endel, Emma, Craft, Elevate, IRL, Babbel, etc. on their
+            final onboarding screens. */}
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          activeOpacity={0.85}
+          onPress={goNext}
+        >
+          <Text style={styles.primaryBtnText}>
+            {isLastSlide ? "Get started" : "Continue"}
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );

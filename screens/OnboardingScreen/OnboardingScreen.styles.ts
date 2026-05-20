@@ -156,33 +156,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // Dual-button welcome row on the last slide. Matches Robinhood +
-  // BlaBlaCar's split-CTA pattern: primary "Sign up" and outlined
-  // "Sign in" side-by-side, equal width. Both routes go through
-  // AuthScreen — the user picks Apple / Google there.
-  ctaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  ctaHalf: {
-    flex: 1,
-  },
-  outlineBtn: {
-    height: 56,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: AppColors.primaryLightGreen,
-    backgroundColor: "transparent",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  outlineBtnText: {
-    fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 16,
-    color: AppColors.primaryLightGreen,
-    letterSpacing: 0.3,
-  },
 });
 
 export default styles;
