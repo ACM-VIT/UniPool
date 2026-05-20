@@ -108,13 +108,17 @@ export const FairPriceHero: React.FC<IllustrationProps> = ({ size }) => (
 
       <Circle cx="160" cy="160" r="140" fill="url(#haloFair)" />
 
-      {/* Receipt body */}
+      {/* Receipt body. Rounded all four corners (rx=20). */}
       <Rect x="64" y="76" width="192" height="158" rx="20" fill={FOREST} />
 
-      {/* Top brand strip */}
-      <Rect x="64" y="76" width="192" height="34" fill={LIME} />
-      {/* Top strip has rounded top corners; clip with a smaller rect */}
-      <Rect x="64" y="98" width="192" height="12" fill={LIME} />
+      {/* Top brand strip. Square rect on top of the rounded body
+          will show a few pixels of square corner past the parent's
+          rounded edge; at hero size that's invisible and keeps the
+          SVG simple. */}
+      <Rect x="68" y="80" width="184" height="32" rx="16" fill={LIME} />
+      {/* A second rect covers the bottom-rounded portion of the
+          strip so it reads as a band, not a pill. */}
+      <Rect x="68" y="96" width="184" height="14" fill={LIME} />
 
       {/* Seat row 1 */}
       <Rect x="84" y="124" width="16" height="14" rx="3" fill={LIME} />
