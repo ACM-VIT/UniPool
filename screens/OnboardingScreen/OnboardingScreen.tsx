@@ -105,10 +105,13 @@ const OnboardingScreen: React.FC = () => {
       });
       return;
     }
-    // Last slide tap hands off to AuthScreen. The OAuth flow there
-    // (Apple / Google) resolves new vs returning automatically, so
-    // there is no separate Sign-up vs Sign-in branch to make.
-    finishOnboarding("AuthScreen");
+    // Last slide drops the user straight into the product as a
+    // guest. UniPool is guest-first: browse / search rides without
+    // an account. Auth is only triggered later, contextually, when
+    // the user taps a gated action (post a ride, book a seat,
+    // chat) and the AuthSheet pops up. Pushing AuthScreen here
+    // would force a decision the user doesn't need to make yet.
+    finishOnboarding("HomeScreen");
   }, [index, finishOnboarding]);
 
   const skip = useCallback(() => {
