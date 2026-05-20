@@ -22,7 +22,6 @@ import {
 type Slide = {
   key: string;
   Hero: React.FC<{ size: number }>;
-  eyebrow: string;
   headline: string;
   subhead: string;
 };
@@ -42,7 +41,6 @@ const SLIDES: Slide[] = [
   {
     key: "match",
     Hero: RouteHero,
-    eyebrow: "FIND",
     headline: "Going your way.",
     subhead:
       "Match with students heading the same direction. Campus commutes, airport runs, weekend trips home.",
@@ -50,7 +48,6 @@ const SLIDES: Slide[] = [
   {
     key: "fair",
     Hero: FairPriceHero,
-    eyebrow: "PAY",
     headline: "Fair price. Split clean.",
     subhead:
       "Per-seat fare is posted up front. Settle directly with your host over UPI when the trip ends.",
@@ -58,7 +55,6 @@ const SLIDES: Slide[] = [
   {
     key: "trust",
     Hero: CampusVerifiedHero,
-    eyebrow: "TRUST",
     headline: "Built for your campus.",
     subhead:
       "Verified student emails only. You see who's hosting and which institute they're from before you book.",
@@ -200,7 +196,6 @@ const OnboardingScreen: React.FC = () => {
                   },
                 ]}
               >
-                <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
                 <Text style={styles.headline}>{slide.headline}</Text>
                 <Text style={styles.subhead}>{slide.subhead}</Text>
               </Animated.View>

@@ -81,14 +81,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     marginTop: Math.max(height * 0.045, 28),
   },
-  eyebrow: {
-    fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 12,
-    letterSpacing: 1.6,
-    color: AppColors.primaryLightGreen,
-    opacity: 0.7,
-    marginBottom: 12,
-  },
   headline: {
     fontFamily: "NunitoSans_800ExtraBold",
     fontSize: 32,
