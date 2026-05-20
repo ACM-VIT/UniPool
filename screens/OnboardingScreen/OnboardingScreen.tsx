@@ -46,7 +46,7 @@ const SLIDES: Slide[] = [
     eyebrow: "FIND",
     headline: "Going your way.",
     subhead:
-      "Match with students heading the same direction — campus commutes, airport runs, weekend trips home.",
+      "Match with students heading the same direction. Campus commutes, airport runs, weekend trips home.",
   },
   {
     key: "fair",
@@ -62,7 +62,7 @@ const SLIDES: Slide[] = [
     eyebrow: "TRUST",
     headline: "Built for your campus.",
     subhead:
-      "Verified student emails only. You see who's hosting — and which institute they're from — before you book.",
+      "Verified student emails only. You see who's hosting and which institute they're from before you book.",
   },
 ];
 
