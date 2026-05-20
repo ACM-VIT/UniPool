@@ -161,7 +161,9 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.primaryLightGreen,
   },
   brandInfoHeaderRow: {
-    paddingTop: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight || 20,
+    // No paddingTop — BrandInfo already pads the safe-area inset
+    // internally. Stacking another 50pt here pushed the entire
+    // screen content ~half a Dynamic Island down.
     paddingHorizontal: 20,
   },
   headerRow: {

@@ -366,7 +366,11 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
         <LoadingComponent />
       ) : chats.length === 0 ? (
         <EmptyState
-          image={require("../../assets/no-rides.png")}
+          // Cropped emoji-only version — the full no-rides.png has
+          // "Uh Oh! No Rides Available" baked into the image, which
+          // collided with our own title + body below it.
+          image={require("../../assets/no-rides-emoji.png")}
+          imageSize={140}
           title="No trip chats yet"
           body="Book a seat or post a ride and the conversation will land here."
           ctaLabel="Find a ride"

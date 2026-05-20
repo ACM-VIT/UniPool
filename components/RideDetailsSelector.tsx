@@ -89,6 +89,13 @@ interface RideDetailsSelectorProps {
    * change — first render is treated as the baseline.
    */
   clearTrigger?: number;
+  /**
+   * Seed value for the date pill. Used when the parent comes in with
+   * a pre-filled date (e.g. CreateRide opened from the search-empty-
+   * state). Only consulted on first render; once the user picks a
+   * date from the wheel, the internal state takes over.
+   */
+  initialDate?: Date;
 }
 
 export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
@@ -100,6 +107,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   toLocation: externalToLocation,
   userLocation,
   clearTrigger,
+  initialDate,
 }) => {
   const { apiUtil } = require('../utils/ApiUtil').useApi();
   const [defaultStartAddress, setDefaultStartAddress] = useState<string>("");
@@ -153,8 +161,8 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     now.setMinutes(0, 0, 0);
     return now;
   };
-  
-  const [selectedDate, setSelectedDate] = useState<Date | null>(getInitialDate());
+
+  const [selectedDate, setSelectedDate] = useState<Date | null>(initialDate ?? getInitialDate());
   
   const [fromCoordinates, setFromCoordinates] = useState<LocationCoordinates | null>(null);
   const [toCoordinates, setToCoordinates] = useState<LocationCoordinates | null>(null);

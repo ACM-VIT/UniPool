@@ -13,47 +13,47 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 28,
-    paddingTop: Platform.OS === "ios" ? 16 : 12,
+    // paddingTop is applied dynamically from the safe-area inset in
+    // the component, so the back chip hugs the status bar.
     paddingBottom: 24,
   },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: Platform.OS === "ios" ? 12 : 4,
-    marginBottom: 24,
-  },
-  backBtn: {
+  logoutBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(38,59,51,0.10)",
+    backgroundColor: AppColors.secondaryDarkGreen,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  stepPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "rgba(181,215,80,0.18)",
-  },
-  stepPillText: {
-    fontFamily: "NunitoSans_700Bold",
-    fontSize: 12,
-    color: AppColors.secondaryDarkGreen,
-    letterSpacing: 0.4,
+  backBtn: {
+    display: "none",
+    width: 0,
+    height: 0,
+    opacity: 0,
   },
   heroBlock: {
     marginBottom: 24,
   },
+  headlineRow: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 12,
+  },
   headline: {
+    flex: 1,
     fontFamily: "NunitoSans_800ExtraBold",
     fontSize: 30,
     lineHeight: 36,
     letterSpacing: -0.6,
     color: AppColors.secondaryDarkGreen,
-    marginBottom: 10,
   },
   subhead: {
     fontFamily: "NunitoSans_400Regular",
@@ -64,13 +64,18 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontFamily: "NunitoSans_700Bold",
-    fontSize: 13,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
+    fontSize: 14,
+    letterSpacing: -0.1,
     color: AppColors.secondaryDarkGreen,
-    opacity: 0.7,
+    opacity: 0.75,
     marginBottom: 8,
     marginTop: 18,
+  },
+  // Inline modifier on a field label — used for "(Optional)" hints so
+  // it reads as a lighter aside rather than competing with the label.
+  fieldLabelMuted: {
+    fontFamily: "NunitoSans_400Regular",
+    opacity: 0.65,
   },
   inputWrap: {
     height: 56,
@@ -97,6 +102,31 @@ const styles = StyleSheet.create({
     color: AppColors.primaryLightGreen,
     opacity: 0.65,
     marginRight: 8,
+  },
+  // Country code pill inside the phone input — tap to open the
+  // CountryPicker. Lives flush with the left edge of the input
+  // wrap so flag + dial code feel like part of the field itself.
+  countryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingRight: 10,
+    paddingLeft: 0,
+    gap: 6,
+  },
+  countryFlag: {
+    fontSize: 22,
+  },
+  countryDial: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 16,
+    color: AppColors.primaryLightGreen,
+    letterSpacing: 0.2,
+  },
+  countryDivider: {
+    width: 1,
+    height: 26,
+    backgroundColor: "rgba(181,215,80,0.20)",
+    marginRight: 12,
   },
   input: {
     flex: 1,
@@ -143,6 +173,41 @@ const styles = StyleSheet.create({
   genderChipTextSelected: {
     color: AppColors.secondaryDarkGreen,
     opacity: 1,
+    fontFamily: "NunitoSans_800ExtraBold",
+  },
+  // Optional academic verify — single-row button matching the
+  // forest input surface so it reads as part of the form. After
+  // verification it inverts to a lime "done" pill with a check.
+  verifyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    height: 56,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  verifyBtnDone: {
+    backgroundColor: AppColors.primaryLightGreen,
+    borderWidth: 2,
+    borderColor: AppColors.secondaryDarkGreen,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  verifyBtnText: {
+    flex: 1,
+    fontFamily: "NunitoSans_700Bold",
+    fontSize: 15,
+    color: AppColors.primaryLightGreen,
+    letterSpacing: -0.1,
+  },
+  verifyBtnTextDone: {
+    color: AppColors.secondaryDarkGreen,
     fontFamily: "NunitoSans_800ExtraBold",
   },
   ctaWrap: {

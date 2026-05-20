@@ -8,7 +8,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 28,
-    paddingTop: Platform.OS === "ios" ? 76 : 48,
+    // Top padding is applied dynamically in the component using
+    // `useSafeAreaInsets()` so the back chip + wordmark hug the
+    // status bar instead of floating ~50pt below it.
     paddingBottom: 0,
   },
   topRow: {
