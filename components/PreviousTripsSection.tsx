@@ -21,6 +21,17 @@ interface UserRideData {
     is_ongoing: number;
     is_same_gender: number;
     passenger_id?: string;
+    // Server-computed UI state from /user/rides. Drives which rides
+    // surface on the home carousel — see filter below.
+    viewer_state?:
+        | "host"
+        | "confirmed_passenger"
+        | "pending_passenger"
+        | "rejected_passenger"
+        | "available"
+        | "full"
+        | "past";
+    request_status?: string;
 }
 
 interface PreviousTripsSectionProps {
@@ -41,14 +52,27 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsC
     const screenWidth = Dimensions.get("window").width;
     const maxDots = 5;
 
-    // Memoize the de-dupe + slice so re-renders driven by pagination dot
-    // taps (currentIndex changes) don't rebuild this work each time.
+    // Memoize the de-dupe + filter + slice so re-renders driven by
+    // pagination dot taps (currentIndex changes) don't rebuild this
+    // work each time.
+    //
+    // Filter rule for the home carousel: only surface trips the user
+    // is *actually going on*. That means host + confirmed_passenger,
+    // plus the catch-all `available`/`full` for bookings whose state
+    // didn't resolve. Pending and rejected bookings are filtered out
+    // — they don't belong on the home headline; the dedicated Trips
+    // tab carries them with the proper pending/declined treatments.
     const { uniqueRides, displayedRides } = useMemo(() => {
         const seen = new Map<string, UserRideData>();
         for (const ride of rideData) {
-            if (ride.ride_id && !seen.has(ride.ride_id)) {
-                seen.set(ride.ride_id, ride);
+            if (!ride.ride_id || seen.has(ride.ride_id)) continue;
+            if (
+                ride.viewer_state === "pending_passenger" ||
+                ride.viewer_state === "rejected_passenger"
+            ) {
+                continue;
             }
+            seen.set(ride.ride_id, ride);
         }
         const unique = Array.from(seen.values());
         const display = unique.slice(Math.max(unique.length - 5, 0));
