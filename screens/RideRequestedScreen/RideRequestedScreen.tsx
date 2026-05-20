@@ -4,11 +4,12 @@ import { useRouter } from "expo-router";
 import styles from "./RideRequestedScreen.styles";
 import { appHref } from "../../navigation/routes";
 
-// Quick confirmation interstitial. The original sat on screen for 3
-// seconds with a static PNG — too long for an "OK we got it" beat. New
-// version pops in with a brief spring + scale, then hands off to the
-// trips list well under a second later. Total time on screen ~900ms.
-const HOLD_MS = 700;
+// Confirmation interstitial. Lands with a spring scale + fade-in,
+// holds long enough that the user actually registers the moment,
+// then fades out into the trips list. Total time on screen:
+//   ~180ms entrance + 2400ms hold + 140ms exit fade = ~2.7s.
+// Falls comfortably in the 2-3s "this happened" beat.
+const HOLD_MS = 2400;
 const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }> = (props) => {
   const router = useRouter();
 
