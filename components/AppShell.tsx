@@ -18,6 +18,7 @@ import { useApi } from "../utils/ApiUtil";
 
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { useFonts } from "expo-font";
+import * as Location from "expo-location";
 import {
   NunitoSans_400Regular,
   NunitoSans_600SemiBold,
@@ -30,7 +31,22 @@ import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithCredential }
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 
-async function registerForPushNotificationsAsync(): Promise<string | null> {
+/**
+ * Register for push notifications.
+ *
+ * When `promptIfNeeded=false` (the default for startup paths), this
+ * function ONLY proceeds if the user has already granted notification
+ * permission in a prior session. It never triggers the native iOS /
+ * Android prompt — that prompt is reserved for explicit user actions
+ * (requesting a ride, posting one, etc.) handled by the exported
+ * `ensurePushNotificationsRegistered` helper below.
+ *
+ * Returns the device push token if permission was already granted and
+ * registration succeeded; `null` otherwise.
+ */
+async function registerForPushNotificationsAsync(
+  promptIfNeeded = false,
+): Promise<string | null> {
   let token = null;
 
   if (Device.isDevice) {
@@ -48,6 +64,11 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
       let finalStatus = existingStatus;
 
       if (existingStatus !== "granted") {
+        if (!promptIfNeeded) {
+          // Silent startup path — don't ambush the user with a prompt
+          // they haven't earned yet. We'll ask later, in context.
+          return null;
+        }
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
       }
@@ -105,6 +126,13 @@ const AppShell = () => {
     useState<keyof RootStackParamList | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCustomSplash, setShowCustomSplash] = useState(true);
+  // Tri-state: undefined = not checked yet; null = no detour needed
+  // (user already saw the prompt OR permission is already granted);
+  // a string = the route name we want to send them to FIRST before
+  // their actual destination. The bootstrap gate waits for this to
+  // resolve so the splash stays up until we know where to go.
+  const [locationDetour, setLocationDetour] =
+    useState<"LocationPermissionScreen" | null | undefined>(undefined);
   const [authStateResolved, setAuthStateResolved] = useState(false);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [lastUserVerification, setLastUserVerification] = useState<number | null>(null);
@@ -152,6 +180,14 @@ const AppShell = () => {
     NunitoSans_700Bold,
     NunitoSans_800ExtraBold,
     NunitoSans: NunitoSans_600SemiBold,
+    // Brand wordmark face. Was previously assumed loaded via the
+    // (defunct) RN asset linker — without explicit registration here,
+    // every `fontFamily: "Trap-Bold"` consumer (BrandInfo wordmark,
+    // SplashScreen logo, ErrorComponent, profile + chat headers) falls
+    // back to the system font on Android. iOS happened to resolve it
+    // because the .otf shipped via the asset bundle, but Android needs
+    // the explicit register.
+    "Trap-Bold": require("../assets/fonts/trap/Trap-Bold.otf"),
   });
 
   const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
@@ -162,7 +198,15 @@ const AppShell = () => {
   const [navBarItems, setNavBarItems] = useState(bottomNavItems);
   const currentRouteName = routeNameFromPath(pathname) ?? initialRoute ?? "SplashScreen";
   const isBootstrapping =
-    showCustomSplash || !fontsLoaded || loading || !initialRoute || !authStateResolved;
+    showCustomSplash ||
+    !fontsLoaded ||
+    loading ||
+    !initialRoute ||
+    !authStateResolved ||
+    // Splash stays up until we've decided whether to detour through
+    // the LocationPermissionScreen. Otherwise the user could see a
+    // half-second of HomeScreen flash before being navigated away.
+    locationDetour === undefined;
 
   const handleNotificationNavigation = (data: any) => {
     if (data?.type === "chat_message") {
@@ -192,6 +236,17 @@ const AppShell = () => {
           rideId: String(data.ride_id)
         }));
       }
+    } else if (data?.type === "rating_prompt") {
+      // 12h-after-trip "how was the ride?" push lands here.
+      if (data.ride_id) {
+        router.navigate(appHref("PostTripRatingScreen", {
+          rideId: String(data.ride_id),
+        }));
+      }
+    } else if (data?.type === "ride_cancelled_pending") {
+      // Host pulled a ride before the user's pending request was
+      // accepted — drop them at Home so they can find another.
+      router.navigate(appHref("HomeScreen"));
     } else if (data?.ride_id || data?.rideId) {
       const rideId = data.ride_id || data.rideId;
       router.navigate(appHref("RideDetailsScreen", {
@@ -516,19 +571,78 @@ const AppShell = () => {
 
   useEffect(() => {
     if (fontsLoaded && !loading && initialRoute && authStateResolved) {
+      // First-run users get a brief brand beat before we hand them to
+      // the onboarding carousel — auth + storage resolve in well under
+      // a frame on a warm device, so the old 100ms floor meant the
+      // splash flashed past unseen. Returning + signed-in users still
+      // skip the wait so it never feels like an artificial delay.
+      const minDurationMs = initialRoute === "OnboardingScreen" ? 900 : 100;
       const timer = setTimeout(() => {
         setShowCustomSplash(false);
         SplashScreen.hideAsync();
-      }, 100);
+      }, minDurationMs);
       return () => clearTimeout(timer);
     }
   }, [fontsLoaded, loading, initialRoute, authStateResolved]);
 
+  // Decide whether the user should land on LocationPermissionScreen
+  // FIRST instead of their normal initial route. Runs once `initialRoute`
+  // is computed. Only intercepts HomeScreen — onboarding / sign-up /
+  // verification / etc. flows shouldn't be hijacked by a permission
+  // prompt mid-funnel.
+  useEffect(() => {
+    if (!initialRoute || locationDetour !== undefined) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (initialRoute !== "HomeScreen") {
+          if (!cancelled) setLocationDetour(null);
+          return;
+        }
+        const { default: AsyncStorage } = await import(
+          "@react-native-async-storage/async-storage"
+        );
+        // New combined-prompt sheet covers BOTH location + notifications.
+        // Renamed key so the rollout shows the new sheet once even to
+        // users who previously dismissed the old location-only one.
+        const seen = await AsyncStorage.getItem("hasSeenPermissionsPrompt");
+        if (seen === "true") {
+          if (!cancelled) setLocationDetour(null);
+          return;
+        }
+        // We deliberately don't short-circuit on "location already
+        // granted" anymore — the sheet also asks for notifications,
+        // so even a returning user with location pre-granted should
+        // still see the sheet once. The native location prompt
+        // silently no-ops when status is already granted, so this
+        // doesn't double-ask.
+        if (!cancelled) setLocationDetour("LocationPermissionScreen");
+      } catch (e) {
+        console.warn("Location-detour check failed; skipping prompt", e);
+        if (!cancelled) setLocationDetour(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialRoute, locationDetour]);
+
   useEffect(() => {
     if (!isBootstrapping && initialRoute && (!pathname || pathname === "/")) {
-      router.replace(appHref(initialRoute) as any);
+      if (locationDetour === "LocationPermissionScreen") {
+        // Send the user through the radar screen first; LocationPermissionScreen
+        // reads `returnTo` and lands them on their real destination
+        // after Allow / Not now.
+        router.replace(
+          appHref("LocationPermissionScreen", {
+            returnTo: { screen: initialRoute },
+          } as any) as any,
+        );
+      } else {
+        router.replace(appHref(initialRoute) as any);
+      }
     }
-  }, [initialRoute, isBootstrapping, pathname, router]);
+  }, [initialRoute, isBootstrapping, pathname, router, locationDetour]);
 
   const NAVBAR_HIDDEN_ROUTES = [
     "OnboardingScreen",
@@ -570,6 +684,12 @@ const AppShell = () => {
                 never presents it as a pageSheet/native modal when the
                 navigation starts from the AuthSheet. */}
             <Stack.Screen name="SignUpScreen" options={{ headerShown: false, presentation: "card", animation: "none", gestureEnabled: false }} />
+            {/* Post-trip rating + Trip history — both short focused
+                flows that the user lands on from notifications /
+                profile menu. Card present matches the rest of the
+                app's navigation language. */}
+            <Stack.Screen name="PostTripRatingScreen" options={{ headerShown: false, presentation: "modal" }} />
+            <Stack.Screen name="TripHistoryScreen" options={{ headerShown: false }} />
             <Stack.Screen name="AvailableRidesSelectedScreen" options={{ headerShown: false, animation: "none" }} />
             <Stack.Screen name="ChatMessages" options={{ headerShown: false, animation: "none" }} />
             <Stack.Screen name="PassengerInfoScreen" options={{ headerShown: false, animation: "none" }} />

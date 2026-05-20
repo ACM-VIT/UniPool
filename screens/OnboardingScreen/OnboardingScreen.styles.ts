@@ -80,6 +80,7 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingHorizontal: 4,
     marginTop: Math.max(height * 0.045, 28),
+    alignItems: "center",
   },
   headline: {
     fontFamily: "NunitoSans_800ExtraBold",
@@ -88,6 +89,7 @@ const styles = StyleSheet.create({
     color: AppColors.basicWhite,
     letterSpacing: -0.7,
     marginBottom: 14,
+    textAlign: "center",
   },
   subhead: {
     fontFamily: "NunitoSans_400Regular",
@@ -96,6 +98,7 @@ const styles = StyleSheet.create({
     color: AppColors.basicWhite,
     opacity: 0.72,
     letterSpacing: -0.05,
+    textAlign: "center",
   },
 
   /* ----------------------------------------------------------------

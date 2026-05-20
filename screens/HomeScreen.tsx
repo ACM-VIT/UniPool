@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView, InteractionManager } from "react-native";
 import navigationImg from "../assets/navigation.png";
 import locationPinImg from "../assets/location-pin-2.png";
 import MapView, { Marker, Polyline, Circle, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import { useRouter, useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApi } from "../utils/ApiUtil";
 import baseURL from "../config/urlconfig";
@@ -19,6 +20,7 @@ import bottomNavItems from "../data/BottomNavigationItems";
 import BrandInfo from "../components/BrandInfo";
 import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/PressableScale";
+import RideClusterSheet, { ClusteredRide } from "../components/RideClusterSheet";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -41,6 +43,18 @@ const responsiveWidth = (percentage: number) => {
   return (screenWidth * percentage) / 100;
 };
 
+const COORDINATE_EPSILON = 0.000001;
+const MAP_CAMERA_ANIMATION_MS = 280;
+
+const areCoordsEqual = (a: LocationCoords | null, b: LocationCoords | null) => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    Math.abs(a.latitude - b.latitude) < COORDINATE_EPSILON &&
+    Math.abs(a.longitude - b.longitude) < COORDINATE_EPSILON
+  );
+};
+
 // Hard cap for the physical sheet surface. The expanded snap is still
 // measured from content; this only gives dense signed-in layouts enough
 // room on shorter Android screens without forcing short guest content up.
@@ -56,61 +70,83 @@ interface LocationCoords {
   longitude: number;
 }
 
-// --- Map prompt -------------------------------------------------------
-// Pill overlay sitting under the BrandInfo header. The selector below
-// picks the right contextual message from the current state; the
-// component animates opacity instead of pop-rendering, so the chip
-// doesn't flicker as the user types into From/To or the nearby-count
-// resolves.
-type MapPromptProps = {
-  fromCoords: LocationCoords | null;
-  toCoords: LocationCoords | null;
-  nearbyCount: number | null;
+const DRAG_THRESHOLD = 10;
+
+// Sensible fallback map center used until the user's real coords land.
+// Picked to sit in the middle of our seeded ride catalogue (VIT Vellore /
+// Tamil Nadu / Bengaluru corridor) so the map looks like "a real place"
+// rather than a generic country-wide view while location is fetching.
+// Without this the map gate blocked the MapView entirely on cold start,
+// leaving an unbranded lime void where the map should be.
+const FALLBACK_REGION = {
+  latitude: 12.9698,   // VIT Vellore
+  longitude: 79.1559,
+  latitudeDelta: 0.06,
+  longitudeDelta: 0.06,
 };
 
-const pickPromptMessage = ({ fromCoords, toCoords, nearbyCount }: MapPromptProps): string | null => {
-  if (fromCoords && toCoords) return "Route preview · tap a ride below";
-  if (fromCoords) return "Pick a destination";
-  if (toCoords) return "Pick a pickup point";
-  if (nearbyCount && nearbyCount > 0) {
-    return nearbyCount === 1
-      ? "1 carpool within 5 km of you"
-      : `${nearbyCount} carpools within 5 km of you`;
-  }
-  return null;
+// Short, comma-stripped, ellipsized destination label for pin badges.
+// Pulled out of the marker render so the rotating-pin component below
+// can use the same shortening.
+const shortenDestination = (s: string) => {
+  const first = (s.split(",")[0] || "").trim();
+  return first.length > 16 ? first.slice(0, 15).trimEnd() + "…" : first;
 };
 
-const MapPrompt: React.FC<MapPromptProps> = (props) => {
-  const message = pickPromptMessage(props);
-  // Keep the previous message painted while we fade out, so the text
-  // doesn't blank-out mid-animation. Cleared once the chip is hidden.
-  const [renderedMessage, setRenderedMessage] = useState<string | null>(message);
-  const opacity = useRef(new Animated.Value(message ? 1 : 0)).current;
+type NearbyClusterShape = {
+  key: string;
+  latitude: number;
+  longitude: number;
+  rides: Array<{ end_location: string; total_price: number }>;
+  cheapest: { end_location: string; total_price: number };
+};
 
-  useEffect(() => {
-    if (message) setRenderedMessage(message);
-    Animated.timing(opacity, {
-      toValue: message ? 1 : 0,
-      duration: 220,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished && !message) setRenderedMessage(null);
-    });
-  }, [message, opacity]);
-
-  if (!renderedMessage) return null;
+/**
+ * ClusterMarker — Cash App / Uber / Airbnb cluster pattern.
+ *
+ * Replaces the earlier rotating-destination idea, which broke down
+ * the moment you had more than 3-4 rides at one coord — cycling
+ * through a dozen labels every 2.5s read as broken, not informative.
+ *
+ * Now:
+ *   - Single ride at a coord → static chip showing the destination
+ *     (e.g. "Katpadi Junction"). Tap = open that ride.
+ *   - Multi-ride cluster (likely "VIT Vellore", "MG Road" etc. with
+ *     N students all departing from the same building) → static
+ *     count badge ("12 rides"). Tap = open a bottom sheet listing
+ *     every ride leaving from that point so the user can pick.
+ *
+ * No more animation, no more tracksViewChanges churn, and zero
+ * confusion when the campus inevitably has 50 rides leaving from
+ * the same gate.
+ */
+const ClusterMarker: React.FC<{
+  cluster: NearbyClusterShape;
+  onPress: () => void;
+}> = ({ cluster, onPress }) => {
+  const count = cluster.rides.length;
+  const isMulti = count > 1;
+  const label = isMulti
+    ? `${count} rides`
+    : shortenDestination(cluster.cheapest.end_location);
 
   return (
-    <Animated.View pointerEvents="none" style={[styles.mapPrompt, { opacity }]}>
-      <View style={styles.mapPromptInner}>
-        <View style={styles.mapPromptDot} />
-        <Text style={styles.mapPromptText}>{renderedMessage}</Text>
+    <Marker
+      coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
+      onPress={onPress}
+      tracksViewChanges={false}
+      anchor={{ x: 0.5, y: 1 }}
+    >
+      <View style={styles.pinWrap}>
+        <View style={styles.pinBadge}>
+          <Text style={styles.pinBadgeText}>{label}</Text>
+        </View>
+        <View style={styles.pinTail} />
+        <View style={styles.pinDot} />
       </View>
-    </Animated.View>
+    </Marker>
   );
 };
-const DRAG_THRESHOLD = 10;
 
 interface HomeScreenProps {
   setNavBarVariant: (variant: 0 | 1 | 2) => void;
@@ -132,8 +168,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const mapRef = useRef<MapView>(null);
 
   const [location, setLocation] = useState<LocationCoords | null>(null);
+  // Cluster sheet state — populated when the user taps a multi-ride
+  // cluster pin (Cash App / Uber style). `null` when closed.
+  const [clusterSheet, setClusterSheet] = useState<{
+    pickup: string;
+    rides: ClusteredRide[];
+  } | null>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
-  const [mapRegion, setMapRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
   const [allFieldsSelected, setAllFieldsSelected] = useState(false);
@@ -156,6 +197,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   // Guests skip this state machine entirely — they always see the
   // nearby tile.
   const [hasUserTrips, setHasUserTrips] = useState<boolean | null>(null);
+  // True while ActiveTripCard is rendering a real card. Used to hide
+  // the upcoming-trips carousel — when the active card is up, it's
+  // the user's headline trip and the carousel below it is just noise.
+  const [hasActiveTripCard, setHasActiveTripCard] = useState(false);
   const [rideDetails, setRideDetails] = useState<{ 
     from: string; 
     to: string; 
@@ -202,9 +247,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       }
     >();
     for (const r of nearbyRides) {
-      // 4 decimal places ≈ 11 m precision — enough to group taxis
-      // leaving from the same building.
-      const key = `${r.start_latitude.toFixed(4)},${r.start_longitude.toFixed(4)}`;
+      // 3 decimal places ≈ 110 m precision. Previously we used 4
+      // decimals (~11 m), but in practice host-typed start coords for
+      // the same campus / depot would drift by 20-50 m and end up as
+      // distinct clusters, painting two pin pills directly on top of
+      // each other (e.g. all "VIT Vellore" rides splitting into Q-block
+      // and the main gate). 110 m groups all of those into one pin
+      // while still keeping genuinely-different pickup points separate
+      // (a street away ≈ 200 m+ stays its own cluster).
+      const key = `${r.start_latitude.toFixed(3)},${r.start_longitude.toFixed(3)}`;
       const existing = byKey.get(key);
       if (!existing) {
         byKey.set(key, {
@@ -228,6 +279,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
   const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
+  const selectedCoordsRef = useRef<{ from: LocationCoords | null; to: LocationCoords | null }>({
+    from: null,
+    to: null,
+  });
+  const mapCameraTaskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
+  const mapCameraFrameRef = useRef<number | null>(null);
+  const rideSubmitGeocodeRequestRef = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -235,6 +293,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       return () => setIsFocused(false);
     }, []),
   );
+
+  useEffect(() => {
+    return () => {
+      mapCameraTaskRef.current?.cancel?.();
+      if (mapCameraFrameRef.current != null) {
+        cancelAnimationFrame(mapCameraFrameRef.current);
+      }
+    };
+  }, []);
 
   // The sheet keeps a fixed max height and moves with translateY.
   // Animating `height` during a drag forced a full layout pass through
@@ -321,6 +388,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     const midLon = (startLon + endLon) / 2;
     
     const distance = calculateDistance(startLat, startLon, endLat, endLon);
+    if (distance < 0.01) {
+      return [
+        { latitude: startLat, longitude: startLon },
+        { latitude: endLat, longitude: endLon },
+      ];
+    }
+
     const arcHeight = distance * 0.15;
     
     const deltaLat = endLat - startLat;
@@ -342,7 +416,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     return coordinates;
   };
 
-const customMapStyle = [
+const customMapStyle = React.useMemo(() => [
   {
     featureType: "all",
     elementType: "geometry",
@@ -565,7 +639,7 @@ const customMapStyle = [
       }
     ]
   }
-];
+], []);
 
 
   const panResponder = React.useMemo(() => PanResponder.create({
@@ -638,39 +712,55 @@ const customMapStyle = [
   }), [getCollapsedSheetOffset, getExpandedSheetOffset, sheetTranslateY]);
 
   const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    // READ ONLY — never trigger the native iOS/Android prompt here.
+    // The dedicated LocationPermissionScreen (with the radar
+    // illustration + reasoning) is the single place allowed to call
+    // `requestForegroundPermissionsAsync`. Every other screen reads
+    // the current status and silently falls through if it isn't
+    // already granted.
+    const { status } = await Location.getForegroundPermissionsAsync();
     if (status === "granted") {
       if (!hasPermission) setHasPermission(true);
       if (!location) await getUserLocation();
     } else {
       if (hasPermission) setHasPermission(false);
-      console.log("Location permission denied");
     }
   };
 
   const getUserLocation = async () => {
     if (location) return;
-    try {
-      const { coords } = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      const { latitude, longitude } = coords;
-      const userLocation = { latitude, longitude };
-      setLocation(userLocation);
 
+    const applyCoords = (latitude: number, longitude: number) => {
+      setLocation({ latitude, longitude });
       const latitudeDelta = 0.02;
       const longitudeDelta = 0.02;
-
       const latOffset = latitudeDelta * 0.45;
-
-      const region = {
+      setInitialRegion({
         latitude: latitude - latOffset,
         longitude,
         latitudeDelta,
         longitudeDelta,
-      };
-      setInitialRegion(region);
-      setMapRegion(region);
+      });
+    };
+
+    // FAST PATH: last-known coords return synchronously from the cache
+    // (no GPS fix needed). Lets the map snap to a real region within
+    // ~50ms of permission granting instead of waiting on a fresh fix.
+    try {
+      const last = await Location.getLastKnownPositionAsync();
+      if (last) applyCoords(last.coords.latitude, last.coords.longitude);
+    } catch (e) {
+      console.warn("Last-known position lookup failed (continuing)", e);
+    }
+
+    // SLOW PATH: refine with a fresh fix. `Balanced` accuracy is more
+    // than good enough for a 10 km radius search and is dramatically
+    // faster on cold start than `High` (which waits for GPS lock).
+    try {
+      const { coords } = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      applyCoords(coords.latitude, coords.longitude);
     } catch (error) {
       console.error("Error fetching location:", error);
     }
@@ -745,9 +835,126 @@ const customMapStyle = [
     };
   }, [location?.latitude, location?.longitude]);
 
-  const handleRideSubmit = async (details: { 
-    from: string; 
-    to: string; 
+  // Post-trip rating prompt — fires when the user returns to Home
+  // and has at least one trip that's 12h+ past its scheduled start
+  // and not yet rated. Surfaces a BrandedAlert with a single CTA
+  // that opens the rating screen for the oldest pending trip. Skips
+  // for guests and re-runs at most once per focus, not on every
+  // render. A user who hits Later just sees the same prompt next
+  // time they open the app (no persistent dismissal — these are
+  // 5-second forms and we shouldn't have to nag).
+  const ratingPromptShownRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (isGuest) return;
+      if (ratingPromptShownRef.current) return;
+      let cancelled = false;
+      (async () => {
+        try {
+          const resp = await apiUtil.get<{
+            rides: {
+              ride_id: string;
+              start_location: string;
+              end_location: string;
+              start_time: string;
+              pending_count: number;
+            }[];
+          }>("/user/pending-ratings");
+          if (cancelled || !resp?.rides?.length) return;
+          ratingPromptShownRef.current = true;
+          const trip = resp.rides[0];
+          BrandedAlert.show({
+            title: "How was your ride?",
+            body: `Rate ${trip.pending_count === 1 ? "the host" : `${trip.pending_count} riders`} on ${trip.start_location} → ${trip.end_location}. Takes 5 seconds.`,
+            buttons: [
+              { label: "Later", style: "cancel" },
+              {
+                label: "Rate now",
+                style: "primary",
+                onPress: () =>
+                  router.navigate(
+                    appHref("PostTripRatingScreen", { rideId: trip.ride_id }),
+                  ),
+              },
+            ],
+          });
+        } catch {
+          // Silent — this is a nicety, not a critical path.
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [apiUtil, isGuest, router]),
+  );
+
+  const runMapCameraUpdate = useCallback((from: LocationCoords | null, to: LocationCoords | null) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (from && to) {
+      const padTop = screenHeight * 0.10;
+      const padBottom = screenHeight * (BOTTOM_SHEET_MIN_HEIGHT / screenHeight + 0.04);
+      map.fitToCoordinates([from, to], {
+        edgePadding: {
+          top: padTop,
+          bottom: padBottom,
+          left: screenWidth * 0.16,
+          right: screenWidth * 0.16,
+        },
+        animated: true,
+      });
+    } else if (from || to) {
+      const pin = (from ?? to)!;
+      map.animateToRegion(
+        {
+          latitude: pin.latitude,
+          longitude: pin.longitude,
+          latitudeDelta: 0.045,
+          longitudeDelta: 0.045,
+        },
+        MAP_CAMERA_ANIMATION_MS,
+      );
+    } else if (initialRegion) {
+      map.animateToRegion(initialRegion, MAP_CAMERA_ANIMATION_MS);
+    }
+  }, [initialRegion]);
+
+  const queueMapCameraUpdate = useCallback((from: LocationCoords | null, to: LocationCoords | null) => {
+    mapCameraTaskRef.current?.cancel?.();
+    if (mapCameraFrameRef.current != null) {
+      cancelAnimationFrame(mapCameraFrameRef.current);
+      mapCameraFrameRef.current = null;
+    }
+
+    mapCameraTaskRef.current = InteractionManager.runAfterInteractions(() => {
+      mapCameraFrameRef.current = requestAnimationFrame(() => {
+        mapCameraFrameRef.current = null;
+        runMapCameraUpdate(from, to);
+      });
+    });
+  }, [runMapCameraUpdate]);
+
+  // Stable callback for RideDetailsSelector. The selector calls this
+  // from an effect, so changing the function identity on every render
+  // can retrigger native map camera work repeatedly.
+  const handleCoordsChange = useCallback((
+    from: LocationCoords | null,
+    to: LocationCoords | null,
+  ) => {
+    const previous = selectedCoordsRef.current;
+    const changed = !areCoordsEqual(previous.from, from) || !areCoordsEqual(previous.to, to);
+    if (!changed) return;
+
+    selectedCoordsRef.current = { from, to };
+    setFromCoords((prev) => (areCoordsEqual(prev, from) ? prev : from));
+    setToCoords((prev) => (areCoordsEqual(prev, to) ? prev : to));
+    queueMapCameraUpdate(from, to);
+  }, [queueMapCameraUpdate]);
+
+  const handleRideSubmit = useCallback((details: {
+    from: string;
+    to: string;
     date: Date;
     fromCoordinates?: { latitude: number; longitude: number };
     toCoordinates?: { latitude: number; longitude: number };
@@ -757,31 +964,27 @@ const customMapStyle = [
     
     if (!details.from || !details.to) return;
 
-    // Use coordinates provided by RideDetailsSelector if available, otherwise geocode
     let fromLocation = details.fromCoordinates;
     let toLocation = details.toCoordinates;
-    
-    // Only geocode if coordinates weren't provided
-    if (!fromLocation || !toLocation) {
-      const [geocodedFrom, geocodedTo] = await Promise.all([
-        !fromLocation ? geocodeAddress(details.from) : Promise.resolve(fromLocation),
-        !toLocation ? geocodeAddress(details.to) : Promise.resolve(toLocation),
-      ]);
-      fromLocation = geocodedFrom || undefined;
-      toLocation = geocodedTo || undefined;
+
+    if (fromLocation && toLocation) {
+      handleCoordsChange(fromLocation, toLocation);
+      return;
     }
 
-    if (fromLocation && toLocation && location) {
-      setFromCoords(fromLocation);
-      setToCoords(toLocation);
-      fitMapToWaypoints(fromLocation, toLocation, location);
-    } else {
-      // BrandedAlert.alert(
-      //   "Could not find location",
-      //   "Please check your 'From' and 'To' addresses and try again."
-      // );
-    }
-  };
+    const requestId = ++rideSubmitGeocodeRequestRef.current;
+    void Promise.all([
+      !fromLocation ? geocodeAddress(details.from) : Promise.resolve(fromLocation),
+      !toLocation ? geocodeAddress(details.to) : Promise.resolve(toLocation),
+    ]).then(([geocodedFrom, geocodedTo]) => {
+      if (requestId !== rideSubmitGeocodeRequestRef.current) return;
+      fromLocation = geocodedFrom || undefined;
+      toLocation = geocodedTo || undefined;
+      if (fromLocation && toLocation) {
+        handleCoordsChange(fromLocation, toLocation);
+      }
+    });
+  }, [handleCoordsChange]);
 
   // Don't change this code, state mgmt is crucial here
   useEffect(() => {
@@ -828,54 +1031,7 @@ const customMapStyle = [
     router,
   ]);
 
-  // Drives the live map preview as the user picks locations. Fires
-  // whenever either field's coords change — including when only one is
-  // set. Camera animates to fit whatever's known.
-  const handleCoordsChange = (
-    from: LocationCoords | null,
-    to: LocationCoords | null,
-  ) => {
-    setFromCoords(from);
-    setToCoords(to);
-
-    if (!mapRef.current) return;
-
-    if (from && to) {
-      // Both pins — fit a tight bbox around just the route.
-      // We deliberately exclude the user's location because a From/To
-      // far from the user (e.g. inter-city trip) would force the camera
-      // to fit a whole country to keep the home pin in frame.
-      const padTop = screenHeight * 0.10;
-      const padBottom = screenHeight * (BOTTOM_SHEET_MIN_HEIGHT / screenHeight + 0.04);
-      mapRef.current.fitToCoordinates([from, to], {
-        edgePadding: {
-          top: padTop,
-          bottom: padBottom,
-          left: screenWidth * 0.16,
-          right: screenWidth * 0.16,
-        },
-        animated: true,
-      });
-    } else if (from || to) {
-      // Single pin — animate to that point with a moderate zoom so the
-      // user sees where they just dropped it.
-      const pin = (from ?? to)!;
-      mapRef.current.animateToRegion(
-        {
-          latitude: pin.latitude,
-          longitude: pin.longitude,
-          latitudeDelta: 0.045,
-          longitudeDelta: 0.045,
-        },
-        420,
-      );
-    } else if (initialRegion) {
-      // Both cleared — fall back to the user's vicinity.
-      mapRef.current.animateToRegion(initialRegion, 420);
-    }
-  };
-
-  const handleLocationSelectionChange = (hasFromAndTo: boolean) => {
+  const handleLocationSelectionChange = useCallback((hasFromAndTo: boolean) => {
     setBothLocationsSelected(hasFromAndTo);
 
     if (!hasFromAndTo) {
@@ -884,15 +1040,23 @@ const customMapStyle = [
       // Note: fromCoords / toCoords are now driven by handleCoordsChange,
       // which also resets the camera when both pins are cleared.
     }
-  };
+  }, []);
 
-  const getPolylineCoordinates = () => {
+  const routePolylineCoordinates = React.useMemo(() => {
     if (!fromCoords || !toCoords) return [];
     return generateCurvedRoute(fromCoords.latitude, fromCoords.longitude, toCoords.latitude, toCoords.longitude);
-  };
+  }, [fromCoords, toCoords]);
 
-  const isMapLoaded = location && mapRegion && hasPermission;
-  const shouldRenderMap = Boolean(isFocused && isMapLoaded);
+  // Render the map as soon as the screen is focused — don't wait for
+  // location to arrive. Previously this gate required all three of
+  // (hasPermission, location, initialRegion) to be true, which meant
+  // a slow GPS fix (cold start, indoors, etc.) left users staring at
+  // the lime background for 10-20s and assuming the map was broken.
+  // Now: we always mount the MapView and pass a sensible fallback
+  // region; once the user's real coords land we animate to them.
+  // `showsUserLocation` itself is gated on hasPermission so the
+  // blue-dot puck only appears when the user has actually allowed it.
+  const shouldRenderMap = Boolean(isFocused);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -907,10 +1071,18 @@ const customMapStyle = [
             ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={styles.map}
-            initialRegion={initialRegion}
-            region={mapRegion}
-            showsUserLocation={isFocused}
-            showsMyLocationButton={isFocused}
+            // Fall back to the seed catalogue centroid so the map has a
+            // real region to draw while we wait on a GPS fix. Once we
+            // have the user's actual coords we animate to them via the
+            // initialRegion-watcher effect lower down.
+            initialRegion={initialRegion ?? FALLBACK_REGION}
+            // Only show the blue user-dot puck once permission is
+            // granted — otherwise the SDK silently no-ops here.
+            showsUserLocation={isFocused && hasPermission}
+            // The native "my location" FAB renders as an awful
+            // bare-aluminum square in the top-right on Android.
+            // We have our own UX for centering on the user.
+            showsMyLocationButton={false}
             toolbarEnabled={false}
             customMapStyle={customMapStyle}
             onMapReady={() => console.log("Map ready")}
@@ -928,42 +1100,39 @@ const customMapStyle = [
               />
             )}
 
-            {/* Nearby ride pins — Bolt / Uber pattern: a forest price
-                chip with a tail pointing down to the pickup coord.
-                Multiple rides starting from the same point collapse
-                into ONE pin showing "From ₹X · N rides"; tapping it
-                opens the cheapest. Anchored at the tail tip so the
-                lime dot sits on the actual coord. Hidden once the
+            {/* Nearby ride pins — Bolt / Uber pattern: a forest chip
+                with a tail pointing down to the pickup coord. The
+                label now shows the *destination* (→ Katpadi) instead
+                of the cheapest fare — "where can I go from here" is
+                a more useful question at a glance than "how cheap is
+                the cheapest seat." For multi-ride clusters (campus
+                gates, train stations, anywhere multiple students
+                depart from the same spot), tapping opens the cluster
+                sheet so users can pick the specific ride they want
+                — far better than the previous rotating-label hack
+                that broke down past 3-4 rides. Single-ride pins
+                still jump straight into that ride. Hidden once the
                 user has picked a From/To (route preview wins). */}
             {!fromCoords && !toCoords && clusteredNearbyRides.map((c) => (
-              <Marker
+              <ClusterMarker
                 key={c.key}
-                coordinate={{ latitude: c.latitude, longitude: c.longitude }}
-                onPress={() =>
-                  router.navigate(appHref("AvailableRidesSelectedScreen", {
-                    ride: c.cheapest,
-                  } as any))
-                }
-                tracksViewChanges={false}
-                anchor={{ x: 0.5, y: 1 }}
-              >
-                <View style={styles.pinWrap}>
-                  <View style={styles.pinBadge}>
-                    <Text style={styles.pinBadgeText}>
-                      {c.rides.length > 1
-                        ? `From ₹${c.cheapestPrice}`
-                        : `₹${c.cheapestPrice}`}
-                    </Text>
-                    {c.rides.length > 1 ? (
-                      <View style={styles.pinBadgeCount}>
-                        <Text style={styles.pinBadgeCountText}>{c.rides.length}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <View style={styles.pinTail} />
-                  <View style={styles.pinDot} />
-                </View>
-              </Marker>
+                cluster={c}
+                onPress={() => {
+                  if (c.rides.length > 1) {
+                    // Multi-ride cluster → open the picker sheet.
+                    setClusterSheet({
+                      pickup: c.cheapest.start_location,
+                      rides: c.rides as ClusteredRide[],
+                    });
+                  } else {
+                    // Single ride → straight to its selected screen,
+                    // skipping the unnecessary sheet step.
+                    router.navigate(appHref("AvailableRidesSelectedScreen", {
+                      ride: c.cheapest,
+                    } as any));
+                  }
+                }}
+              />
             ))}
 
               {fromCoords && (
@@ -986,7 +1155,7 @@ const customMapStyle = [
 
             {fromCoords && toCoords && (
               <Polyline
-                coordinates={getPolylineCoordinates()}
+                coordinates={routePolylineCoordinates}
                 strokeColor={AppColors.secondaryDarkGreen || "#2d5016"}
                 strokeWidth={3}
                 lineDashPattern={[10, 10]}
@@ -995,15 +1164,6 @@ const customMapStyle = [
               />
             )}
           </MapView>
-
-          {/* Contextual prompt overlay — driven by a single message
-              selector. Wrapped in an Animated.View so it fades in/out
-              instead of popping when the route / count state shifts. */}
-          <MapPrompt
-            fromCoords={fromCoords}
-            toCoords={toCoords}
-            nearbyCount={nearbyCount}
-          />
           </>
         ) : (
           <View style={styles.loadingContainer}>
@@ -1054,6 +1214,7 @@ const customMapStyle = [
                 onPressOpen={(rideId) =>
                   router.navigate(appHref("RideDetailsScreen", { rideId } as any))
                 }
+                onPresenceChange={setHasActiveTripCard}
               />
             )}
 
@@ -1061,8 +1222,12 @@ const customMapStyle = [
                 show "Your trips" and hide "Rides around you" — and
                 vice versa. Guests never see the trips carousel; they
                 always see the nearby tile. This avoids the home sheet
-                looking like a catalog of redundant CTAs. */}
-            {!isGuest && (
+                looking like a catalog of redundant CTAs.
+                Additionally hide the carousel whenever the ActiveTripCard
+                is present — that card IS the user's current trip
+                headline, so the upcoming-trips carousel below it just
+                doubles up. */}
+            {!isGuest && !hasActiveTripCard && (
               <View style={styles.previousTripsWrapper}>
                 <PreviousTripsSection onHasTripsChange={setHasUserTrips} />
               </View>
@@ -1111,6 +1276,22 @@ const customMapStyle = [
           </ScrollView>
         </View>
       </Animated.View>
+
+      {/* Cluster picker sheet — opens when the user taps a "N rides"
+          pin. Sits above the map + bottom sheet via the Modal's own
+          z-index. Picking a row routes to that specific ride. */}
+      <RideClusterSheet
+        visible={clusterSheet !== null}
+        pickup={clusterSheet?.pickup || ""}
+        rides={clusterSheet?.rides || []}
+        onClose={() => setClusterSheet(null)}
+        onPickRide={(r) => {
+          setClusterSheet(null);
+          router.navigate(appHref("AvailableRidesSelectedScreen", {
+            ride: r,
+          } as any));
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -1140,42 +1321,6 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
     width: "100%",
-  },
-  mapPrompt: {
-    // Floating chip sits below the BrandInfo header so it doesn't compete
-    // with the logo, but well above the bottom sheet's resting position.
-    position: "absolute",
-    top: responsiveHeight(11),
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    zIndex: 6,
-  },
-  mapPromptInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: AppColors.secondaryDarkGreen,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    shadowColor: AppColors.basicBlack,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  mapPromptDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: AppColors.primaryLightGreen,
-    marginRight: 8,
-  },
-  mapPromptText: {
-    fontFamily: "NunitoSans_700Bold",
-    fontSize: 13,
-    letterSpacing: 0.2,
-    color: AppColors.primaryLightGreen,
   },
   // ---------------------------------------------------------------
   // Map marker for nearby rides. Same shape as Bolt's price chip and
@@ -1372,16 +1517,17 @@ const styles = StyleSheet.create({
     paddingVertical: responsiveHeight(0.2),
   },
   sectionTitle: {
-    // Quiet sub-header — sentence-case so a question (which this is)
-    // doesn't read awkwardly as uppercase. 14/SemiBold @ 0.7 opacity
-    // sits as a calm label that won't compete with the Create Ride
-    // button or the trip card.
+    // Sub-header for the home sheet. Still sentence-case so a
+    // question doesn't read awkwardly as uppercase, but pulled out
+    // of the previous 0.7-opacity SemiBold whisper — too faint on
+    // the lime canvas; users couldn't see it. Bold @ 0.95 reads
+    // as a confident label without competing with the CTA below.
     fontSize: normalize(14),
     color: AppColors.secondaryDarkGreen,
-    fontFamily: "NunitoSans_600SemiBold",
+    fontFamily: "NunitoSans_700Bold",
     textAlign: "left",
     letterSpacing: -0.05,
-    opacity: 0.7,
+    opacity: 0.95,
   },
   createRideButton: {
     // Forest fill on the lime canvas — inverse pattern. Cash App uses

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -62,6 +62,29 @@ type ChatRoom = {
     id: string;
     content: string;
     sender: string;
+    sender_id: string;
+    timestamp: string;
+  };
+};
+
+// Host-only section returned by /chats/me — one row per pending
+// booking on a ride the viewer hosts, paired with the DM thread used
+// to talk to that requester before the accept/reject decision.
+type PendingRequestRow = {
+  booking_id: string;
+  ride_id: string;
+  dm_room_id: string;
+  requester_id: string;
+  requester_name: string;
+  requester_profile_picture_url?: string;
+  requester_is_verified?: boolean;
+  ride_start_location: string;
+  ride_end_location: string;
+  ride_start_time: string;
+  requested_at: string;
+  unread_count?: number;
+  last_message?: {
+    content: string;
     sender_id: string;
     timestamp: string;
   };
@@ -137,50 +160,49 @@ const makeDMRoomId = (a: string, b: string): string => {
 const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
   const router = useRouter();
   const [chats, setChats] = useState<ChatRoom[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [viewerUserId, setViewerUserId] = useState<string | null>(null);
   const { apiUtil } = useApi();
   const insets = useSafeAreaInsets();
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     if (setNavBarVariant) setNavBarVariant(0);
   }, [setNavBarVariant]);
 
-  // Need the viewer's UUID so pending rows can compute a host DM room
-  // ID (`dm_<min(a,b)>_<max(a,b)>`) and open a real 1:1 with the host
-  // instead of dumping the user into the ride's group chat.
-  useEffect(() => {
-    apiUtil
-      .get<{ user: { id: string } }>("/user/details")
-      .then((r) => setViewerUserId(r.user.id))
-      .catch((e) => console.warn("[ChatList] user/details failed", e));
-  }, [apiUtil]);
-
   const load = useCallback(async () => {
     try {
-      const resp = await apiUtil.get<{ chat_rooms: ChatRoom[] }>("/chats/me");
+      const resp = await apiUtil.get<{
+        chat_rooms: ChatRoom[];
+        pending_requests?: PendingRequestRow[];
+        viewer_user_id?: string;
+      }>("/chats/me");
       const list = Array.isArray(resp?.chat_rooms) ? resp.chat_rooms : [];
       setChats(list);
+      setPendingRequests(Array.isArray(resp?.pending_requests) ? resp!.pending_requests! : []);
+      if (resp?.viewer_user_id) setViewerUserId(resp.viewer_user_id);
     } catch (err) {
       console.warn("[ChatList] fetch failed", err);
     }
   }, [apiUtil]);
-
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await load();
-      setLoading(false);
-    })();
-  }, [load]);
 
   // Refresh whenever the screen comes into focus — covers the case
   // where the user just sent a message in a thread and comes back to
   // the list, expecting the last-message preview to be current.
   useFocusEffect(
     useCallback(() => {
-      load();
+      let cancelled = false;
+      (async () => {
+        if (!hasLoadedRef.current) setLoading(true);
+        await load();
+        hasLoadedRef.current = true;
+        if (!cancelled) setLoading(false);
+      })();
+      return () => {
+        cancelled = true;
+      };
     }, [load]),
   );
 
@@ -190,13 +212,35 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
     setRefreshing(false);
   };
 
-  const openChat = (room: ChatRoom) => {
-    const dateSub = new Date(room.start_time).toLocaleDateString(undefined, {
-      weekday: "short",
-      day: "2-digit",
-      month: "short",
-    });
+  const openPendingRequest = (pr: PendingRequestRow) => {
+    router.navigate(appHref("ChatMessages", {
+      chatId: pr.dm_room_id,
+      chatTitle: pr.requester_name || "Pending request",
+      // No subtitle — route + date now live in the centered empty-
+      // state card on the chat screen so the header stays light.
+      // The receiving screen reads pendingRideStartLocation / End /
+      // Time to render that card.
+      isGroupChat: false,
+      otherUserId: pr.requester_id,
+      pendingHostInquiry: true,
+      // Mark explicitly: the HOST is viewing a requester's thread.
+      // The passenger-side openChat() path below leaves this false,
+      // so ChatMessages can pick the right copy + show accept/reject
+      // controls only for the host.
+      viewerIsHost: true,
+      pendingRideId: pr.ride_id,
+      // Reusing `pendingHostName` as the "other party's display name"
+      // — for the host, that's the requester (Priya); for the
+      // passenger, the host. The param name is a historical artefact.
+      pendingHostName: pr.requester_name,
+      pendingRideStartLocation: pr.ride_start_location,
+      pendingRideEndLocation: pr.ride_end_location,
+      pendingRideStartTime: pr.ride_start_time,
+      hostPendingRequestBookingId: pr.booking_id,
+    } as any));
+  };
 
+  const openChat = (room: ChatRoom) => {
     // Pending passengers haven't joined the ride yet — they shouldn't
     // see (or be able to message into) the group thread. Route them to
     // a 1:1 DM with the host instead, using the existing
@@ -206,22 +250,35 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
       router.navigate(appHref("ChatMessages", {
         chatId: makeDMRoomId(viewerUserId, room.host_user_id),
         chatTitle: room.host_user_name || "Host",
-        chatSubtitle: `${room.start_location} → ${room.end_location} · ${dateSub}`,
+        // Subtitle dropped — route + date are now shown by the
+        // centered empty-state card on the chat screen.
         isGroupChat: false,
         otherUserId: room.host_user_id,
-        // Tells ChatMessages to render the "your request is pending —
-        // host-only conversation" banner instead of the safety strip.
         pendingHostInquiry: true,
         pendingRideId: room.id,
         pendingHostName: room.host_user_name,
+        pendingRideStartLocation: room.start_location,
+        pendingRideEndLocation: room.end_location,
+        pendingRideStartTime: room.start_time,
       }));
       return;
     }
 
+    // Short destination — strip anything after the first comma so
+    // "Powell Street BART Station, San Francisco" → "Powell Street
+    // BART Station". The header doesn't need the city repeated.
+    const shortDest = ((room.end_location || "").split(",")[0] || "").trim();
     router.navigate(appHref("ChatMessages", {
       chatId: room.id,
-      chatTitle: `${room.start_location} → ${room.end_location}`,
-      chatSubtitle: dateSub,
+      // "Trip to <destination>" — clearer than the full route string
+      // in a narrow chat header, and matches how passengers + hosts
+      // actually talk about the trip ("the SFO → Powell trip" reads
+      // as awkward in conversation; "the Powell trip" doesn't).
+      chatTitle: shortDest ? `Trip to ${shortDest}` : "Trip",
+      // No subtitle — the previous "WED, MAY 20" date below the
+      // title felt like trip metadata mid-conversation. The chat
+      // header should be just the trip identity; details live one
+      // tap away in chat settings.
       isGroupChat: true,
       hostUserId: room.host_user_id,
       viewerRole: room.viewer_role,
@@ -364,7 +421,7 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
 
       {loading ? (
         <LoadingComponent />
-      ) : chats.length === 0 ? (
+      ) : chats.length === 0 && pendingRequests.length === 0 ? (
         <EmptyState
           // Cropped emoji-only version — the full no-rides.png has
           // "Uh Oh! No Rides Available" baked into the image, which
@@ -381,9 +438,38 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
           data={chats}
           keyExtractor={(it) => it.id}
           renderItem={renderRow}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          updateCellsBatchingPeriod={40}
+          windowSize={7}
+          removeClippedSubviews
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            pendingRequests.length > 0 ? (
+              <View style={styles.pendingSection}>
+                {/* Count pill removed — the count is visible at a
+                    glance from the cards below it, and the orange
+                    pill clashed with the rest of the app's quieter
+                    section headers. */}
+                <Text style={styles.pendingSectionTitle}>
+                  Pending requests
+                </Text>
+                {pendingRequests.map((pr, idx) => (
+                  <PendingRequestCard
+                    key={pr.booking_id}
+                    request={pr}
+                    isLast={idx === pendingRequests.length - 1}
+                    onPress={() => openPendingRequest(pr)}
+                  />
+                ))}
+                {chats.length > 0 ? (
+                  <Text style={styles.activeChatsLabel}>Active chats</Text>
+                ) : null}
+              </View>
+            ) : null
+          }
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -394,6 +480,59 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
         />
       )}
     </View>
+  );
+};
+
+// Compact card surfaced under "Pending requests" on the host's chat
+// list. One row per requester awaiting an accept/reject decision; tap
+// opens the DM with that requester.
+const PendingRequestCard: React.FC<{
+  request: PendingRequestRow;
+  isLast: boolean;
+  onPress: () => void;
+}> = ({ request, isLast, onPress }) => {
+  const unread = (request.unread_count || 0) > 0;
+  const firstName = (request.requester_name || "").trim().split(/\s+/)[0] || "Someone";
+  // Short destination — strip the part after the first comma so long
+  // names like "Powell Street BART Station, San Francisco" become
+  // "Powell Street BART Station" instead of mid-name truncating.
+  const shortDest = ((request.ride_end_location || "").split(",")[0] || "").trim();
+  const tripLabel = shortDest ? `Trip to ${shortDest}` : "Trip request";
+  const preview = request.last_message
+    ? request.last_message.content
+    : `Tap to chat with ${firstName} before deciding`;
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      style={[styles.pendingCard, !isLast && styles.pendingCardSpacer]}
+      onPress={onPress}
+    >
+      {/* Avatar + initial-letter fallback removed — the requester
+          name + route already identify the row, and the initial
+          read as visually random next to a real ride card. Unread
+          state is now communicated via the pill on the right
+          instead of a tiny dot floating off an avatar. */}
+      <View style={styles.pendingCardBody}>
+        <View style={styles.pendingTopRow}>
+          <Text style={styles.pendingRequesterName} numberOfLines={1}>
+            {request.requester_name || "Someone"}
+          </Text>
+          {unread ? <View style={styles.pendingUnreadPill} /> : null}
+        </View>
+        <Text style={styles.pendingRouteText} numberOfLines={1}>
+          {tripLabel}
+        </Text>
+        <Text
+          style={[styles.pendingPreview, unread && styles.pendingPreviewUnread]}
+          numberOfLines={1}
+        >
+          {preview}
+        </Text>
+      </View>
+      <View style={styles.pendingCardRight}>
+        <Text style={styles.pendingCardChevron}>›</Text>
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -450,6 +589,100 @@ const styles = StyleSheet.create({
     paddingBottom: 140,
   },
   separator: { height: hp(1.5) },
+
+  /* Host-only "Pending requests" section that sits above the regular
+     chat list. Tight peach-tinted card stack so the host can scan
+     waiting requesters at a glance. */
+  pendingSection: {
+    marginBottom: hp(2),
+  },
+  // Section labels — match the canonical HomeScreen `sectionTitle`
+  // style ("Where'd you like to go?", "Your trips", etc.). Bold
+  // weight, sentence-case, soft opacity, no uppercase / no
+  // letter-spacing inflation. Keeps the chat tab visually coherent
+  // with the rest of the app.
+  pendingSectionTitle: {
+    marginBottom: 10,
+    paddingHorizontal: 2,
+    fontFamily: "NunitoSans_700Bold",
+    fontSize: 14,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.85,
+    letterSpacing: -0.05,
+  },
+  activeChatsLabel: {
+    marginTop: hp(2),
+    marginBottom: 6,
+    paddingHorizontal: 2,
+    fontFamily: "NunitoSans_700Bold",
+    fontSize: 14,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.85,
+    letterSpacing: -0.05,
+  },
+  pendingCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF1DF",
+    borderRadius: wp(3),
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 12,
+  },
+  pendingCardSpacer: {
+    marginBottom: 8,
+  },
+  // Avatar styles removed along with the avatar block in PendingRequestCard.
+  // Unread is now a small lime pill in the top row of the card body
+  // instead of a tiny dot anchored off an avatar.
+  pendingCardBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  pendingTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  pendingUnreadPill: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FF6B5B",
+  },
+  pendingRequesterName: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 15.5,
+    color: AppColors.secondaryDarkGreen,
+    letterSpacing: -0.2,
+  },
+  pendingRouteText: {
+    marginTop: 2,
+    fontFamily: "NunitoSans_600SemiBold",
+    fontSize: 12.5,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.6,
+  },
+  pendingPreview: {
+    marginTop: 4,
+    fontFamily: "NunitoSans_600SemiBold",
+    fontSize: 13,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.75,
+  },
+  pendingPreviewUnread: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    opacity: 1,
+  },
+  pendingCardRight: {
+    paddingHorizontal: 4,
+  },
+  pendingCardChevron: {
+    fontSize: 22,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.6,
+    marginTop: -4,
+  },
 
   // RideCard surface: white tile, rounded, soft shadow.
   card: {

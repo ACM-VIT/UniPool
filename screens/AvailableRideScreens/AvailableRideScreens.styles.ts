@@ -1,5 +1,6 @@
 import { StyleSheet, Dimensions } from "react-native";
 import AppColors from "../../design_systems/colors";
+import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar";
 
 const { width, height } = Dimensions.get("window");
 
@@ -167,6 +168,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     marginTop: 0,
+    // Clear the floating bottom nav so the last card has room to
+    // breathe — without this the bottom card slides under the navbar
+    // and you can't see its lower edge. MAIN_NAV_BAR_TOP_OFFSET is
+    // the distance from the screen's bottom edge to the *top* of the
+    // floating nav; +24 gives a little extra air below the last card.
+    paddingBottom: MAIN_NAV_BAR_TOP_OFFSET + 24,
   },
   navBarView: {
     position: "absolute",

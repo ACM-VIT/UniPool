@@ -57,12 +57,17 @@ export default class ChatService {
    * upsert-style `chat_reads` row so the unread badge on the chat
    * list stays accurate without the frontend tracking it locally.
    */
-  static async markRideRead(apiUtil: ApiUtil, rideId: string): Promise<void> {
-    // No-op for DMs for now — the model row covers ride chats first;
-    // DM read state will follow once DM volume justifies it.
-    if (rideId.startsWith("dm_")) return;
+  static async markRideRead(apiUtil: ApiUtil, chatId: string): Promise<void> {
     try {
-      await apiUtil.post(`/chat/${rideId}/read`, {});
+      // Either a ride UUID (group chat) or a `dm_<a>_<b>` room id —
+      // pick the matching backend endpoint so unread badges clear for
+      // both chat types. Pending-request DMs need this so the host's
+      // pending section count drops the moment they open the thread.
+      if (chatId.startsWith("dm_")) {
+        await apiUtil.post(`/dm/${chatId}/read`, {});
+      } else {
+        await apiUtil.post(`/chat/${chatId}/read`, {});
+      }
     } catch (err) {
       // Mark-read is a UX nicety; failing silently is correct so we
       // don't surface noisy errors over a transient network blip.

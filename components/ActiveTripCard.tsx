@@ -22,6 +22,10 @@ export type TripCard = {
 
 interface ActiveTripCardProps {
   onPressOpen?: (rideId: string) => void;
+  /** Fires whenever the card mounts/unmounts a real card. Drives the
+   *  home sheet's mutual-exclusion with "Your trips" — when there's
+   *  an active trip surface, the upcoming-trips carousel hides. */
+  onPresenceChange?: (present: boolean) => void;
 }
 
 /**
@@ -40,7 +44,7 @@ interface ActiveTripCardProps {
  * If `/trip-card/active` returns 204, nothing renders — the card is
  * silent when there's no relevant trip.
  */
-const ActiveTripCard: React.FC<ActiveTripCardProps> = ({ onPressOpen }) => {
+const ActiveTripCard: React.FC<ActiveTripCardProps> = ({ onPressOpen, onPresenceChange }) => {
   const { apiUtil } = useApi();
   const [card, setCard] = useState<TripCard | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,6 +63,10 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({ onPressOpen }) => {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    onPresenceChange?.(!!card);
+  }, [card, onPresenceChange]);
 
   if (!card) return null;
 
@@ -100,8 +108,11 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({ onPressOpen }) => {
     );
     const url = `upi://pay?pa=${encodeURIComponent(card.host_upi_vpa)}&pn=${encodeURIComponent(hostFirst)}&am=${card.total_price}&tn=${note}&cu=INR`;
     try {
-      const ok = await Linking.canOpenURL(url);
-      if (!ok) throw new Error("UPI not available");
+      // Skip the `canOpenURL` probe and just try to open. On Android 11+
+      // the probe needs `<queries>` for the upi scheme, on iOS it needs
+      // `LSApplicationQueriesSchemes`, and both are now in place — but
+      // older OS versions and edge cases still flake. `openURL` is the
+      // real signal: if it throws, no UPI app handled the intent.
       await Linking.openURL(url);
       // Optimistic dismiss — the tap is the signal, we don't try
       // to verify the UPI app actually completed the payment.
@@ -110,6 +121,10 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({ onPressOpen }) => {
       BrandedAlert.alert(
         "No UPI app installed",
         `Install GPay / PhonePe / any UPI app to pay ${hostFirst}, or pay outside the app.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Mark as paid", onPress: () => dismiss("paid") },
+        ],
       );
     }
   };
@@ -155,12 +170,17 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({ onPressOpen }) => {
               Pay {hostFirst} ₹{card.total_price}
             </Text>
           </TouchableOpacity>
+          {/* Quiet escape hatch for the rare "the trip didn't actually
+              happen" case. Centered tiny link below the primary Pay
+              button so it never competes with the headline action — it
+              only needs to be findable, not loud. */}
           <TouchableOpacity
             onPress={() => dismiss("no_show")}
             disabled={busy}
             hitSlop={10}
+            style={styles.dismissLinkWrap}
           >
-            <Text style={styles.dismissLink}>Didn't happen</Text>
+            <Text style={styles.dismissLink}>Trip didn't happen</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -251,13 +271,13 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     marginTop: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
+    // Stacked, not side-by-side — keeps the Pay button full-width and
+    // the "trip didn't happen" escape hatch quietly below.
+    flexDirection: "column",
+    alignItems: "stretch",
   },
   // Lime fill on the forest card — inverse pattern, premium CTA.
   payBtn: {
-    flex: 1,
     backgroundColor: AppColors.primaryLightGreen,
     borderRadius: 14,
     paddingVertical: 12,
@@ -269,12 +289,17 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     letterSpacing: 0.1,
   },
+  dismissLinkWrap: {
+    alignSelf: "center",
+    paddingVertical: 8,
+    marginTop: 2,
+  },
   dismissLink: {
     color: AppColors.primaryLightGreen,
-    opacity: 0.7,
+    opacity: 0.55,
     fontFamily: "NunitoSans_700Bold",
-    fontSize: 12.5,
-    textDecorationLine: "underline",
+    fontSize: 11.5,
+    letterSpacing: 0.2,
   },
 });
 

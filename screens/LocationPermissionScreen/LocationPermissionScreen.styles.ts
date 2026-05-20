@@ -1,70 +1,93 @@
-import { StyleSheet, Dimensions, Platform } from "react-native";
+import { StyleSheet, Platform } from "react-native";
 import AppColors from "../../design_systems/colors";
-
-const { width, height } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    // Lime brand canvas — the location-permission moment stays in-brand
-    // (Cash App, Lime app, Lyft all keep their brand colour for these
-    // hero permission interstitials).
+    // Lime brand canvas — the permissions moment stays in-brand
+    // (Cash App, Lime app, Lyft all keep their brand colour for hero
+    // permission interstitials).
     backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 28,
-    paddingTop: Platform.OS === "ios" ? 90 : 60,
-    paddingBottom: Platform.OS === "ios" ? 44 : 28,
+    paddingTop: Platform.OS === "ios" ? 56 : 36,
+    paddingBottom: Platform.OS === "ios" ? 36 : 24,
+    // Everything inside is composed on the vertical axis of the radar
+    // — headline, subhead, feature rows, buttons all centred so the
+    // page reads as one composed unit rather than a left-rag list.
+    alignItems: "center",
   },
-  visualContainer: {
+  // Hero block — radar centerpiece. Flex:1 lets it grow on tall phones
+  // and shrink on small ones without overflowing the copy.
+  heroBlock: {
     flex: 1,
+    alignSelf: "stretch",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 8,
+    marginBottom: 8,
   },
+  // Centred copy block — everything reads on the vertical axis of the
+  // radar above. Capped width on wide phones so long lines don't
+  // stretch into airline-safety-card territory.
   textBlock: {
-    marginBottom: 24,
+    width: "100%",
+    maxWidth: 400,
+    marginBottom: 20,
+    alignItems: "center",
   },
   headline: {
     fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 26,
+    lineHeight: 32,
     color: AppColors.secondaryDarkGreen,
-    letterSpacing: -0.5,
-    marginBottom: 12,
+    letterSpacing: -0.6,
+    marginBottom: 8,
+    textAlign: "center",
   },
   subhead: {
     fontFamily: "NunitoSans_400Regular",
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 22,
     color: AppColors.secondaryDarkGreen,
-    opacity: 0.7,
+    opacity: 0.78,
+    textAlign: "center",
+    paddingHorizontal: 6,
   },
-  bulletRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
+  // Two short "what this unlocks" lines. No pill background, no
+  // lime icon chip — those felt blocky next to the airy radar.
+  // Just a small forest glyph beside calm forest text, tightly
+  // aligned on the same baseline as the rest of the typography.
+  featureRows: {
     marginTop: 18,
+    gap: 12,
+    alignSelf: "stretch",
+    paddingHorizontal: 6,
   },
-  bulletDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: AppColors.secondaryDarkGreen,
-    marginTop: 9,
-    marginRight: 12,
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
-  bulletText: {
+  featureText: {
     flex: 1,
     fontFamily: "NunitoSans_600SemiBold",
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13.5,
+    lineHeight: 18,
     color: AppColors.secondaryDarkGreen,
     opacity: 0.85,
+    letterSpacing: -0.05,
   },
-  bullets: {
-    marginBottom: 8,
+  // CTA block — primary + secondary stacked, centred. `width: 100%`
+  // so the primary button fills the column nicely; max-width keeps
+  // it from going edge-to-edge on tablets.
+  ctaBlock: {
+    width: "100%",
+    maxWidth: 420,
+    alignItems: "stretch",
+    gap: 4,
   },
   primaryBtn: {
     height: 56,
-    borderRadius: 14,
+    borderRadius: 16,
     // Forest CTA on the lime canvas — same button system as Home,
     // SignUp, Trips, AvailableRides empty state.
     backgroundColor: AppColors.secondaryDarkGreen,
@@ -83,16 +106,17 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   secondaryBtn: {
-    height: 48,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 6,
+    marginTop: 4,
   },
   secondaryBtnText: {
     fontFamily: "NunitoSans_700Bold",
-    fontSize: 15,
+    fontSize: 14,
     color: AppColors.secondaryDarkGreen,
-    opacity: 0.7,
+    opacity: 0.65,
+    letterSpacing: 0.1,
   },
 });
 

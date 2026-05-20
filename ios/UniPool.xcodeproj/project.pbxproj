@@ -153,6 +153,7 @@
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
 				6951AC42473151D68A6BB246 /* [CP] Embed Pods Frameworks */,
+				2F4D3C2E8C4D4B2E9B616E20 /* Inject Google Maps API Key */,
 				D7BD3E6A8FFBA5F4310FE113 /* [CP-User] [RNFB] Core Configuration */,
 			);
 			buildRules = (
@@ -274,6 +275,24 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-UniPool/expo-configure-project.sh\"\n";
+		};
+		2F4D3C2E8C4D4B2E9B616E20 /* Inject Google Maps API Key */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/scripts/inject-maps-api-key.sh",
+			);
+			name = "Inject Google Maps API Key";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "bash \"$SRCROOT/scripts/inject-maps-api-key.sh\"\n";
+			showEnvVarsInLog = 0;
 		};
 		6951AC42473151D68A6BB246 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;

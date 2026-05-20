@@ -27,6 +27,7 @@ export interface ChatMessage {
   senderName?: string;
   senderAvatar?: string;
   timestamp: Date;
+  timeLabel?: string;
   status?: 'sending' | 'sent' | 'delivered' | 'seen' | 'failed';
   readBy?: string[];
 }

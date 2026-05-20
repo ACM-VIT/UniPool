@@ -18,22 +18,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: AppColors.cardSurfaceTinted,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   wordmark: {
-    fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 20,
-    letterSpacing: -0.4,
+    // Brand display face. Trap-Bold is the wordmark family used on
+    // the splash + brand strip — switching here keeps the AuthScreen
+    // "UniPool" header consistent with how the brand name is rendered
+    // everywhere else.
+    fontFamily: "Trap-Bold",
+    fontSize: 22,
+    letterSpacing: -0.6,
     color: AppColors.secondaryDarkGreen,
-  },
-  wordmarkPool: {
-    color: AppColors.primaryLightGreen,
   },
   heroBlock: {
     flex: 1,

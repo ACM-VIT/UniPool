@@ -4,7 +4,6 @@ import { Share } from 'react-native';
 // const shareIcon = require('../assets/megaphone.png');
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
-import * as Calendar from 'expo-calendar';
 import { useRouter } from "expo-router";
 import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
@@ -14,6 +13,7 @@ import BrandInfo from '../components/BrandInfo/BrandInfo';
 import LoadingComponent from "../components/LoadingComponent";
 import RideCard from "../components/RideCard";
 import BrandedAlert from "../components/BrandedAlert";
+import ShareRideSheet from "../components/ShareRideSheet";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
 
 const { width, height } = Dimensions.get("window");
@@ -391,6 +391,7 @@ const RideDetailsScreen: React.FC = () => {
 
   const [isHost, setIsHost] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
 
   // Passenger booking state — derived from viewer_state. Kept as
   // separate state variables only so the existing render conditionals
@@ -550,7 +551,10 @@ const RideDetailsScreen: React.FC = () => {
   };
 
   const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    // READ ONLY — the native prompt belongs exclusively to
+    // LocationPermissionScreen. Here we just check current state and
+    // silently no-op if the user hasn't granted it yet.
+    const { status } = await Location.getForegroundPermissionsAsync();
     if (status === "granted") {
       getUserLocation();
       setHasPermission(true);
@@ -899,160 +903,6 @@ const RideDetailsScreen: React.FC = () => {
     }
   };
 
-  const handleAddToCalendar = async () => {
-    try {
-      const { status } = await Calendar.requestCalendarPermissionsAsync();
-      
-      if (status !== 'granted') {
-        BrandedAlert.alert(
-          "Calendar access off",
-          "Turn on calendar access in Settings so we can add your ride.",
-          [
-            { text: "Not now", style: "cancel" },
-            {
-              text: "Open Settings",
-              onPress: () => {
-                if (Platform.OS === 'ios') {
-                  Linking.openURL('app-settings:');
-                } else {
-                  Linking.openSettings();
-                }
-              }
-            }
-          ]
-        );
-        return;
-      }
-
-      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
-      console.log('Available calendars:', calendars.map(cal => ({ 
-        id: cal.id, 
-        title: cal.title, 
-        source: cal.source.name, 
-        isPrimary: cal.isPrimary,
-        allowsModifications: cal.allowsModifications 
-      })));
-      
-      let defaultCalendar = calendars.find(cal => cal.isPrimary && cal.allowsModifications);
-      
-      if (!defaultCalendar) {
-        defaultCalendar = calendars.find(cal => 
-          cal.source.name === 'Default' && cal.allowsModifications
-        );
-      }
-      
-      if (!defaultCalendar) {
-        defaultCalendar = calendars.find(cal => 
-          cal.allowsModifications && cal.source.type === Calendar.CalendarType.LOCAL
-        );
-      }
-      
-      if (!defaultCalendar) {
-        defaultCalendar = calendars.find(cal => cal.allowsModifications);
-      }
-
-      if (!defaultCalendar) {
-        BrandedAlert.alert(
-          "No calendar to add to",
-          "We couldn't find a writable calendar on this device. Set one up in your Calendar app and try again.",
-          [{ text: "OK" }]
-        );
-        return;
-      }
-
-      console.log('Using calendar:', {
-        id: defaultCalendar.id,
-        title: defaultCalendar.title,
-        source: defaultCalendar.source.name
-      });
-
-      const startDate = new Date(rideData!.start_time);
-      if (isNaN(startDate.getTime())) {
-        BrandedAlert.alert("Hmm, weird time", "We couldn't read this ride's time. Skipping the calendar event.");
-        return;
-      }
-      
-      const endDate = new Date(startDate);
-      if (estimatedDuration.includes('hour')) {
-        const hours = parseInt(estimatedDuration.split(' ')[0]) || 1;
-        const minutesMatch = estimatedDuration.match(/(\d+)\s*minute/);
-        const minutes = minutesMatch ? parseInt(minutesMatch[1]) : 0;
-        endDate.setHours(endDate.getHours() + hours);
-        endDate.setMinutes(endDate.getMinutes() + minutes);
-      } else if (estimatedDuration.includes('minute')) {
-        const minutes = parseInt(estimatedDuration.split(' ')[0]) || 60;
-        endDate.setMinutes(endDate.getMinutes() + minutes);
-      } else {
-        endDate.setHours(endDate.getHours() + 2);
-      }
-        
-      const availableSeats = rideData!.total_seats - rideData!.booked_seats;
-
-      const eventDetails = {
-        title: `🚗 ${rideData!.start_location} → ${rideData!.end_location}`,
-        startDate: startDate,
-        endDate: endDate,
-        location: rideData!.start_location,
-        notes: `🎯 UniPool Ride Details
-
-📍 Pickup: ${rideData!.start_location}
-🏁 Destination: ${rideData!.end_location}
-👤 Host: ${rideData!.host_user_name || 'Host'}
-💰 Price: ₹${rideData!.total_price} per person
-🪑 Seats: ${availableSeats}/${rideData!.total_seats} available
-
-🆔 Ride ID: ${rideId}
-
-📱 Open UniPool app for more details and updates.`,
-        timeZone: 'Asia/Kolkata',
-        alarms: [
-          { relativeOffset: -60 },
-          { relativeOffset: -15 }
-        ]
-      };
-
-      console.log('Creating event with details:', {
-        title: eventDetails.title,
-        startDate: eventDetails.startDate.toISOString(),
-        endDate: eventDetails.endDate.toISOString(),
-        calendarId: defaultCalendar.id
-      });
-
-      const eventId = await Calendar.createEventAsync(defaultCalendar.id, eventDetails);
-
-      if (eventId) {
-        BrandedAlert.alert(
-          "Added to your calendar",
-          `Saved to "${defaultCalendar.title}". You'll get reminders 1 hour and 15 minutes before departure.`,
-          [
-            { text: "View in Calendar", onPress: () => {
-                if (Platform.OS === "ios") {
-                  Linking.openURL(`calshow:${startDate.getTime() / 1000}`);
-                } else {
-                  Linking.openURL("content://com.android.calendar/time/" + startDate.getTime());
-                }
-              }
-            },
-            { text: "Great" }
-          ]
-        );
-      } else {
-        BrandedAlert.alert("Couldn't add to calendar", "Try again in a moment.");
-      }
-    } catch (error: any) {
-      console.error("Calendar error:", error);
-      
-      let errorMessage = "Couldn't add to calendar. Try again in a moment.";
-      if (error.message?.includes('permission') || error.message?.includes('denied')) {
-        errorMessage = "Turn on Calendar access in Settings, then try again.";
-      } else if (error.message?.includes('not found')) {
-        errorMessage = "We couldn't find a calendar app on this device.";
-      }
-
-      BrandedAlert.alert("Couldn't add to calendar", errorMessage);
-    }
-  };
-
   const handleAcceptBooking = async (bookingId: string) => {
     setIsActionLoading(true);
     setBookingError(null);
@@ -1281,17 +1131,51 @@ const RideDetailsScreen: React.FC = () => {
         </View>
 
         <View style={styles.navigationRow}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
             <ChevronBack />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Ride Management</Text>
-          {/* <TouchableOpacity onPress={handleShare} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
-            <Image source={shareIcon} style={{ width: 24, height: 24, resizeMode: 'contain' }} />
-          </TouchableOpacity> */}
+          {/* Share pill — opens the QR + native share sheet. Anchored
+              top-right of the management header so it reads as a
+              persistent action on the host's ride rather than buried
+              in a menu. */}
+          <TouchableOpacity
+            onPress={() => setShareSheetOpen(true)}
+            style={{
+              marginLeft: "auto",
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              borderRadius: 999,
+              backgroundColor: AppColors.secondaryDarkGreen,
+            }}
+            activeOpacity={0.85}
+          >
+            <Text
+              style={{
+                color: AppColors.primaryLightGreen,
+                fontFamily: "NunitoSans_800ExtraBold",
+                fontSize: 13,
+                letterSpacing: 0.3,
+              }}
+            >
+              Share
+            </Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Mounted at the screen level so its z-index sits above the
+            scrolling ride card content. */}
+        <ShareRideSheet
+          visible={shareSheetOpen}
+          onClose={() => setShareSheetOpen(false)}
+          rideId={rideData?.id || rideId || ""}
+          startLocation={rideData?.start_location || ""}
+          endLocation={rideData?.end_location || ""}
+          startTime={rideData?.start_time || ""}
+        />
 
         <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
           <View style={styles.rideCardContainer}>
@@ -1305,6 +1189,8 @@ const RideDetailsScreen: React.FC = () => {
               seatsAvailable={`${rideData.total_seats - rideData.booked_seats}/${rideData.total_seats}`}
               isSelected={true}
               variant={rideData.is_ongoing ? "inprogress" : "upcoming"}
+              shareable
+              startTimeIso={rideData.start_time}
             />
           </View>
 
@@ -1473,7 +1359,7 @@ const RideDetailsScreen: React.FC = () => {
 
       <View style={styles.navigationRow}>
         <View style={styles.navigationLeft}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
@@ -1481,10 +1367,43 @@ const RideDetailsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
         <Text style={styles.headerTitle}>Booking Details</Text>
-        {/* <TouchableOpacity onPress={handleShare} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
-          <Image source={shareIcon} style={{ width: 24, height: 24, resizeMode: 'contain' }} />
-        </TouchableOpacity> */}
+        {/* Share pill — visible to passengers too, not just hosts.
+            Same sheet as the host-side button (QR + native share). */}
+        <TouchableOpacity
+          onPress={() => setShareSheetOpen(true)}
+          style={{
+            marginLeft: "auto",
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            borderRadius: 999,
+            backgroundColor: AppColors.secondaryDarkGreen,
+          }}
+          activeOpacity={0.85}
+        >
+          <Text
+            style={{
+              color: AppColors.primaryLightGreen,
+              fontFamily: "NunitoSans_800ExtraBold",
+              fontSize: 13,
+              letterSpacing: 0.3,
+            }}
+          >
+            Share
+          </Text>
+        </TouchableOpacity>
       </View>
+
+      {/* ShareRideSheet for the passenger branch — same component
+          the host branch uses. Mounted at screen level so its z-index
+          sits above the scroll content. */}
+      <ShareRideSheet
+        visible={shareSheetOpen}
+        onClose={() => setShareSheetOpen(false)}
+        rideId={rideData?.id || rideId || ""}
+        startLocation={rideData?.start_location || ""}
+        endLocation={rideData?.end_location || ""}
+        startTime={rideData?.start_time || ""}
+      />
 
   {/* Show fallback UI for pending and rejected bookings (unless ride is over) */}
   {(!isRideOver(rideData.start_time) && (userBookingStatus === 'pending' || userBookingStatus === 'rejected')) ? (
@@ -1769,13 +1688,6 @@ const RideDetailsScreen: React.FC = () => {
                   sliderIcon={require("../assets/slide.png")}
                 />
                 
-                <TouchableOpacity 
-                  style={styles.calendarButton}
-                  onPress={handleAddToCalendar}
-                >
-                  <Image source={require('../assets/calendar.png')} style={styles.calendarButtonIcon} />
-                  <Text style={styles.calendarButtonText}>Add to calendar</Text>
-                </TouchableOpacity>
               </>
             ) : (
               <View style={styles.rideOverBanner}>
@@ -2068,26 +1980,6 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 20,
     paddingBottom: 10,
-  },
-  calendarButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: AppColors.secondaryDarkGreen,
-    paddingVertical: 15,
-    borderRadius: 14,
-    marginTop: -5,
-  },
-  calendarButtonIcon: {
-    width: 20,
-    height: 20,
-    marginRight: 8,
-    tintColor: AppColors.primaryLightGreen,
-  },
-  calendarButtonText: {
-    color: AppColors.primaryLightGreen,
-    fontSize: 16,
-    fontFamily: 'NunitoSans_600SemiBold',
   },
   // Booking management styles
   requestsHeader: {

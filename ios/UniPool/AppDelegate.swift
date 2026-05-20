@@ -31,17 +31,20 @@ class AppDelegate: ExpoAppDelegate {
 // @generated begin @react-native-firebase/app-didFinishLaunchingWithOptions - expo prebuild (DO NOT MODIFY) sync-10e8520570672fd76b2403b7e1e27f5198a6349a
 FirebaseApp.configure()
 // @generated end @react-native-firebase/app-didFinishLaunchingWithOptions
+#if canImport(GoogleMaps)
+    if let key = Bundle.main.object(forInfoDictionaryKey: "GMSApiKey") as? String,
+       !key.isEmpty, !key.hasPrefix("$") {
+      GMSServices.provideAPIKey(key)
+    } else {
+      NSLog("[UniPool] Info.plist GMSApiKey missing or unsubstituted, Maps will not render. Set GOOGLE_MAPS_API_KEY_IOS in .env or as an Xcode build setting.")
+    }
+#endif
+
     factory.startReactNative(
       withModuleName: "main",
       in: window,
       launchOptions: launchOptions)
 #endif
-
-// @generated begin react-native-maps-init - expo prebuild (DO NOT MODIFY) sync-e6e18c712610887b20712628ec8b8e23cd9940dc
-#if canImport(GoogleMaps)
-GMSServices.provideAPIKey("AIzaSyDodPSdiyXv-iWpo9kX8RwvrR56q-GCsFk")
-#endif
-// @generated end react-native-maps-init
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

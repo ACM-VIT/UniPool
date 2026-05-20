@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Svg, { Circle, Path } from 'react-native-svg';
 import {
   View,
@@ -6,15 +6,14 @@ import {
   TouchableOpacity,
   StatusBar,
   FlatList,
-  Image,
   TextInput,
   Modal,
   Switch,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StyleSheet,
+  Animated,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from "expo-router";
@@ -24,6 +23,8 @@ import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
 import ChatService from '../../utils/ChatService';
 import BrandedAlert from "../../components/BrandedAlert";
+import ChevronBack from "../../components/ChevronBack";
+import ShareRideSheet from "../../components/ShareRideSheet";
 import { useDecodedLocalSearchParams } from "../../navigation/routes";
 
 /**
@@ -70,6 +71,92 @@ type ChatRow =
   | { kind: 'sep'; label: string; id: string }
   | { kind: 'safety'; id: string };
 
+// "Ride with X" / "Ride with X, Y" / "Ride with X, Y & N others".
+// The route already lives on the trip card the user came from — the
+// chat header's job is to remind them WHO they're talking to, not to
+// repeat the route. Falls back to the raw chat title when we don't
+// have participants yet (initial paint) or in DMs (where chat title
+// is the other person's name).
+/**
+ * BroadcastPulse — small animated radio-wave icon. Lime concentric
+ * rings pulse outward from a static lime dot, signaling "your ride
+ * is live and broadcasting." Renders inside the host empty-state
+ * card. Two staggered rings so the motion reads as continuous, not
+ * a single heartbeat.
+ */
+const BroadcastPulse: React.FC = () => {
+  const a = React.useRef(new Animated.Value(0)).current;
+  const b = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    Animated.loop(
+      Animated.stagger(900, [
+        Animated.timing(a, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: false,
+        }),
+        Animated.timing(b, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: false,
+        }),
+      ]),
+    ).start();
+  }, [a, b]);
+
+  const ring = (v: Animated.Value) => ({
+    width: v.interpolate({ inputRange: [0, 1], outputRange: [18, 60] }),
+    height: v.interpolate({ inputRange: [0, 1], outputRange: [18, 60] }),
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#B5D750',
+    opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.7, 0] }),
+    position: 'absolute' as const,
+  });
+
+  return (
+    <View style={{ width: 64, height: 64, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+      <Animated.View style={ring(a)} />
+      <Animated.View style={ring(b)} />
+      <View
+        style={{
+          width: 16,
+          height: 16,
+          borderRadius: 999,
+          backgroundColor: '#B5D750',
+        }}
+      />
+    </View>
+  );
+};
+
+const composeRideWithTitle = (others: { name?: string }[], fallback: string): string => {
+  if (others.length === 0) return fallback;
+  const firstNames = others
+    .map((p) => (p.name || '').trim().split(/\s+/)[0])
+    .filter(Boolean);
+  if (firstNames.length === 0) return fallback;
+  if (firstNames.length === 1) return `Ride with ${firstNames[0]}`;
+  if (firstNames.length === 2) return `Ride with ${firstNames[0]} & ${firstNames[1]}`;
+  const remaining = firstNames.length - 2;
+  return `Ride with ${firstNames[0]}, ${firstNames[1]} & ${remaining} other${remaining === 1 ? '' : 's'}`;
+};
+
+const formatChatTime = (timestamp: any): string => {
+  if (!timestamp) return '';
+  const date =
+    timestamp instanceof Date
+      ? timestamp
+      : typeof timestamp === 'number'
+        ? new Date(timestamp > 1000000000000 ? timestamp : timestamp * 1000)
+        : new Date(timestamp);
+  if (isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
 const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarVariant">> = ({
   setNavBarVariant,
 }) => {
@@ -82,6 +169,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const [userProfiles, setUserProfiles] = useState<{ [k: string]: { name: string; avatar?: string } }>({});
   const [showSettings, setShowSettings] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(() => new Set());
   const [rideDetails, setRideDetails] = useState<RideDetails | null>(null);
   const [notificationsMuted, setNotificationsMuted] = useState(false);
   const [hasSettingsPermission, setHasSettingsPermission] = useState(true);
@@ -117,6 +205,10 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const flatListRef = useRef<FlatList<ChatRow> | null>(null);
+  const onlineUserIdsRef = useRef<Set<string>>(new Set());
+  const shouldScrollToEndRef = useRef(false);
+  const seenStatusIdsRef = useRef<Set<string>>(new Set());
+  const typingUsersRef = useRef<{ [k: string]: { name: string; timeout: NodeJS.Timeout } }>({});
 
   type ChatRouteParams = {
     chatId?: string;
@@ -126,27 +218,66 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     userId?: string;
     isGroupChat?: boolean;
     otherUserId?: string;
+    // Host of the ride this chat is attached to. Used to detect when
+    // the viewer is the host (e.g. for the host-empty-state card).
+    hostUserId?: string;
+    viewerRole?: string;
     // Set when TripsListScreen opens a 1:1 with the host because the
     // viewer's booking is still pending. Used to swap the safety
     // strip for an explicit "you're messaging the host while your
     // request is pending" explainer.
     pendingHostInquiry?: boolean;
+    // True when the HOST is viewing the requester's DM (gives them
+    // accept/reject controls). False/undefined = passenger view.
+    viewerIsHost?: boolean;
     pendingRideId?: string;
     pendingHostName?: string;
+    hostPendingRequestBookingId?: string;
+    // Ride context now travels here instead of the header subtitle —
+    // rendered inside the centered empty-state card so the header
+    // stays minimal (just the other party's name + back + menu).
+    pendingRideStartLocation?: string;
+    pendingRideEndLocation?: string;
+    pendingRideStartTime?: string;
   };
   const chatParams = useDecodedLocalSearchParams<ChatRouteParams>();
   const [chatTitle, setChatTitle] = useState(chatParams.chatTitle ?? 'Vellore to Chennai');
-  const chatSubtitle = chatParams.chatSubtitle ?? 'You, Bhallaldeva, Kattappa and 3 more';
   const isPendingHostInquiry = !!chatParams.pendingHostInquiry;
-  const pendingHostFirstName =
-    (chatParams.pendingHostName || '').trim().split(/\s+/)[0] || 'the host';
+  const viewerIsHost = !!chatParams.viewerIsHost;
+  // No subtitle for pending DMs — route/date live in the empty-state
+  // card below. Group chats keep their original subtitle.
+  const chatSubtitle = isPendingHostInquiry
+    ? ''
+    : (chatParams.chatSubtitle ?? 'You, Bhallaldeva, Kattappa and 3 more');
+  // `pendingHostName` is misnamed historically — it's actually the
+  // OTHER party's display name. For a host viewing a requester's DM,
+  // that's the requester (e.g. "Priya"); for a passenger viewing
+  // their host's DM, that's the host (e.g. "Yash"). Branching on
+  // `viewerIsHost` below picks the right copy.
+  const otherFirstName =
+    (chatParams.pendingHostName || '').trim().split(/\s+/)[0] ||
+    (viewerIsHost ? 'them' : 'the host');
+
+  // Host-side accept/reject state. Disabled mid-flight to prevent
+  // double-taps; success drops them out of the DM (the booking is
+  // no longer pending so this thread no longer fits the surface).
+  const [bookingActionLoading, setBookingActionLoading] = useState<
+    'accept' | 'reject' | null
+  >(null);
+  const bookingIdForActions = chatParams.hostPendingRequestBookingId;
+
+  // Drives the ShareRideSheet rendered for the host-empty-state card.
+  // Lives at the screen root so its Modal portals above the FlatList.
+  const [hostShareOpen, setHostShareOpen] = useState(false);
 
   const processBackendMessage = (backendMsg: any, currentUserId: string): ChatMessage => {
-    console.log('[ProcessMessage] Raw backend message:', JSON.stringify(backendMsg, null, 2));
-    
-    const messageId = backendMsg.id || backendMsg.message_id;
-    const content = backendMsg.content || backendMsg.text || backendMsg.message;
-    const senderId = backendMsg.sender_id || backendMsg.user_id || backendMsg.from_user_id;
+    const messageId =
+      backendMsg.id ||
+      backendMsg.message_id ||
+      backendMsg.temp_id ||
+      `local_${Date.now()}_${Math.random()}`;
+    const content = backendMsg.content || backendMsg.text || backendMsg.message || '';
+    const senderId = backendMsg.sender_id || backendMsg.user_id || backendMsg.from_user_id || '';
     const senderName = backendMsg.sender_name || backendMsg.user_name || backendMsg.sender?.name;
     const senderAvatar = backendMsg.sender_avatar || backendMsg.profile_picture_url || backendMsg.sender?.profile_picture_url;
     const timestamp = backendMsg.timestamp || backendMsg.created_at || backendMsg.sent_at;
@@ -172,20 +303,32 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       senderName: isFromCurrentUser ? 'You' : (senderName || 'Unknown'),
       senderAvatar: senderAvatar,
       timestamp: parsedTimestamp,
+      timeLabel: formatChatTime(parsedTimestamp),
       status: isFromCurrentUser ? 'sent' : undefined,
       readBy: backendMsg.read_by || [],
     };
-    
-    console.log('[ProcessMessage] Processed message:', {
-      id: processedMessage.id,
-      sender: processedMessage.sender,
-      isFromCurrentUser,
-      timestamp: processedMessage.timestamp.toISOString(),
-      timestampValid: !isNaN(processedMessage.timestamp.getTime())
-    });
-    
+
     return processedMessage;
   };
+
+  const setOnlineUsers = useCallback((updater: (next: Set<string>) => void) => {
+    setOnlineUserIds(prev => {
+      const next = new Set(prev);
+      updater(next);
+      onlineUserIdsRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const applyOnlinePresence = useCallback((snapshot: Set<string>) => {
+    setParticipants(prev =>
+      prev.map(p => ({
+        ...p,
+        isOnline: p.id === userUuid || snapshot.has(p.id),
+      })),
+    );
+  }, [userUuid]);
+
 
   useEffect(() => {
     setNavBarVariant?.(0);
@@ -214,6 +357,15 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       });
   }, [apiUtil, setNavBarVariant]);
 
+  useEffect(() => {
+    if (!userUuid) return;
+    setOnlineUsers(next => next.add(userUuid));
+  }, [setOnlineUsers, userUuid]);
+
+  useEffect(() => {
+    applyOnlinePresence(onlineUserIds);
+  }, [applyOnlinePresence, onlineUserIds]);
+
   const fetchUserProfile = async (uid: string) => {
     if (userProfiles[uid]) return userProfiles[uid];
     try {
@@ -228,21 +380,52 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     }
   };
 
-  const markMessageAsRead = (mid: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN && userUuid) {
-      wsRef.current.send(
-        JSON.stringify({ type: 'message_status', message_id: mid, status: 'seen', user_id: userUuid, timestamp: new Date().toISOString() })
-      );
-      setMessages(ms =>
-        ms.map(m => (m.id === mid ? { ...m, status: 'seen', readBy: [...(m.readBy||[]), userUuid] } : m))
-      );
-    }
-  };
   const sendMessageStatus = (mid: string, status: 'delivered' | 'seen') => {
     if (wsRef.current?.readyState === WebSocket.OPEN && userUuid) {
       wsRef.current.send(
         JSON.stringify({ type: 'message_status', message_id: mid, status, user_id: userUuid, timestamp: new Date().toISOString() })
       );
+    }
+  };
+
+  const appendOrConfirmMessage = (incoming: any, currentUserId: string) => {
+    const tempId = incoming.temp_id;
+    const serverId = incoming.message_id || incoming.id;
+    const nextMessage = processBackendMessage(incoming, currentUserId);
+
+    setMessages(prev => {
+      if (tempId) {
+        const tempIndex = prev.findIndex(m => m.id === tempId);
+        if (tempIndex >= 0) {
+          const next = [...prev];
+          next[tempIndex] = {
+            ...next[tempIndex],
+            id: serverId || next[tempIndex].id,
+            timestamp: nextMessage.timestamp,
+            timeLabel: nextMessage.timeLabel,
+            status: 'sent',
+          };
+          shouldScrollToEndRef.current = true;
+          return next;
+        }
+      }
+
+      const idToCheck = serverId || nextMessage.id;
+      if (prev.some(m => m.id === idToCheck || (tempId && m.id === tempId))) {
+        return prev;
+      }
+
+      const next = [...prev, nextMessage];
+      shouldScrollToEndRef.current = true;
+      return next;
+    });
+
+    if (nextMessage.sender === 'other' && !seenStatusIdsRef.current.has(nextMessage.id)) {
+      seenStatusIdsRef.current.add(nextMessage.id);
+      requestAnimationFrame(() => {
+        sendMessageStatus(nextMessage.id, 'delivered');
+        sendMessageStatus(nextMessage.id, 'seen');
+      });
     }
   };
 
@@ -285,8 +468,14 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       next[uid]?.timeout && clearTimeout(next[uid].timeout);
       next[uid] = {
         name,
-        timeout: setTimeout(() => setTypingUsers(curr => { const c={...curr}; delete c[uid]; return c; }), 5000),
+        timeout: setTimeout(() => setTypingUsers(curr => {
+          const c={...curr};
+          delete c[uid];
+          typingUsersRef.current = c;
+          return c;
+        }), 5000),
       };
+      typingUsersRef.current = next;
       return next;
     });
   };
@@ -295,6 +484,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       const next = { ...prev };
       next[uid]?.timeout && clearTimeout(next[uid].timeout);
       delete next[uid];
+      typingUsersRef.current = next;
       return next;
     });
   };
@@ -332,11 +522,23 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       });
 
       const list: Participant[] = [
-        { id: r.host.id, name: r.host.name, avatar: r.host.profile_picture_url, isOnline: false, role: 'admin' },
+        {
+          id: r.host.id,
+          name: r.host.name,
+          avatar: r.host.profile_picture_url,
+          isOnline: r.host.id === userUuid || onlineUserIdsRef.current.has(r.host.id),
+          role: 'admin',
+        },
       ];
       if (r.bookings && Array.isArray(r.bookings)) {
         r.bookings.filter(b => b.request_status === 'accepted').forEach(b =>
-          list.push({ id: b.passenger_id, name: b.passenger_name, avatar: b.passenger_profile_picture_url, isOnline: false, role: 'member' })
+          list.push({
+            id: b.passenger_id,
+            name: b.passenger_name,
+            avatar: b.passenger_profile_picture_url,
+            isOnline: b.passenger_id === userUuid || onlineUserIdsRef.current.has(b.passenger_id),
+            role: 'member',
+          })
         );
       }
       setParticipants(list);
@@ -347,23 +549,20 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         availableSeats: Math.max(0, (prev.totalSeats||0) - list.length),
       }));
 
-      try {
-        const s = await apiUtil.get<{ settings: { chat_name?: string; notifications_muted?: boolean } }>(`/ride/${rideId}/settings`);
-        s.settings.chat_name && setChatTitle(s.settings.chat_name);
-        setNotificationsMuted(!!s.settings.notifications_muted);
+      const [settingsResult, muteResult] = await Promise.allSettled([
+        apiUtil.get<{ settings: { chat_name?: string } }>(`/ride/${rideId}/settings`),
+        apiUtil.get<{ muted: boolean }>(`/ride/${rideId}/chat-mute`),
+      ]);
+
+      if (settingsResult.status === 'fulfilled') {
+        settingsResult.value.settings.chat_name && setChatTitle(settingsResult.value.settings.chat_name);
         setHasSettingsPermission(true);
-      } catch (error: any) { 
-        console.log('[Chat] Settings fetch failed (user may not have permission):', error?.response?.status);
-        // Don't treat 403 (forbidden) as an auth error - user just doesn't have permission to view/edit settings
-        if (error?.response?.status === 403) {
-          console.log('[Chat] User not authorized to view ride settings - using defaults');
-          setNotificationsMuted(false);
-          setHasSettingsPermission(false);
-        } else {
-          setNotificationsMuted(false);
-          setHasSettingsPermission(true); // Assume permission for other errors
-        }
+      } else {
+        const status = (settingsResult.reason as any)?.response?.status;
+        setHasSettingsPermission(status !== 403);
       }
+
+      setNotificationsMuted(muteResult.status === 'fulfilled' ? !!muteResult.value.muted : false);
     } catch (e) {
       console.warn('[Chat] fetchChatDetails error', e);
       setRideDetails({
@@ -389,7 +588,6 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
 
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
     const isGroup = chatParams.isGroupChat !== false;
-    const isDM = !!chatId && chatId.startsWith('dm_');
     const userId = chatParams.userId || userUuid;
     if (!chatId) return;
 
@@ -401,7 +599,12 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         fetchUserProfile(chatParams.otherUserId).then(p =>
           setParticipants([
             { id: userUuid, name: userProfiles[userUuid]?.name||'You', role:'member', isOnline:true },
-            { id: chatParams.otherUserId!, name:p.name, role:'member', isOnline:false },
+            {
+              id: chatParams.otherUserId!,
+              name:p.name,
+              role:'member',
+              isOnline: onlineUserIdsRef.current.has(chatParams.otherUserId!),
+            },
           ])
         );
       } else {
@@ -422,6 +625,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           return;
         }
         const processed = res.messages.map((msg: any) => processBackendMessage(msg, userUuid));
+        shouldScrollToEndRef.current = true;
         setMessages(processed);
         setHasMoreMessages(res.hasMore);
       })
@@ -434,72 +638,52 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       });
 
     // Tell the backend the user has seen everything up to now. Resets
-    // the unread badge on the chat list.
-    if (!isDM) ChatService.markRideRead(apiUtil, chatId);
+    // the unread badge on the chat list. Works for both ride chats
+    // and DM rooms — the helper branches on the chatId shape.
+    if (chatId) ChatService.markRideRead(apiUtil, chatId);
 
     const ws = ChatService.openSocket(userId, chatId, e => {
       (e.data as string).trim().split('\n').filter(Boolean).forEach(line => {
         try {
           const d = JSON.parse(line);
-          console.log('[WebSocket] Received message:', d.type, d.temp_id ? `(temp_id: ${d.temp_id})` : '', d.sender_id === userId ? '(from me)' : '(from other)');
-          console.log('[WebSocket] Full message data:', JSON.stringify(d, null, 2));
-          console.log('[WebSocket] Timestamp received:', d.timestamp, 'type:', typeof d.timestamp);
-          
           if (d.type === 'message') {
-            if (d.temp_id) {
-              setMessages(prev => {
-                const hasExistingMessage = prev.some(m => m.id === d.temp_id);
-                console.log('[WebSocket] temp_id processing:', d.temp_id, 'hasExisting:', hasExistingMessage, 'currentCount:', prev.length);
-                
-                if (hasExistingMessage) {
-                  console.log('[WebSocket] Updating existing message');
-                  return prev.map(m => m.id === d.temp_id ? { ...m, id: d.message_id || d.id, status:'sent' } : m);
-                } else {
-                  console.log('[WebSocket] Adding new message from another user via temp_id');
-                  if (!userUuid) return prev;
-                  
-                  const nm = processBackendMessage(d, userUuid);
-                  if (prev.some(x => x.id === nm.id)) {
-                    console.log('[WebSocket] Message already exists, skipping');
-                    return prev;
-                  }
-                  const out = [...prev, nm];
-                  console.log('[WebSocket] New message count:', out.length);
-                  requestAnimationFrame(() => flatListRef.current?.scrollToEnd({animated:true}));
-                  if (nm.sender === 'other') {
-                    setTimeout(() => sendMessageStatus(nm.id, 'delivered'), 100);
-                    setTimeout(() => sendMessageStatus(nm.id, 'seen'), 600);
-                  }
-                  return out;
-                }
-              });
-            } else {
-              console.log('[WebSocket] Processing message without temp_id');
-              if (!userUuid) return;
-              
-              const nm = processBackendMessage(d, userUuid);
-              setMessages(prev => {
-                if (prev.some(x => x.id === nm.id)) return prev;
-                const out = [...prev, nm];
-                requestAnimationFrame(() => flatListRef.current?.scrollToEnd({animated:true}));
-                if (nm.sender === 'other') {
-                  setTimeout(() => sendMessageStatus(nm.id, 'delivered'), 100);
-                  setTimeout(() => sendMessageStatus(nm.id, 'seen'), 600);
-                }
-                return out;
-              });
-            }
+            appendOrConfirmMessage(d, userUuid);
           } else if (d.type==='message_status') {
-            setMessages(prev=>prev.map(m=> {
-              if (m.id===d.message_id) {
-                const rb = m.readBy||[];
-                if (d.status==='seen' && d.user_id && !rb.includes(d.user_id)) rb.push(d.user_id);
-                return {...m,status:d.status, readBy:rb};
-              }
-              return m;
-            }));
+            setMessages(prev=> {
+              const next = prev.map(m=> {
+                if (m.id===d.message_id) {
+                  const rb = [...(m.readBy||[])];
+                  if (d.status==='seen' && d.user_id && !rb.includes(d.user_id)) rb.push(d.user_id);
+                  return {...m,status:d.status, readBy:rb};
+                }
+                return m;
+              });
+              return next;
+            });
           } else if (d.type==='typing') {
             d.user_id!==userUuid && (d.is_typing?addTypingUser(d.user_id,d.user_name):removeTypingUser(d.user_id));
+          } else if (d.type === 'presence_snapshot' && Array.isArray(d.users)) {
+            const snapshotIds = d.users
+              .map((u: any) => u?.user_id)
+              .filter((id: any): id is string => typeof id === 'string');
+            setOnlineUsers(next => {
+              next.clear();
+              snapshotIds.forEach((id: string) => next.add(id));
+              next.add(userUuid);
+            });
+          } else if (d.type === 'user_joined' && typeof d.user_id === 'string') {
+            setOnlineUsers(next => next.add(d.user_id));
+            if (typeof d.user_name === 'string') {
+              setParticipants(prev =>
+                prev.some(p => p.id === d.user_id)
+                  ? prev
+                  : [...prev, { id: d.user_id, name: d.user_name, role: 'member', isOnline: true }],
+              );
+            }
+          } else if (d.type === 'user_left' && typeof d.user_id === 'string') {
+            setOnlineUsers(next => {
+              if (d.user_id !== userUuid) next.delete(d.user_id);
+            });
           }
         } catch {}
       });
@@ -509,20 +693,17 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       typingTimeoutRef.current && clearTimeout(typingTimeoutRef.current);
       typingDebounceRef.current && clearTimeout(typingDebounceRef.current);
       isTyping && ws.readyState===WebSocket.OPEN && sendTypingIndicator(false);
-      Object.values(typingUsers).forEach(u=>u.timeout&&clearTimeout(u.timeout));
+      Object.values(typingUsersRef.current).forEach(u=>u.timeout&&clearTimeout(u.timeout));
       ws.close();
     };
-  }, [chatParams, userUuid]);
-
-  useEffect(() => {
-    if (!userUuid) return;
-    messages.filter(m => m.sender==='other' && !m.readBy?.includes(userUuid))
-      .forEach(m => markMessageAsRead(m.id));
-  }, [messages, userUuid]);
-
-  useEffect(() => {
-    messages.length>0 && setTimeout(()=>flatListRef.current?.scrollToEnd({animated:true}),100);
-  }, [messages]);
+  }, [
+    chatParams.chatRoom?.id,
+    chatParams.chatId,
+    chatParams.isGroupChat,
+    chatParams.otherUserId,
+    chatParams.userId,
+    userUuid,
+  ]);
 
   const sendMessage = (override?: string) => {
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
@@ -539,10 +720,15 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       senderName: 'You',
       senderAvatar: undefined,
       timestamp: new Date(),
+      timeLabel: formatChatTime(new Date()),
       status: 'sending',
       readBy: [],
     };
-    setMessages(prev => [...prev, optimistic]);
+    shouldScrollToEndRef.current = true;
+    setMessages(prev => {
+      const next = [...prev, optimistic];
+      return next;
+    });
     setNewMessage('');
 
     if (wsRef.current?.readyState===WebSocket.OPEN) {
@@ -555,26 +741,36 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         temp_id:tempId,
       }));
     } else {
-      setMessages(prev => prev.map(m => m.id===tempId?{...m, status:'failed'}:m));
+      setMessages(prev => {
+        const next = prev.map(m => m.id===tempId?{...m, status:'failed' as const}:m);
+        return next;
+      });
     }
   };
 
   const handleMuteToggle = async (val: boolean) => {
+    const chatId = chatParams.chatRoom?.id || chatParams.chatId;
+    if (!chatId || chatParams.isGroupChat === false) {
+      // DMs aren't backed by a ride yet; toggle is local-only.
+      setNotificationsMuted(val);
+      return;
+    }
+    // Optimistic flip — re-revert on error.
+    setNotificationsMuted(val);
     try {
-      const chatId = chatParams.chatRoom?.id || chatParams.chatId;
-      if (chatParams.isGroupChat!==false && chatId) {
-        await apiUtil.put(`/ride/${chatId}/settings`, { notifications_muted: val });
-        setNotificationsMuted(val);
-      } else {
-        setNotificationsMuted(val);
-      }
+      // Per-user, per-ride mute. The old /ride/:id/settings route
+      // stored this on the ride row, which silently affected
+      // everyone in the chat; the dedicated endpoint scopes it to
+      // the caller alone.
+      await apiUtil.put(`/ride/${chatId}/chat-mute`, { muted: val });
     } catch (error: any) {
       console.warn('[Chat] mute toggle failed:', error?.response?.status);
+      setNotificationsMuted(!val);
       if (error?.response?.status === 403) {
         BrandedAlert.alert('Permission Denied', 'You do not have permission to change settings for this ride.');
-        return; 
+      } else {
+        BrandedAlert.alert("Couldn't save", "Try again in a moment.");
       }
-      setNotificationsMuted(val);
     }
   };
 
@@ -677,34 +873,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   };
 
   const formatMessageTime = (timestamp: any) => {
-    console.log('[FormatTime] Input:', timestamp, 'type:', typeof timestamp);
-    
-    if (!timestamp) {
-      return 'No time';
-    }
-    
-    let date: Date;
-    
-    if (timestamp instanceof Date) {
-      date = timestamp;
-    } else if (typeof timestamp === 'string') {
-      date = new Date(timestamp);
-    } else if (typeof timestamp === 'number') {
-      date = new Date(timestamp > 1000000000000 ? timestamp : timestamp * 1000);
-    } else {
-      return `Invalid (${typeof timestamp})`;
-    }
-    
-    if (isNaN(date.getTime())) {
-      return `Invalid date (${timestamp})`;
-    }
-    
-    try {
-      return date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-    } catch (error) {
-      console.error('[FormatTime] Error formatting:', error);
-      return `Format error (${date})`;
-    }
+    return formatChatTime(timestamp);
   };
 
   /**
@@ -726,7 +895,12 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       const res = await ChatService.fetchMessages(apiUtil, chatId, { before, limit: 50 });
       const processed = res.messages.map((msg: any) => processBackendMessage(msg, userUuid));
       // Prepend older messages — `messages` is in chronological order.
-      setMessages((prev) => [...processed, ...prev]);
+      setMessages((prev) => {
+        const existing = new Set(prev.map(m => m.id));
+        const older = processed.filter(m => !existing.has(m.id));
+        const next = [...older, ...prev];
+        return next;
+      });
       setHasMoreMessages(res.hasMore);
     } catch (err) {
       console.warn('[Chat] loadOlderMessages failed', err);
@@ -842,7 +1016,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           }}
         >
           <Text style={me ? chatMessagesStyles.messageTimeSent : chatMessagesStyles.messageTime}>
-            {formatMessageTime(msg.timestamp)}
+            {msg.timeLabel || formatMessageTime(msg.timestamp)}
           </Text>
           {renderMessageStatus(msg)}
         </View>
@@ -1203,34 +1377,44 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     </Modal>
   );
 
+  const chatRows = useMemo(() => buildRows(messages), [messages]);
+
   return (
     <View style={[chatMessagesStyles.container, { flex: 1 }]}>
-      <StatusBar backgroundColor={AppColors.secondaryDarkGreen} barStyle="light-content" />
+      <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
 
-      {/* Mobbin pattern (Grab, Uber, Bolt): single header row with
-          avatar circle + name + route subtitle. Back arrow left,
-          settings icon right. No BrandInfo strip — keeps the chat
-          surface focused on the conversation. */}
+      {/* iMessage-style centered chat header. Back chevron and menu
+          float at the edges; the route + date stack centered between
+          them. The route is split into two lines with the arrow as a
+          fixed-position anchor so even long station names line up
+          visually — no more "Powell Street BART…" mid-name truncation
+          mash. */}
       <View style={chatMessagesStyles.chatHeaderRow}>
-        <TouchableOpacity onPress={() => router.back()} style={chatMessagesStyles.chatHeaderBack} hitSlop={8}>
-          <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-            <Path
-              d="M15 6 L 9 12 L 15 18"
-              stroke={AppColors.primaryLightGreen}
-              strokeWidth={2.4}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
-        </TouchableOpacity>
+        <View style={chatMessagesStyles.chatHeaderLeft}>
+          <ChevronBack onPress={() => router.back()} />
+        </View>
 
-        {/* No avatar circle. The "A" we were showing was the first
-            letter of the *trip title* (a route, not a person) which
-            didn't make sense. The title + subtitle do the job. */}
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={chatMessagesStyles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">
-            {chatTitle}
-          </Text>
+        <View style={chatMessagesStyles.chatHeaderCenter} pointerEvents="none">
+          {(() => {
+            // Group chat: hold a non-breaking space placeholder while
+            // /ride/details is in flight, then swap to "Ride with X"
+            // once participants land. The previous behaviour was to
+            // fall back to the raw chatTitle (the route string), which
+            // produced a visible "SF → Powell" → "Ride with X" flicker
+            // on every chat open. DMs always use the route-less title
+            // straight from props, so they paint correctly first try.
+            const isGroup = chatParams.isGroupChat !== false;
+            let title = chatTitle;
+            if (isGroup) {
+              const others = participants.filter((p) => p.id !== userUuid);
+              title = composeRideWithTitle(others, chatTitle); // route fallback when host is alone — was NBSP, leaving header blank
+            }
+            return (
+              <Text style={chatMessagesStyles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">
+                {title}
+              </Text>
+            );
+          })()}
           {chatSubtitle ? (
             <Text style={chatMessagesStyles.chatHeaderSubtitle} numberOfLines={1} ellipsizeMode="tail">
               {chatSubtitle}
@@ -1238,22 +1422,164 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           ) : null}
         </View>
 
-        <TouchableOpacity onPress={() => setShowSettings(true)} style={chatMessagesStyles.chatHeaderSettings} hitSlop={8}>
-          {/* Three-dot "more" glyph — cleaner than the cog, which read
-              as a settings icon shouting at the user. */}
-          <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-            <Circle cx={12} cy={6} r={1.7} fill={AppColors.primaryLightGreen} />
-            <Circle cx={12} cy={12} r={1.7} fill={AppColors.primaryLightGreen} />
-            <Circle cx={12} cy={18} r={1.7} fill={AppColors.primaryLightGreen} />
-          </Svg>
-        </TouchableOpacity>
+        <View style={chatMessagesStyles.chatHeaderRight}>
+          <TouchableOpacity onPress={() => setShowSettings(true)} style={chatMessagesStyles.chatHeaderSettings} hitSlop={8}>
+            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+              <Circle cx={12} cy={6} r={1.7} fill={AppColors.secondaryDarkGreen} />
+              <Circle cx={12} cy={12} r={1.7} fill={AppColors.secondaryDarkGreen} />
+              <Circle cx={12} cy={18} r={1.7} fill={AppColors.secondaryDarkGreen} />
+            </Svg>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Safety notice now lives inside the FlatList as the first
-          row (rendered by `kind: "safety"` below), so it only
-          appears at the top of the conversation and scrolls away
-          with the messages rather than permanently sitting under
-          the header. */}
+      {/* Persistent host decision strip. Sits under the header for the
+          entire duration of a pending-request DM so the host can
+          accept / reject at any point — used to be buried inside the
+          empty-state card, which vanished the moment either side sent
+          a message. The empty card still shows trip context below;
+          this strip is just the actions. */}
+      {isPendingHostInquiry && viewerIsHost && bookingIdForActions ? (
+        <View style={chatMessagesStyles.hostDecisionStrip}>
+          <Text style={chatMessagesStyles.hostDecisionLabel} numberOfLines={1}>
+            {otherFirstName} wants to ride along
+          </Text>
+          <View style={chatMessagesStyles.hostDecisionActions}>
+            <TouchableOpacity
+              style={[
+                chatMessagesStyles.hostDecisionReject,
+                bookingActionLoading && chatMessagesStyles.pendingActionDisabled,
+              ]}
+              activeOpacity={0.85}
+              disabled={!!bookingActionLoading}
+              onPress={async () => {
+                if (bookingActionLoading) return;
+                setBookingActionLoading('reject');
+                try {
+                  await apiUtil.put(
+                    `/bookings/reject/${bookingIdForActions}`,
+                    {},
+                  );
+                  router.back();
+                } catch (e) {
+                  console.warn('reject failed', e);
+                  BrandedAlert.alert('Could not reject', 'Try again in a moment.');
+                } finally {
+                  setBookingActionLoading(null);
+                }
+              }}
+            >
+              <Text style={chatMessagesStyles.hostDecisionRejectText}>
+                {bookingActionLoading === 'reject' ? 'Rejecting…' : 'Reject'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                chatMessagesStyles.hostDecisionAccept,
+                bookingActionLoading && chatMessagesStyles.pendingActionDisabled,
+              ]}
+              activeOpacity={0.85}
+              disabled={!!bookingActionLoading}
+              onPress={async () => {
+                if (bookingActionLoading) return;
+                setBookingActionLoading('accept');
+                try {
+                  await apiUtil.put(
+                    `/bookings/accept/${bookingIdForActions}`,
+                    {},
+                  );
+                  router.back();
+                } catch (e) {
+                  console.warn('accept failed', e);
+                  BrandedAlert.alert('Could not accept', 'Try again in a moment.');
+                } finally {
+                  setBookingActionLoading(null);
+                }
+              }}
+            >
+              <Text style={chatMessagesStyles.hostDecisionAcceptText}>
+                {bookingActionLoading === 'accept' ? 'Accepting…' : 'Accept'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+
+      {/* Pending-DM empty state — polished centered card with the
+          ride context (route block + date) plus a soft "Pending"
+          chip. Replaces the old peach banner that crammed the same
+          info into the chat header and a row at the top. Shown only
+          when the conversation hasn't started yet; once either side
+          sends a message it gives way to the chat scroll. */}
+      {isPendingHostInquiry && !isLoadingInitial && messages.length === 0 ? (
+        <View style={chatMessagesStyles.pendingEmptyWrap}>
+          <View style={chatMessagesStyles.pendingEmptyCard}>
+            {/* Route block as the visual centerpiece — no pill, no
+                duplicated headline. The chat header already shows
+                whose conversation this is; the card just shows what
+                ride they're asking about. */}
+            {(chatParams.pendingRideStartLocation || chatParams.pendingRideEndLocation) ? (
+              <View style={chatMessagesStyles.pendingEmptyRouteBlock}>
+                <View style={chatMessagesStyles.pendingRouteRow}>
+                  <View style={chatMessagesStyles.pendingDotOutline} />
+                  <Text style={chatMessagesStyles.pendingRoutePoint} numberOfLines={1}>
+                    {chatParams.pendingRideStartLocation || '—'}
+                  </Text>
+                </View>
+                <View style={chatMessagesStyles.pendingRouteConnector}>
+                  {[0, 1, 2].map((i) => (
+                    <View key={i} style={chatMessagesStyles.pendingRouteConnectorDash} />
+                  ))}
+                </View>
+                <View style={chatMessagesStyles.pendingRouteRow}>
+                  <View style={chatMessagesStyles.pendingDotFilled} />
+                  <Text style={chatMessagesStyles.pendingRoutePoint} numberOfLines={1}>
+                    {chatParams.pendingRideEndLocation || '—'}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {chatParams.pendingRideStartTime ? (
+              <Text style={chatMessagesStyles.pendingEmptyWhen}>
+                {(() => {
+                  try {
+                    const d = new Date(chatParams.pendingRideStartTime);
+                    const date = d.toLocaleDateString(undefined, {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                    });
+                    const time = d.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
+                    return `${date} · ${time}`;
+                  } catch {
+                    return '';
+                  }
+                })()}
+              </Text>
+            ) : null}
+
+            {/* Hairline divider — visually separates the trip
+                summary above from the explanatory caption + actions
+                below. */}
+            <View style={chatMessagesStyles.pendingEmptyDivider} />
+
+            <Text style={chatMessagesStyles.pendingEmptyHint}>
+              {viewerIsHost
+                ? `Once accepted, ${otherFirstName} is added to the trip chat.`
+                : `Once ${otherFirstName} accepts, you'll join the trip chat.`}
+            </Text>
+
+            {/* Accept / reject actions live in the persistent host
+                decision strip just below the header — that strip
+                stays visible whether or not any messages have been
+                exchanged, so the host can decide at any point. */}
+          </View>
+        </View>
+      ) : null}
 
       {isLoadingInitial ? (
         // Suspense skeleton — three ghost bubbles alternating sides,
@@ -1288,9 +1614,14 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       <FlatList
         ref={flatListRef}
         style={[chatMessagesStyles.messagesContainer, { flex: 1 }]}
-        data={buildRows(messages)}
-        extraData={messages}
+        data={chatRows}
         keyExtractor={(item) => item.id}
+        initialNumToRender={24}
+        maxToRenderPerBatch={16}
+        updateCellsBatchingPeriod={32}
+        windowSize={9}
+        removeClippedSubviews={Platform.OS === 'android'}
+        maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
         renderItem={({ item }) => {
           if (item.kind === 'sep') {
             return (
@@ -1320,51 +1651,51 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             );
           }
           if (item.kind === 'safety') {
-            // Pending host inquiry: text-only banner explaining why
-            // this is a 1:1 with the host instead of a group chat.
-            // Pending users haven't joined the trip yet, so the chat
-            // is host-only until they're accepted.
+            // Pending host inquiry: the polished centered card lives
+            // ABOVE the FlatList now (rendered conditionally on
+            // `messages.length === 0`), so this inline row collapses
+            // to nothing for the pending case. Letting the safety
+            // banner render here too would duplicate the surface.
             if (isPendingHostInquiry) {
+              return null;
+            }
+
+            // Host viewing their own ride chat before anyone has been
+            // accepted in. The generic safety strip doesn't fit this
+            // moment — it reads as if the host is mid-conversation
+            // with someone. Swap it for a calm "trip is live, waiting
+            // for someone to join" card with an explicit Share CTA
+            // that opens the same ShareRideSheet the Ride Management
+            // header uses. Single tasteful surface centered in the
+            // empty chat body.
+            const isViewerHost = !!chatParams.hostUserId && chatParams.hostUserId === userUuid;
+            const isGroup = chatParams.isGroupChat !== false;
+            const others = participants.filter((p) => p.id !== userUuid);
+            if (isGroup && isViewerHost && others.length === 0 && messages.length === 0) {
+              // Minimal empty state — no card, no animation, no
+              // dashboard widget. Just calm centered text on the
+              // lime canvas with a small Share pill underneath.
+              // The previous big forest card was over-engineered
+              // for what is essentially "nothing to see yet".
               return (
-                <View
-                  style={{
-                    backgroundColor: '#FFF1DF',
-                    paddingHorizontal: 18,
-                    paddingVertical: 14,
-                    marginHorizontal: 16,
-                    marginTop: 10,
-                    marginBottom: 10,
-                    borderRadius: 14,
-                    alignItems: 'center',
-                    borderWidth: 1,
-                    borderColor: 'rgba(196,106,45,0.30)',
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: 'NunitoSans_800ExtraBold',
-                      fontSize: 13,
-                      color: AppColors.secondaryDarkGreen,
-                      letterSpacing: -0.1,
-                      marginBottom: 4,
-                      textAlign: 'center',
-                    }}
-                  >
-                    Your request is pending
+                <View style={chatMessagesStyles.hostEmptyMinimalWrap}>
+                  <Text style={chatMessagesStyles.hostEmptyMinimalTitle}>
+                    Waiting for passengers
                   </Text>
-                  <Text
-                    style={{
-                      fontFamily: 'NunitoSans_600SemiBold',
-                      fontSize: 12,
-                      color: AppColors.secondaryDarkGreen,
-                      opacity: 0.75,
-                      lineHeight: 17,
-                      textAlign: 'center',
-                    }}
-                  >
-                    This conversation is only between you and {pendingHostFirstName}.
-                    Once you're accepted, you'll join the trip's group chat.
+                  <Text style={chatMessagesStyles.hostEmptyMinimalBody}>
+                    Share this trip so classmates can join.
                   </Text>
+                  {chatParams.chatId ? (
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => setHostShareOpen(true)}
+                      style={chatMessagesStyles.hostEmptyMinimalShareBtn}
+                    >
+                      <Text style={chatMessagesStyles.hostEmptyMinimalShareBtnText}>
+                        Share ride
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               );
             }
@@ -1382,12 +1713,14 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               >
                 <View
                   style={{
-                    backgroundColor: 'rgba(38,59,51,0.10)',
+                    backgroundColor: AppColors.basicWhite,
                     paddingHorizontal: 18,
                     paddingVertical: 12,
                     borderRadius: 14,
                     alignItems: 'center',
                     maxWidth: 320,
+                    borderWidth: 1,
+                    borderColor: 'rgba(38,59,51,0.10)',
                   }}
                 >
                   <Text
@@ -1415,7 +1748,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                     }}
                   >
                     Keep payments, OTPs and personal IDs out of chat. UniPool is
-                    here if anything goes wrong — you can report a problem from
+                    here if anything goes wrong. You can report a problem from
                     chat settings.
                   </Text>
                 </View>
@@ -1425,7 +1758,11 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           return renderMessage(item.message);
         }}
         showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() => {
+          if (!shouldScrollToEndRef.current) return;
+          shouldScrollToEndRef.current = false;
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }}
         // Pulls the next older page when the user reaches the top of
         // the list. RN renders top-down, so `onStartReached` only
         // works with `inverted`; we instead key off `onScroll` below.
@@ -1571,6 +1908,20 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
 
       {renderSettingsModal()}
       {renderReportSheet()}
+
+      {/* ShareRideSheet for the host-empty-state card. Only mounted
+          when we actually need it (we have a ride id). Modal portal
+          floats above the chat list + the safety / empty banner. */}
+      {chatParams.chatId ? (
+        <ShareRideSheet
+          visible={hostShareOpen}
+          onClose={() => setHostShareOpen(false)}
+          rideId={chatParams.chatId}
+          startLocation={rideDetails?.departure || ''}
+          endLocation={rideDetails?.destination || ''}
+          startTime={(rideDetails as any)?.startTimeIso || ''}
+        />
+      ) : null}
     </View>
   );
 };

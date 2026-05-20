@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import AppColors from "../design_systems/colors";
 import SlideToCreate from "../components/SlideToCreate";
 import { useApi } from "../utils/ApiUtil";
+import { useAuthGate } from "../contexts/AuthGate";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import BrandedAlert from "../components/BrandedAlert";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
@@ -28,6 +29,7 @@ interface CreateRideResponse {
 const CreateRide: React.FC = () => {
   const router = useRouter();
   const { apiUtil } = useApi();
+  const { requireAuth } = useAuthGate();
 
   // Hand-off from AvailableRideScreen's empty state — when nobody is
   // running this route, the user can tap "Post a ride" and we
@@ -52,20 +54,21 @@ const CreateRide: React.FC = () => {
   const [hasPermission, setHasPermission] = useState(false);
 
   const requestLocationPermission = async () => {
+    // READ ONLY — the native prompt is owned by LocationPermissionScreen.
+    // If permission is already granted, hydrate the user's coords; if
+    // not, drop in a sensible map fallback so the create-ride flow
+    // still works without nagging the user with a second prompt.
     try {
-      console.log("[CreateRide] Requesting location permission...");
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.getForegroundPermissionsAsync();
       if (status === "granted") {
-        console.log("[CreateRide] Location permission granted");
         setHasPermission(true);
         await getUserLocation();
       } else {
         setHasPermission(false);
-        console.warn("[CreateRide] Location permission denied, using fallback");
         setUserLocation({ latitude: 13.0827, longitude: 80.2707 });
       }
     } catch (error) {
-      console.error("[CreateRide] Error requesting location permission:", error);
+      console.error("[CreateRide] Error reading location permission:", error);
       setUserLocation({ latitude: 13.0827, longitude: 80.2707 });
     }
   };
@@ -148,7 +151,20 @@ const CreateRide: React.FC = () => {
       return;
     }
 
+    // Safety net — gate at submit. The entry-point CTAs (Home, search
+    // empty state, etc.) already call requireAuth before navigating
+    // here, but a guest could still land on this screen via deep link
+    // or some unprotected path. If that happens, surface the AuthSheet
+    // instead of letting the request fly out and 401 from the
+    // "Authorization header not found" backend error.
+    if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) {
+      return;
+    }
+
     setIsCreating(true);
+    // Notification permission is now asked once on the onboarding
+    // permissions sheet (LocationPermissionScreen). No per-action
+    // prompt here — the user either granted it then or chose not to.
     try {
       const rideData = {
         start_location: fromLocation,
@@ -171,7 +187,10 @@ const CreateRide: React.FC = () => {
         rideData
       );
       console.log("Ride created successfully:", response);
-      router.navigate(appHref("RideCreatedScreen"));
+      // Carry the new ride's ID through the success interstitial so it
+      // can drop the host on RideDetailsScreen (= the ride management
+      // view), where the new share-ride affordance lives.
+      router.navigate(appHref("RideCreatedScreen", { rideId: response?.id } as any));
     } catch (error: any) {
       console.error("Error creating ride:", error);
       let errorMessage = "Couldn't post your ride. Try again in a moment.";

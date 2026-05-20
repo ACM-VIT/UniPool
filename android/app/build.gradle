@@ -81,6 +81,22 @@ def enableProguardInReleaseBuilds = (findProperty('android.enableProguardInRelea
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Pulls GOOGLE_MAPS_API_KEY_ANDROID out of the project root .env so
+// the key doesn't get baked into AndroidManifest.xml (which is
+// tracked in git). Falls back to the process environment, then to
+// an empty string so a missing key produces a visible "blank map"
+// failure during dev rather than a cryptic build error.
+def loadMapsApiKey() {
+    def envFile = rootProject.file('../.env')
+    if (envFile.exists()) {
+        for (line in envFile.readLines()) {
+            def m = (line =~ /^GOOGLE_MAPS_API_KEY_ANDROID=(.+)$/)
+            if (m.find()) return m.group(1).trim()
+        }
+    }
+    return System.getenv('GOOGLE_MAPS_API_KEY_ANDROID') ?: ''
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -96,8 +112,10 @@ android {
         versionName "2.0.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+
+        manifestPlaceholders = [MAPS_API_KEY: loadMapsApiKey()]
     }
-    signingConfigs {x
+    signingConfigs {
         debug {
             storeFile file('debug.keystore')
             storePassword 'android'

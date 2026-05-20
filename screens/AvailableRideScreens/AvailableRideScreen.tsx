@@ -9,6 +9,7 @@ import LoadingComponent from "../../components/LoadingComponent";
 import SearchingForRidesLoader from "../../components/SearchingForRidesLoader";
 
 import { useApi } from "../../utils/ApiUtil";
+import { useAuthGate } from "../../contexts/AuthGate";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import styles from "./AvailableRideScreens.styles";
 import BrandedAlert from "../../components/BrandedAlert";
@@ -40,6 +41,11 @@ interface RideData {
   booked_seats: number;
   host_user_name: string;
   host_user_profile_picture_url?: string;
+  // Lowercase "male" | "female" | "other" — drives the same-gender
+  // affinity tint on the result card when the viewer is female.
+  host_user_gender?: string;
+  same_gender_female?: boolean;
+  is_same_gender_female?: boolean;
   start_distance?: number;
   end_distance?: number;
   total_distance?: number;
@@ -66,12 +72,17 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const routeParams = useDecodedLocalSearchParams();
   const [isFocused, setIsFocused] = useState(true);
   const { apiUtil } = useApi();
+  const { isGuest, requireAuth } = useAuthGate();
 
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
   const [rides, setRides] = useState<RideData[]>([]);
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [searchMeta, setSearchMeta] = useState<ApiResponse['meta'] | null>(null);
+  // Viewer's gender — used to gate the same-gender pink affinity tint on
+  // host cards. Null while we wait for /user/details (or for guests, who
+  // simply never qualify).
+  const [viewerGender, setViewerGender] = useState<string | null>(null);
   
   // State for locations and coordinates
   const [fromLocation, setFromLocation] = useState("");
@@ -94,6 +105,30 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       return () => setIsFocused(false);
     }, []),
   );
+
+  // One-shot fetch for the viewer's gender. Guests never qualify for the
+  // same-gender tint, so skip the call entirely. Stored as lower-case to
+  // line up with what the server returns on host cards.
+  useEffect(() => {
+    if (isGuest) {
+      setViewerGender(null);
+      return;
+    }
+    let cancelled = false;
+    apiUtil
+      .get<{ user?: { gender?: string } }>("/user/details")
+      .then((res) => {
+        if (cancelled) return;
+        const g = (res?.user?.gender || "").toLowerCase();
+        setViewerGender(g || null);
+      })
+      .catch((err) => {
+        console.warn("viewer gender fetch failed", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isGuest, apiUtil]);
 
   // Extract and update route parameters when they change
   useEffect(() => {
@@ -198,11 +233,22 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
           setSearchMeta(null);
         }
       })
-      .catch((err) => {
+      .catch((err: any) => {
+        // AUTHENTICATION_REDIRECT bubbles up here as a real Error when
+        // a guest hits anything ApiUtil considers private. /ride/search
+        // is public (OptionalAuthenticate), so this branch should only
+        // ever fire on actual network failures now — but we still
+        // belt-and-braces guard against the auth redirect to make sure
+        // a stray 401 from a side call doesn't show "Failed to fetch
+        // rides" to a guest with a perfectly valid empty result set.
+        const isAuthRedirect =
+          err instanceof Error && err.message === "AUTHENTICATION_REDIRECT";
         console.error("API error:", err);
         setRides([]);
         setSearchMeta(null);
-        BrandedAlert.alert("Error", "Failed to fetch rides. Please try again.");
+        if (!isAuthRedirect) {
+          BrandedAlert.alert("Error", "Failed to fetch rides. Please try again.");
+        }
       })
       .finally(() => setLoading(false));
   };
@@ -560,17 +606,20 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
             )}
           </View>
         </View>
-        <View style={styles.ridesHeaderRight}>
-          <TouchableOpacity
-            style={styles.createRideButton}
-            onPress={() => router.navigate(appHref("CreateRide"))}
-          >
-            <Text style={styles.createRideButtonText}>Create Ride</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Top-right Create-Ride CTA removed — it duplicated the
+            "Post a ride" CTA inside the empty state and shouted at
+            every search results screen, including ones with plenty
+            of rides already. Posting belongs in the empty state /
+            Home composer, not as a permanent header chip. */}
       </View>
 
-      {loading && <SearchingForRidesLoader />}
+      {/* Loader only on COLD fetches — i.e. when there's nothing on
+          screen yet. If we already have cards from a previous fetch
+          (focus regain, filter apply, etc.), keep them visible and
+          let the new payload swap them in silently. The "Searching..."
+          label in the header still tells the user a request is in
+          flight, so this isn't a stealth update. */}
+      {loading && rides.length === 0 && <SearchingForRidesLoader />}
 
       <ScrollView
         style={styles.scrollView}
@@ -607,22 +656,35 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                   <Text style={[styles.adjustFiltersButtonText, { color: require('../../design_systems/colors').default.primaryLightGreen, fontFamily: 'NunitoSans_800ExtraBold' }]}>Adjust filters</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.adjustFiltersButton, { backgroundColor: 'rgba(38,59,51,0.10)' }]}
-                  onPress={() =>
-                    router.navigate(
-                      appHref("CreateRide", {
-                        // Hand off the search context so the create
-                        // form is pre-filled with what they were
-                        // looking for — saves re-typing and signals
-                        // that they're "offering this route".
+                  // Cream-filled secondary button — pairs with the
+                  // forest "Adjust filters" sibling on the left as a
+                  // calm primary/secondary duo. No border; the cream
+                  // surface alone provides enough contrast against
+                  // the lime canvas.
+                  style={[
+                    styles.adjustFiltersButton,
+                    {
+                      backgroundColor: require('../../design_systems/colors').default.cardSurface,
+                    },
+                  ]}
+                  onPress={() => {
+                    // Posting requires an account — gate here so the
+                    // user gets the AuthSheet up front instead of
+                    // filling out the whole form only to hit a 401
+                    // ("Authorization header not found") on submit.
+                    const createTarget = {
+                      screen: "CreateRide" as const,
+                      params: {
                         fromLocation,
                         toLocation,
                         fromCoordinates,
                         toCoordinates,
                         date: filters.date || undefined,
-                      } as any),
-                    )
-                  }
+                      },
+                    };
+                    if (!requireAuth(createTarget as any, "to post a ride")) return;
+                    router.navigate(appHref("CreateRide", createTarget.params as any));
+                  }}
                 >
                   <Text style={[styles.adjustFiltersButtonText, { color: require('../../design_systems/colors').default.secondaryDarkGreen, fontFamily: 'NunitoSans_800ExtraBold' }]}>Post a ride</Text>
                 </TouchableOpacity>
@@ -637,9 +699,22 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                   id={ride.id}
                   origin={ride.start_location}
                   destination={ride.end_location}
+                  // Opt in to long-press share — works for any
+                  // signed-in or guest user; the share sheet has no
+                  // host-only restriction.
+                  shareable
+                  startTimeIso={ride.start_time}
                   time={new Date(ride.start_time).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
+                  })}
+                  // Short weekday + day + month, e.g. "Thu, 21 May" —
+                  // the time is already in the top-right detail row, so
+                  // this slot just owns the date half of the timestamp.
+                  date={new Date(ride.start_time).toLocaleDateString("en-GB", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
                   })}
                   price={ride.total_price}
                   isSelected={selectedRideId === ride.id}
@@ -647,6 +722,17 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                   onSelect={handleRideSelection}
                   pricePerPerson={false}
                   matchReason={ride.match_reason}
+                  // Same-gender affinity tint — only paints when both
+                  // sides resolve to "female". Guests + missing host
+                  // gender fall through to the default surface.
+                  isSameGenderFemale={
+                    ride.same_gender_female === true ||
+                    ride.is_same_gender_female === true ||
+                    (
+                      viewerGender === "female" &&
+                      (ride.host_user_gender || "").toLowerCase() === "female"
+                    )
+                  }
                 />
 
                 {/* Sub-row beneath card: host + walking distances. Kept compact

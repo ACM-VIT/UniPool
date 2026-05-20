@@ -15,6 +15,7 @@ import LoadingComponent from "../../components/LoadingComponent";
 import RideCard from "../../components/RideCard";
 import EmptyState from "../../components/EmptyState";
 import { useRouter } from "expo-router";
+import { useAuthGate } from "../../contexts/AuthGate";
 import { appHref } from "../../navigation/routes";
 
 export interface RideData {
@@ -79,6 +80,7 @@ const BookingScreen: React.FC = () => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { apiUtil } = useApi();
   const router = useRouter();
+  const { requireAuth } = useAuthGate();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -199,6 +201,12 @@ const BookingScreen: React.FC = () => {
         router.replace(appHref(copy.cta.to));
         return;
       }
+      // CreateRide path — posting needs an account, so prompt for
+      // sign-in before sending the user into the form. Same gate is
+      // duplicated at submit time as a safety net.
+      if (copy.cta.to === "CreateRide") {
+        if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) return;
+      }
       router.navigate(appHref(copy.cta.to));
     };
 
@@ -308,6 +316,8 @@ const BookingScreen: React.FC = () => {
                     item.request_status === "pending"
                   }
                   onSelect={() => openRide(rideId)}
+                  shareable
+                  startTimeIso={item.start_time}
                 />
               </View>
             );
