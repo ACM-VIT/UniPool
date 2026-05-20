@@ -49,7 +49,10 @@ const SLIDES: Slide[] = [
   {
     key: "match",
     background: "dark",
-    illustration: require("../../assets/Beep Beep Motorcycle.png"),
+    // Metro's static asset resolver is unreliable on filenames with
+    // spaces — same image bytes, hyphenated filename so the require
+    // resolves consistently across cold starts.
+    illustration: require("../../assets/beep-beep-motorcycle.png"),
     illustrationStyle: { width: width * 0.78, height: ILLUSTRATION_HEIGHT },
     headline: "Going the same way?",
     subhead: "Find people taking your route, daily commute or one-off trip.",

@@ -55,14 +55,9 @@ export const AuthGateProvider = ({ children }: { children: ReactNode }) => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u || null);
       setResolving(false);
-      // If a sign-in finished and the sheet is still showing, close it.
-      // The AuthSheet itself handles `returnTo` navigation on success.
-      if (u && sheetVisible) {
-        setSheetVisible(false);
-      }
     });
     return unsub;
-  }, [sheetVisible]);
+  }, []);
 
   const requireAuth = useCallback(
     (returnTo: GatedAction, reason?: string) => {

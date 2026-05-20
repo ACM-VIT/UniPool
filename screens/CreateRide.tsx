@@ -7,7 +7,7 @@ import SlideToCreate from "../components/SlideToCreate";
 import { useApi } from "../utils/ApiUtil";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import BrandedAlert from "../components/BrandedAlert";
-import { appHref } from "../navigation/routes";
+import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
 
 const { width, height } = Dimensions.get("window");
 
@@ -29,7 +29,25 @@ const CreateRide: React.FC = () => {
   const router = useRouter();
   const { apiUtil } = useApi();
 
-  const [rideDateTime, setRideDateTime] = useState<Date>(new Date());
+  // Hand-off from AvailableRideScreen's empty state — when nobody is
+  // running this route, the user can tap "Post a ride" and we
+  // pre-fill the form with what they were searching for. Params are
+  // all optional; an empty route just gets the regular blank state.
+  const routeParams = useDecodedLocalSearchParams<{
+    fromLocation?: string;
+    toLocation?: string;
+    fromCoordinates?: { latitude: number; longitude: number };
+    toCoordinates?: { latitude: number; longitude: number };
+    date?: string;
+  }>();
+
+  const seededDate = (() => {
+    if (!routeParams.date) return null;
+    const d = new Date(routeParams.date);
+    return isNaN(d.getTime()) ? null : d;
+  })();
+
+  const [rideDateTime, setRideDateTime] = useState<Date>(seededDate ?? new Date());
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | undefined>(undefined);
   const [hasPermission, setHasPermission] = useState(false);
 
@@ -88,10 +106,10 @@ const CreateRide: React.FC = () => {
     }
   }, [userLocation]);
   const [passengerCount, setPassengerCount] = useState<number>(3);
-  const [fromLocation, setFromLocation] = useState<string>("");
-  const [toLocation, setToLocation] = useState<string>("");
-  const [fromCoordinates, setFromCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [toCoordinates, setToCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [fromLocation, setFromLocation] = useState<string>(routeParams.fromLocation ?? "");
+  const [toLocation, setToLocation] = useState<string>(routeParams.toLocation ?? "");
+  const [fromCoordinates, setFromCoordinates] = useState<{ latitude: number; longitude: number } | null>(routeParams.fromCoordinates ?? null);
+  const [toCoordinates, setToCoordinates] = useState<{ latitude: number; longitude: number } | null>(routeParams.toCoordinates ?? null);
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [costPerPerson, setCostPerPerson] = useState<number>(100);
   const [isEditingCost, setIsEditingCost] = useState<boolean>(false);
@@ -356,6 +374,7 @@ const CreateRide: React.FC = () => {
             fromLocation={fromLocation}
             toLocation={toLocation}
             userLocation={userLocation}
+            initialDate={seededDate ?? undefined}
           />
         </View>
 

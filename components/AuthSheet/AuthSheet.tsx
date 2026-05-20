@@ -56,20 +56,12 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
   const isSigningIn = signingIn !== null;
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
-  // Staggered entry — the title block lifts in first, then the
-  // buttons fade up slightly behind it. Each animated value is in
-  // [0, 1]; the contained style maps that to opacity + small
-  // translateY for a tight "settle" feel.
-  const titleProgress = useRef(new Animated.Value(0)).current;
-  const buttonsProgress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       // Selection haptic the moment the sheet starts to rise. Light
       // enough to feel like a confirmation, not an alert.
       haptic("selection");
-      titleProgress.setValue(0);
-      buttonsProgress.setValue(0);
       Animated.parallel([
         Animated.timing(backdrop, {
           toValue: 1,
@@ -84,29 +76,6 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
           mass: 0.9,
           useNativeDriver: true,
         }),
-        // Stagger: title at ~140ms after the sheet starts, buttons
-        // at ~240ms. By that point the sheet's mostly settled,
-        // so the content "arrives" rather than racing the surface.
-        Animated.sequence([
-          Animated.delay(140),
-          Animated.spring(titleProgress, {
-            toValue: 1,
-            damping: 18,
-            stiffness: 220,
-            mass: 0.7,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.sequence([
-          Animated.delay(240),
-          Animated.spring(buttonsProgress, {
-            toValue: 1,
-            damping: 18,
-            stiffness: 220,
-            mass: 0.7,
-            useNativeDriver: true,
-          }),
-        ]),
       ]).start();
     } else {
       Animated.parallel([
@@ -122,50 +91,29 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
-        // On exit, content fades out faster than the sheet drops —
-        // sheet looks "empty" before it slides away.
-        Animated.timing(titleProgress, {
-          toValue: 0,
-          duration: 120,
-          useNativeDriver: true,
-        }),
-        Animated.timing(buttonsProgress, {
-          toValue: 0,
-          duration: 120,
-          useNativeDriver: true,
-        }),
       ]).start();
     }
   }, [visible]);
 
-  // Map a 0→1 progress value to {opacity, translateY 12→0} for the
-  // staggered entry effect. Used inline on the title + buttons.
-  const settleStyle = (p: Animated.Value) => ({
-    opacity: p,
-    transform: [
-      {
-        translateY: p.interpolate({
-          inputRange: [0, 1],
-          outputRange: [12, 0],
-        }),
-      },
-    ],
-  });
+  const routeFromSheet = (href: any) => {
+    router.replace(href);
+    requestAnimationFrame(onDismiss);
+  };
 
-  const handleSuccess = async () => {
+  const handleSuccess = async (firebaseUser: any) => {
     try {
-      await apiUtil.get("/user/details");
-      onDismiss();
+      await apiUtil.getForUser("/user/details", firebaseUser);
       // Existing user — drop them at the gated destination.
       if (returnTo) {
-        router.navigate(appHref(returnTo.screen, returnTo.params as any));
+        routeFromSheet(appHref(returnTo.screen, returnTo.params as any));
+      } else {
+        routeFromSheet(appHref("HomeScreen"));
       }
     } catch (err: any) {
       if (err.response?.status === 404) {
         // New user — they still need profile completion. Send them to
         // SignUp full-screen (one-time onboarding step) carrying returnTo.
-        onDismiss();
-        router.navigate(appHref("SignUpScreen", {
+        routeFromSheet(appHref("SignUpScreen", {
           newUser: err.response?.data?.newUser || null,
           returnTo,
         }));
@@ -187,8 +135,13 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
         return;
       }
       const cred = GoogleAuthProvider.credential(idToken);
-      await signInWithCredential(getAuth(), cred);
-      await handleSuccess();
+      const result = await signInWithCredential(getAuth(), cred);
+      // signInWithCredential resolves before getAuth().currentUser is
+      // necessarily set on the JS side. Use the returned credential
+      // user for the backend probe so first-login routing does not
+      // depend on the global auth singleton catching up.
+      if (result?.user) await result.user.getIdToken(true);
+      await handleSuccess(result.user);
     } catch (error: any) {
       const code = error?.code;
       if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
@@ -208,8 +161,9 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
       });
       if (!resp.identityToken) throw new Error("Apple sign-in didn't return a token");
       const cred = AppleAuthProvider.credential(resp.identityToken, resp.nonce);
-      await signInWithCredential(getAuth(), cred);
-      await handleSuccess();
+      const result = await signInWithCredential(getAuth(), cred);
+      if (result?.user) await result.user.getIdToken(true);
+      await handleSuccess(result.user);
     } catch (error: any) {
       if (error?.code === "ERR_REQUEST_CANCELED") return;
       BrandedAlert.alert("Couldn't sign you in", error?.message || "Try again in a moment.");
@@ -270,25 +224,19 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
           </Svg>
         </TouchableOpacity>
 
-        {/* Headline + subhead — anchors the sheet without a brand pill
-            or value-prop checklist. The close X is already in the top
-            right corner, the buttons below say what to do; nothing
-            else needs to compete for the eye.
-            Staggered settle: lifts 12pt + fades in ~140ms after the
-            sheet surface starts rising, so the text "arrives" once
-            the sheet is mostly in place. */}
-        <Animated.View style={[{ marginBottom: 26, paddingRight: 44 }, settleStyle(titleProgress)]}>
+        {/* Headline + subhead — visible immediately so the sheet
+            doesn't slide up empty for a beat before the words land.
+            The slide-up itself is the entry animation. */}
+        <View style={{ marginBottom: 26, paddingRight: 44 }}>
           <Text style={{ fontFamily: "NunitoSans_800ExtraBold", fontSize: 28, color: AppColors.secondaryDarkGreen, letterSpacing: -0.6, lineHeight: 34 }}>
             Sign in to UniPool
           </Text>
           <Text style={{ fontFamily: "NunitoSans_400Regular", fontSize: 15, lineHeight: 22, color: AppColors.secondaryDarkGreen, opacity: 0.62, marginTop: 6 }}>
             {reason ? `Sign in ${reason}.` : "Hop on to find student rides going your way."}
           </Text>
-        </Animated.View>
+        </View>
 
-        {/* OAuth buttons + footer — staggered to settle in just after
-            the headline so the sheet builds itself top-down. */}
-        <Animated.View style={settleStyle(buttonsProgress)}>
+        <View>
         {Platform.OS === "ios" && (
           <TouchableOpacity
             style={{ height: 56, borderRadius: 14, backgroundColor: AppColors.secondaryDarkGreen, flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 12, opacity: signingIn === "google" ? 0.4 : 1, shadowColor: AppColors.basicBlack, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 2 }}
@@ -355,7 +303,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
           </Text>
           .
         </Text>
-        </Animated.View>
+        </View>
       </Animated.View>
     </Modal>
   );

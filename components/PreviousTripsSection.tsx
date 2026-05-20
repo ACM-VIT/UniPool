@@ -165,10 +165,16 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsC
         onHasTripsChange?.(hasTrips);
     }, [hasTrips, onHasTripsChange]);
 
-    // Errors and empty results render nothing — the parent shows the
-    // alternative surface (Rides around you) instead. Loading still
-    // shows the skeleton so the layout doesn't jump on first paint.
-    if (error || (!loading && displayedRides.length === 0)) {
+    // Return null during loading too. The old skeleton-while-loading
+    // approach left a ~200pt slot that VANISHED when /user/rides
+    // resolved empty (mirror of the NearbyTile-appearing-then-
+    // disappearing shift). Now: loading + error + empty all render
+    // nothing. The slot only fills once we KNOW there are trips, so
+    // the only layout change is content APPEARING (sheet expands,
+    // absorbed by its inner ScrollView) rather than disappearing
+    // (sheet shrinks, visible jump). Same approach as the parent
+    // delaying NearbyTile until hasUserTrips === false.
+    if (loading || error || displayedRides.length === 0) {
         return null;
     }
 

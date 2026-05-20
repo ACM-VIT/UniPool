@@ -12,6 +12,7 @@ import { NavBarProvider } from "../contexts/NavBarContext";
 import SplashScreenComponent from "../screens/SplashScreen";
 import MainNavBar, { MAIN_NAV_BAR_TOP_OFFSET } from "../components/MainNavBar";
 import { BrandedAlertHost } from "../components/BrandedAlert";
+import VerifyDeepLinkHandler from "../components/VerifyDeepLinkHandler";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { useApi } from "../utils/ApiUtil";
 
@@ -125,6 +126,10 @@ const AppShell = () => {
       console.log('Could not store verification timestamp:', error);
     }
   };
+
+  const isSignupRequiredError = (error: any) =>
+    error?.response?.status === 404 &&
+    error?.response?.data?.message === "User not found in database, signup required";
 
   useEffect(() => {
     const loadCachedVerification = async () => {
@@ -245,16 +250,28 @@ const AppShell = () => {
     
     let authCheckTimeout: NodeJS.Timeout;
     let hasAuthStateChanged = false;
-    
+    // Boot-time routing decision happens exactly once on the first
+    // auth-state resolution. Subsequent changes (in-session sign-in
+    // via AuthSheet, sign-out from settings, token refresh) are
+    // handled by the originating screen — re-running the probe here
+    // would race with them and produce a flash of screens.
+    let bootRouteDecided = false;
+
     const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
       hasAuthStateChanged = true;
       setAuthStateResolved(true);
-      
+
       if (authCheckTimeout) {
         clearTimeout(authCheckTimeout);
       }
-      
+
       console.log("Auth state changed:", user ? "User signed in" : "User signed out");
+      if (bootRouteDecided) {
+        // Not our problem any more — the screen that initiated the
+        // change (AuthSheet, AccountSettings, etc.) drives routing.
+        return;
+      }
+      bootRouteDecided = true;
       if (user) {
         console.log("User UID:", user.uid);
         console.log("User email:", user.email);
@@ -275,9 +292,7 @@ const AppShell = () => {
               markUserAsVerified();
               setInitialRoute("HomeScreen");
             } catch (userDetailsError: any) {
-              if (userDetailsError.status === 404 && 
-                  userDetailsError.message && 
-                  userDetailsError.message.includes("User not found")) {
+              if (isSignupRequiredError(userDetailsError)) {
                 console.log("User not found in database, redirecting to signup");
                 setInitialRoute("SignUpScreen");
               } else if (userDetailsError.message && userDetailsError.message.includes("Timeout")) {
@@ -313,9 +328,7 @@ const AppShell = () => {
               markUserAsVerified();
               setInitialRoute("HomeScreen");
             } catch (userDetailsError: any) {
-              if (userDetailsError.status === 404 && 
-                  userDetailsError.message && 
-                  userDetailsError.message.includes("User not found")) {
+              if (isSignupRequiredError(userDetailsError)) {
                 console.log("User not found in database, redirecting to signup");
                 setInitialRoute("SignUpScreen");
               } else if (userDetailsError.message && userDetailsError.message.includes("Timeout")) {
@@ -373,7 +386,8 @@ const AppShell = () => {
     authCheckTimeout = setTimeout(async () => {
       if (!hasAuthStateChanged) {
         console.log("Auth state timeout - checking current user manually");
-        
+        bootRouteDecided = true;
+
         try {
           await authInstance.currentUser?.reload();
         } catch (reloadError: any) {
@@ -395,9 +409,7 @@ const AppShell = () => {
               markUserAsVerified(); // Mark as verified on success
               setInitialRoute("HomeScreen");
             } catch (userDetailsError: any) {
-              if (userDetailsError.status === 404 && 
-                  userDetailsError.message && 
-                  userDetailsError.message.includes("User not found")) {
+              if (isSignupRequiredError(userDetailsError)) {
                 console.log("User not found in database, redirecting to signup");
                 setInitialRoute("SignUpScreen");
               } else if (userDetailsError.message && userDetailsError.message.includes("Timeout")) {
@@ -537,6 +549,10 @@ const AppShell = () => {
           the top of the tree; any code can call BrandedAlert.show()
           to surface a dialog without touching the native chrome. */}
       <BrandedAlertHost />
+      {/* Listens for `unipool://verify?t=…` magic links from the
+          verification email and confirms the user server-side. No
+          UI — just a passive listener. */}
+      <VerifyDeepLinkHandler />
       <NavBarProvider
         value={{
           setNavBarVariant,
@@ -548,7 +564,12 @@ const AppShell = () => {
         <View style={{ flex: 1 }}>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" options={{ headerShown: false, animation: "fade" }} />
-            <Stack.Screen name="AuthScreen" options={{ headerShown: false, presentation: "modal" }} />
+            <Stack.Screen name="AuthScreen" options={{ headerShown: false, presentation: "card" }} />
+            {/* Profile completion is a forced onboarding step, not a
+                bottom sheet — keep it in the normal card stack so iOS
+                never presents it as a pageSheet/native modal when the
+                navigation starts from the AuthSheet. */}
+            <Stack.Screen name="SignUpScreen" options={{ headerShown: false, presentation: "card", animation: "none", gestureEnabled: false }} />
             <Stack.Screen name="AvailableRidesSelectedScreen" options={{ headerShown: false, animation: "none" }} />
             <Stack.Screen name="ChatMessages" options={{ headerShown: false, animation: "none" }} />
             <Stack.Screen name="PassengerInfoScreen" options={{ headerShown: false, animation: "none" }} />

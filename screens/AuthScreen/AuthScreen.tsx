@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, Image, TouchableOpacity, ActivityIndicator, Platform, StatusBar } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import {
   getAuth,
@@ -26,6 +27,7 @@ const AuthScreen: React.FC = () => {
   const router = useRouter();
   const routeParams = useDecodedLocalSearchParams<{ returnTo?: AppRouteTarget }>();
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const insets = useSafeAreaInsets();
   const returnTo = routeParams.returnTo;
 
   const navigateAfterAuth = useCallback(() => {
@@ -44,22 +46,29 @@ const AuthScreen: React.FC = () => {
       if (currentUser) {
         try {
           await currentUser.getIdToken(true);
-          await apiUtil.get("/user/details");
+          await apiUtil.getForUser("/user/details", currentUser);
           navigateAfterAuth();
         } catch (err: any) {
+          // 404 = Firebase auth is good but the user has no backend
+          // row yet → profile-completion screen. Carry `returnTo` so
+          // the post-signup flow ends up at the action that gated
+          // them. NEVER sign out here — that would tear down the
+          // Firebase session before the route changes.
           if (err.response?.status === 404) {
-            await auth.signOut();
-            await GoogleSignin.signOut();
+            router.replace(appHref("SignUpScreen", {
+              newUser: err.response?.data?.newUser || null,
+              returnTo,
+            }));
           }
         }
       }
     };
     checkExistingAuth();
-  }, [apiUtil, navigateAfterAuth]);
+  }, [apiUtil, navigateAfterAuth, router, returnTo]);
 
-  const routeAfterAuth = async () => {
+  const routeAfterAuth = async (firebaseUser: any) => {
     try {
-      await apiUtil.get("/user/details");
+      await apiUtil.getForUser("/user/details", firebaseUser);
       navigateAfterAuth();
     } catch (err: any) {
       if (err.response?.status === 404) {
@@ -88,8 +97,9 @@ const AuthScreen: React.FC = () => {
         return;
       }
       const googleCredential = GoogleAuthProvider.credential(idToken);
-      await signInWithCredential(getAuth(), googleCredential);
-      await routeAfterAuth();
+      const result = await signInWithCredential(getAuth(), googleCredential);
+      if (result?.user) await result.user.getIdToken(true);
+      await routeAfterAuth(result.user);
     } catch (error: any) {
       const code = error?.code;
       if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
@@ -114,8 +124,9 @@ const AuthScreen: React.FC = () => {
       if (!resp.identityToken) throw new Error("Apple Sign-In failed - no identity token returned");
       const { identityToken, nonce } = resp;
       const appleCredential = AppleAuthProvider.credential(identityToken, nonce);
-      await signInWithCredential(getAuth(), appleCredential);
-      await routeAfterAuth();
+      const result = await signInWithCredential(getAuth(), appleCredential);
+      if (result?.user) await result.user.getIdToken(true);
+      await routeAfterAuth(result.user);
     } catch (error: any) {
       if (error.code === "ERR_REQUEST_CANCELED") return;
       const message = error instanceof Error ? error.message : "An unknown error occurred";
@@ -128,7 +139,7 @@ const AuthScreen: React.FC = () => {
   const canGoBack = router.canGoBack();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) + 4 }]}>
       <StatusBar barStyle="dark-content" backgroundColor={AppColors.primaryLightGreen} />
       <View style={styles.topRow}>
         {canGoBack ? (

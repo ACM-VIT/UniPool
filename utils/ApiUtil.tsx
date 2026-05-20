@@ -1,9 +1,7 @@
-import { getAuth, getIdTokenResult, signOut } from "@react-native-firebase/auth";
-import { router } from "expo-router";
+import { getAuth, getIdTokenResult } from "@react-native-firebase/auth";
 import React, { createContext, useContext, useState } from "react";
 import baseURL from "../config/urlconfig";
 import { useErrorContext } from '../contexts/ErrorContext';
-import { appHref } from "../navigation/routes";
 
 type JSON = {
   [key: string]: string | number | boolean | JSON;
@@ -22,33 +20,21 @@ export default class ApiUtil {
     this.showError = showError;
   }
 
-  private async handleAuthenticationFailure(): Promise<void> {
-    try {
-      console.log("Authentication failure - signing out user");
-      const authInstance = getAuth();
-      await signOut(authInstance);
-      
-      try {
-        const GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
-        await GoogleSignin.signOut();
-        console.log("Google sign out completed");
-      } catch (googleError) {
-        console.log("Google sign out error (might not be signed in):", googleError);
-      }
-      
-      setTimeout(() => {
-        console.log("Navigating to AuthScreen");
-        router.replace(appHref("AuthScreen"));
-      }, 100);
-      
-    } catch (error) {
-      console.error("Error during authentication failure handling:", error);
-    }
+  private createAuthenticationError(message = "AUTHENTICATION_REDIRECT", response?: any): Error {
+    const error: any = new Error(message);
+    error.status = response?.status ?? 401;
+    if (response) error.response = response;
+    return error;
   }
 
   async get<T>(endpoint: string, headers?: HeadersInit, timeout?: number): Promise<T> {
     const retryAction = () => this.get<T>(endpoint, headers, timeout);
     return this.makeRequestWithErrorHandling<T>("GET", endpoint, undefined, headers, timeout, retryAction);
+  }
+
+  async getForUser<T>(endpoint: string, firebaseUser: any, headers?: HeadersInit, timeout?: number): Promise<T> {
+    const retryAction = () => this.getForUser<T>(endpoint, firebaseUser, headers, timeout);
+    return this.makeRequestWithErrorHandling<T>("GET", endpoint, undefined, headers, timeout, retryAction, firebaseUser);
   }
 
   async post<T, B>(endpoint: string, body: B, headers?: HeadersInit, timeout?: number): Promise<T> {
@@ -81,10 +67,11 @@ export default class ApiUtil {
     body?: any,
     headers: HeadersInit = {},
     timeout: number = 20000,
-    retryAction?: () => Promise<T>
+    retryAction?: () => Promise<T>,
+    firebaseUser?: any
   ): Promise<T> {
     try {
-      return await this.makeRequest<T>(method, endpoint, body, headers, timeout);
+      return await this.makeRequest<T>(method, endpoint, body, headers, timeout, firebaseUser);
     } catch (error: any) {
       console.log('Error caught in makeRequestWithErrorHandling:', error);
       
@@ -93,9 +80,8 @@ export default class ApiUtil {
       }
       
       if (error?.response?.status === 401) {
-        console.log('Authentication error (401) - user needs to log in again');
-        await this.handleAuthenticationFailure();
-        throw new Error("AUTHENTICATION_REDIRECT");
+        console.log('Authentication error (401) - caller needs to decide how to recover');
+        throw this.createAuthenticationError("AUTHENTICATION_REDIRECT", error.response);
       }
       
       if (error?.response?.status === 403) {
@@ -105,24 +91,17 @@ export default class ApiUtil {
       
       if (error?.message?.includes('Unauthorized') || 
           error?.message?.includes('JSON Parse error: Unexpected character: U')) {
-        console.log('Unauthorized response detected - handling as auth error');
-        await this.handleAuthenticationFailure();
-        throw new Error("AUTHENTICATION_REDIRECT");
+        console.log('Unauthorized response detected - surfacing auth error to caller');
+        throw this.createAuthenticationError();
       }
       
-      if (
-        error?.response?.status === 404 &&
-        endpoint === "/user/details" &&
-        error?.response?.data?.message === "User not found in database, signup required"
-      ) {
-        console.log('User not found in database - redirecting to signup screen');
-        setTimeout(() => {
-          router.navigate(appHref("SignUpScreen", {
-            newUser: error.response.data.newUser,
-          }));
-        }, 100);
-        throw error;
-      }
+      // Note: 404 on /user/details (fresh Firebase user, no backend
+      // row) used to auto-redirect from here. That raced with the
+      // explicit redirects in AuthSheet / AuthScreen / AppShell —
+      // three handlers all trying to route, producing a flash of
+      // HomeScreen → SignUp → AuthScreen. Each caller knows its own
+      // context (returnTo, etc.); ApiUtil just rethrows so they can
+      // route appropriately.
       
       if (this.showError && retryAction && this.isAppInitialized &&
           error?.response?.status !== 401 && 
@@ -145,17 +124,29 @@ export default class ApiUtil {
     endpoint: string,
     body?: any,
     headers: HeadersInit = {},
-    timeout: number = 20000
+    timeout: number = 20000,
+    firebaseUser?: any
   ): Promise<T> {
     const url = new URL(endpoint, this.baseUrl).toString();
     console.log(`Making ${method} request to: ${url}`);
 
     const authInstance = getAuth();
-    const currentUser = authInstance.currentUser;
+    // Short-window race tolerance: right after signInWithCredential
+    // resolves, `authInstance.currentUser` can briefly be null while
+    // the JS-side state catches up. Poll for ~500ms before giving
+    // up so that follow-up calls from AuthSheet / AuthScreen don't
+    // get pushed into AUTHENTICATION_REDIRECT just because they
+    // happened on the same tick as sign-in.
+    let currentUser = firebaseUser ?? authInstance.currentUser;
     if (!currentUser) {
-      console.warn("❌ No authenticated user found - redirecting to auth");
-      await this.handleAuthenticationFailure();
-      throw new Error("AUTHENTICATION_REDIRECT");
+      for (let i = 0; i < 10 && !currentUser; i++) {
+        await new Promise((r) => setTimeout(r, 50));
+        currentUser = firebaseUser ?? authInstance.currentUser;
+      }
+    }
+    if (!currentUser) {
+      console.warn("❌ No authenticated user found");
+      throw this.createAuthenticationError();
     }
     
     let token: string;
@@ -175,8 +166,7 @@ export default class ApiUtil {
       
     } catch (tokenError) {
       console.error("Failed to get authentication token:", tokenError);
-      await this.handleAuthenticationFailure();
-      throw new Error("AUTHENTICATION_REDIRECT");
+      throw this.createAuthenticationError();
     }
 
     const options: RequestInit = {
@@ -247,9 +237,11 @@ export default class ApiUtil {
       if (!response.ok) {
         console.error(`HTTP ${method} ${url} error ${response.status}:`, responseBody);
         if (response.status === 401) {
-          console.warn("User authentication failed (401) - signing out and redirecting to auth");
-          await this.handleAuthenticationFailure();
-          throw new Error("AUTHENTICATION_REDIRECT");
+          console.warn("User authentication failed (401)");
+          const error: any = new Error(`HTTP ${response.status}`);
+          error.status = response.status;
+          error.response = { status: response.status, data: responseBody };
+          throw error;
         }
         if (response.status === 403) {
           console.warn("User authorization failed (403) - user lacks permission but is authenticated");

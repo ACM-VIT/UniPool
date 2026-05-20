@@ -142,10 +142,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   // `window.mainNavBarOnClose` global (set up next to
   // `mainNavBarOnPress` in the variant-1 effect below).
   const [clearRideTrigger, setClearRideTrigger] = useState(0);
-  // Set by `PreviousTripsSection` when its API resolves with at least
-  // one trip. Drives the "Your trips ↔ Rides around you" mutual
-  // exclusion on the home sheet.
-  const [hasUserTrips, setHasUserTrips] = useState(false);
+  // Set by `PreviousTripsSection` when its API resolves. Drives the
+  // "Your trips ↔ Rides around you" mutual exclusion on the home
+  // sheet.
+  //
+  // Tri-state on purpose:
+  //   `null`  → trips API hasn't resolved yet (signed-in users).
+  //             Render NEITHER tile so we don't paint "Rides around
+  //             you" only to yank it away half a second later when
+  //             trips land.
+  //   `true`  → user has trips. Show "Your trips", hide nearby tile.
+  //   `false` → user has no trips. Show nearby tile.
+  // Guests skip this state machine entirely — they always see the
+  // nearby tile.
+  const [hasUserTrips, setHasUserTrips] = useState<boolean | null>(null);
   const [rideDetails, setRideDetails] = useState<{ 
     from: string; 
     to: string; 
@@ -1058,7 +1068,11 @@ const customMapStyle = [
               </View>
             )}
 
-            {!hasUserTrips && (
+            {/* Guests always see this. Signed-in users only see it
+                once we've confirmed they have no trips — null means
+                "still loading", so we render nothing rather than
+                paint-then-yank when trips arrive a frame later. */}
+            {(isGuest || hasUserTrips === false) && (
               <TouchableOpacity
                 activeOpacity={0.85}
                 style={styles.nearbyTile}

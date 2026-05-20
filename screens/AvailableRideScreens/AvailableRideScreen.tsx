@@ -581,11 +581,14 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
             <View style={styles.noRidesContainer}>
               <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                 <Image
-                  source={require('../../assets/no-rides.png')}
+                  // Cropped emoji-only asset — the full no-rides.png
+                  // has "Uh Oh! No Rides Available" baked in, which
+                  // collides with our own title + body below.
+                  source={require('../../assets/no-rides-emoji.png')}
                   style={{
                     marginTop: 16,
-                    width: Math.min(Dimensions.get('window').width * 0.55, 240),
-                    height: Math.min(Dimensions.get('window').width * 0.55, 240),
+                    width: Math.min(Dimensions.get('window').width * 0.45, 200),
+                    height: Math.min(Dimensions.get('window').width * 0.45, 200),
                     resizeMode: 'contain',
                   }}
                 />
@@ -605,7 +608,21 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.adjustFiltersButton, { backgroundColor: 'rgba(38,59,51,0.10)' }]}
-                  onPress={() => router.navigate(appHref("CreateRide"))}
+                  onPress={() =>
+                    router.navigate(
+                      appHref("CreateRide", {
+                        // Hand off the search context so the create
+                        // form is pre-filled with what they were
+                        // looking for — saves re-typing and signals
+                        // that they're "offering this route".
+                        fromLocation,
+                        toLocation,
+                        fromCoordinates,
+                        toCoordinates,
+                        date: filters.date || undefined,
+                      } as any),
+                    )
+                  }
                 >
                   <Text style={[styles.adjustFiltersButtonText, { color: require('../../design_systems/colors').default.secondaryDarkGreen, fontFamily: 'NunitoSans_800ExtraBold' }]}>Post a ride</Text>
                 </TouchableOpacity>
