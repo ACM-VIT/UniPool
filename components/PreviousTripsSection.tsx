@@ -192,9 +192,21 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsC
     // Notify the parent (HomeScreen) whenever the answer changes. The
     // parent uses this to swap to the "Rides around you" tile when no
     // trips exist.
+    //
+    // Crucial: skip the emit while we're still loading. Without this
+    // gate, the first render fires `onHasTripsChange(false)` (because
+    // `hasTrips` is `false` until the API resolves) which flips the
+    // parent's tri-state from `null` to `false` and paints the "Rides
+    // around you" tile. Then /user/rides comes back with trips, we
+    // fire `(true)`, parent yanks the nearby tile and slides "Your
+    // trips" in — that's the visible layout shift / flash. The
+    // parent's design treats `null` as "still loading, render neither
+    // tile" — we have to respect that until we actually know the
+    // answer.
     useEffect(() => {
+        if (loading) return;
         onHasTripsChange?.(hasTrips);
-    }, [hasTrips, onHasTripsChange]);
+    }, [hasTrips, loading, onHasTripsChange]);
 
     // Return null during loading too. The old skeleton-while-loading
     // approach left a ~200pt slot that VANISHED when /user/rides
