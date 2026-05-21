@@ -30,6 +30,7 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
   sliderButtonColor = AppColors.secondaryDarkGreen,
   textColor = AppColors.basicBlack,
   iconTintColor = AppColors.primaryLightGreen,
+  holdAtEnd = false,
 }) => {
   const [sliderWidth, setSliderWidth] = useState(0);
   const translateX = useRef(new Animated.Value(0)).current;
@@ -96,7 +97,30 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
           useNativeDriver: false,
         }).start(() => {
           onSlideComplete();
-          // Reset after completion
+          // Auto-snap-back UNLESS the caller asked us to hold the
+          // thumb at the end. Holding is the right call when
+          // `onSlideComplete` is async and the slider should LOOK
+          // armed until the parent dismisses it — without holdAtEnd
+          // the thumb would zip back to the left mid-API-call, which
+          // looks broken.
+          if (holdAtEnd) {
+            // Bring the text opacity back to 1 even though the thumb
+            // stays pinned right. During the drag we fade text to 0
+            // (so "Slide to accept user" doesn't fight the thumb);
+            // without this reset, the parent's loading message
+            // ("Accepting...", "Rejecting...", "Removing...") would
+            // be invisible — the slider would just look blank with
+            // the thumb sitting at the end. The text container is
+            // positioned in the middle of the track and the thumb at
+            // maxTranslation only overlaps it by ~2pt, so the
+            // centered loading copy reads cleanly.
+            Animated.timing(textOpacity, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: false,
+            }).start();
+            return;
+          }
           setTimeout(() => {
             Animated.parallel([
               Animated.spring(translateX, {
