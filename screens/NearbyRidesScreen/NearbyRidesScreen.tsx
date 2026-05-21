@@ -16,12 +16,12 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useAuthGate } from "../../contexts/AuthGate";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../../design_systems/colors";
-import baseURL from "../../config/urlconfig";
 import ChevronBack from "../../components/ChevronBack";
 import LoadingComponent from "../../components/LoadingComponent";
 import EmptyState from "../../components/EmptyState";
 import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar";
 import { appHref } from "../../navigation/routes";
+import { useApi } from "../../utils/ApiUtil";
 
 const { width, height } = Dimensions.get("window");
 const isSmallDevice = width < 350;
@@ -96,6 +96,7 @@ const haversineKm = (
 const NearbyRidesScreen: React.FC = () => {
   const router = useRouter();
   const { requireAuth } = useAuthGate();
+  const { apiUtil } = useApi();
   const insets = useSafeAreaInsets();
   const [rides, setRides] = useState<NearbyRide[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,7 +108,7 @@ const NearbyRidesScreen: React.FC = () => {
   // don't share copy ("We hit a snag" doesn't fit a permission gate).
   const [needsLocation, setNeedsLocation] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (forceNetwork = false) => {
     setError(null);
     setNeedsLocation(false);
     try {
@@ -126,10 +127,10 @@ const NearbyRidesScreen: React.FC = () => {
       });
       setCoords({ latitude: c.latitude, longitude: c.longitude });
 
-      const url = `${baseURL}/rides/nearby?lat=${c.latitude}&lng=${c.longitude}&radius=10000&limit=60`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
+      const endpoint = `/rides/nearby?lat=${c.latitude.toFixed(4)}&lng=${c.longitude.toFixed(4)}&radius=10000&limit=60`;
+      const json = forceNetwork
+        ? await apiUtil.getUncached<{ rides?: NearbyRide[] }>(endpoint)
+        : await apiUtil.get<{ rides?: NearbyRide[] }>(endpoint);
       const list: NearbyRide[] = Array.isArray(json?.rides) ? json.rides : [];
       // Sort by distance from the user, then by start_time within ties.
       list.sort((a, b) => {
@@ -144,7 +145,7 @@ const NearbyRidesScreen: React.FC = () => {
       setError("Couldn't load rides. Pull down to try again.");
       setRides([]);
     }
-  }, []);
+  }, [apiUtil]);
 
   // Reload on every focus so coming back from LocationPermissionScreen
   // (after the user granted permission) actually refreshes the list
@@ -166,7 +167,7 @@ const NearbyRidesScreen: React.FC = () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await load();
+    await load(true);
     setRefreshing(false);
   };
 

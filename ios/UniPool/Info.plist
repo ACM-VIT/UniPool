@@ -29,6 +29,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
+          <string>unipool</string>
           <string>com.carpoolitapp</string>
         </array>
       </dict>
@@ -47,14 +48,8 @@
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
-    <key>GMSApiKey</key>
-    <string>$(GOOGLE_MAPS_API_KEY_IOS)</string>
     <key>LSApplicationQueriesSchemes</key>
     <array>
-      <!-- UPI deeplink probing. Without these declarations,
-           Linking.canOpenURL("upi://...") returns false on iOS even
-           when GPay / PhonePe / Paytm are installed, and the home
-           "Pay host" button bails out before opening the UPI app. -->
       <string>upi</string>
       <string>gpay</string>
       <string>phonepe</string>
@@ -117,7 +112,7 @@
       <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>UIUserInterfaceStyle</key>
-    <string>Dark</string>
+    <string>Light</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
   </dict>

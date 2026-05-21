@@ -32,6 +32,7 @@
     "expo-notifications": "~56.0.10",
     "expo-router": "^56.2.2",
     "expo-splash-screen": "~56.0.8",
+    "expo-sqlite": "~56.0.3",
     "expo-system-ui": "~56.0.4",
     "google-auth-library": "^10.6.2",
     "lottie-react-native": "~7.3.4",

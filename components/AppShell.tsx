@@ -29,7 +29,12 @@ import * as SplashScreen from "expo-splash-screen";
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithCredential } from "@react-native-firebase/auth";
 
 import * as Notifications from "expo-notifications";
+import * as SystemUI from "expo-system-ui";
 import * as Device from "expo-device";
+import AppColors from "../design_systems/colors";
+
+void SplashScreen.preventAutoHideAsync().catch(() => {});
+void SystemUI.setBackgroundColorAsync(AppColors.primaryLightGreen).catch(() => {});
 
 /**
  * Register for push notifications.
@@ -93,6 +98,10 @@ async function registerForPushNotificationsAsync(
 }
 
 const globalStyles = StyleSheet.create({
+  shellRoot: {
+    flex: 1,
+    backgroundColor: AppColors.primaryLightGreen,
+  },
   navBarWrapper: {
     position: "absolute",
     left: 0,
@@ -293,10 +302,6 @@ const AppShell = () => {
   };
 
   useEffect(() => {
-    SplashScreen.preventAutoHideAsync();
-  }, []);
-
-  useEffect(() => {
     const authInstance = getAuth();
     
     console.log("Setting up Firebase auth state listener...");
@@ -379,7 +384,7 @@ const AppShell = () => {
             console.log("Token is valid, checking user details in database...");
             
             try {
-              await apiUtil.get("/user/details");
+              await apiUtil.getUncached("/user/details");
               console.log("User details found in database, setting route to HomeScreen");
               markUserAsVerified();
               setInitialRoute("HomeScreen");
@@ -415,7 +420,7 @@ const AppShell = () => {
             console.log("Fresh token obtained, checking user details in database...");
             
             try {
-              await apiUtil.get("/user/details");
+              await apiUtil.getUncached("/user/details");
               console.log("User details found in database, setting route to HomeScreen");
               markUserAsVerified();
               setInitialRoute("HomeScreen");
@@ -496,7 +501,7 @@ const AppShell = () => {
             
             // Check if user exists in database before proceeding to HomeScreen
             try {
-              await apiUtil.get("/user/details");
+              await apiUtil.getUncached("/user/details");
               console.log("User details found in database, setting route to HomeScreen");
               markUserAsVerified(); // Mark as verified on success
               setInitialRoute("HomeScreen");
@@ -695,7 +700,7 @@ const AppShell = () => {
     !isBootstrapping && !NAVBAR_HIDDEN_ROUTES.includes(currentRouteName as string);
   
   return (
-    <View style={{ flex: 1 }}>
+    <View style={globalStyles.shellRoot}>
       {/* Brand-styled replacement for `Alert.alert`. Mounted once at
           the top of the tree; any code can call BrandedAlert.show()
           to surface a dialog without touching the native chrome. */}
@@ -712,7 +717,7 @@ const AppShell = () => {
           setNavBarItems,
         }}
       >
-        <View style={{ flex: 1 }}>
+        <View style={globalStyles.shellRoot}>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" options={{ headerShown: false, animation: "fade" }} />
             <Stack.Screen name="AuthScreen" options={{ headerShown: false, presentation: "card" }} />

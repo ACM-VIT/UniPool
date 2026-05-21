@@ -6,21 +6,28 @@
     "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon2.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-screen.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#B5D750"
+    },
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
       "usesAppleSignIn": true,
-      "bundleIdentifier": "com.carpoolitapp",
-      "config": {
-        "googleMapsApiKey": "$(GOOGLE_MAPS_API_KEY_IOS)"
-      }
+      "bundleIdentifier": "com.carpoolitapp"
     },
     "android": {
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon2.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#B5D750"
+      },
+      "splash": {
+        "image": "./assets/icon2.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#B5D750"
       },
       "package": "com.carpoolitapp",
       "config": {
@@ -74,6 +81,27 @@
           }
         }
       ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#B5D750",
+          "image": "./assets/splash-screen.png",
+          "resizeMode": "cover",
+          "imageWidth": 220,
+          "android": {
+            "backgroundColor": "#B5D750",
+            "image": "./assets/icon2.png",
+            "resizeMode": "contain",
+            "imageWidth": 220
+          },
+          "ios": {
+            "backgroundColor": "#B5D750",
+            "image": "./assets/splash-screen.png",
+            "resizeMode": "cover"
+          }
+        }
+      ],
+      "expo-sqlite",
       "expo-router"
     ]
   }
