@@ -46,7 +46,10 @@ const AuthScreen: React.FC = () => {
 
       if (currentUser) {
         try {
-          await currentUser.getIdToken(true);
+          // No `getIdToken(true)` here either — `apiUtil` picks up the
+          // cached token and refreshes only when it's actually close
+          // to expiry. The previous force-refresh added a wasted
+          // network round-trip every time AuthScreen mounted.
           await apiUtil.getForUserUncached("/user/details", currentUser);
           navigateAfterAuth();
         } catch (err: any) {
@@ -99,7 +102,11 @@ const AuthScreen: React.FC = () => {
       }
       const googleCredential = GoogleAuthProvider.credential(idToken);
       const result = await signInWithCredential(getAuth(), googleCredential);
-      if (result?.user) await result.user.getIdToken(true);
+      // No explicit `getIdToken(true)` — `signInWithCredential`
+      // resolves with a user whose ID token is already fresh. The
+      // forced refresh here was costing ~500-800ms on Android for
+      // no benefit; ApiUtil reads the cached token on the very next
+      // request anyway.
       await routeAfterAuth(result.user);
     } catch (error: any) {
       const code = error?.code;
@@ -126,7 +133,7 @@ const AuthScreen: React.FC = () => {
       const { identityToken, nonce } = resp;
       const appleCredential = AppleAuthProvider.credential(identityToken, nonce);
       const result = await signInWithCredential(getAuth(), appleCredential);
-      if (result?.user) await result.user.getIdToken(true);
+      // Same logic as Google above — no redundant force refresh.
       await routeAfterAuth(result.user);
     } catch (error: any) {
       if (error.code === "ERR_REQUEST_CANCELED") return;

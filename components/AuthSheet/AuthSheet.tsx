@@ -152,11 +152,11 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
       }
       const cred = GoogleAuthProvider.credential(idToken);
       const result = await signInWithCredential(getAuth(), cred);
-      // signInWithCredential resolves before getAuth().currentUser is
-      // necessarily set on the JS side. Use the returned credential
-      // user for the backend probe so first-login routing does not
-      // depend on the global auth singleton catching up.
-      if (result?.user) await result.user.getIdToken(true);
+      // signInWithCredential resolves with a user whose ID token is
+      // already fresh — the previous `getIdToken(true)` here was a
+      // redundant ~500-800ms network round-trip on Android. Using
+      // the returned credential user (rather than the global auth
+      // singleton) still avoids the race the comment described.
       await handleSuccess(result.user);
     } catch (error: any) {
       const code = error?.code;
@@ -178,7 +178,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
       if (!resp.identityToken) throw new Error("Apple sign-in didn't return a token");
       const cred = AppleAuthProvider.credential(resp.identityToken, resp.nonce);
       const result = await signInWithCredential(getAuth(), cred);
-      if (result?.user) await result.user.getIdToken(true);
+      // No redundant force refresh — see Google path above.
       await handleSuccess(result.user);
     } catch (error: any) {
       if (error?.code === "ERR_REQUEST_CANCELED") return;
