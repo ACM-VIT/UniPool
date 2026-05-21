@@ -26,6 +26,8 @@ interface ActiveTripCardProps {
    *  home sheet's mutual-exclusion with "Your trips" — when there's
    *  an active trip surface, the upcoming-trips carousel hides. */
   onPresenceChange?: (present: boolean) => void;
+  cardFromState?: TripCard | null;
+  appStateResolved?: boolean;
 }
 
 /**
@@ -44,10 +46,16 @@ interface ActiveTripCardProps {
  * If `/trip-card/active` returns 204, nothing renders — the card is
  * silent when there's no relevant trip.
  */
-const ActiveTripCard: React.FC<ActiveTripCardProps> = ({ onPressOpen, onPresenceChange }) => {
+const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
+  onPressOpen,
+  onPresenceChange,
+  cardFromState,
+  appStateResolved,
+}) => {
   const { apiUtil } = useApi();
   const [card, setCard] = useState<TripCard | null>(null);
   const [busy, setBusy] = useState(false);
+  const controlledByAppState = appStateResolved !== undefined;
 
   const load = useCallback(async () => {
     try {
@@ -61,8 +69,14 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({ onPressOpen, onPresence
   }, [apiUtil]);
 
   useEffect(() => {
+    if (controlledByAppState) return;
     load();
-  }, [load]);
+  }, [controlledByAppState, load]);
+
+  useEffect(() => {
+    if (!controlledByAppState || !appStateResolved) return;
+    setCard(cardFromState ?? null);
+  }, [appStateResolved, cardFromState, controlledByAppState]);
 
   useEffect(() => {
     onPresenceChange?.(!!card);

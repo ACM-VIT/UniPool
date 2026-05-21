@@ -119,6 +119,30 @@ const CreateRide: React.FC = () => {
   const [customCost, setCustomCost] = useState<string>("");
   const costInputRef = useRef<TextInput>(null);
 
+  // Viewer's gender — drives whether the "Women only" toggle is even
+  // shown. We only surface the option to female users, and the
+  // backend independently enforces the same rule on /ride/create so
+  // a maliciously crafted client can't bypass the UI gate.
+  const [viewerGender, setViewerGender] = useState<string | null>(null);
+  const [isWomenOnly, setIsWomenOnly] = useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiUtil
+      .get<{ user?: { gender?: string } }>("/user/details")
+      .then((res) => {
+        if (cancelled) return;
+        setViewerGender((res?.user?.gender || "").toLowerCase() || null);
+      })
+      .catch(() => {
+        // Silent — failing to fetch gender just means the toggle
+        // stays hidden, which is the correct fail-safe default.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUtil]);
+
   // Animation states
   const [currentVehicleImage, setCurrentVehicleImage] = useState(require("../assets/Taxi.png"));
   const slideAnimation = useRef(new Animated.Value(0)).current;
@@ -150,6 +174,18 @@ const CreateRide: React.FC = () => {
       BrandedAlert.alert("Same place?", "Your pickup and drop-off can't be identical.");
       return;
     }
+    // 60-second grace so a user who picked "now" and slid within a
+    // minute doesn't get bounced. Anything earlier than that is a
+    // real past-date entry — backend rejects it too, but a friendly
+    // pre-submit message beats a generic "couldn't post your ride"
+    // error after a network round-trip.
+    if (rideDateTime.getTime() < Date.now() - 60_000) {
+      BrandedAlert.alert(
+        "That time has passed",
+        "Pick a date and time in the future. Anyone joining needs to see this ride before it leaves.",
+      );
+      return;
+    }
 
     // Safety net — gate at submit. The entry-point CTAs (Home, search
     // empty state, etc.) already call requireAuth before navigating
@@ -174,7 +210,10 @@ const CreateRide: React.FC = () => {
         booked_seats: 0,
         total_price: costPerPerson,
         is_ongoing: 0,
-        is_same_gender: 0,
+        // Only honor the toggle if the viewer is actually female —
+        // server enforces the same check, this is defensive belt-and-
+        // suspenders so a stale toggle state can't slip through.
+        is_same_gender: isWomenOnly && viewerGender === "female" ? 1 : 0,
         start_latitude: fromCoordinates?.latitude || null,
         start_longitude: fromCoordinates?.longitude || null,
         end_latitude: toCoordinates?.latitude || null,
@@ -467,17 +506,56 @@ const CreateRide: React.FC = () => {
           </TouchableOpacity>
         </View>
 
+        {/* Women-only toggle. Gated to viewer.gender === "female" — male
+            and non-binary users never see it (server enforces the same
+            rule on /ride/create). Lives between the seats stepper and
+            the vehicle illustration so it sits inside the "trip
+            details" rhythm rather than crowding the submit CTA. */}
+        {viewerGender === "female" && (
+          <TouchableOpacity
+            style={[
+              styles.womenOnlyCard,
+              isWomenOnly && styles.womenOnlyCardActive,
+            ]}
+            onPress={() => setIsWomenOnly((v) => !v)}
+            activeOpacity={0.85}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: isWomenOnly }}
+            accessibilityLabel="Reserve this ride for women passengers"
+          >
+            <View style={styles.womenOnlyTextWrap}>
+              <Text style={styles.womenOnlyTitle}>Women only</Text>
+              <Text style={styles.womenOnlyCaption}>
+                Only female passengers can request to join.
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.womenOnlySwitch,
+                isWomenOnly && styles.womenOnlySwitchOn,
+              ]}
+            >
+              <View
+                style={[
+                  styles.womenOnlyKnob,
+                  isWomenOnly && styles.womenOnlyKnobOn,
+                ]}
+              />
+            </View>
+          </TouchableOpacity>
+        )}
+
         <Animated.View
           style={[
             styles.vehicleImageContainer,
             {
               opacity: fadeAnimation,
               transform: [
-                { 
-                  translateX: currentVehicleImage === require("../assets/UFO.png") ? 0 : slideAnimation 
+                {
+                  translateX: currentVehicleImage === require("../assets/UFO.png") ? 0 : slideAnimation
                 },
-                { 
-                  translateY: currentVehicleImage === require("../assets/UFO.png") ? slideAnimation : 0 
+                {
+                  translateY: currentVehicleImage === require("../assets/UFO.png") ? slideAnimation : 0
                 },
                 { scale: counterAnimation.interpolate({
                   inputRange: [0, 1],
@@ -646,6 +724,78 @@ const styles = StyleSheet.create({
   vehicleImageContainer: {
     alignSelf: "center",
     overflow: "hidden",
+  },
+  // Forest tile that sits in the same surface family as `stepperCard`
+  // — matched radius / shadow / horizontal padding so the row reads as
+  // part of the "trip details" cluster, not a new section. Active
+  // state lifts the lime border to signal commitment without flipping
+  // the whole tile to lime (which would over-shout next to the
+  // forest steppers above).
+  womenOnlyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    width: "100%",
+    marginTop: "5%",
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  womenOnlyCardActive: {
+    borderColor: AppColors.primaryLightGreen,
+  },
+  womenOnlyTextWrap: {
+    flex: 1,
+    marginRight: 14,
+  },
+  womenOnlyTitle: {
+    color: AppColors.basicWhite,
+    fontSize: 15,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: -0.1,
+    marginBottom: 2,
+  },
+  womenOnlyCaption: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 12,
+    fontFamily: "NunitoSans_600SemiBold",
+    opacity: 0.7,
+    lineHeight: 16,
+  },
+  // Custom switch — RN's <Switch> renders inconsistently across
+  // iOS/Android with hardcoded thumb sizes. Forest track when off,
+  // lime track when on; small light knob slides 18pt horizontally
+  // on toggle.
+  womenOnlySwitch: {
+    width: 44,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(181,215,80,0.20)",
+    padding: 3,
+    justifyContent: "center",
+  },
+  womenOnlySwitchOn: {
+    backgroundColor: AppColors.primaryLightGreen,
+  },
+  womenOnlyKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: AppColors.primaryLightGreen,
+    opacity: 0.85,
+  },
+  womenOnlyKnobOn: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    opacity: 1,
+    transform: [{ translateX: 18 }],
   },
 });
 

@@ -287,7 +287,6 @@
 			);
 			name = "Inject Google Maps API Key";
 			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -388,6 +387,7 @@
 		};
 		D7BD3E6A8FFBA5F4310FE113 /* [CP-User] [RNFB] Core Configuration */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -444,7 +444,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.carpoolitapp;
-				PRODUCT_NAME = UniPool;
+				PRODUCT_NAME = "UniPool";
 				SWIFT_OBJC_BRIDGING_HEADER = "UniPool/UniPool-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -478,7 +478,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.carpoolitapp;
-				PRODUCT_NAME = UniPool;
+				PRODUCT_NAME = "UniPool";
 				SWIFT_OBJC_BRIDGING_HEADER = "UniPool/UniPool-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

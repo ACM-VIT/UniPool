@@ -8,40 +8,24 @@ import { useAuthGate } from "../contexts/AuthGate";
 import AppColors from "../design_systems/colors";
 import LoadingComponent from "./LoadingComponent";
 import PreviousTripsSkeleton from "./PreviousTripsSkeleton";
+import type { HomeRide } from "../utils/AppStateService";
 
-interface UserRideData {
-    ride_id: string;
-    host_user_id: string;
-    start_location: string;
-    end_location: string;
-    start_time: string;
-    total_seats: number;
-    booked_seats: number;
-    total_price: number;
-    is_ongoing: number;
-    is_same_gender: number;
-    passenger_id?: string;
-    // Server-computed UI state from /user/rides. Drives which rides
-    // surface on the home carousel — see filter below.
-    viewer_state?:
-        | "host"
-        | "confirmed_passenger"
-        | "pending_passenger"
-        | "rejected_passenger"
-        | "available"
-        | "full"
-        | "past";
-    request_status?: string;
-}
+type UserRideData = HomeRide;
 
 interface PreviousTripsSectionProps {
     // Fires whenever the "do we have trips to show?" answer changes —
     // lets HomeScreen swap between this section and the "Rides around
     // you" tile without showing both at once.
     onHasTripsChange?: (hasTrips: boolean) => void;
+    ridesFromState?: UserRideData[];
+    appStateResolved?: boolean;
 }
 
-const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsChange }) => {
+const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
+    onHasTripsChange,
+    ridesFromState,
+    appStateResolved,
+}) => {
     const router = useRouter();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [rideData, setRideData] = useState<UserRideData[]>([]);
@@ -51,6 +35,7 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsC
     const { isGuest } = useAuthGate();
     const screenWidth = Dimensions.get("window").width;
     const maxDots = 5;
+    const controlledByAppState = appStateResolved !== undefined;
 
     // Memoize the de-dupe + filter + slice so re-renders driven by
     // pagination dot taps (currentIndex changes) don't rebuild this
@@ -115,6 +100,17 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsC
     };
 
     useEffect(() => {
+        if (controlledByAppState) {
+            if (!appStateResolved) {
+                setLoading(true);
+                return;
+            }
+            setError(null);
+            setRideData(ridesFromState ?? []);
+            setLoading(false);
+            return;
+        }
+
         // Guests have no rides — render the empty state without poking the API.
         if (isGuest) {
             setLoading(false);
@@ -122,7 +118,7 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({ onHasTripsC
             return;
         }
         fetchUserRides();
-    }, [apiUtil, isGuest]);
+    }, [apiUtil, appStateResolved, controlledByAppState, isGuest, ridesFromState]);
 
     const handleScroll = (event: any) => {
         const contentOffset = event.nativeEvent.contentOffset.x;

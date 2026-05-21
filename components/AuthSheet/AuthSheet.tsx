@@ -118,7 +118,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
 
   const handleSuccess = async (firebaseUser: any) => {
     try {
-      await apiUtil.getForUser("/user/details", firebaseUser);
+      await apiUtil.getForUserUncached("/user/details", firebaseUser);
       // Existing user — drop them at the gated destination.
       if (returnTo) {
         routeFromSheet(appHref(returnTo.screen, returnTo.params as any));

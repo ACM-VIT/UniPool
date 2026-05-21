@@ -14,18 +14,37 @@ const { width, height } = Dimensions.get("window");
 const RADAR = Math.min(width * 0.72, height * 0.36, 320);
 
 /**
- * Minimal radar — strictly brand palette. Three concentric forest-
- * tinted reference rings, two animated pulse rings emanating from
- * the center, and a lime / forest "you are here" puck. No map
- * tiles, no buildings, no pin scatter, no specular highlights —
- * the previous version had so much decorative chrome it looked like
- * a different app. Now it's just two colours (lime + forest) and
- * motion, in harmony with everything else on the lime canvas.
+ * Polished radar illustration. Strictly brand palette:
+ *   - Three faded forest reference rings (static) — anchor the
+ *     composition so the screen never reads as "one tiny dot on a
+ *     sea of lime" between pulse cycles.
+ *   - Two animated sonar pulses staggered 1.1s apart — adds life.
+ *   - A "You are here" puck (lime halo, forest core) breathing
+ *     gently in the center, with a small lime heading triangle
+ *     pointing north so it reads as a positioned marker, not an
+ *     abstract dot.
+ *   - Three "rides nearby" pins parked on the rings, each pulsing
+ *     in/out on its own phase. These were the missing ingredient
+ *     that took the radar from "loading spinner" to "illustration".
  */
+const RING_RADII = [0.34, 0.56, 0.82] as const;
+
+// Nearby ride pin positions, expressed as (angle in degrees, ring
+// index). Spread around different bearings + different distances so
+// they don't all bunch up on one axis. Angles chosen empirically to
+// read as a balanced triangle in the upper hemisphere with one pin
+// trailing behind the puck — felt the most "real map"-like.
+const NEARBY_PINS: { angle: number; ring: number; delay: number }[] = [
+  { angle: -65, ring: 1, delay: 0 },
+  { angle: 35, ring: 2, delay: 450 },
+  { angle: 155, ring: 1, delay: 900 },
+];
+
 const RadarMap: React.FC<{ size: number }> = ({ size }) => {
   const pulse1 = useRef(new Animated.Value(0)).current;
   const pulse2 = useRef(new Animated.Value(0)).current;
   const breathe = useRef(new Animated.Value(0)).current;
+  const pinPulses = useRef(NEARBY_PINS.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
     Animated.loop(
@@ -61,6 +80,28 @@ const RadarMap: React.FC<{ size: number }> = ({ size }) => {
         }),
       ]),
     ).start();
+
+    // Each nearby-ride pin breathes on its own loop, staggered so the
+    // three never blink together — reads as ambient activity.
+    pinPulses.forEach((pulse, idx) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(NEARBY_PINS[idx].delay),
+          Animated.timing(pulse, {
+            toValue: 1,
+            duration: 1200,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulse, {
+            toValue: 0,
+            duration: 1200,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+      ).start();
+    });
   }, []);
 
   const ring1Size = pulse1.interpolate({
@@ -76,10 +117,34 @@ const RadarMap: React.FC<{ size: number }> = ({ size }) => {
   const breatheScale = breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
 
   return (
-    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      {/* Reference rings dropped — they read as stray hairlines on
-          the lime canvas. The two animated pulse rings below carry
-          the radar metaphor on their own. */}
+    <View
+      style={{
+        width: size,
+        height: size,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {/* Static reference rings — three concentric forest hairlines at
+          ~17%, 28% and 41% of the size. Visible even between pulse
+          cycles so the screen never collapses to "one dot on lime". */}
+      {RING_RADII.map((r, i) => (
+        <View
+          key={i}
+          style={{
+            position: "absolute",
+            width: size * r,
+            height: size * r,
+            borderRadius: 999,
+            borderWidth: 1.2,
+            borderColor: AppColors.secondaryDarkGreen,
+            opacity: 0.12 + (RING_RADII.length - i) * 0.04,
+          }}
+        />
+      ))}
+
+      {/* Animated sonar pulses — same outward-and-fade idea but now
+          composed against the static rings above. */}
       <Animated.View
         style={{
           position: "absolute",
@@ -103,31 +168,93 @@ const RadarMap: React.FC<{ size: number }> = ({ size }) => {
         }}
       />
 
-      {/* "You are here" puck — lime halo with a forest core. Same
-          two-layer idiom Apple Maps uses, kept tiny so the radar
-          rings dominate the composition. */}
+      {/* Nearby-ride pins — each parked on a ring at its angle. Small
+          forest dots with a lime halo. They pulse subtly so the radar
+          feels alive even when no sonar wave is travelling outward. */}
+      {NEARBY_PINS.map((pin, idx) => {
+        const radius = (size * RING_RADII[pin.ring]) / 2;
+        const rad = (pin.angle * Math.PI) / 180;
+        const x = Math.cos(rad) * radius;
+        const y = Math.sin(rad) * radius;
+        const pulse = pinPulses[idx];
+        const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.1] });
+        const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] });
+        const pinSize = size * 0.07;
+        return (
+          <Animated.View
+            key={idx}
+            style={{
+              position: "absolute",
+              width: pinSize,
+              height: pinSize,
+              borderRadius: 999,
+              backgroundColor: AppColors.secondaryDarkGreen,
+              borderWidth: 2,
+              borderColor: AppColors.primaryLightGreen,
+              transform: [{ translateX: x }, { translateY: y }, { scale }],
+              opacity,
+            }}
+          />
+        );
+      })}
+
+      {/* "You are here" puck — lime halo, forest core, with a small
+          heading triangle pointing up. The triangle sells the metaphor
+          of "you on a map" rather than a generic dot. */}
       <Animated.View
         style={{
-          width: size * 0.16,
-          height: size * 0.16,
+          width: size * 0.2,
+          height: size * 0.2,
           borderRadius: 999,
           backgroundColor: AppColors.primaryLightGreen,
           alignItems: "center",
           justifyContent: "center",
           transform: [{ scale: breatheScale }],
           shadowColor: AppColors.secondaryDarkGreen,
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.25,
-          shadowRadius: 8,
-          elevation: 3,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.28,
+          shadowRadius: 10,
+          elevation: 4,
         }}
       >
         <View
           style={{
-            width: size * 0.08,
-            height: size * 0.08,
+            width: size * 0.1,
+            height: size * 0.1,
             borderRadius: 999,
             backgroundColor: AppColors.secondaryDarkGreen,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {/* Forest core's inner highlight — a tiny lime dot at the
+              center makes the puck read as a real marker with depth
+              instead of a flat circle. */}
+          <View
+            style={{
+              width: size * 0.025,
+              height: size * 0.025,
+              borderRadius: 999,
+              backgroundColor: AppColors.primaryLightGreen,
+              opacity: 0.95,
+            }}
+          />
+        </View>
+        {/* Heading triangle above the puck — tiny lime tick that
+            implies orientation, same trick Google Maps and Apple Maps
+            use on their location pucks. */}
+        <View
+          style={{
+            position: "absolute",
+            top: -size * 0.045,
+            width: 0,
+            height: 0,
+            borderLeftWidth: size * 0.025,
+            borderRightWidth: size * 0.025,
+            borderBottomWidth: size * 0.045,
+            borderLeftColor: "transparent",
+            borderRightColor: "transparent",
+            borderBottomColor: AppColors.primaryLightGreen,
           }}
         />
       </Animated.View>

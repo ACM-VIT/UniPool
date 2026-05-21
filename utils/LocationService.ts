@@ -1,3 +1,4 @@
+import "expo-sqlite/localStorage/install";
 import * as Location from "expo-location";
 import baseURL from "../config/urlconfig";
 
@@ -3781,6 +3782,71 @@ const popularLocationsCache = new Map<string, LocationResult[]>()
 const geocodingCache = new Map<string, {lat: number, lon: number}>()
 let localLocationIndex: LocationResult[] | null = null
 
+type BackendLocationCacheEntry = {
+  expiresAt: number
+  locations: LocationResult[]
+}
+
+const LOCATION_SEARCH_CACHE_PREFIX = "unipool:location-search:v1:"
+const LOCATION_SEARCH_TTL_MS = 12 * 60 * 60_000
+const LOCATION_SEARCH_MEMORY_MAX = 150
+const backendLocationSearchCache = new Map<string, BackendLocationCacheEntry>()
+
+const hashLocationSearch = (input: string) => {
+  let hash = 2166136261
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+const trimBackendLocationSearchCache = () => {
+  if (backendLocationSearchCache.size <= LOCATION_SEARCH_MEMORY_MAX) return
+  Array.from(backendLocationSearchCache.entries())
+    .sort(([, a], [, b]) => a.expiresAt - b.expiresAt)
+    .slice(0, backendLocationSearchCache.size - LOCATION_SEARCH_MEMORY_MAX)
+    .forEach(([key]) => backendLocationSearchCache.delete(key))
+}
+
+const readBackendLocationSearchCache = (key: string): LocationResult[] | null => {
+  const memoryEntry = backendLocationSearchCache.get(key)
+  const now = Date.now()
+  if (memoryEntry) {
+    if (memoryEntry.expiresAt > now) return memoryEntry.locations
+    backendLocationSearchCache.delete(key)
+  }
+
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as BackendLocationCacheEntry
+    if (!parsed?.expiresAt || parsed.expiresAt <= now || !Array.isArray(parsed.locations)) {
+      localStorage.removeItem(key)
+      return null
+    }
+    backendLocationSearchCache.set(key, parsed)
+    trimBackendLocationSearchCache()
+    return parsed.locations
+  } catch {
+    return null
+  }
+}
+
+const writeBackendLocationSearchCache = (key: string, locations: LocationResult[]) => {
+  const entry: BackendLocationCacheEntry = {
+    expiresAt: Date.now() + LOCATION_SEARCH_TTL_MS,
+    locations,
+  }
+  backendLocationSearchCache.set(key, entry)
+  trimBackendLocationSearchCache()
+  try {
+    localStorage.setItem(key, JSON.stringify(entry))
+  } catch {
+    // Location suggestions should still work if persistent cache is full.
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Utility Functions
 // -----------------------------------------------------------------------------
@@ -3992,14 +4058,22 @@ const searchBackendLocations = async (
   }
   const effectiveLocation = getEffectiveLocation(userLocation)
   if (effectiveLocation) {
-    params.set("lat", String(effectiveLocation.latitude))
-    params.set("lng", String(effectiveLocation.longitude))
+    params.set("lat", effectiveLocation.latitude.toFixed(4))
+    params.set("lng", effectiveLocation.longitude.toFixed(4))
+  }
+
+  const cacheKey = `${LOCATION_SEARCH_CACHE_PREFIX}${hashLocationSearch(params.toString())}`
+  const cached = readBackendLocationSearchCache(cacheKey)
+  if (cached) {
+    return cached
   }
 
   const response = await fetch(`${baseURL}/locations/search?${params.toString()}`, { signal })
   if (!response.ok) throw new Error(`Location search failed: ${response.status}`)
   const json = await response.json()
-  return Array.isArray(json?.locations) ? json.locations : []
+  const locations = Array.isArray(json?.locations) ? json.locations : []
+  writeBackendLocationSearchCache(cacheKey, locations)
+  return locations
 }
 
 // -----------------------------------------------------------------------------

@@ -36,18 +36,10 @@ function mapsKeyOrFallback(name, fallback) {
 
 module.exports = () => {
   const config = appJson.expo;
-  const iosMapsApiKey = mapsKeyOrFallback("GOOGLE_MAPS_API_KEY_IOS", "$(GOOGLE_MAPS_API_KEY_IOS)");
   const androidMapsApiKey = mapsKeyOrFallback("GOOGLE_MAPS_API_KEY_ANDROID", "${MAPS_API_KEY}");
 
   return {
     ...config,
-    ios: {
-      ...config.ios,
-      config: {
-        ...config.ios.config,
-        googleMapsApiKey: iosMapsApiKey,
-      },
-    },
     android: {
       ...config.android,
       config: {

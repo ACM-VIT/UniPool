@@ -2,9 +2,25 @@ import { getAuth, getIdTokenResult } from "@react-native-firebase/auth";
 import React, { createContext, useContext, useState } from "react";
 import baseURL from "../config/urlconfig";
 import { useErrorContext } from '../contexts/ErrorContext';
+import {
+  cachePolicyForEndpoint,
+  getFreshCache,
+  getInflight,
+  getStaleCache,
+  invalidateAllDynamicApiCache,
+  invalidateApiCacheForMutation,
+  makeApiCacheKey,
+  setInflight,
+  writeCache,
+} from "./ApiCache";
 
 type JSON = {
   [key: string]: string | number | boolean | JSON;
+};
+
+type RequestOptions = {
+  bypassCache?: boolean;
+  allowStaleOnFailure?: boolean;
 };
 
 export default class ApiUtil {
@@ -32,9 +48,37 @@ export default class ApiUtil {
     return this.makeRequestWithErrorHandling<T>("GET", endpoint, undefined, headers, timeout, retryAction);
   }
 
+  async getUncached<T>(endpoint: string, headers?: HeadersInit, timeout?: number): Promise<T> {
+    const retryAction = () => this.getUncached<T>(endpoint, headers, timeout);
+    return this.makeRequestWithErrorHandling<T>(
+      "GET",
+      endpoint,
+      undefined,
+      headers,
+      timeout,
+      retryAction,
+      undefined,
+      { bypassCache: true, allowStaleOnFailure: false },
+    );
+  }
+
   async getForUser<T>(endpoint: string, firebaseUser: any, headers?: HeadersInit, timeout?: number): Promise<T> {
     const retryAction = () => this.getForUser<T>(endpoint, firebaseUser, headers, timeout);
     return this.makeRequestWithErrorHandling<T>("GET", endpoint, undefined, headers, timeout, retryAction, firebaseUser);
+  }
+
+  async getForUserUncached<T>(endpoint: string, firebaseUser: any, headers?: HeadersInit, timeout?: number): Promise<T> {
+    const retryAction = () => this.getForUserUncached<T>(endpoint, firebaseUser, headers, timeout);
+    return this.makeRequestWithErrorHandling<T>(
+      "GET",
+      endpoint,
+      undefined,
+      headers,
+      timeout,
+      retryAction,
+      firebaseUser,
+      { bypassCache: true, allowStaleOnFailure: false },
+    );
   }
 
   async post<T, B>(endpoint: string, body: B, headers?: HeadersInit, timeout?: number): Promise<T> {
@@ -61,6 +105,25 @@ export default class ApiUtil {
     return getAuth().currentUser?.uid ?? null;
   }
 
+  invalidateCache() {
+    invalidateAllDynamicApiCache(this.getCurrentUserId());
+  }
+
+  private shouldUseStaleFallback(error: any) {
+    const status = error?.response?.status ?? error?.status;
+    if (typeof status === "number") {
+      return status === 408 || status === 429 || status >= 500;
+    }
+
+    const message = String(error?.message ?? "");
+    return (
+      message.includes("Timeout") ||
+      message.includes("Network request failed") ||
+      message.includes("Failed to fetch") ||
+      message.includes("Network error")
+    );
+  }
+
   private async makeRequestWithErrorHandling<T>(
     method: string,
     endpoint: string,
@@ -68,11 +131,78 @@ export default class ApiUtil {
     headers: HeadersInit = {},
     timeout: number = 20000,
     retryAction?: () => Promise<T>,
-    firebaseUser?: any
+    firebaseUser?: any,
+    requestOptions: RequestOptions = {},
   ): Promise<T> {
+    const userId = firebaseUser?.uid ?? this.getCurrentUserId();
+    const cachePolicy = method === "GET" ? cachePolicyForEndpoint(endpoint) : null;
+    const cacheKey =
+      cachePolicy?.enabled
+        ? makeApiCacheKey(endpoint, userId, headers)
+        : null;
+    const canReadCache = Boolean(cacheKey && cachePolicy?.enabled && !requestOptions.bypassCache);
+    const canWriteCache = Boolean(cacheKey && cachePolicy?.enabled);
+    const allowStaleOnFailure = requestOptions.allowStaleOnFailure !== false;
+
+    if (canReadCache && cacheKey && cachePolicy) {
+      const fresh = getFreshCache<T>(cacheKey);
+      if (fresh !== undefined) {
+        return fresh;
+      }
+
+      const stale = getStaleCache<T>(cacheKey);
+      if (stale !== undefined) {
+        const existing = getInflight<T>(cacheKey);
+        if (!existing) {
+          const refresh = this.makeRequest<T>(method, endpoint, body, headers, timeout, firebaseUser)
+            .then((response) => {
+              writeCache(cacheKey, endpoint, userId, response, cachePolicy);
+              return response;
+            })
+            .catch((error) => {
+              console.warn(`Background refresh failed for ${endpoint}`, error);
+              return stale;
+            });
+          setInflight(cacheKey, refresh);
+        }
+        return stale;
+      }
+
+      const existing = getInflight<T>(cacheKey);
+      if (existing) {
+        try {
+          return await existing;
+        } catch (error) {
+          const stale = getStaleCache<T>(cacheKey);
+          if (allowStaleOnFailure && this.shouldUseStaleFallback(error) && stale !== undefined) {
+            return stale;
+          }
+          throw error;
+        }
+      }
+    }
+
     try {
-      return await this.makeRequest<T>(method, endpoint, body, headers, timeout, firebaseUser);
+      const networkRequest = this.makeRequest<T>(method, endpoint, body, headers, timeout, firebaseUser);
+      if (canReadCache && cacheKey) {
+        setInflight(cacheKey, networkRequest);
+      }
+      const response = await networkRequest;
+      if (canWriteCache && cacheKey && cachePolicy) {
+        writeCache(cacheKey, endpoint, userId, response, cachePolicy);
+      } else if (method !== "GET") {
+        invalidateApiCacheForMutation(endpoint, userId);
+      }
+      return response;
     } catch (error: any) {
+      if (allowStaleOnFailure && canReadCache && cacheKey && this.shouldUseStaleFallback(error)) {
+        const stale = getStaleCache<T>(cacheKey);
+        if (stale !== undefined) {
+          console.warn(`Using stale cache for ${endpoint} after request failure`);
+          return stale;
+        }
+      }
+
       console.log('Error caught in makeRequestWithErrorHandling:', error);
       
       if (error instanceof Error && error.message === "AUTHENTICATION_REDIRECT") {
@@ -293,6 +423,7 @@ export const ApiProvider = ({ children }: { children: React.ReactNode }) => {
   });
 
   const triggerRevalidation = () => {
+    apiUtil.invalidateCache();
     setRevalidate(true);
     setTimeout(() => setRevalidate(false), 10);
   };

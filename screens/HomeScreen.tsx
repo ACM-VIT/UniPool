@@ -8,7 +8,6 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApi } from "../utils/ApiUtil";
-import baseURL from "../config/urlconfig";
 import { useAuthGate } from "../contexts/AuthGate";
 import { appHref } from "../navigation/routes";
 import AppColors from "../design_systems/colors";
@@ -21,6 +20,8 @@ import BrandInfo from "../components/BrandInfo";
 import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/PressableScale";
 import RideClusterSheet, { ClusteredRide } from "../components/RideClusterSheet";
+import { getAppState } from "../utils/AppStateService";
+import type { AppStateResponse, NearbyRideSummary } from "../utils/AppStateService";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -163,7 +164,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 }) => {
   const router = useRouter();
   const [isFocused, setIsFocused] = useState(true);
-  const { apiUtil } = useApi();
+  const { apiUtil, revalidate } = useApi();
   const { requireAuth, isGuest } = useAuthGate();
   const mapRef = useRef<MapView>(null);
 
@@ -209,25 +210,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     toCoordinates?: { latitude: number; longitude: number };
   } | null>(null);
 
-  // Nearby-activity stat for the map pill. `null` = unknown (haven't
-  // fetched yet); a number means we have a confirmed answer. The pill
-  // only renders when count > 0 so an empty area doesn't read as broken.
-  const [nearbyCount, setNearbyCount] = useState<number | null>(null);
   // Nearby ride summaries used to plot pins on the map.
-  type NearbyRide = {
-    id: string;
-    start_location: string;
-    end_location: string;
-    start_latitude: number;
-    start_longitude: number;
-    end_latitude: number;
-    end_longitude: number;
-    start_time: string;
-    total_seats: number;
-    booked_seats: number;
-    total_price: number;
-  };
+  type NearbyRide = NearbyRideSummary;
   const [nearbyRides, setNearbyRides] = useState<NearbyRide[]>([]);
+  const [appState, setAppState] = useState<AppStateResponse | null>(null);
+  const [appStateResolved, setAppStateResolved] = useState(false);
 
   // Cluster rides by start location (rounded to ~10m) so multiple
   // rides leaving the same pickup point collapse to a single pin
@@ -286,6 +273,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const mapCameraTaskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
   const mapCameraFrameRef = useRef<number | null>(null);
   const rideSubmitGeocodeRequestRef = useRef(0);
+  const homeStateFocusReloadReadyRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -802,38 +790,53 @@ const customMapStyle = React.useMemo(() => [
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Refresh nearby-ride data whenever the user's location is known.
-  // Public endpoints — both safe to call before sign-in. The full
-  // ride list drives the map pins; the count drives the prompt pill
-  // (and is also derivable from the list, but we keep the dedicated
-  // count endpoint cheap for the "no rides nearby" case where we
-  // don't want to download empty payloads).
-  useEffect(() => {
-    if (!location) return;
-    let cancelled = false;
-    const fetchNearby = async () => {
-      try {
-        const url = `${baseURL}/rides/nearby?lat=${location.latitude}&lng=${location.longitude}&radius=5000&limit=30`;
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error(String(resp.status));
-        const json = await resp.json();
-        const list: NearbyRide[] = Array.isArray(json?.rides) ? json.rides : [];
-        if (!cancelled) {
-          setNearbyRides(list);
-          setNearbyCount(list.length);
-        }
-      } catch {
-        if (!cancelled) {
-          setNearbyRides([]);
-          setNearbyCount(0);
-        }
+  const loadHomeState = useCallback(async (isCancelled: () => boolean = () => false) => {
+    try {
+      const state = await getAppState(apiUtil, location);
+      if (isCancelled()) return;
+      setAppState(state);
+      setAppStateResolved(true);
+      if (state.home.nearby) {
+        setNearbyRides(state.home.nearby.rides ?? []);
       }
-    };
-    fetchNearby();
+    } catch (error) {
+      if (!isCancelled()) {
+        console.warn("[HomeScreen] app state unavailable", error);
+        setAppStateResolved(true);
+      }
+    }
+  }, [apiUtil, location]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!homeStateFocusReloadReadyRef.current) {
+        homeStateFocusReloadReadyRef.current = true;
+        return undefined;
+      }
+
+      let cancelled = false;
+      void loadHomeState(() => cancelled);
+      return () => {
+        cancelled = true;
+      };
+    }, [loadHomeState]),
+  );
+
+  // One bootstrap read model replaces the former fan-out across
+  // /user/rides, /trip-card/active, /user/pending-ratings, and
+  // /rides/nearby. ApiUtil serves this from persistent cache first.
+  useEffect(() => {
+    let cancelled = false;
+    void loadHomeState(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [location?.latitude, location?.longitude]);
+  }, [loadHomeState]);
+
+  useEffect(() => {
+    if (!revalidate) return;
+    void loadHomeState();
+  }, [loadHomeState, revalidate]);
 
   // Post-trip rating prompt — fires when the user returns to Home
   // and has at least one trip that's 12h+ past its scheduled start
@@ -844,49 +847,29 @@ const customMapStyle = React.useMemo(() => [
   // time they open the app (no persistent dismissal — these are
   // 5-second forms and we shouldn't have to nag).
   const ratingPromptShownRef = useRef(false);
-  useFocusEffect(
-    useCallback(() => {
-      if (isGuest) return;
-      if (ratingPromptShownRef.current) return;
-      let cancelled = false;
-      (async () => {
-        try {
-          const resp = await apiUtil.get<{
-            rides: {
-              ride_id: string;
-              start_location: string;
-              end_location: string;
-              start_time: string;
-              pending_count: number;
-            }[];
-          }>("/user/pending-ratings");
-          if (cancelled || !resp?.rides?.length) return;
-          ratingPromptShownRef.current = true;
-          const trip = resp.rides[0];
-          BrandedAlert.show({
-            title: "How was your ride?",
-            body: `Rate ${trip.pending_count === 1 ? "the host" : `${trip.pending_count} riders`} on ${trip.start_location} → ${trip.end_location}. Takes 5 seconds.`,
-            buttons: [
-              { label: "Later", style: "cancel" },
-              {
-                label: "Rate now",
-                style: "primary",
-                onPress: () =>
-                  router.navigate(
-                    appHref("PostTripRatingScreen", { rideId: trip.ride_id }),
-                  ),
-              },
-            ],
-          });
-        } catch {
-          // Silent — this is a nicety, not a critical path.
-        }
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }, [apiUtil, isGuest, router]),
-  );
+  useEffect(() => {
+    if (!isFocused || isGuest || ratingPromptShownRef.current) return;
+    const pendingRatings = appState?.home.pending_ratings ?? [];
+    if (!pendingRatings.length) return;
+
+    ratingPromptShownRef.current = true;
+    const trip = pendingRatings[0];
+    BrandedAlert.show({
+      title: "How was your ride?",
+      body: `Rate ${trip.pending_count === 1 ? "the host" : `${trip.pending_count} riders`} on ${trip.start_location} → ${trip.end_location}. Takes 5 seconds.`,
+      buttons: [
+        { label: "Later", style: "cancel" },
+        {
+          label: "Rate now",
+          style: "primary",
+          onPress: () =>
+            router.navigate(
+              appHref("PostTripRatingScreen", { rideId: trip.ride_id }),
+            ),
+        },
+      ],
+    });
+  }, [appState?.home.pending_ratings, isFocused, isGuest, router]);
 
   const runMapCameraUpdate = useCallback((from: LocationCoords | null, to: LocationCoords | null) => {
     const map = mapRef.current;
@@ -1211,6 +1194,8 @@ const customMapStyle = React.useMemo(() => [
                 manage from here. */}
             {!isGuest && (
               <ActiveTripCard
+                cardFromState={appState?.home.active_trip_card ?? null}
+                appStateResolved={appStateResolved}
                 onPressOpen={(rideId) =>
                   router.navigate(appHref("RideDetailsScreen", { rideId } as any))
                 }
@@ -1229,7 +1214,11 @@ const customMapStyle = React.useMemo(() => [
                 doubles up. */}
             {!isGuest && !hasActiveTripCard && (
               <View style={styles.previousTripsWrapper}>
-                <PreviousTripsSection onHasTripsChange={setHasUserTrips} />
+                <PreviousTripsSection
+                  ridesFromState={appState?.home.user_rides ?? []}
+                  appStateResolved={appStateResolved}
+                  onHasTripsChange={setHasUserTrips}
+                />
               </View>
             )}
 

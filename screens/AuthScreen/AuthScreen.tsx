@@ -47,7 +47,7 @@ const AuthScreen: React.FC = () => {
       if (currentUser) {
         try {
           await currentUser.getIdToken(true);
-          await apiUtil.getForUser("/user/details", currentUser);
+          await apiUtil.getForUserUncached("/user/details", currentUser);
           navigateAfterAuth();
         } catch (err: any) {
           // 404 = Firebase auth is good but the user has no backend
@@ -69,7 +69,7 @@ const AuthScreen: React.FC = () => {
 
   const routeAfterAuth = async (firebaseUser: any) => {
     try {
-      await apiUtil.getForUser("/user/details", firebaseUser);
+      await apiUtil.getForUserUncached("/user/details", firebaseUser);
       navigateAfterAuth();
     } catch (err: any) {
       if (err.response?.status === 404) {
