@@ -209,46 +209,83 @@ const AppShell = () => {
     locationDetour === undefined;
 
   const handleNotificationNavigation = (data: any) => {
-    if (data?.type === "chat_message") {
-      if (data.ride_id) {
+    const type = String(data?.type || "");
+    const rideId = data?.ride_id || data?.rideId;
+    const dmRoomId = data?.dm_room_id || data?.dmRoomId;
+
+    if (type === "chat_message") {
+      if (rideId) {
         router.navigate(appHref("ChatMessages", {
-          chatId: String(data.ride_id),
+          chatId: String(rideId),
           chatTitle: String(data.chat_title || "Chat"),
           chatSubtitle: String(data.chat_subtitle || "Ride Chat"),
           isGroupChat: true
         }));
       }
-    } else if (data?.type === "ride_request_approved") {
-      if (data.ride_id) {
-        router.navigate(appHref("RideDetailsScreen", {
-          rideId: String(data.ride_id)
+    } else if (type === "direct_message") {
+      if (dmRoomId) {
+        router.navigate(appHref("ChatMessages", {
+          chatId: String(dmRoomId),
+          chatTitle: String(data.sender_name || data.chat_title || "Chat"),
+          isGroupChat: false,
+          otherUserId: data.sender_id ? String(data.sender_id) : undefined,
         }));
+      } else {
+        router.navigate(appHref("TripsListScreen"));
       }
-    } else if (data?.type === "ride_request_received") {
-      if (data.ride_id) {
-        router.navigate(appHref("RideDetailsScreen", {
-          rideId: String(data.ride_id)
+    } else if (type === "booking_accepted" || type === "ride_request_approved") {
+      if (rideId) {
+        router.navigate(appHref("ChatMessages", {
+          chatId: String(rideId),
+          chatTitle: String(data.chat_title || "Trip chat"),
+          chatSubtitle: String(data.chat_subtitle || "Ride Chat"),
+          isGroupChat: true,
         }));
+      } else {
+        router.navigate(appHref("TripsListScreen"));
       }
+    } else if (type === "booking_request" || type === "ride_request_received") {
+      if (dmRoomId || rideId) {
+        router.navigate(appHref("ChatMessages", {
+          chatId: String(dmRoomId || rideId),
+          chatTitle: String(data.passenger_name || data.chat_title || "Ride request"),
+          isGroupChat: !dmRoomId,
+          otherUserId: data.passenger_id ? String(data.passenger_id) : undefined,
+          pendingHostInquiry: !!dmRoomId,
+          viewerIsHost: !!dmRoomId,
+          pendingRideId: rideId ? String(rideId) : undefined,
+          pendingHostName: data.passenger_name ? String(data.passenger_name) : undefined,
+          hostPendingRequestBookingId: data.booking_id ? String(data.booking_id) : undefined,
+        } as any));
+      } else {
+        router.navigate(appHref("TripsListScreen"));
+      }
+    } else if (type === "booking_rejected") {
+      router.navigate(appHref("HomeScreen"));
     } else if (data?.type === "ride_reminder") {
-      if (data.ride_id) {
+      if (rideId) {
         router.navigate(appHref("RideDetailsScreen", {
-          rideId: String(data.ride_id)
+          rideId: String(rideId)
         }));
       }
-    } else if (data?.type === "rating_prompt") {
+    } else if (type === "rating_prompt") {
       // 12h-after-trip "how was the ride?" push lands here.
-      if (data.ride_id) {
+      if (rideId) {
         router.navigate(appHref("PostTripRatingScreen", {
-          rideId: String(data.ride_id),
+          rideId: String(rideId),
         }));
       }
-    } else if (data?.type === "ride_cancelled_pending") {
+    } else if (type === "ride_cancelled" || type === "ride_cancelled_pending") {
       // Host pulled a ride before the user's pending request was
       // accepted — drop them at Home so they can find another.
       router.navigate(appHref("HomeScreen"));
-    } else if (data?.ride_id || data?.rideId) {
-      const rideId = data.ride_id || data.rideId;
+    } else if (type === "ride_updated") {
+      if (rideId) {
+        router.navigate(appHref("RideDetailsScreen", {
+          rideId: String(rideId)
+        }));
+      }
+    } else if (rideId) {
       router.navigate(appHref("RideDetailsScreen", {
         rideId: String(rideId)
       }));
