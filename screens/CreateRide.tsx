@@ -612,14 +612,14 @@ const CreateRide: React.FC = () => {
         >
           <View style={styles.fareSummaryTopRow}>
             <View style={styles.fareSummaryCol}>
-              <Text style={styles.fareSummaryColLabel}>per seat</Text>
+              <Text style={styles.fareSummaryColLabel}>Per seat</Text>
               <Text style={styles.fareSummaryColValue}>
                 ₹{effectivePerSeat}
               </Text>
             </View>
             <View style={styles.fareSummaryDivider} />
             <View style={styles.fareSummaryCol}>
-              <Text style={styles.fareSummaryColLabel}>trip total</Text>
+              <Text style={styles.fareSummaryColLabel}>Trip total</Text>
               <Text style={styles.fareSummaryColValue}>
                 ₹{displayTotal}
               </Text>
@@ -662,12 +662,20 @@ const CreateRide: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Women-only toggle — compact single-row pill instead of a
-            full card. Gated to viewer.gender === "female" (server
-            enforces the same rule on /ride/create). Title sits on
-            the left, switch on the right; no caption block, so the
-            row takes ~46pt vs the old ~88pt card. Tap anywhere in
-            the row to toggle. */}
+        {/* Women-only toggle temporarily disabled.
+            Reason: even at its compact pill size the row pushes the
+            taxi illustration + submit slider below the fold on
+            shorter Android phones once the female viewer-gender
+            reveals it. Holding off on this UI until we have a
+            cleaner home for the toggle (probably inside the fare
+            sheet alongside seats, or surfaced as a chip elsewhere).
+            Backend still honours `is_same_gender = 1` if a host
+            sends it, so we just stop sending `1` from this client —
+            handleCreateRide ALREADY guards on `isWomenOnly &&
+            viewerGender === "female"`, and with no UI to flip
+            `isWomenOnly` it stays false. Keeping the state + handler
+            in place so this is a single-line revert once we ship
+            the new placement.
         {viewerGender === "female" && (
           <TouchableOpacity
             style={[
@@ -696,6 +704,7 @@ const CreateRide: React.FC = () => {
             </View>
           </TouchableOpacity>
         )}
+        */}
 
         <Animated.View
           style={[
@@ -990,14 +999,17 @@ const styles = StyleSheet.create({
     paddingBottom: "2.5%",
   },
   label: {
+    // Sentence-case section label. Was uppercase + 0.8 tracking,
+    // which fights the rest of the screen's typography. Sentence
+    // case reads as part of a calm prose hierarchy instead of
+    // shouting at the user.
     paddingTop: "5%",
     paddingBottom: "2.5%",
-    fontSize: 13,
+    fontSize: 14,
     color: AppColors.secondaryDarkGreen,
     opacity: 0.75,
-    fontFamily: "NunitoSans_800ExtraBold",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: -0.1,
   },
   // Forest dark stepper card on lime canvas — matches the rest of the
   // surface system (lime sheet, forest content cards, lime accents).
@@ -1090,34 +1102,37 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     overflow: "hidden",
   },
-  // Compact "Women only" pill. Single row, ~46pt tall instead of the
-  // earlier ~88pt card with a caption block — the caption was the
-  // thing pushing the taxi illustration off-screen on shorter Android
-  // phones once the toggle was visible. Forest tile so it still sits
-  // in the same surface family as `stepperCard`, but smaller padding,
-  // no shadow, no caption row. Active state lifts a thin lime ring
-  // around the pill to confirm commitment without flipping the whole
-  // tile to lime.
+  // Compact "Women only" row. Same rounded-rect surface system as
+  // `stepperCard` (radius 18, forest fill, identical horizontal
+  // padding) so it reads as part of the "trip details" cluster
+  // instead of a foreign pill shape next to the rect cards above
+  // it. Vertical padding is tighter than the stepper so the row
+  // stays ~52pt vs the stepper's ~70pt — keeps the taxi illustration
+  // + submit slider on-fold even when the toggle is visible.
   womenOnlyPill: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: AppColors.secondaryDarkGreen,
-    borderRadius: 999,
-    paddingLeft: 18,
-    paddingRight: 6,
-    paddingVertical: 6,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     width: "100%",
-    marginTop: 16,
+    marginTop: 14,
     borderWidth: 1.5,
     borderColor: "transparent",
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
   },
   womenOnlyPillActive: {
     borderColor: AppColors.primaryLightGreen,
   },
   womenOnlyPillTitle: {
     color: AppColors.basicWhite,
-    fontSize: 14,
+    fontSize: 14.5,
     fontFamily: "NunitoSans_800ExtraBold",
     letterSpacing: -0.1,
   },
@@ -1175,12 +1190,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   fareSummaryColLabel: {
+    // Sentence-case sub-label on the fare card ("Per seat" /
+    // "Trip total"). Sized + weighted to match the
+    // `fareSummaryFooterText` line below the card ("Per-seat fare
+    // · N seats") so the two labels read with the same visual
+    // weight — they're the same tier of muted lime metadata.
     color: AppColors.primaryLightGreen,
-    opacity: 0.55,
-    fontSize: 10.5,
-    fontFamily: "NunitoSans_800ExtraBold",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
+    opacity: 0.7,
+    fontSize: 12,
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: 0.05,
     marginBottom: 4,
   },
   fareSummaryColValue: {
