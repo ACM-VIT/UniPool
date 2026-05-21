@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
-import { View, Text, Image, StyleSheet, SafeAreaView, Dimensions, TouchableOpacity, TextInput, Animated } from "react-native";
+import React, { useState, useRef, useEffect, useMemo } from "react";
+import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, TextInput, Animated, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import AppColors from "../design_systems/colors";
@@ -8,6 +9,7 @@ import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import BrandedAlert from "../components/BrandedAlert";
+import SheetShell, { sheetUi } from "../components/SheetShell";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
 
 const { width, height } = Dimensions.get("window");
@@ -119,6 +121,46 @@ const CreateRide: React.FC = () => {
   const [customCost, setCustomCost] = useState<string>("");
   const costInputRef = useRef<TextInput>(null);
 
+  // Three ways to enter the trip fare:
+  //   "per_seat" — original behaviour, host types the per-seat amount
+  //                directly. Total = fare × seats.
+  //   "total"    — host types the TOTAL trip cost; the app divides
+  //                by seats and shows the per-seat preview. Useful
+  //                when the host knows the cab metre / petrol cost
+  //                upfront and doesn't want to do the arithmetic.
+  //   "custom"   — per-seat amounts vary (e.g. one rider only goes
+  //                half the route). Host enters an amount for each
+  //                seat, app sums + averages. The average is what
+  //                gets sent to /ride/create (backend stores a
+  //                single per-seat price for search/match); the host
+  //                still knows what to collect from each rider.
+  const [splitMode, setSplitMode] = useState<"per_seat" | "total" | "custom">("per_seat");
+  const [totalFare, setTotalFare] = useState<number>(300);
+  const [seatFares, setSeatFares] = useState<number[]>([100, 100, 100]);
+  const [editingSeatIndex, setEditingSeatIndex] = useState<number | null>(null);
+  const [seatFareDraft, setSeatFareDraft] = useState<string>("");
+  const seatFareInputRef = useRef<TextInput>(null);
+
+  // Bottom-sheet visibility for the fare editor. The fare details
+  // (three split modes + steppers + per-seat list) live in a sheet
+  // so the main screen stays a single non-scrolling viewport.
+  const [showFareSheet, setShowFareSheet] = useState<boolean>(false);
+
+  // Horizontal shake applied to the slider when the user tries to
+  // submit while a blocker is active. Replaces the inline warning
+  // pill — the shake is the warning.
+  const sliderShake = useRef(new Animated.Value(0)).current;
+  const shakeSlider = () => {
+    sliderShake.setValue(0);
+    Animated.sequence([
+      Animated.timing(sliderShake, { toValue: -10, duration: 55, useNativeDriver: true }),
+      Animated.timing(sliderShake, { toValue: 10, duration: 55, useNativeDriver: true }),
+      Animated.timing(sliderShake, { toValue: -8, duration: 55, useNativeDriver: true }),
+      Animated.timing(sliderShake, { toValue: 8, duration: 55, useNativeDriver: true }),
+      Animated.timing(sliderShake, { toValue: 0, duration: 55, useNativeDriver: true }),
+    ]).start();
+  };
+
   // Viewer's gender — drives whether the "Women only" toggle is even
   // shown. We only surface the option to female users, and the
   // backend independently enforces the same rule on /ride/create so
@@ -142,6 +184,58 @@ const CreateRide: React.FC = () => {
       cancelled = true;
     };
   }, [apiUtil]);
+
+  // Keep the per-seat array length in sync with the seat count. When
+  // the host bumps seats up, the new slots inherit the current
+  // average so the totals don't lurch. When they drop seats, we trim
+  // from the end.
+  useEffect(() => {
+    setSeatFares((prev) => {
+      if (prev.length === passengerCount) return prev;
+      if (prev.length < passengerCount) {
+        const avg = prev.length
+          ? Math.round(prev.reduce((a, b) => a + b, 0) / prev.length)
+          : costPerPerson;
+        return [
+          ...prev,
+          ...Array.from({ length: passengerCount - prev.length }, () => avg),
+        ];
+      }
+      return prev.slice(0, passengerCount);
+    });
+  }, [passengerCount, costPerPerson]);
+
+  // Effective per-seat price submitted to /ride/create. Backend stores
+  // a single number; for "custom" we use the average so search /
+  // matching stays meaningful even if individual seats vary.
+  const effectivePerSeat = useMemo(() => {
+    if (splitMode === "total") {
+      return Math.max(25, Math.round(totalFare / Math.max(1, passengerCount)));
+    }
+    if (splitMode === "custom") {
+      const sum = seatFares.reduce((a, b) => a + b, 0);
+      return Math.max(25, Math.round(sum / Math.max(1, passengerCount)));
+    }
+    return costPerPerson;
+  }, [splitMode, costPerPerson, totalFare, seatFares, passengerCount]);
+
+  // Total trip cost displayed under each mode. Single source of truth
+  // so the "Total" preview stays consistent across modes.
+  const displayTotal = useMemo(() => {
+    if (splitMode === "total") return totalFare;
+    if (splitMode === "custom") return seatFares.reduce((a, b) => a + b, 0);
+    return costPerPerson * passengerCount;
+  }, [splitMode, costPerPerson, totalFare, seatFares, passengerCount]);
+
+  // Pre-flight blocker — surfaces as an inline note above the slider
+  // so users know WHAT they need to fix before the slide will do
+  // anything. Replaces the silent "disabled slider" state.
+  const blockingReason = useMemo(() => {
+    if (!fromLocation || !toLocation) return "Pick a pickup and a drop-off to continue.";
+    if (fromLocation === toLocation) return "Pickup and drop-off can't be the same place.";
+    if (rideDateTime.getTime() < Date.now() - 60_000) return "Pick a date and time in the future.";
+    return null;
+  }, [fromLocation, toLocation, rideDateTime]);
 
   // Animation states
   const [currentVehicleImage, setCurrentVehicleImage] = useState(require("../assets/Taxi.png"));
@@ -208,7 +302,11 @@ const CreateRide: React.FC = () => {
         start_time: rideDateTime.toISOString(),
         total_seats: passengerCount,
         booked_seats: 0,
-        total_price: costPerPerson,
+        // Always send the *per-seat* effective price, regardless of
+        // which split mode the host used. For "total" and "custom"
+        // modes this is the computed/averaged value; for "per_seat"
+        // it's the host's direct input.
+        total_price: effectivePerSeat,
         is_ongoing: 0,
         // Only honor the toggle if the viewer is actually female —
         // server enforces the same check, this is defensive belt-and-
@@ -408,8 +506,68 @@ const CreateRide: React.FC = () => {
     setIsEditingCost(false);
   };
 
+  // Total-mode stepper handlers. Step of 25 matches the per-seat
+  // stepper rhythm; clamp range mirrors the backend's per-seat
+  // validation scaled by max seats (25 × 20).
+  const totalMin = 25 * Math.max(1, passengerCount);
+  const totalMax = 10000 * Math.max(1, passengerCount);
+  const increaseTotal = () =>
+    setTotalFare((c) => Math.min(totalMax, c + 25 * Math.max(1, passengerCount)));
+  const decreaseTotal = () =>
+    setTotalFare((c) => Math.max(totalMin, c - 25 * Math.max(1, passengerCount)));
+
+  // Custom-mode per-seat editing. Tapping a row opens an inline
+  // numeric input (one at a time) so the host can punch in an exact
+  // amount without juggling steppers for every seat.
+  const openSeatEditor = (idx: number) => {
+    setSeatFareDraft(String(seatFares[idx] ?? 100));
+    setEditingSeatIndex(idx);
+    setTimeout(() => seatFareInputRef.current?.focus(), 100);
+  };
+  const commitSeatEditor = () => {
+    if (editingSeatIndex == null) return;
+    let v = parseInt(seatFareDraft, 10);
+    if (isNaN(v)) v = seatFares[editingSeatIndex] ?? 100;
+    v = Math.min(10000, Math.max(25, v));
+    setSeatFares((prev) => {
+      const next = prev.slice();
+      next[editingSeatIndex] = v;
+      return next;
+    });
+    setEditingSeatIndex(null);
+  };
+  const bumpSeat = (idx: number, delta: number) => {
+    setSeatFares((prev) => {
+      const next = prev.slice();
+      next[idx] = Math.min(10000, Math.max(25, (next[idx] ?? 100) + delta));
+      return next;
+    });
+  };
+
+  // When the host switches modes, seed the new mode's state from
+  // the current effective price so the UI doesn't jolt to a
+  // different number. Smooth feel: pick "Total", see the total
+  // version of the same amount they were already considering.
+  const switchSplitMode = (next: "per_seat" | "total" | "custom") => {
+    if (next === splitMode) return;
+    if (next === "total") {
+      setTotalFare(costPerPerson * passengerCount);
+    } else if (next === "custom") {
+      setSeatFares(Array.from({ length: passengerCount }, () => costPerPerson));
+    } else if (next === "per_seat") {
+      setCostPerPerson(effectivePerSeat);
+    }
+    setSplitMode(next);
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    // SafeAreaView from `react-native-safe-area-context` (not the
+    // deprecated one in `react-native`, which is iOS-only and was
+    // letting the status bar clip the back chevron and "Create a
+    // Ride" title on Android). `edges={["top", "left", "right"]}`
+    // skips the bottom inset — the slider already sits inside the
+    // home-indicator zone with its own padding.
+    <SafeAreaView style={styles.container} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.headerRowWithTitle}>
         <TouchableOpacity
           style={styles.backButton}
@@ -423,6 +581,11 @@ const CreateRide: React.FC = () => {
         <Text style={styles.title}>Create a Ride</Text>
       </View>
 
+      {/* Main form. Sized to fit on one viewport — the heavy fare
+          UI (three modes, steppers, per-seat list) lives in a sheet
+          rather than inline, so the host sees the whole composition
+          (route, fare summary, seats, vehicle, slider) without
+          scrolling. */}
       <View style={styles.mainContent}>
         {/* ← Your built‑in selector handles both date & time */}
         <View style={styles.section}>
@@ -436,51 +599,44 @@ const CreateRide: React.FC = () => {
           />
         </View>
 
-        <Text style={styles.label}>Per-seat fare</Text>
-        <View style={styles.stepperCard}>
-          <TouchableOpacity
-            onPress={decreaseCost}
-            style={styles.stepperBtn}
-            disabled={isEditingCost}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.stepperBtnText}>−</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.stepperValueWrap}
-            onPress={handleCostPress}
-            activeOpacity={0.7}
-            disabled={isEditingCost}
-          >
-            <Text style={styles.stepperCurrency}>₹</Text>
-            {isEditingCost ? (
-              <TextInput
-                ref={costInputRef}
-                style={styles.stepperValueInput}
-                value={customCost}
-                onChangeText={handleCostChange}
-                onBlur={handleCostSubmit}
-                onSubmitEditing={handleCostSubmit}
-                keyboardType="numeric"
-                maxLength={5}
-                selectTextOnFocus
-                returnKeyType="done"
-                autoFocus
-              />
-            ) : (
-              <Text style={styles.stepperValue}>{costPerPerson}</Text>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={increaseCost}
-            style={styles.stepperBtn}
-            disabled={isEditingCost}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.stepperBtnText}>+</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.fieldHint}>Co-riders pay this each. Total trip cost = fare × seats.</Text>
+        {/* FARE SUMMARY — compact tappable card. Two-line layout:
+            big per-seat headline on the left, trip total on the
+            right, mode + seat context below. Whole card is the
+            tap target; the small chevron on the right is the
+            "tap to edit" affordance (no Edit pill — the entire
+            card is already tappable, the pill read as redundant). */}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => setShowFareSheet(true)}
+          style={styles.fareSummaryCard}
+        >
+          <View style={styles.fareSummaryTopRow}>
+            <View style={styles.fareSummaryCol}>
+              <Text style={styles.fareSummaryColLabel}>per seat</Text>
+              <Text style={styles.fareSummaryColValue}>
+                ₹{effectivePerSeat}
+              </Text>
+            </View>
+            <View style={styles.fareSummaryDivider} />
+            <View style={styles.fareSummaryCol}>
+              <Text style={styles.fareSummaryColLabel}>trip total</Text>
+              <Text style={styles.fareSummaryColValue}>
+                ₹{displayTotal}
+              </Text>
+            </View>
+            <Text style={styles.fareSummaryChevron}>›</Text>
+          </View>
+          <View style={styles.fareSummaryFooter}>
+            <Text style={styles.fareSummaryFooterText}>
+              {splitMode === "per_seat"
+                ? `Per-seat fare · ${passengerCount} seat${passengerCount === 1 ? "" : "s"}`
+                : splitMode === "total"
+                ? `Split equally · ${passengerCount} seat${passengerCount === 1 ? "" : "s"}`
+                : `Unequal split · ${passengerCount} seat${passengerCount === 1 ? "" : "s"}`}
+            </Text>
+            <Text style={styles.fareSummaryEditHint}>Tap to edit</Text>
+          </View>
+        </TouchableOpacity>
 
         <Text style={styles.label}>Seats you're offering</Text>
         <View style={styles.stepperCard}>
@@ -570,17 +726,230 @@ const CreateRide: React.FC = () => {
             source={currentVehicleImage}
           />
         </Animated.View>
+      </View>
 
+      {/* Docked submit bar — pinned at the bottom of the screen.
+          The slider stays enabled even when there's a blocking
+          reason: the user CAN drag, and on completion we either
+          submit or shake the slider as feedback. No inline pill —
+          the shake IS the warning. */}
+      <Animated.View
+        style={[
+          styles.bottomDock,
+          { transform: [{ translateX: sliderShake }] },
+        ]}
+      >
         <SlideToCreate
-          onSlideComplete={handleCreateRide}
+          onSlideComplete={() => {
+            if (blockingReason) {
+              shakeSlider();
+              return;
+            }
+            handleCreateRide();
+          }}
           isLoading={isCreating}
-          disabled={!fromLocation || !toLocation || isCreating}
+          disabled={isCreating}
           text="Slide to create ride"
           loadingText="Creating ride..."
           sliderIcon={require("../assets/slide.png")}
           emojiIcon={require("../assets/happy-emoji.png")}
         />
-      </View>
+      </Animated.View>
+
+      <SheetShell
+        visible={showFareSheet}
+        onDismiss={() => setShowFareSheet(false)}
+      >
+        <Text style={[sheetUi.sheetTitle, { marginBottom: 4 }]}>Fare</Text>
+        <Text style={sheetUi.sheetBody}>
+          Pick how you want to set the price.
+        </Text>
+
+        <View style={styles.sheetModeChipRow}>
+          {([
+            { key: "per_seat", label: "Per seat" },
+            { key: "total", label: "Total" },
+            { key: "custom", label: "Unequal" },
+          ] as const).map((opt) => {
+            const active = splitMode === opt.key;
+            return (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.sheetModeChip, active && styles.sheetModeChipActive]}
+                onPress={() => switchSplitMode(opt.key)}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.sheetModeChipText, active && styles.sheetModeChipTextActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Fixed-height container so switching modes doesn't make
+            the sheet resize. Unequal mode has an internal scroll,
+            the simpler stepper modes just sit inside this min-height
+            block so the Done button stays put. */}
+        <View style={styles.sheetModeBody}>
+        {splitMode === "per_seat" && (
+          <>
+            <View style={styles.stepperCard}>
+              <TouchableOpacity
+                onPress={decreaseCost}
+                style={styles.stepperBtn}
+                disabled={isEditingCost}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.stepperBtnText}>−</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.stepperValueWrap}
+                onPress={handleCostPress}
+                activeOpacity={0.7}
+                disabled={isEditingCost}
+              >
+                <Text style={styles.stepperCurrency}>₹</Text>
+                {isEditingCost ? (
+                  <TextInput
+                    ref={costInputRef}
+                    style={styles.stepperValueInput}
+                    value={customCost}
+                    onChangeText={handleCostChange}
+                    onBlur={handleCostSubmit}
+                    onSubmitEditing={handleCostSubmit}
+                    keyboardType="numeric"
+                    maxLength={5}
+                    selectTextOnFocus
+                    returnKeyType="done"
+                    autoFocus
+                  />
+                ) : (
+                  <Text style={styles.stepperValue}>{costPerPerson}</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={increaseCost}
+                style={styles.stepperBtn}
+                disabled={isEditingCost}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.stepperBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.fieldHint}>
+              What each rider pays you · ₹{displayTotal} total for {passengerCount}{" "}
+              seat{passengerCount === 1 ? "" : "s"}.
+            </Text>
+          </>
+        )}
+
+        {splitMode === "total" && (
+          <>
+            <View style={styles.stepperCard}>
+              <TouchableOpacity
+                onPress={decreaseTotal}
+                style={styles.stepperBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.stepperBtnText}>−</Text>
+              </TouchableOpacity>
+              <View style={styles.stepperValueWrap}>
+                <Text style={styles.stepperCurrency}>₹</Text>
+                <Text style={styles.stepperValue}>{totalFare}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={increaseTotal}
+                style={styles.stepperBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.stepperBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.fieldHint}>
+              Split equally across {passengerCount}{" "}
+              seat{passengerCount === 1 ? "" : "s"} · ₹{effectivePerSeat} each.
+            </Text>
+          </>
+        )}
+
+        {splitMode === "custom" && (
+          <>
+            <ScrollView
+              style={styles.customSeatScroll}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.customSeatList}>
+                {seatFares.map((amount, idx) => {
+                  const isEditing = editingSeatIndex === idx;
+                  return (
+                    <View key={idx} style={styles.customSeatRow}>
+                      <View style={styles.customSeatLabelWrap}>
+                        <Text style={styles.customSeatNumber}>
+                          Seat {idx + 1}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => bumpSeat(idx, -25)}
+                        style={styles.customSeatStepBtn}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.customSeatStepText}>−</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.customSeatValueWrap}
+                        onPress={() => openSeatEditor(idx)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.customSeatCurrency}>₹</Text>
+                        {isEditing ? (
+                          <TextInput
+                            ref={seatFareInputRef}
+                            style={styles.customSeatValueInput}
+                            value={seatFareDraft}
+                            onChangeText={(t) =>
+                              /^\d*$/.test(t) && setSeatFareDraft(t)
+                            }
+                            onBlur={commitSeatEditor}
+                            onSubmitEditing={commitSeatEditor}
+                            keyboardType="numeric"
+                            maxLength={5}
+                            selectTextOnFocus
+                            returnKeyType="done"
+                            autoFocus
+                          />
+                        ) : (
+                          <Text style={styles.customSeatValue}>{amount}</Text>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => bumpSeat(idx, 25)}
+                        style={styles.customSeatStepBtn}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.customSeatStepText}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
+            <Text style={styles.fieldHint}>
+              Total ₹{displayTotal} · average ₹{effectivePerSeat}/seat.
+            </Text>
+          </>
+        )}
+        </View>
+
+        <TouchableOpacity
+          style={styles.sheetDoneBtn}
+          activeOpacity={0.85}
+          onPress={() => setShowFareSheet(false)}
+        >
+          <Text style={styles.sheetDoneBtnText}>Done</Text>
+        </TouchableOpacity>
+      </SheetShell>
     </SafeAreaView>
   );
 };
@@ -796,6 +1165,239 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.secondaryDarkGreen,
     opacity: 1,
     transform: [{ translateX: 18 }],
+  },
+
+  // FARE SUMMARY card — forest tile with a two-column top row
+  // (per-seat | trip total) split by a thin lime divider, plus a
+  // muted footer line that says which split mode is active and
+  // hints at the tap interaction. Replaces the earlier single-line
+  // "₹100 per seat / Edit pill" layout which read as cramped and
+  // mixed typography.
+  fareSummaryCard: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    marginTop: "5%",
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  fareSummaryTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  fareSummaryCol: {
+    flex: 1,
+  },
+  fareSummaryColLabel: {
+    color: AppColors.primaryLightGreen,
+    opacity: 0.55,
+    fontSize: 10.5,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  fareSummaryColValue: {
+    color: AppColors.basicWhite,
+    fontSize: 26,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: -0.5,
+  },
+  fareSummaryDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: AppColors.primaryLightGreen,
+    opacity: 0.18,
+    marginHorizontal: 14,
+  },
+  fareSummaryChevron: {
+    marginLeft: 10,
+    color: AppColors.primaryLightGreen,
+    opacity: 0.55,
+    fontSize: 24,
+    fontFamily: "NunitoSans_400Regular",
+    lineHeight: 24,
+  },
+  fareSummaryFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(181,215,80,0.15)",
+  },
+  fareSummaryFooterText: {
+    color: AppColors.primaryLightGreen,
+    opacity: 0.7,
+    fontSize: 12,
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: 0.05,
+  },
+  fareSummaryEditHint: {
+    color: AppColors.primaryLightGreen,
+    opacity: 0.45,
+    fontSize: 11,
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+
+  // SHEET — mode chip row inside the fare editor. Same pattern as
+  // the main-screen chips, just tuned for the white sheet bg.
+  sheetModeChipRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  sheetModeChip: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: "rgba(38,59,51,0.20)",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  sheetModeChipActive: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderColor: AppColors.secondaryDarkGreen,
+  },
+  sheetModeChipText: {
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 13,
+    letterSpacing: 0.1,
+  },
+  sheetModeChipTextActive: {
+    color: AppColors.primaryLightGreen,
+  },
+  // Fixed-height container for the mode-specific UI inside the
+  // sheet. Without this, switching from per-seat (one small
+  // stepper card) to unequal (a multi-row list) made the sheet
+  // visibly resize, which felt jittery. Pick a height that fits
+  // the unequal list comfortably — the simpler modes just sit
+  // top-aligned inside.
+  sheetModeBody: {
+    height: 240,
+  },
+  // Internal scroll for the unequal-mode per-seat list. Sized to
+  // fit inside sheetModeBody minus the trailing hint line.
+  customSeatScroll: {
+    maxHeight: 210,
+  },
+  sheetDoneBtn: {
+    marginTop: 18,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: AppColors.secondaryDarkGreen,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  sheetDoneBtnText: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 15,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: 0.3,
+  },
+
+  // CUSTOM split rows — one per seat. Forest tile, compact stepper
+  // on the right, "Seat N" label on the left. Sized so 4-6 rows fit
+  // comfortably on screen; with more seats the user scrolls.
+  customSeatList: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 18,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  customSeatRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  customSeatLabelWrap: {
+    flex: 1,
+  },
+  customSeatNumber: {
+    color: AppColors.basicWhite,
+    fontSize: 14,
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: -0.1,
+  },
+  customSeatStepBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: AppColors.primaryLightGreen,
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 4,
+  },
+  customSeatStepText: {
+    color: AppColors.secondaryDarkGreen,
+    fontSize: 18,
+    fontFamily: "NunitoSans_800ExtraBold",
+    lineHeight: 22,
+  },
+  customSeatValueWrap: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "center",
+    minWidth: 90,
+    paddingHorizontal: 6,
+  },
+  customSeatCurrency: {
+    color: AppColors.primaryLightGreen,
+    opacity: 0.65,
+    fontSize: 13,
+    fontFamily: "NunitoSans_700Bold",
+    marginRight: 2,
+  },
+  customSeatValue: {
+    color: AppColors.basicWhite,
+    fontSize: 20,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: -0.3,
+  },
+  customSeatValueInput: {
+    color: AppColors.basicWhite,
+    fontSize: 20,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: -0.3,
+    backgroundColor: "transparent",
+    padding: 0,
+    margin: 0,
+    minWidth: 60,
+    textAlign: "center",
+  },
+
+  // BOTTOM DOCK — fixes the slider to the bottom of the screen so
+  // it sits where a thumb naturally rests, regardless of how much
+  // form content is above it. Lime canvas so it visually merges
+  // with the rest of the page.
+  bottomDock: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 12,
+    backgroundColor: AppColors.primaryLightGreen,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(38,59,51,0.08)",
   },
 });
 
