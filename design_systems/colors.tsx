@@ -23,6 +23,16 @@ const AppColors = {
   basicWhite: "#FFFFFF",
   basicRed: "#FF0000",
 
+  // Canonical destructive red. Paired with `basicWhite` text + thumb
+  // on the SlideToCreate component for delete-ride / reject-user /
+  // remove-passenger flows. Sourced from iOS system red so the
+  // destructive sliders feel native on iPhone; on Android the
+  // contrast against the lime canvas still reads as a clear "danger"
+  // colour. All destructive surfaces should reach for this token
+  // instead of hand-rolling a hex (we previously had `#FF3B30` and
+  // `#FF6B5B` floating around for the same purpose).
+  destructive: "#FF3B30",
+
   // Tinted forest — for hairlines, dividers, muted body text, soft
   // disabled states. All derived from secondaryDarkGreen so the whole
   // app feels grounded in the same dark accent.

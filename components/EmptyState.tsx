@@ -24,6 +24,10 @@ export type EmptyStateProps = {
   /** Illustration above the title. Use `no-rides`, `happy-emoji`,
    *  `cool-emoji`, `sad`, `airplane` from `assets/`. */
   image?: ImageSourcePropType;
+  /** Inline node — preferred over `image` when present. Use an SVG
+   *  glyph for surfaces where the raster asset would pixelate at
+   *  larger sizes (e.g. SmileyGlyph for the co-riders empty state). */
+  glyph?: React.ReactNode;
   title: string;
   body?: string;
   ctaLabel?: string;
@@ -41,6 +45,7 @@ export type EmptyStateProps = {
 
 const EmptyState: React.FC<EmptyStateProps> = ({
   image,
+  glyph,
   title,
   body,
   ctaLabel,
@@ -57,7 +62,9 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         topAlign && styles.wrapTopAlign,
       ]}
     >
-      {image ? (
+      {glyph ? (
+        <View style={{ marginBottom: 18 }}>{glyph}</View>
+      ) : image ? (
         <Image
           source={image}
           style={{ width: imageSize, height: imageSize, marginBottom: 18 }}

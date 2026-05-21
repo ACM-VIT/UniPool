@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import AppColors from "../design_systems/colors";
+import RouteStack from "./RouteStack";
 
 /**
  * Universal-link host the deeplinks point to. Real app-link / universal-
@@ -162,28 +163,14 @@ const ShareRideSheet: React.FC<Props> = ({
             <Perforation />
 
             <View style={styles.stubZone}>
-              {/* Route line with the route dots + connector idiom
-                  we use everywhere else (RideCard,
-                  PreviousTripsCompressed). Keeps the brand
-                  language consistent and reads "this is a ride,
-                  not a generic link." */}
-              <View style={styles.routeRow}>
-                <View style={styles.dotOutline} />
-                <Text style={styles.routePoint} numberOfLines={1}>
-                  {startLocation}
-                </Text>
-              </View>
-              <View style={styles.routeConnector}>
-                {[0, 1, 2].map((i) => (
-                  <View key={i} style={styles.routeConnectorDash} />
-                ))}
-              </View>
-              <View style={styles.routeRow}>
-                <View style={styles.dotFilled} />
-                <Text style={styles.routePoint} numberOfLines={1}>
-                  {endLocation}
-                </Text>
-              </View>
+              {/* Canonical RouteStack — pin → dashed → arrow. */}
+              <RouteStack
+                tone="onLime"
+                start={startLocation}
+                end={endLocation}
+                numberOfLines={1}
+                textStyle={styles.routePoint}
+              />
 
               {/* When line — sits below the route as a quieter caption. */}
               <View style={styles.whenRow}>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView, InteractionManager } from "react-native";
+import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView, InteractionManager, AppState } from "react-native";
 import navigationImg from "../assets/navigation.png";
 import locationPinImg from "../assets/location-pin-2.png";
 import MapView, { Marker, Polyline, Circle, PROVIDER_GOOGLE } from "react-native-maps";
@@ -215,6 +215,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [nearbyRides, setNearbyRides] = useState<NearbyRide[]>([]);
   const [appState, setAppState] = useState<AppStateResponse | null>(null);
   const [appStateResolved, setAppStateResolved] = useState(false);
+  // Map cover fade — opaque lime over the MapView until tiles are
+  // ready (`onMapReady`), at which point we fade it out over ~360ms.
+  // Without this the user sees a hard black flash for ~1-2s while the
+  // native MapView surfaces wait for their first tile render.
+  const mapCoverOpacity = useRef(new Animated.Value(1)).current;
+  const [mapTilesReady, setMapTilesReady] = useState(false);
 
   // Cluster rides by start location (rounded to ~10m) so multiple
   // rides leaving the same pickup point collapse to a single pin
@@ -787,6 +793,16 @@ const customMapStyle = React.useMemo(() => [
 
   useEffect(() => {
     requestLocationPermission();
+    // Re-check on every return to foreground. Covers the case where
+    // the user denied permission in the in-app prompt, then enabled
+    // it later from system Settings — without this listener,
+    // `hasPermission` and `location` stay at their initial state
+    // forever, leaving the map empty and `/app/state` queried without
+    // coords (so nearby pins never load).
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") requestLocationPermission();
+    });
+    return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1068,7 +1084,21 @@ const customMapStyle = React.useMemo(() => [
             showsMyLocationButton={false}
             toolbarEnabled={false}
             customMapStyle={customMapStyle}
-            onMapReady={() => console.log("Map ready")}
+            onMapReady={() => {
+              // Fade the lime cover out the moment the native map
+              // signals it's painted its first frame. The 240ms hold
+              // before fade gives the tiles a beat to colour in so the
+              // user never glimpses the white-on-black "loading map"
+              // texture underneath.
+              if (!mapTilesReady) setMapTilesReady(true);
+              Animated.timing(mapCoverOpacity, {
+                toValue: 0,
+                delay: 240,
+                duration: 360,
+                easing: Easing.out(Easing.quad),
+                useNativeDriver: true,
+              }).start();
+            }}
           >
             {/* Service-area ring around the user — gives the map a sense of
                 coverage ("UniPool finds carpools within this radius").
@@ -1147,6 +1177,30 @@ const customMapStyle = React.useMemo(() => [
               />
             )}
           </MapView>
+          {/* Lime fade-in cover. Sits on top of the MapView until the
+              native surface signals `onMapReady`, then animates out.
+              Replaces the previous "black flash" with a soft handoff
+              from brand canvas to map tiles. pointerEvents=none so it
+              never blocks pin taps even mid-fade. */}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                backgroundColor: AppColors.primaryLightGreen,
+                opacity: mapCoverOpacity,
+                alignItems: "center",
+                justifyContent: "center",
+              },
+            ]}
+          >
+            <Text style={styles.brandText}>
+              <Text style={styles.brandTextDark}>Uni</Text>
+              <Text style={styles.brandTextDark}>P</Text>
+              <Text style={styles.brandTextWhite}>oo</Text>
+              <Text style={styles.brandTextDark}>l</Text>
+            </Text>
+          </Animated.View>
           </>
         ) : (
           <View style={styles.loadingContainer}>
@@ -1479,11 +1533,16 @@ const styles = StyleSheet.create({
     marginTop: responsiveHeight(0.4),
     marginBottom: responsiveHeight(1.4),
     alignSelf: "center",
-    elevation: 2,
+    // Bumped from elevation: 2 → 5 because Material's shadow renderer
+    // is more conservative than iOS's, leaving forest cards looking
+    // flat-stuck-to-the-canvas on Android. The iOS shadow props are
+    // also stronger now so both platforms render with comparable
+    // depth.
+    elevation: 5,
     shadowColor: AppColors.basicBlack,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
   },
   nearbyTileText: {
     color: AppColors.primaryLightGreen,
@@ -1519,13 +1578,16 @@ const styles = StyleSheet.create({
     opacity: 0.95,
   },
   createRideButton: {
-    // Forest fill on the lime canvas — inverse pattern. Cash App uses
-    // the same trick (black pill on lime background) and it always
-    // reads premium. Don't lime-on-lime; the button vanishes.
+    // White card with forest text — lighter middle that breaks the
+    // forest stack (Rides around you above, From/To card below)
+    // without going off-palette. Subtle hairline border anchors it
+    // to the brand colour so the white doesn't read as detached.
     //
     // Hard-coded paddingVertical (same reason as `nearbyTile`) so the
     // CTA reads as a real touch target on smaller Android screens.
-    backgroundColor: AppColors.secondaryDarkGreen,
+    // Higher elevation on Android because Material's shadow renderer
+    // is more conservative than iOS's.
+    backgroundColor: AppColors.basicWhite,
     paddingVertical: 18,
     paddingHorizontal: responsiveWidth(2.5),
     borderRadius: normalize(14),
@@ -1535,19 +1597,19 @@ const styles = StyleSheet.create({
     marginTop: responsiveHeight(1),
     marginBottom: responsiveHeight(2),
     alignSelf: "center",
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "rgba(38,59,51,0.10)",
+    elevation: 5,
     shadowColor: AppColors.basicBlack,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
   },
   createRideButtonText: {
-    // Forest button already does the heavy lifting visually — the
-    // text doesn't need ExtraBold on top. 700Bold @ 15.5 reads
-    // confident without shouting.
-    color: AppColors.primaryLightGreen,
+    // Forest label on a white card — high contrast, brand-aligned.
+    color: AppColors.secondaryDarkGreen,
     fontSize: normalize(15.5),
-    fontFamily: "NunitoSans_700Bold",
+    fontFamily: "NunitoSans_800ExtraBold",
     letterSpacing: 0.3,
   },
   createRideText: {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import DateTimePicker, {
   DateTimePickerAndroid,
@@ -104,6 +105,13 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const [isFocused, setIsFocused] = useState(true);
   const { apiUtil } = useApi();
   const { isGuest, requireAuth } = useAuthGate();
+  // Real device safe-area inset. The styles previously used a
+  // hardcoded `paddingTop: 35` on the rides header, which clipped
+  // the brand wordmark + back chevron under the Android status bar
+  // on devices with a taller-than-35dp top inset (Pixels, cutouts,
+  // notches). Reading the real value keeps the header below system
+  // chrome on every device.
+  const insets = useSafeAreaInsets();
 
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
   const [rides, setRides] = useState<RideData[]>([]);
@@ -763,11 +771,23 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
 
   return (
     <View style={styles.container}>
+      {/* `BrandInfo` already handles its own safe-area padding
+          internally (Platform-aware, uses `useSafeAreaInsets`), so
+          DON'T add another `paddingTop` on this absolute wrapper or
+          you'll double-count the inset on iOS (was pushing the
+          wordmark ~47pt too far down on notched iPhones). The wrapper
+          is just here to position + colour the band.
+          The `ridesHeaderRow` below needs `insets.top + ~44` to clear
+          the absolute `brandInfoHeaderRow` (whose height ≈
+          BrandInfo's own paddingTop + ~32pt content); the old
+          hardcoded `paddingTop: 35` was too short on tall-status-bar
+          Pixels and clipped the back chevron + "X rides found"
+          count behind the wordmark. */}
       <View style={styles.brandInfoHeaderRow}>
         <BrandInfo />
       </View>
 
-      <View style={styles.ridesHeaderRow}>
+      <View style={[styles.ridesHeaderRow, { paddingTop: insets.top + 44 }]}>
         <View style={styles.ridesHeaderLeft}>
           <TouchableOpacity
             style={styles.backButton}

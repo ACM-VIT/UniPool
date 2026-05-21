@@ -6,6 +6,7 @@ import React, {
   useState,
   ReactNode,
 } from "react";
+import { AppState, AppStateStatus } from "react-native";
 import * as Location from "expo-location";
 
 type Coords = { latitude: number; longitude: number };
@@ -135,13 +136,47 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Latest snapshot of whether we currently believe we have coords —
+  // used by the AppState listener below to decide if a re-fetch is
+  // warranted on foreground. Ref so the listener callback (registered
+  // once) stays current without re-subscribing on every coords change.
+  const hasCoordsRef = useRef(false);
+  useEffect(() => {
+    hasCoordsRef.current = coords !== null;
+  }, [coords]);
+
   useEffect(() => {
     if (!fetchedOnceRef.current) {
       fetchedOnceRef.current = true;
       void fetchLocation();
     }
-    
+
+    // Re-fetch when the app returns to the foreground IF the user has
+    // since granted permission (e.g. they tapped "Allow" on the
+    // LocationPermissionScreen, OR they enabled location externally
+    // from system Settings and came back). Without this, the very
+    // first read happens at app-boot — usually BEFORE the user has
+    // granted permission — and BrandInfo's "Tap to enable location"
+    // stays stuck forever because the provider never re-checks.
+    const onAppStateChange = async (next: AppStateStatus) => {
+      if (next !== "active") return;
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status !== "granted") return;
+        // Permission is granted. If we don't have coords yet (cold-
+        // start case), fetch now. If we already do, leave it — the
+        // user can pull-to-refresh via `refreshLocation` if needed.
+        if (!hasCoordsRef.current) {
+          void fetchLocation();
+        }
+      } catch (e) {
+        console.warn("AppState location recheck failed", e);
+      }
+    };
+    const sub = AppState.addEventListener("change", onAppStateChange);
+
     return () => {
+      sub.remove();
       if (backgroundRetryTimeoutRef.current) {
         clearTimeout(backgroundRetryTimeoutRef.current);
       }

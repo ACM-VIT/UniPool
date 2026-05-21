@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import AppColors from "../design_systems/colors";
+import RouteStack from "./RouteStack";
 
 interface RideDetails {
   start_location: string;
@@ -39,20 +40,14 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
 
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.85}>
+      {/* Canonical RouteStack idiom — single source of truth for the
+          start → end visual across every card surface in the app. */}
       <View style={styles.routeBlock}>
-        <View style={styles.routeRow}>
-          <View style={styles.dotOutline} />
-          <Text style={styles.routeText} numberOfLines={1} ellipsizeMode="tail">
-            {trip.start_location}
-          </Text>
-        </View>
-        <View style={styles.routeConnector} />
-        <View style={styles.routeRow}>
-          <View style={styles.dotFilled} />
-          <Text style={styles.routeText} numberOfLines={1} ellipsizeMode="tail">
-            {trip.end_location}
-          </Text>
-        </View>
+        <RouteStack
+          tone="onForest"
+          start={trip.start_location}
+          end={trip.end_location}
+        />
       </View>
 
       <View style={styles.footer}>

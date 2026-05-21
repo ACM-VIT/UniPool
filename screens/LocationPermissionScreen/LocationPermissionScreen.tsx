@@ -9,6 +9,7 @@ import { useApi } from "../../utils/ApiUtil";
 import { ensurePushNotificationsRegistered } from "../../utils/pushNotifications";
 import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import type { AppRouteTarget } from "../../navigation/routes";
+import { useLocationInfo } from "../../contexts/location-context";
 
 const { width, height } = Dimensions.get("window");
 const RADAR = Math.min(width * 0.72, height * 0.36, 320);
@@ -303,6 +304,7 @@ const LocationPermissionScreen: React.FC = () => {
   const routeParams = useDecodedLocalSearchParams<{ returnTo?: AppRouteTarget }>();
   const returnTo = routeParams.returnTo;
   const { apiUtil } = useApi();
+  const { refreshLocation } = useLocationInfo();
 
   const markSeenAndLeave = async () => {
     try {
@@ -326,6 +328,15 @@ const LocationPermissionScreen: React.FC = () => {
     } catch (e) {
       console.warn("Location prompt failed", e);
     }
+    // Fire-and-forget refresh so the LocationProvider picks up the
+    // freshly-granted permission before BrandInfo paints on HomeScreen.
+    // Without this, the provider's mount-time read (which happened
+    // BEFORE this screen) would have cached "Permission not granted"
+    // and BrandInfo would stay stuck on "Tap to enable location"
+    // until the next time the app backgrounded + foregrounded.
+    void refreshLocation().catch((e) =>
+      console.warn("refreshLocation after grant failed", e),
+    );
     try {
       await ensurePushNotificationsRegistered(apiUtil as any);
     } catch (e) {

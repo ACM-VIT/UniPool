@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Linking, Platform } from "rea
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "./BrandedAlert";
+import RouteStack from "./RouteStack";
 
 export type TripCardStage = "upcoming" | "in_window" | "stale";
 
@@ -152,19 +153,12 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
       style={[styles.card, compact && styles.cardCompact]}
       onPress={() => onPressOpen?.(card.ride_id)}
     >
-      <View style={styles.routeRow}>
-        <View style={styles.dotOutline} />
-        <Text style={styles.routeText} numberOfLines={1}>
-          {card.start_location}
-        </Text>
-      </View>
-      <View style={styles.connector} />
-      <View style={styles.routeRow}>
-        <View style={styles.dotFilled} />
-        <Text style={styles.routeText} numberOfLines={1}>
-          {card.end_location}
-        </Text>
-      </View>
+      <RouteStack
+        tone="onForest"
+        start={card.start_location}
+        end={card.end_location}
+        compact={compact}
+      />
 
       <View style={styles.metaRow}>
         <Text style={styles.metaText}>

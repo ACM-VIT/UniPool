@@ -16,6 +16,7 @@ import RideCard from "../components/RideCard";
 import BrandedAlert from "../components/BrandedAlert";
 import ShareRideSheet from "../components/ShareRideSheet";
 import PassengerProfileSheet, { PassengerProfile } from "../components/PassengerProfileSheet";
+import RouteStack from "../components/RouteStack";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
 
 /**
@@ -1357,7 +1358,7 @@ const RideDetailsScreen: React.FC = () => {
                     No one's joined yet
                   </Text>
                   <Text style={styles.shareEmptyBody}>
-                    Share your ride so classmates can request a seat.
+                    Share your ride so users can request a seat.
                   </Text>
                   <TouchableOpacity
                     style={styles.shareEmptyBtn}
@@ -1452,16 +1453,18 @@ const RideDetailsScreen: React.FC = () => {
                       // isActionLoading lane and never gets pulled
                       // into "Accepting…" or vice versa.
                       disabled={!!bookingActionLoading}
-                      // Red track wants the red-tinted thumb image; the
-                      // green slide.png on red looks broken (dark
-                      // forest block on a red track). Accept = forest
-                      // track + forest thumb; reject/remove = red
-                      // track + red thumb.
+                      // Accept = forest track + forest thumb (the
+                      // "safe" primary affordance). Reject / remove =
+                      // white track + red text + red thumb (borderless;
+                      // a red ring around the pill read as too loud
+                      // next to a calm white surface). The red
+                      // typography + thumb carry the danger cue on
+                      // their own.
                       sliderIcon={showSlide === "accept" ? require("../assets/slide.png") : require("../assets/red-slider.png")}
-                      backgroundColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : "#FF3B30"}
-                      sliderButtonColor={AppColors.basicWhite}
-                      textColor={AppColors.basicWhite}
-                      borderColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : "#FF3B30"}
+                      backgroundColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : AppColors.basicWhite}
+                      sliderButtonColor={showSlide === "accept" ? AppColors.basicWhite : AppColors.destructive}
+                      textColor={showSlide === "accept" ? AppColors.basicWhite : AppColors.destructive}
+                      borderColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : AppColors.basicWhite}
                       // Slot in as a same-size row replacement (no extra
                       // vertical margin, matching 16pt corner radius
                       // and 60pt height).
@@ -1604,7 +1607,19 @@ const RideDetailsScreen: React.FC = () => {
               onSlideComplete={handleCancelRide}
               text={isActionLoading ? "Deleting..." : "Slide to delete ride"}
               disabled={isActionLoading}
-              sliderIcon={require("../assets/slide.png")}
+              // Destructive treatment — coordinated with the reject /
+              // remove-passenger sliders on this same screen. White
+              // track, red text + red thumb. The red border read as
+              // too shouty next to the white surface (it framed the
+              // pill like a warning sign), so the borderColor is
+              // matched to the background to render it invisible —
+              // the red typography + thumb carry the danger signal
+              // on their own.
+              sliderIcon={require("../assets/red-slider.png")}
+              backgroundColor={AppColors.basicWhite}
+              borderColor={AppColors.basicWhite}
+              sliderButtonColor={AppColors.destructive}
+              textColor={AppColors.destructive}
             />
           ) : (
             <View style={styles.rideOverBanner}>
@@ -1834,19 +1849,12 @@ const RideDetailsScreen: React.FC = () => {
                 <View style={styles.routeSection}>
                   <View style={styles.routeDetails}>
                     <View style={styles.locationContainer}>
-                      <View style={styles.startLocationRow}>
-                        <View style={styles.startDot} />
-                        <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">{rideData.start_location}</Text>
-                      </View>
-                      
-                      <View style={styles.dottedPath}>
-                        <View style={styles.dottedLine} />
-                      </View>
-                      
-                      <View style={styles.endLocationRow}>
-                        <Image source={require('../assets/navigation-2.png')} style={styles.endLocationIcon} />
-                        <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">{rideData.end_location}</Text>
-                      </View>
+                      <RouteStack
+                        tone="onForest"
+                        start={rideData.start_location}
+                        end={rideData.end_location}
+                        textStyle={styles.locationText}
+                      />
                     </View>
                   </View>
                   
@@ -1890,11 +1898,17 @@ const RideDetailsScreen: React.FC = () => {
                   <MapView
                     provider={PROVIDER_GOOGLE}
                     style={styles.mapView}
+                    // Frame the route at ~30% padding on each side
+                    // (× 1.6) with a 0.04° minimum so very short hops
+                    // don't render as a pinhole. The previous math
+                    // added a flat 0.5° (~55 km) buffer to every trip,
+                    // which made medium routes look like they spanned
+                    // half a state.
                     initialRegion={{
                       latitude: (rideData.start_latitude! + rideData.end_latitude!) / 2,
                       longitude: (rideData.start_longitude! + rideData.end_longitude!) / 2,
-                      latitudeDelta: Math.abs(rideData.end_latitude! - rideData.start_latitude!) * 1.5 + 0.5,
-                      longitudeDelta: Math.abs(rideData.end_longitude! - rideData.start_longitude!) * 1.5 + 0.5,
+                      latitudeDelta: Math.max(Math.abs(rideData.end_latitude! - rideData.start_latitude!) * 1.6, 0.04),
+                      longitudeDelta: Math.max(Math.abs(rideData.end_longitude! - rideData.start_longitude!) * 1.6, 0.04),
                     }}
                     scrollEnabled={false}
                     zoomEnabled={false}
@@ -1905,24 +1919,57 @@ const RideDetailsScreen: React.FC = () => {
                     toolbarEnabled={false}
                     customMapStyle={customMapStyle}
                   >
+                    {/* Custom start marker — small black dot with a
+                        white halo so it reads cleanly on any map tile.
+                        Replaces the default teardrop pin which (on
+                        Android) bypasses customMapStyle's calm palette
+                        and dropped a saturated red/green blob on the
+                        map. */}
                     <Marker
                       coordinate={{ latitude: rideData.start_latitude!, longitude: rideData.start_longitude! }}
                       title={rideData.start_location}
-                      pinColor={AppColors.primaryLightGreen || "#B5D750"}
-                    />
-                    
+                      anchor={{ x: 0.5, y: 0.5 }}
+                      tracksViewChanges={false}
+                    >
+                      <View style={styles.routeStartDot}>
+                        <View style={styles.routeStartDotInner} />
+                      </View>
+                    </Marker>
+
+                    {/* Custom end marker — navigation arrow in solid
+                        black, anchored to its base so it points at the
+                        destination coordinate. */}
                     <Marker
                       coordinate={{ latitude: rideData.end_latitude!, longitude: rideData.end_longitude! }}
                       title={rideData.end_location}
-                      pinColor={AppColors.secondaryDarkGreen || "#273B33"}
-                    />
-                    
+                      anchor={{ x: 0.5, y: 1 }}
+                      tracksViewChanges={false}
+                    >
+                      <View style={styles.routeEndArrowWrap}>
+                        <Svg width={26} height={26} viewBox="0 0 24 24" fill="none">
+                          <SvgPath
+                            d="M3 11L21 3L13 21L11 13L3 11Z"
+                            fill={AppColors.basicBlack}
+                            stroke={AppColors.basicBlack}
+                            strokeWidth={1.6}
+                            strokeLinejoin="round"
+                          />
+                        </Svg>
+                      </View>
+                    </Marker>
+
                     {routeCoordinates.length > 0 && (
                       <Polyline
                         coordinates={routeCoordinates}
-                        strokeColor={AppColors.secondaryDarkGreen || "#273B33"}
-                        strokeWidth={3}
-                        lineDashPattern={[0]}
+                        // Dashed red trip line — high-contrast against
+                        // the calm sage tiles, reads as the headline
+                        // attribute of the map without overpowering it.
+                        // `lineDashPattern` is honoured by both
+                        // PROVIDER_GOOGLE on iOS and the default
+                        // provider on Android.
+                        strokeColor="#E5453B"
+                        strokeWidth={3.6}
+                        lineDashPattern={[8, 6]}
                         lineJoin="round"
                         lineCap="round"
                       />
@@ -1990,8 +2037,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backButton: {
-    marginRight: 1,
-    marginTop: 7,
+    // No `marginTop` override — the parent `navigationRow` is a
+    // `alignItems: 'center'` flex row, so the chevron is supposed to
+    // share a vertical center with the "Ride Management" title.
+    // The earlier `marginTop: 7` was a manual nudge that pushed the
+    // chevron ~7pt below the title baseline, leaving the row visibly
+    // misaligned. `marginRight` bumped from 1pt to 10pt so the
+    // chevron isn't kissing the title's first glyph.
+    marginRight: 10,
   },
   headerTitle: {
     fontSize: 22,
@@ -2207,6 +2260,33 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
+  },
+  /* Custom map marker visuals. Start dot is a small black token with a
+     white halo so it sits clean against any tile colour; end arrow is
+     a black navigation glyph anchored to its base so the tip points
+     at the destination coordinate. */
+  routeStartDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: AppColors.basicWhite,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  routeStartDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: AppColors.basicBlack,
+  },
+  routeEndArrowWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mapPlaceholder: {
     flex: 1,

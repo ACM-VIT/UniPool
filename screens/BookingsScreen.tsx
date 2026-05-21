@@ -274,7 +274,7 @@ const BookingsScreen: React.FC = () => {
         : tab === "hosting"
         ? {
             title: "Not hosting yet",
-            body: "Have a regular commute? Post it once and let classmates jump in.",
+            body: "Have a regular commute? Post it once and let riders jump in.",
             ctaLabel: "Post a ride",
             onPress: () => {
               if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) return;
