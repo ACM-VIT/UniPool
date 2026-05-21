@@ -274,11 +274,22 @@ const styles = StyleSheet.create({
   hostInfo: {
     marginTop: 4,
   },
+  hostLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
   hostName: {
     fontSize: 13,
     color: AppColors.secondaryDarkGreen,
     fontFamily: 'NunitoSans_700Bold',
     letterSpacing: -0.1,
+  },
+  hostRating: {
+    fontSize: 12,
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: "NunitoSans_800ExtraBold",
   },
   modalOverlay: {
     flex: 1,
@@ -388,16 +399,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
+  // Option tile in the selector modal (Sort by / Min seats / Radius
+  // pickers). Pre-fix the base had `borderBottomWidth: 1` *and*
+  // `borderRadius: 8`, so the hairline got chopped by the rounded
+  // corners and read as a U-shape leaking past the bottom edge. The
+  // selected state then drew a full lime stroke ON TOP, doubling up
+  // the artifact. The selected tile now uses a clean full-frame
+  // forest+lime border with no base hairline; row separation comes
+  // from `marginBottom`, which is plenty given the dark surface.
   selectorOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: AppColors.basicWhite + '20',
-    borderRadius: 8,
-    marginBottom: 4,
+    borderRadius: 12,
+    marginBottom: 6,
+    // 1pt transparent border placeholder so the layout doesn't shift
+    // by 2pt (1pt each side) when the selected state adds the lime
+    // ring. Without this the selected tile gets visibly narrower.
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   selectedSelectorOption: {
     backgroundColor: AppColors.basicBlack,
@@ -414,10 +436,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'NunitoSans_600SemiBold',
   },
+  // Lime stroked check — same `check.png` asset used by the
+  // Accept button in RideDetailsScreen. Beats the unicode ✓ glyph,
+  // which rendered as a heavy serif tick depending on the system
+  // font.
   checkmark: {
-    fontSize: 18,
-    color: AppColors.primaryLightGreen,
-    fontWeight: 'bold',
+    width: 18,
+    height: 18,
+    resizeMode: 'contain',
+    tintColor: AppColors.primaryLightGreen,
   },
   filterHeader: {
     flexDirection: 'row',
@@ -471,6 +498,92 @@ const styles = StyleSheet.create({
     fontFamily: 'NunitoSans_400Regular',
     backgroundColor: AppColors.basicBlack,
     color: AppColors.basicWhite,
+  },
+  // Date picker bottom-sheet modal on iOS. Mirrors the same pattern
+  // used by RideDetailsSelector — forest surface, lime accents, dark
+  // themed spinner wheel — so the app's date input feels like one
+  // component across screens. The previous `display="inline"` calendar
+  // rendered a hard-coded white slab with washed-out faded dates on a
+  // dark filter sheet, which read as broken.
+  dateModalContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  dateModalContent: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 24,
+  },
+  dateModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(181,215,80,0.18)",
+  },
+  dateModalTitle: {
+    fontSize: 16,
+    fontFamily: "NunitoSans_800ExtraBold",
+    color: AppColors.primaryLightGreen,
+    letterSpacing: -0.2,
+  },
+  dateModalButtonText: {
+    fontSize: 15,
+    fontFamily: "NunitoSans_700Bold",
+    color: AppColors.primaryLightGreen,
+    opacity: 0.85,
+  },
+  // Done CTA — same hue, fuller weight + opacity so the primary
+  // action reads louder than Cancel.
+  dateModalButtonTextStrong: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    opacity: 1,
+  },
+  dateModalPickerContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  dateModalPicker: {
+    width: "100%",
+    height: 200,
+  },
+  dateModalQuickRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(181,215,80,0.18)",
+  },
+  dateModalQuickButton: {
+    flex: 1,
+    paddingVertical: 12,
+    backgroundColor: AppColors.primaryLightGreen + "20",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: AppColors.primaryLightGreen,
+    alignItems: "center",
+  },
+  // "Any date" is a destructive-ish clear — ghosted to read as the
+  // odd-one-out instead of a primary suggestion.
+  dateModalQuickButtonGhost: {
+    backgroundColor: "transparent",
+    borderColor: "rgba(181,215,80,0.35)",
+  },
+  dateModalQuickText: {
+    fontSize: 13,
+    fontFamily: "NunitoSans_700Bold",
+    color: AppColors.primaryLightGreen,
+    letterSpacing: 0.2,
+  },
+  dateModalQuickTextGhost: {
+    opacity: 0.75,
   },
   picker: {
     borderWidth: 1,

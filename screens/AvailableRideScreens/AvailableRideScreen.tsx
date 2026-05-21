@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions, Platform } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 
 import BrandInfo from "../../components/BrandInfo";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import RideCard from "../../components/RideCard";
 import LoadingComponent from "../../components/LoadingComponent";
 import SearchingForRidesLoader from "../../components/SearchingForRidesLoader";
+import AppColors from "../../design_systems/colors";
 
 import { useApi } from "../../utils/ApiUtil";
 import { useAuthGate } from "../../contexts/AuthGate";
@@ -46,6 +51,8 @@ interface RideData {
   host_user_gender?: string;
   same_gender_female?: boolean;
   is_same_gender_female?: boolean;
+  host_rating_average?: number | null;
+  host_rating_count?: number;
   start_distance?: number;
   end_distance?: number;
   total_distance?: number;
@@ -61,6 +68,30 @@ interface ApiResponse {
     sort_by: string;
   };
 }
+
+const formatDateParam = (date: Date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const parseFilterDate = (value: string) => {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return new Date();
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day));
+};
+
+const formatFilterDateLabel = (value: string) => {
+  if (!value) return "Any date";
+  return parseFilterDate(value).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
 
 const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   setNavBarVariant,
@@ -78,6 +109,12 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const [rides, setRides] = useState<RideData[]>([]);
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  // Buffered selection so iOS users can scroll the spinner without
+  // committing the filter until they tap Done. Without this, every
+  // wheel tick would re-fetch rides — and Cancel would have no way
+  // to revert because we'd have already written through to `filters`.
+  const [tempPickerDate, setTempPickerDate] = useState<Date | null>(null);
   const [searchMeta, setSearchMeta] = useState<ApiResponse['meta'] | null>(null);
   // Viewer's gender — used to gate the same-gender pink affinity tint on
   // host cards. Null while we wait for /user/details (or for guests, who
@@ -320,9 +357,74 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     });
   };
 
+  const selectedFilterDate = filters.date ? parseFilterDate(filters.date) : new Date();
+
+  // Android uses the imperative `DateTimePickerAndroid.open(...)` which
+  // surfaces the platform-native calendar dialog and commits on its own
+  // confirm button — no buffer needed; we write through to `filters`
+  // directly from `onChange` once Android returns a selection.
+  const onAndroidDatePick = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    // Android emits an event when the user dismisses; check `type` so
+    // tapping Cancel doesn't silently overwrite the filter with the
+    // current `value`.
+    if (event.type !== "set" || !selectedDate) return;
+    setFilters((current) => ({ ...current, date: formatDateParam(selectedDate) }));
+  };
+
+  // iOS picks land in the buffer only. The modal sheet's Done button
+  // commits, Cancel discards.
+  const onIosSpinnerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (selectedDate) setTempPickerDate(selectedDate);
+  };
+
+  const openDatePicker = () => {
+    if (Platform.OS === "android") {
+      DateTimePickerAndroid.open({
+        value: selectedFilterDate,
+        mode: "date",
+        display: "calendar",
+        minimumDate: new Date(),
+        onChange: onAndroidDatePick,
+      });
+      return;
+    }
+    // Seed the buffer with whatever is currently committed so the
+    // spinner doesn't jump to today the moment the modal opens.
+    setTempPickerDate(selectedFilterDate);
+    setShowDatePicker(true);
+  };
+
+  const confirmDatePicker = () => {
+    if (tempPickerDate) {
+      setFilters((current) => ({
+        ...current,
+        date: formatDateParam(tempPickerDate),
+      }));
+    }
+    setShowDatePicker(false);
+  };
+
+  const cancelDatePicker = () => {
+    setTempPickerDate(null);
+    setShowDatePicker(false);
+  };
+
+  const clearDateFromPicker = () => {
+    setFilters((current) => ({ ...current, date: "" }));
+    setTempPickerDate(null);
+    setShowDatePicker(false);
+  };
+
   const formatDistance = (distance?: number) => {
     if (!distance) return '';
     return distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`;
+  };
+
+  const formatHostRating = (ride: RideData) => {
+    const count = ride.host_rating_count || 0;
+    if (!ride.host_rating_average || count === 0) return null;
+    return `${ride.host_rating_average.toFixed(1)} (${count})`;
   };
 
   const getRelevanceLabel = (score?: number) => {
@@ -420,7 +522,10 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                   {option.label}
                 </Text>
                 {selectedValue === option.value && (
-                  <Text style={styles.checkmark}>✓</Text>
+                  <Image
+                    source={require("../../assets/check.png")}
+                    style={styles.checkmark}
+                  />
                 )}
               </TouchableOpacity>
             ))}
@@ -515,14 +620,18 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
             </View>
 
             <View style={styles.filterGroup}>
-              <Text style={styles.filterLabel}>Date (YYYY-MM-DD)</Text>
-              <TextInput
-                style={styles.filterInput}
-                value={filters.date}
-                onChangeText={(text) => setFilters({...filters, date: text})}
-                placeholder="2024-12-25 or leave empty for all dates"
-                placeholderTextColor="#666"
-              />
+              <Text style={styles.filterLabel}>Date</Text>
+              <TouchableOpacity
+                style={styles.filterSelector}
+                onPress={openDatePicker}
+                accessibilityRole="button"
+                accessibilityLabel="Choose ride date"
+              >
+                <Text style={styles.filterSelectorText}>
+                  {formatFilterDateLabel(filters.date)}
+                </Text>
+                <Text style={styles.filterSelectorArrow}>▼</Text>
+              </TouchableOpacity>
             </View>
           </ScrollView>
 
@@ -577,6 +686,77 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         radiusOptions,
         filters.radius,
         (value) => setFilters({...filters, radius: value})
+      )}
+
+      {/* iOS date picker as a bottom modal sheet on the forest surface.
+          Spinner display with `themeVariant="dark"` matches the rest of
+          the modal chrome (forest fill, lime accents) — was previously
+          `display="inline"` which rendered a hard-coded white calendar
+          slab with super-faded date text on top, jarring against the
+          dark filter sheet. Pattern mirrors the date-time picker in
+          RideDetailsSelector so the app speaks one language for time
+          input. Android continues to use the imperative native dialog
+          via `DateTimePickerAndroid.open(...)`. */}
+      {Platform.OS === "ios" && (
+        <Modal
+          visible={showDatePicker}
+          transparent
+          animationType="slide"
+          onRequestClose={cancelDatePicker}
+        >
+          <View style={styles.dateModalContainer}>
+            <View style={styles.dateModalContent}>
+              <View style={styles.dateModalHeader}>
+                <TouchableOpacity onPress={cancelDatePicker} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                  <Text style={styles.dateModalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={styles.dateModalTitle}>Choose date</Text>
+                <TouchableOpacity onPress={confirmDatePicker} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                  <Text style={[styles.dateModalButtonText, styles.dateModalButtonTextStrong]}>Done</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.dateModalPickerContainer}>
+                <DateTimePicker
+                  value={tempPickerDate || selectedFilterDate}
+                  mode="date"
+                  display="spinner"
+                  minimumDate={new Date()}
+                  onChange={onIosSpinnerChange}
+                  themeVariant="dark"
+                  textColor={AppColors.basicWhite}
+                  accentColor={AppColors.primaryLightGreen}
+                  style={styles.dateModalPicker}
+                />
+              </View>
+
+              <View style={styles.dateModalQuickRow}>
+                <TouchableOpacity
+                  style={styles.dateModalQuickButton}
+                  onPress={() => setTempPickerDate(new Date())}
+                >
+                  <Text style={styles.dateModalQuickText}>Today</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dateModalQuickButton}
+                  onPress={() => {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    setTempPickerDate(tomorrow);
+                  }}
+                >
+                  <Text style={styles.dateModalQuickText}>Tomorrow</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.dateModalQuickButton, styles.dateModalQuickButtonGhost]}
+                  onPress={clearDateFromPicker}
+                >
+                  <Text style={[styles.dateModalQuickText, styles.dateModalQuickTextGhost]}>Any date</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       )}
     </Modal>
   );
@@ -738,9 +918,16 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                 {/* Sub-row beneath card: host + walking distances. Kept compact
                     so the BlaBlaCar-style card stays the visual anchor. */}
                 <View style={styles.rideEnhancements}>
-                  <Text style={styles.hostName}>
-                    Hosted by {ride.host_user_name}
-                  </Text>
+                  <View style={styles.hostLine}>
+                    <Text style={styles.hostName}>
+                      Hosted by {ride.host_user_name}
+                    </Text>
+                    {formatHostRating(ride) ? (
+                      <Text style={styles.hostRating}>
+                        ★ {formatHostRating(ride)}
+                      </Text>
+                    ) : null}
+                  </View>
                   <View style={styles.distanceInfo}>
                     {ride.start_distance ? (
                       <Text style={styles.distanceText}>
