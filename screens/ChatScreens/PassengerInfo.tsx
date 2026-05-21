@@ -13,6 +13,7 @@ import { PassengerInfoScreenProps, User } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
 import BrandInfo from '../../components/BrandInfo';
 import LoadingComponent from '../../components/LoadingComponent';
+import SmileyGlyph from '../../components/SmileyGlyph';
 import { useApi } from '../../utils/ApiUtil';
 import RideService from '../../utils/RideService';
 import styles from '../ProfileScreen/ProfileScreen.styles';
@@ -143,11 +144,12 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
         ) : (
           passengers.length === 0 ? (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, paddingBottom: 180 }}>
-              <Image
-                source={require('../../assets/happy-emoji.png')}
-                style={{ width: 96, height: 96, marginBottom: 20 }}
-                resizeMode="contain"
-              />
+              {/* Inline SVG smiley — vector replacement for the
+                  pixelated happy-emoji.png raster. Stays crisp at @3x
+                  and tracks the brand palette automatically. */}
+              <View style={{ marginBottom: 20 }}>
+                <SmileyGlyph size={120} />
+              </View>
               <Text style={{ fontFamily: 'NunitoSans_800ExtraBold', fontSize: 20, color: AppColors.secondaryDarkGreen, textAlign: 'center', marginBottom: 6, letterSpacing: -0.3 }}>
                 No co-riders yet
               </Text>

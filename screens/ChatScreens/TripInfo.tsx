@@ -16,6 +16,7 @@ import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
 import LoadingComponent from "../../components/LoadingComponent";
 import EmptyState from "../../components/EmptyState";
+import RouteStack from "../../components/RouteStack";
 import { appHref } from "../../navigation/routes";
 
 const clockIcon = require("../../assets/clock.png");
@@ -309,31 +310,20 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
         onPress={() => openChat(item)}
       >
         <View style={styles.topContainer}>
-          {/* Route block — outlined dot → dotted connector → filled
-              dot, matching RideCard / RideDetailsSelector /
-              PreviousTripsCompressed. One route idiom across the
-              whole app. */}
+          {/* Shared RouteStack — pin → dashed connector → arrow. The
+              pending state swaps to a coral accent against the peach
+              card so it still reads as "needs your attention" without
+              breaking the icon language. */}
           <View style={styles.routeContainer}>
-            <View style={styles.locationContainer}>
-              <View style={[styles.dotOutline, isPending && styles.dotOutlinePending]} />
-              <Text style={styles.locationText} numberOfLines={2}>
-                {item.start_location}
-              </Text>
-            </View>
-            <View style={styles.routeConnector}>
-              {[0, 1, 2].map((i) => (
-                <View
-                  key={i}
-                  style={[styles.routeConnectorDash, isPending && styles.routeConnectorDashPending]}
-                />
-              ))}
-            </View>
-            <View style={styles.locationContainer}>
-              <View style={[styles.dotFilled, isPending && styles.dotFilledPending]} />
-              <Text style={styles.locationText} numberOfLines={2}>
-                {item.end_location}
-              </Text>
-            </View>
+            <RouteStack
+              tone="onLime"
+              accentColor={isPending ? "#D24432" : AppColors.secondaryDarkGreen}
+              start={item.start_location}
+              end={item.end_location}
+              numberOfLines={2}
+              compact
+              textStyle={styles.locationText}
+            />
           </View>
 
           {/* Right column — trip date + time. The peach surface and

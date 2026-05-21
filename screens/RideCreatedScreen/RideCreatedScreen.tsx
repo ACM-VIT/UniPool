@@ -16,7 +16,7 @@ const RideCreatedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }>
     // with the brand-new ride preloaded). Falls back to the bookings tab if
     // we somehow got here without an ID (defensive — shouldn't happen given
     // the CreateRide handler always passes one). The management screen is
-    // where the host can share their ride link / QR with classmates.
+    // where the host can share their ride link / QR with users.
     const timer = setTimeout(() => {
       if (params?.rideId) {
         router.replace(appHref("RideDetailsScreen", { rideId: params.rideId } as any) as any);

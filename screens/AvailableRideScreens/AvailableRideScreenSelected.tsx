@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Dimensions } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import Svg, { Path as SvgPath } from 'react-native-svg';
 import * as Location from 'expo-location';
 import { useRouter } from "expo-router";
 
@@ -9,6 +10,7 @@ const { width, height } = Dimensions.get("window");
 import ChevronBack from '../../components/ChevronBack/ChevronBack';
 import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
 import BrandInfo from '../../components/BrandInfo/BrandInfo';
+import RouteStack from '../../components/RouteStack';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
 import { useAuthGate } from '../../contexts/AuthGate';
@@ -692,19 +694,12 @@ const AvailableRideScreenSelected: React.FC = () => {
             <View style={styles.routeSection}>
               <View style={styles.routeDetails}>
                 <View style={styles.locationContainer}>
-                  <View style={styles.startLocationRow}>
-                    <View style={styles.startDot} />
-                    <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">{ride.start_location}</Text>
-                  </View>
-                  
-                  <View style={styles.dottedPath}>
-                    <View style={styles.dottedLine} />
-                  </View>
-                  
-                  <View style={styles.endLocationRow}>
-                    <Image source={require('../../assets/navigation-2.png')} style={styles.endLocationIcon} />
-                    <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">{ride.end_location}</Text>
-                  </View>
+                  <RouteStack
+                    tone="onForest"
+                    start={ride.start_location}
+                    end={ride.end_location}
+                    textStyle={styles.locationText}
+                  />
                 </View>
               </View>
               
@@ -788,11 +783,17 @@ const AvailableRideScreenSelected: React.FC = () => {
               <MapView
                 provider={PROVIDER_GOOGLE}
                 style={styles.mapView}
+                // Bound the viewport to the trip route with ~30% of the
+                // span as padding on each side, clamped to 0.04° so a
+                // 1-km hop doesn't render as a pinhole. The previous
+                // `× 1.5 + 0.5` math added a flat 0.5° (~55 km) buffer
+                // on every trip, which read fine for tiny routes and
+                // catastrophically zoomed-out for medium ones.
                 initialRegion={{
                   latitude: (ride.start_latitude! + ride.end_latitude!) / 2,
                   longitude: (ride.start_longitude! + ride.end_longitude!) / 2,
-                  latitudeDelta: Math.abs(ride.end_latitude! - ride.start_latitude!) * 1.5 + 0.5,
-                  longitudeDelta: Math.abs(ride.end_longitude! - ride.start_longitude!) * 1.5 + 0.5,
+                  latitudeDelta: Math.max(Math.abs(ride.end_latitude! - ride.start_latitude!) * 1.6, 0.04),
+                  longitudeDelta: Math.max(Math.abs(ride.end_longitude! - ride.start_longitude!) * 1.6, 0.04),
                 }}
                 scrollEnabled={false}
                 zoomEnabled={false}
@@ -804,23 +805,47 @@ const AvailableRideScreenSelected: React.FC = () => {
                 customMapStyle={customMapStyle}
                 onMapReady={() => console.log("Ride details map ready")}
               >
+                {/* Custom start + end markers — same idiom as the
+                    RideDetailsScreen map. Black dot for start, black
+                    navigation arrow for destination, dashed red trip
+                    line. Replaces the default teardrop pins which
+                    bypassed customMapStyle on Android and dropped
+                    saturated stock pins on the calm sage tiles. */}
                 <Marker
                   coordinate={{ latitude: ride.start_latitude!, longitude: ride.start_longitude! }}
                   title={ride.start_location}
-                  pinColor={AppColors.primaryLightGreen || "#B5D750"}
-                />
-                
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  tracksViewChanges={false}
+                >
+                  <View style={styles.routeStartDot}>
+                    <View style={styles.routeStartDotInner} />
+                  </View>
+                </Marker>
+
                 <Marker
                   coordinate={{ latitude: ride.end_latitude!, longitude: ride.end_longitude! }}
                   title={ride.end_location}
-                  pinColor={AppColors.secondaryDarkGreen || "#273B33"}
-                />
-                
+                  anchor={{ x: 0.5, y: 1 }}
+                  tracksViewChanges={false}
+                >
+                  <View style={styles.routeEndArrowWrap}>
+                    <Svg width={26} height={26} viewBox="0 0 24 24" fill="none">
+                      <SvgPath
+                        d="M3 11L21 3L13 21L11 13L3 11Z"
+                        fill={AppColors.basicBlack}
+                        stroke={AppColors.basicBlack}
+                        strokeWidth={1.6}
+                        strokeLinejoin="round"
+                      />
+                    </Svg>
+                  </View>
+                </Marker>
+
                 <Polyline
                   coordinates={routeCoordinates}
-                  strokeColor={AppColors.secondaryDarkGreen || "#273B33"}
-                  strokeWidth={3}
-                  lineDashPattern={[0]}
+                  strokeColor="#E5453B"
+                  strokeWidth={3.6}
+                  lineDashPattern={[8, 6]}
                   lineJoin="round"
                   lineCap="round"
                 />
@@ -1181,6 +1206,33 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
+  },
+  /* Custom map markers — black dot for start (white halo so it sits
+     clean against any tile colour), black navigation glyph for end
+     anchored to its base so the tip lands on the coordinate. Same
+     idiom as the RideDetailsScreen map. */
+  routeStartDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: AppColors.basicWhite,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  routeStartDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: AppColors.basicBlack,
+  },
+  routeEndArrowWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mapPlaceholder: {
     flex: 1,

@@ -12,7 +12,6 @@ import { NavBarProvider } from "../contexts/NavBarContext";
 import SplashScreenComponent from "../screens/SplashScreen";
 import MainNavBar, { MAIN_NAV_BAR_TOP_OFFSET } from "../components/MainNavBar";
 import { BrandedAlertHost } from "../components/BrandedAlert";
-import VerifyDeepLinkHandler from "../components/VerifyDeepLinkHandler";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { useApi } from "../utils/ApiUtil";
 
@@ -705,10 +704,9 @@ const AppShell = () => {
           the top of the tree; any code can call BrandedAlert.show()
           to surface a dialog without touching the native chrome. */}
       <BrandedAlertHost />
-      {/* Listens for `unipool://verify?t=…` magic links from the
-          verification email and confirms the user server-side. No
-          UI — just a passive listener. */}
-      <VerifyDeepLinkHandler />
+      {/* The `unipool://verify?t=…` magic link is now handled by
+          app/verify.tsx — a full polished landing screen instead of a
+          silent listener + toast. */}
       <NavBarProvider
         value={{
           setNavBarVariant,

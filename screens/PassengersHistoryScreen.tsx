@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import LoadingComponent from '../components/LoadingComponent';
 import AppColors from '../design_systems/colors';
 import EmptyState from '../components/EmptyState';
+import SmileyGlyph from '../components/SmileyGlyph';
 import { appHref } from "../navigation/routes";
 
 interface Passenger {
@@ -79,7 +80,10 @@ const PassengersHistoryScreen: React.FC = () => {
       </View>
       {passengers.length === 0 ? (
         <EmptyState
-          image={require('../assets/happy-emoji.png')}
+          // Inline SVG smiley — the previous PNG asset was pixelated on
+          // dense screens. Vector renders sharp at every density and
+          // colour-tracks the brand palette automatically.
+          glyph={<SmileyGlyph size={150} />}
           title="No co-riders yet"
           body="The people you share a ride with will live here once you've taken your first trip together."
           ctaLabel="Find a ride"

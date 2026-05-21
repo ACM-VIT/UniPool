@@ -1045,16 +1045,26 @@ const styles = StyleSheet.create({
     // (dots, swap button) and white text live inside.
     backgroundColor: AppColors.secondaryDarkGreen,
     borderWidth: 0,
+    // Match the home sheet's other forest tiles for cross-platform
+    // shadow parity — Android's Material renderer needs higher
+    // elevation to read at the same depth iOS gets from shadow props.
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
   },
   locationsWrapper: {
     position: "relative",
   },
   // Vertical dotted connector that spans between the From and To rows,
   // mirroring the BlaBlaCar / inDrive dot-line-dot route pattern we use
-  // on RideCard + UpNextCard.
+  // on RideCard + UpNextCard. The dots are `hp(2)` wide, so their
+  // centre sits at `wp(4) + hp(1)` from the row's start — minus half
+  // the connector width (1pt) to centre the column on the dot.
   routeConnector: {
     position: "absolute",
-    left: wp(4) + hp(1.5) - 1,
+    left: wp(4) + hp(1) - 1,
     top: hp(5.5),
     bottom: hp(5.5),
     width: 2,

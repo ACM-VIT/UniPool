@@ -20,6 +20,7 @@ const sofaIcon = require("../assets/sofa.png");
 const calendarIcon = require("../assets/calendar.png");
 import AppColors from "../design_systems/colors";
 import ShareRideSheet from "./ShareRideSheet";
+import RouteStack from "./RouteStack";
 
 /**
  * BlushTexture — full-bleed pink confetti pattern painted behind a
@@ -282,59 +283,15 @@ const RideCard: React.FC<RideCardProps> = ({
               so the visual language stays consistent. Replaces the
               old pin / dashed-line / arrow PNG combo that read as
               mismatched icons. */}
-          <View style={styles.locationContainer}>
-            <View
-              style={[
-                styles.dotOutline,
-                {
-                  borderColor: isSelected
-                    ? AppColors.primaryLightGreen
-                    : AppColors.secondaryDarkGreen,
-                },
-              ]}
-            />
-            <Text
-              style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {origin}
-            </Text>
-          </View>
-          <View style={styles.routeConnector}>
-            {[0, 1, 2].map((i) => (
-              <View
-                key={i}
-                style={[
-                  styles.routeConnectorDash,
-                  {
-                    backgroundColor: isSelected
-                      ? AppColors.primaryLightGreen
-                      : AppColors.secondaryDarkGreen,
-                  },
-                ]}
-              />
-            ))}
-          </View>
-          <View style={styles.locationContainer}>
-            <View
-              style={[
-                styles.dotFilled,
-                {
-                  backgroundColor: isSelected
-                    ? AppColors.primaryLightGreen
-                    : AppColors.secondaryDarkGreen,
-                },
-              ]}
-            />
-            <Text
-              style={[styles.locationText, isSelected ? styles.selectedText : styles.unselectedText]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {destination}
-            </Text>
-          </View>
+          {/* Canonical RouteStack — pin → vertical dashed connector →
+              navigation arrow. The selected variant uses the lime
+              accent against the forest card; unselected stays in
+              forest on white. */}
+          <RouteStack
+            tone={isSelected ? "onForest" : "onLime"}
+            start={origin}
+            end={destination}
+          />
         </View>
         <View style={styles.detailsContainer}>
           <View style={styles.timeContainer}>

@@ -19,6 +19,7 @@ import AppColors from "../../design_systems/colors";
 import ChevronBack from "../../components/ChevronBack";
 import LoadingComponent from "../../components/LoadingComponent";
 import EmptyState from "../../components/EmptyState";
+import RouteStack from "../../components/RouteStack";
 import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar";
 import { appHref } from "../../navigation/routes";
 import { useApi } from "../../utils/ApiUtil";
@@ -192,23 +193,12 @@ const NearbyRidesScreen: React.FC = () => {
               filled destination dot. Same vocabulary as RideCard,
               PreviousTripsCompressed, and the chat list. */}
           <View style={styles.routeBlock}>
-            <View style={styles.routeRow}>
-              <View style={styles.dotOutline} />
-              <Text style={styles.routeText} numberOfLines={1}>
-                {item.start_location}
-              </Text>
-            </View>
-            <View style={styles.routeConnector}>
-              {[0, 1, 2].map((i) => (
-                <View key={i} style={styles.routeConnectorDash} />
-              ))}
-            </View>
-            <View style={styles.routeRow}>
-              <View style={styles.dotFilled} />
-              <Text style={styles.routeText} numberOfLines={1}>
-                {item.end_location}
-              </Text>
-            </View>
+            <RouteStack
+              tone="onForest"
+              start={item.start_location}
+              end={item.end_location}
+              numberOfLines={1}
+            />
           </View>
 
           <View style={styles.right}>
