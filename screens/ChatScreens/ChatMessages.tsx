@@ -1029,7 +1029,11 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const renderSettingsModal = () => {
     const isGroup = chatParams.isGroupChat!==false;
     return (
-      <SheetShell visible={showSettings} onDismiss={() => setShowSettings(false)}>
+      <SheetShell
+        visible={showSettings}
+        onDismiss={() => setShowSettings(false)}
+        surfaceColor={AppColors.primaryLightGreen}
+      >
         {/* SheetShell provides the slide-up chrome (grab handle, X
             button, rounded top corners, dim backdrop). The pageSheet
             we used previously was an iOS-native full-screen sheet
@@ -1188,7 +1192,6 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                 setTimeout(() => setShowReportSheet(true), 220);
               }}
               style={{
-                marginHorizontal: 16,
                 marginTop: 4,
                 marginBottom: chatParams.isGroupChat !== false ? 12 : 24,
                 paddingVertical: 13,
@@ -1197,7 +1200,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                 borderWidth: 1.5,
                 borderColor: AppColors.secondaryDarkGreen,
                 alignItems: 'center',
-                backgroundColor: 'transparent',
+                backgroundColor: AppColors.basicWhite,
               }}
             >
               <Text
@@ -1236,6 +1239,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       visible={showReportSheet}
       onDismiss={() => setShowReportSheet(false)}
       busy={reportSubmitting}
+      surfaceColor={AppColors.primaryLightGreen}
     >
       {/* Same SheetShell chrome as every other sheet in the app —
           slide-up from bottom, grab handle, X close, rounded top.
@@ -1312,11 +1316,10 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             placeholderTextColor="rgba(38,59,51,0.45)"
             style={{
               minHeight: 110,
-              // Soft forest tint instead of basicWhite — the sheet
-              // bg is already white, so a white field would
-              // disappear into it. Same surface treatment used by
-              // sheetUi.input.
-              backgroundColor: 'rgba(38,59,51,0.05)',
+              // White field on the lime sheet — clean separation from
+              // the canvas. Was a faint forest tint that disappeared
+              // into the new lime surface.
+              backgroundColor: AppColors.basicWhite,
               borderRadius: 14,
               paddingHorizontal: 14,
               paddingTop: 12,
@@ -1327,37 +1330,45 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               fontFamily: 'NunitoSans_600SemiBold',
               textAlignVertical: 'top',
               borderWidth: 1,
-              borderColor: 'rgba(38,59,51,0.10)',
+              borderColor: 'rgba(38,59,51,0.12)',
             }}
             maxLength={600}
           />
 
-          <TouchableOpacity
-            activeOpacity={0.85}
-            disabled={!reportReason || reportSubmitting}
-            onPress={submitReport}
-            style={{
-              marginTop: 22,
-              paddingVertical: 15,
-              borderRadius: 16,
-              backgroundColor:
-                !reportReason || reportSubmitting
-                  ? 'rgba(38,59,51,0.35)'
-                  : AppColors.secondaryDarkGreen,
-              alignItems: 'center',
-            }}
-          >
-            <Text
-              style={{
-                fontFamily: 'NunitoSans_800ExtraBold',
-                fontSize: 15.5,
-                color: AppColors.primaryLightGreen,
-                letterSpacing: 0.2,
-              }}
-            >
-              {reportSubmitting ? 'Sending…' : 'Send report'}
-            </Text>
-          </TouchableOpacity>
+          {(() => {
+            const submitDisabled = !reportReason || reportSubmitting;
+            return (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                disabled={submitDisabled}
+                onPress={submitReport}
+                style={{
+                  marginTop: 22,
+                  paddingVertical: 15,
+                  borderRadius: 16,
+                  // Keep the full forest shape when disabled and
+                  // lower the wrapper opacity instead of mixing a
+                  // semi-transparent forest into the lime canvas —
+                  // that combo read as a muddy olive smudge with
+                  // illegible lime text on top.
+                  backgroundColor: AppColors.secondaryDarkGreen,
+                  opacity: submitDisabled ? 0.4 : 1,
+                  alignItems: 'center',
+                }}
+              >
+                <Text
+                  style={{
+                    fontFamily: 'NunitoSans_800ExtraBold',
+                    fontSize: 15.5,
+                    color: AppColors.primaryLightGreen,
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  {reportSubmitting ? 'Sending…' : 'Send report'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })()}
       </ScrollView>
     </SheetShell>
   );

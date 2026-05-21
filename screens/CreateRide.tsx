@@ -662,16 +662,17 @@ const CreateRide: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Women-only toggle. Gated to viewer.gender === "female" — male
-            and non-binary users never see it (server enforces the same
-            rule on /ride/create). Lives between the seats stepper and
-            the vehicle illustration so it sits inside the "trip
-            details" rhythm rather than crowding the submit CTA. */}
+        {/* Women-only toggle — compact single-row pill instead of a
+            full card. Gated to viewer.gender === "female" (server
+            enforces the same rule on /ride/create). Title sits on
+            the left, switch on the right; no caption block, so the
+            row takes ~46pt vs the old ~88pt card. Tap anywhere in
+            the row to toggle. */}
         {viewerGender === "female" && (
           <TouchableOpacity
             style={[
-              styles.womenOnlyCard,
-              isWomenOnly && styles.womenOnlyCardActive,
+              styles.womenOnlyPill,
+              isWomenOnly && styles.womenOnlyPillActive,
             ]}
             onPress={() => setIsWomenOnly((v) => !v)}
             activeOpacity={0.85}
@@ -679,12 +680,7 @@ const CreateRide: React.FC = () => {
             accessibilityState={{ checked: isWomenOnly }}
             accessibilityLabel="Reserve this ride for women passengers"
           >
-            <View style={styles.womenOnlyTextWrap}>
-              <Text style={styles.womenOnlyTitle}>Women only</Text>
-              <Text style={styles.womenOnlyCaption}>
-                Only female passengers can request to join.
-              </Text>
-            </View>
+            <Text style={styles.womenOnlyPillTitle}>Women only</Text>
             <View
               style={[
                 styles.womenOnlySwitch,
@@ -1094,50 +1090,36 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     overflow: "hidden",
   },
-  // Forest tile that sits in the same surface family as `stepperCard`
-  // — matched radius / shadow / horizontal padding so the row reads as
-  // part of the "trip details" cluster, not a new section. Active
-  // state lifts the lime border to signal commitment without flipping
-  // the whole tile to lime (which would over-shout next to the
-  // forest steppers above).
-  womenOnlyCard: {
+  // Compact "Women only" pill. Single row, ~46pt tall instead of the
+  // earlier ~88pt card with a caption block — the caption was the
+  // thing pushing the taxi illustration off-screen on shorter Android
+  // phones once the toggle was visible. Forest tile so it still sits
+  // in the same surface family as `stepperCard`, but smaller padding,
+  // no shadow, no caption row. Active state lifts a thin lime ring
+  // around the pill to confirm commitment without flipping the whole
+  // tile to lime.
+  womenOnlyPill: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: AppColors.secondaryDarkGreen,
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    borderRadius: 999,
+    paddingLeft: 18,
+    paddingRight: 6,
+    paddingVertical: 6,
     width: "100%",
-    marginTop: "5%",
+    marginTop: 16,
     borderWidth: 1.5,
     borderColor: "transparent",
-    shadowColor: AppColors.basicBlack,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    elevation: 2,
   },
-  womenOnlyCardActive: {
+  womenOnlyPillActive: {
     borderColor: AppColors.primaryLightGreen,
   },
-  womenOnlyTextWrap: {
-    flex: 1,
-    marginRight: 14,
-  },
-  womenOnlyTitle: {
+  womenOnlyPillTitle: {
     color: AppColors.basicWhite,
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: "NunitoSans_800ExtraBold",
     letterSpacing: -0.1,
-    marginBottom: 2,
-  },
-  womenOnlyCaption: {
-    color: AppColors.primaryLightGreen,
-    fontSize: 12,
-    fontFamily: "NunitoSans_600SemiBold",
-    opacity: 0.7,
-    lineHeight: 16,
   },
   // Custom switch — RN's <Switch> renders inconsistently across
   // iOS/Android with hardcoded thumb sizes. Forest track when off,

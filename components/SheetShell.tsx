@@ -25,6 +25,12 @@ type Props = {
   /** When false, suppresses the close X and backdrop dismissal so
    *  the user can only finish via in-content buttons. */
   dismissible?: boolean;
+  /** Override the inner sheet surface colour. Defaults to white
+   *  (used by every edit / verify sheet). Brand-canvas sheets like
+   *  chat settings + report can pass `primaryLightGreen` so the
+   *  forest cards inside read against the same lime as the home
+   *  sheet instead of a hard white slab. */
+  surfaceColor?: string;
   children: React.ReactNode;
 };
 
@@ -40,6 +46,7 @@ const SheetShell: React.FC<Props> = ({
   onDismiss,
   busy,
   dismissible = true,
+  surfaceColor,
   children,
 }) => {
   const insets = useSafeAreaInsets();
@@ -131,7 +138,7 @@ const SheetShell: React.FC<Props> = ({
       >
         <Animated.View
           style={{
-            backgroundColor: AppColors.basicWhite,
+            backgroundColor: surfaceColor ?? AppColors.basicWhite,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
             paddingHorizontal: 24,

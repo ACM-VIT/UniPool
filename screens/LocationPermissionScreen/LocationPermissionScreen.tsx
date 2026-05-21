@@ -12,253 +12,249 @@ import type { AppRouteTarget } from "../../navigation/routes";
 import { useLocationInfo } from "../../contexts/location-context";
 
 const { width, height } = Dimensions.get("window");
-const RADAR = Math.min(width * 0.72, height * 0.36, 320);
+const RADAR = Math.min(width * 0.78, height * 0.38, 340);
 
 /**
- * Polished radar illustration. Strictly brand palette:
- *   - Three faded forest reference rings (static) — anchor the
- *     composition so the screen never reads as "one tiny dot on a
- *     sea of lime" between pulse cycles.
- *   - Two animated sonar pulses staggered 1.1s apart — adds life.
- *   - A "You are here" puck (lime halo, forest core) breathing
- *     gently in the center, with a small lime heading triangle
- *     pointing north so it reads as a positioned marker, not an
- *     abstract dot.
- *   - Three "rides nearby" pins parked on the rings, each pulsing
- *     in/out on its own phase. These were the missing ingredient
- *     that took the radar from "loading spinner" to "illustration".
+ * Polished map-card illustration. Replaces the old radar concept,
+ * which read as an abstract loader rather than "find rides near you".
+ *
+ * Composition (rendered top → bottom, soft tilt for character):
+ *   • Rounded card with subtle shadow + slight tilt
+ *   • Map plate with stylised forest roads on a warm off-white tile
+ *   • Soft block fills for buildings + a curve of "park" tone
+ *   • One central "You are here" pin (lime stem + forest core,
+ *     gently breathing)
+ *   • Two top-down car silhouettes pinned on roads
+ *   • Dashed forest route from the closer car to the You pin —
+ *     reads as "this ride is heading your way"
+ *
+ * Strictly brand palette. RN Animated keeps the You pin breathing
+ * and the route dashes shimmering so the card feels alive without
+ * the visual noise of the previous radar sweep + pulses.
  */
-const RING_RADII = [0.34, 0.56, 0.82] as const;
 
-// Nearby ride pin positions, expressed as (angle in degrees, ring
-// index). Spread around different bearings + different distances so
-// they don't all bunch up on one axis. Angles chosen empirically to
-// read as a balanced triangle in the upper hemisphere with one pin
-// trailing behind the puck — felt the most "real map"-like.
-const NEARBY_PINS: { angle: number; ring: number; delay: number }[] = [
-  { angle: -65, ring: 1, delay: 0 },
-  { angle: 35, ring: 2, delay: 450 },
-  { angle: 155, ring: 1, delay: 900 },
-];
+/**
+ * Top-down car silhouette used for each "ride nearby" marker. Painted
+ * in forest with a lime windshield + rear window so it tracks the
+ * brand palette without needing a tint. The wrapper rotates the SVG
+ * to match each car's bearing relative to the centre puck.
+ */
+const CarPin: React.FC<{ size: number }> = ({ size }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24">
+    {/* Body */}
+    <Path
+      d="M8 3.5 L 16 3.5 L 17.2 7 L 17.2 17.2 L 16 20.5 L 8 20.5 L 6.8 17.2 L 6.8 7 Z"
+      fill={AppColors.secondaryDarkGreen}
+    />
+    {/* Windshield */}
+    <Path
+      d="M8 5.5 L 16 5.5 L 16 8 L 8 8 Z"
+      fill={AppColors.primaryLightGreen}
+      opacity={0.85}
+    />
+    {/* Rear window */}
+    <Path
+      d="M8 19 L 16 19 L 16 16.5 L 8 16.5 Z"
+      fill={AppColors.primaryLightGreen}
+      opacity={0.55}
+    />
+    {/* Side stripe — adds a touch of detail at small sizes */}
+    <Path
+      d="M7.6 10 L 16.4 10 L 16.4 10.7 L 7.6 10.7 Z"
+      fill={AppColors.primaryLightGreen}
+      opacity={0.25}
+    />
+  </Svg>
+);
 
 const RadarMap: React.FC<{ size: number }> = ({ size }) => {
-  const pulse1 = useRef(new Animated.Value(0)).current;
-  const pulse2 = useRef(new Animated.Value(0)).current;
   const breathe = useRef(new Animated.Value(0)).current;
-  const pinPulses = useRef(NEARBY_PINS.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
-    Animated.loop(
-      Animated.stagger(1100, [
-        Animated.timing(pulse1, {
-          toValue: 1,
-          duration: 2200,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: false,
-        }),
-        Animated.timing(pulse2, {
-          toValue: 1,
-          duration: 2200,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: false,
-        }),
-      ]),
-    ).start();
-
     Animated.loop(
       Animated.sequence([
         Animated.timing(breathe, {
           toValue: 1,
-          duration: 1400,
+          duration: 1600,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.timing(breathe, {
           toValue: 0,
-          duration: 1400,
+          duration: 1600,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
       ]),
     ).start();
-
-    // Each nearby-ride pin breathes on its own loop, staggered so the
-    // three never blink together — reads as ambient activity.
-    pinPulses.forEach((pulse, idx) => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(NEARBY_PINS[idx].delay),
-          Animated.timing(pulse, {
-            toValue: 1,
-            duration: 1200,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulse, {
-            toValue: 0,
-            duration: 1200,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-        ]),
-      ).start();
-    });
   }, []);
 
-  const ring1Size = pulse1.interpolate({
-    inputRange: [0, 1],
-    outputRange: [size * 0.22, size * 0.92],
-  });
-  const ring1Op = pulse1.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] });
-  const ring2Size = pulse2.interpolate({
-    inputRange: [0, 1],
-    outputRange: [size * 0.22, size * 0.92],
-  });
-  const ring2Op = pulse2.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] });
-  const breatheScale = breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  const haloScale = breathe.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1.18] });
+  const haloOpacity = breathe.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0.12] });
+
+  // Card geometry — square-ish frame, rounded corners, no tilt for a
+  // calm composition.
+  const W = size;
+  const H = size * 0.88;
+  const RADIUS = 28;
 
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {/* Static reference rings — three concentric forest hairlines at
-          ~17%, 28% and 41% of the size. Visible even between pulse
-          cycles so the screen never collapses to "one dot on lime". */}
-      {RING_RADII.map((r, i) => (
-        <View
-          key={i}
-          style={{
-            position: "absolute",
-            width: size * r,
-            height: size * r,
-            borderRadius: 999,
-            borderWidth: 1.2,
-            borderColor: AppColors.secondaryDarkGreen,
-            opacity: 0.12 + (RING_RADII.length - i) * 0.04,
-          }}
-        />
-      ))}
-
-      {/* Animated sonar pulses — same outward-and-fade idea but now
-          composed against the static rings above. */}
-      <Animated.View
+    <View style={{ width: W, height: H, alignItems: "center", justifyContent: "center" }}>
+      {/* Card surface — warm cream tile on the lime canvas. No tilt,
+          subtle border, soft shadow. */}
+      <View
         style={{
-          position: "absolute",
-          width: ring1Size,
-          height: ring1Size,
-          borderRadius: 999,
-          borderWidth: 2,
-          borderColor: AppColors.secondaryDarkGreen,
-          opacity: ring1Op,
-        }}
-      />
-      <Animated.View
-        style={{
-          position: "absolute",
-          width: ring2Size,
-          height: ring2Size,
-          borderRadius: 999,
-          borderWidth: 2,
-          borderColor: AppColors.secondaryDarkGreen,
-          opacity: ring2Op,
-        }}
-      />
-
-      {/* Nearby-ride pins — each parked on a ring at its angle. Small
-          forest dots with a lime halo. They pulse subtly so the radar
-          feels alive even when no sonar wave is travelling outward. */}
-      {NEARBY_PINS.map((pin, idx) => {
-        const radius = (size * RING_RADII[pin.ring]) / 2;
-        const rad = (pin.angle * Math.PI) / 180;
-        const x = Math.cos(rad) * radius;
-        const y = Math.sin(rad) * radius;
-        const pulse = pinPulses[idx];
-        const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.1] });
-        const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] });
-        const pinSize = size * 0.07;
-        return (
-          <Animated.View
-            key={idx}
-            style={{
-              position: "absolute",
-              width: pinSize,
-              height: pinSize,
-              borderRadius: 999,
-              backgroundColor: AppColors.secondaryDarkGreen,
-              borderWidth: 2,
-              borderColor: AppColors.primaryLightGreen,
-              transform: [{ translateX: x }, { translateY: y }, { scale }],
-              opacity,
-            }}
-          />
-        );
-      })}
-
-      {/* "You are here" puck — lime halo, forest core, with a small
-          heading triangle pointing up. The triangle sells the metaphor
-          of "you on a map" rather than a generic dot. */}
-      <Animated.View
-        style={{
-          width: size * 0.2,
-          height: size * 0.2,
-          borderRadius: 999,
-          backgroundColor: AppColors.primaryLightGreen,
-          alignItems: "center",
-          justifyContent: "center",
-          transform: [{ scale: breatheScale }],
-          shadowColor: AppColors.secondaryDarkGreen,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.28,
-          shadowRadius: 10,
-          elevation: 4,
+          width: W,
+          height: H,
+          borderRadius: RADIUS,
+          overflow: "hidden",
+          backgroundColor: "#F4F6EC",
+          borderWidth: 1,
+          borderColor: "rgba(38,59,51,0.06)",
+          shadowColor: AppColors.basicBlack,
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.14,
+          shadowRadius: 22,
+          elevation: 6,
         }}
       >
+        {/* Stylised map — minimal: one sage park, two white avenues
+            crossing, one quiet block. That's it. */}
+        <Svg width={W} height={H} viewBox="0 0 100 88">
+          {/* Soft park curve in the upper-left. */}
+          <Path
+            d="M -10 -10 Q 30 -10 36 18 Q 30 32 18 34 Q 4 36 -10 28 Z"
+            fill="#DCE5C7"
+            fillOpacity={0.7}
+          />
+          {/* Main avenue — diagonal NE → SW, white stroke with a
+              calm forest hairline along the edge for definition. */}
+          <Path
+            d="M -6 22 L 110 70"
+            stroke="rgba(38,59,51,0.08)"
+            strokeWidth={9.4}
+            strokeLinecap="round"
+          />
+          <Path
+            d="M -6 22 L 110 70"
+            stroke="#FFFFFF"
+            strokeWidth={8}
+            strokeLinecap="round"
+          />
+          {/* Cross avenue — slight curve, slightly thinner. */}
+          <Path
+            d="M 60 -8 Q 56 40 68 96"
+            stroke="rgba(38,59,51,0.08)"
+            strokeWidth={7.4}
+            strokeLinecap="round"
+            fill="none"
+          />
+          <Path
+            d="M 60 -8 Q 56 40 68 96"
+            stroke="#FFFFFF"
+            strokeWidth={6}
+            strokeLinecap="round"
+            fill="none"
+          />
+          {/* One quiet building block — gives the composition a beat
+              of weight without going city-skyline. */}
+          <Path d="M 18 58 h 18 v 10 h -18 z" fill="#B8C5A4" fillOpacity={0.55} />
+        </Svg>
+
+        {/* Static dashed route — short forest dashes connecting the
+            single car to the You pin. Static, not animated; the
+            user wants polish, not motion overload. */}
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: H * 0.26,
+            left: W * 0.42,
+            width: W * 0.24,
+            height: 2,
+            transform: [{ rotate: "32deg" }],
+            flexDirection: "row",
+            gap: 4,
+          }}
+        >
+          {[0, 1, 2, 3, 4].map((i) => (
+            <View
+              key={i}
+              style={{
+                width: 8,
+                height: 2,
+                borderRadius: 1,
+                backgroundColor: AppColors.secondaryDarkGreen,
+                opacity: 0.55,
+              }}
+            />
+          ))}
+        </View>
+
+        {/* One car — upper-right on the cross avenue. */}
         <View
           style={{
-            width: size * 0.1,
-            height: size * 0.1,
-            borderRadius: 999,
-            backgroundColor: AppColors.secondaryDarkGreen,
+            position: "absolute",
+            top: H * 0.16,
+            right: W * 0.18,
+            transform: [{ rotate: "20deg" }],
+          }}
+        >
+          <CarPin size={W * 0.12} />
+        </View>
+
+        {/* "You are here" pin — centre. Breathing lime halo behind a
+            forest pin head with a lime ring + tiny lime core. */}
+        <View
+          style={{
+            position: "absolute",
+            top: H * 0.48 - W * 0.08,
+            left: W * 0.5 - W * 0.08,
+            width: W * 0.16,
+            height: W * 0.16,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          {/* Forest core's inner highlight — a tiny lime dot at the
-              center makes the puck read as a real marker with depth
-              instead of a flat circle. */}
-          <View
+          <Animated.View
             style={{
-              width: size * 0.025,
-              height: size * 0.025,
+              position: "absolute",
+              width: W * 0.16,
+              height: W * 0.16,
               borderRadius: 999,
               backgroundColor: AppColors.primaryLightGreen,
-              opacity: 0.95,
+              opacity: haloOpacity,
+              transform: [{ scale: haloScale }],
             }}
           />
+          <View
+            style={{
+              width: W * 0.09,
+              height: W * 0.09,
+              borderRadius: 999,
+              backgroundColor: AppColors.secondaryDarkGreen,
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: 2.5,
+              borderColor: AppColors.primaryLightGreen,
+              shadowColor: AppColors.basicBlack,
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.22,
+              shadowRadius: 6,
+              elevation: 3,
+            }}
+          >
+            <View
+              style={{
+                width: W * 0.022,
+                height: W * 0.022,
+                borderRadius: 999,
+                backgroundColor: AppColors.primaryLightGreen,
+              }}
+            />
+          </View>
         </View>
-        {/* Heading triangle above the puck — tiny lime tick that
-            implies orientation, same trick Google Maps and Apple Maps
-            use on their location pucks. */}
-        <View
-          style={{
-            position: "absolute",
-            top: -size * 0.045,
-            width: 0,
-            height: 0,
-            borderLeftWidth: size * 0.025,
-            borderRightWidth: size * 0.025,
-            borderBottomWidth: size * 0.045,
-            borderLeftColor: "transparent",
-            borderRightColor: "transparent",
-            borderBottomColor: AppColors.primaryLightGreen,
-          }}
-        />
-      </Animated.View>
+      </View>
     </View>
   );
 };
