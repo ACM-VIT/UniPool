@@ -7,10 +7,18 @@ import { useApi } from "../../utils/ApiUtil";
 
 // Confirmation interstitial. Lands with a spring scale + fade-in,
 // holds briefly so the user registers the moment, then morphs into a
-// "Message host" handoff card so the user doesn't have to hunt for
-// the pending chat in the trips tab — the moment they tap "Request",
-// chatting with the host is one tap away from where they are.
-const HOLD_MS = 1300;
+// stacked action card. The heart-eyes Ride Requested artwork is kept
+// as the hero — it's the brand's celebration glyph for "your tap
+// went through". The action card carries three CTAs in priority
+// order:
+//   Primary   — View request status (deep-links to the ride details
+//               page, which shows the pending booking + host card +
+//               everything the user needs to track the request).
+//   Secondary — Message {host} (outlined pill, demoted from primary;
+//               most users at this moment want to know what happens
+//               next, not immediately DM a stranger).
+//   Tertiary  — Back to trips (quiet text link, escape hatch).
+const HOLD_MS = 1100;
 
 type RouteParams = {
   rideId?: string;
@@ -29,7 +37,7 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
   // of a slideshow image.
   const scale = useRef(new Animated.Value(0.6)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-  // Drives the CTA-card slide-up that takes over after the celebration.
+  // Drives the CTA-card slide-up that takes over after the entrance.
   const cardOpacity = useRef(new Animated.Value(0)).current;
   const cardTranslate = useRef(new Animated.Value(24)).current;
 
@@ -78,6 +86,7 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
       .catch(() => {});
   }, [apiUtil]);
 
+  const rideId = (params.rideId as string) || "";
   const hostUserId = (params.hostUserId as string) || "";
   const hostUserName = (params.hostUserName as string) || "the host";
   const hostFirstName = hostUserName.trim().split(/\s+/)[0] || "the host";
@@ -85,6 +94,19 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
   const makeDMRoomId = (a: string, b: string) => {
     const sorted = [a, b].sort();
     return `dm_${sorted[0]}_${sorted[1]}`;
+  };
+
+  // Primary action — drop the user on the ride's detail page, which
+  // surfaces their pending booking state with the "Waiting on host"
+  // treatment. If for some reason we don't have a rideId, fall back
+  // to the trips screen so the button still goes somewhere useful
+  // rather than dead-ending.
+  const viewRequestStatus = () => {
+    if (rideId) {
+      router.replace(appHref("RideDetailsScreen", { rideId }));
+    } else {
+      router.replace(appHref("BookingScreen"));
+    }
   };
 
   const openHostChat = () => {
@@ -100,7 +122,7 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
         isGroupChat: false,
         otherUserId: hostUserId,
         pendingHostInquiry: true,
-        pendingRideId: params.rideId,
+        pendingRideId: rideId,
         pendingHostName: hostUserName,
       } as any),
     );
@@ -125,25 +147,35 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
       >
         <Text style={styles.ctaTitle}>Request sent</Text>
         <Text style={styles.ctaBody}>
-          {hostFirstName} hasn't decided yet, send a quick hello and tell them
-          your pickup point.
+          {hostFirstName} has been notified. We'll let you know the
+          moment they accept.
         </Text>
+
         <TouchableOpacity
           style={styles.ctaPrimary}
+          activeOpacity={0.85}
+          onPress={viewRequestStatus}
+        >
+          <Text style={styles.ctaPrimaryText}>View request status</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.ctaSecondary}
           activeOpacity={0.85}
           onPress={openHostChat}
           disabled={!hostUserId}
         >
-          <Text style={styles.ctaPrimaryText}>
+          <Text style={styles.ctaSecondaryText}>
             Message {hostFirstName}
           </Text>
         </TouchableOpacity>
+
         <TouchableOpacity
-          style={styles.ctaSecondary}
+          style={styles.ctaTertiary}
           activeOpacity={0.7}
-          onPress={() => router.navigate(appHref("BookingScreen"))}
+          onPress={() => router.replace(appHref("BookingScreen"))}
         >
-          <Text style={styles.ctaSecondaryText}>Back to trips</Text>
+          <Text style={styles.ctaTertiaryText}>Back to trips</Text>
         </TouchableOpacity>
       </Animated.View>
     </View>
