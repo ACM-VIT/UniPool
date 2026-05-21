@@ -551,18 +551,21 @@ export const chatMessagesStyles = StyleSheet.create({
     backgroundColor: AppColors.primaryLightGreen,
   },
   settingsSection: {
-    marginBottom: 18,
-    marginHorizontal: 16,
+    // No `marginHorizontal` — the parent SheetShell already insets
+    // its content by `paddingHorizontal: 24`. Extra margin here used
+    // to make cards float at a different x than the sheet title,
+    // which the user called out as misaligned.
+    marginBottom: 14,
     backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 18,
     paddingHorizontal: 18,
     paddingTop: 16,
     paddingBottom: 6,
     shadowColor: AppColors.basicBlack,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 2,
+    shadowRadius: 14,
+    elevation: 4,
   },
 
   // Chat Info Section
