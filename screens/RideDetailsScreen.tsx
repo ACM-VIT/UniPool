@@ -3,6 +3,7 @@ import { ScrollView, View, Text, Image, TouchableOpacity, StyleSheet, Dimensions
 import { Share } from 'react-native';
 // const shareIcon = require('../assets/megaphone.png');
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import Svg, { Circle as SvgCircle, Path as SvgPath } from "react-native-svg";
 import * as Location from 'expo-location';
 import { useRouter } from "expo-router";
 import { useApi } from "../utils/ApiUtil";
@@ -14,7 +15,36 @@ import LoadingComponent from "../components/LoadingComponent";
 import RideCard from "../components/RideCard";
 import BrandedAlert from "../components/BrandedAlert";
 import ShareRideSheet from "../components/ShareRideSheet";
+import PassengerProfileSheet, { PassengerProfile } from "../components/PassengerProfileSheet";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
+
+/**
+ * Small lime "open profile" eye icon. Stroke-only so it sits in the
+ * same visual family as check.png / cross.png (both pure line-art).
+ * A filled pupil reads too heavy next to the thin strokes — the eye
+ * jumped out as the "loudest" icon in the trio, which inverted the
+ * intended hierarchy (View should feel like a secondary affordance).
+ */
+const EyeGlyph: React.FC = () => (
+  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    <SvgPath
+      d="M12 5c-5 0-9 4-10 7 1 3 5 7 10 7s9-4 10-7c-1-3-5-7-10-7z"
+      stroke="#B5D750"
+      strokeWidth={2.2}
+      fill="none"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <SvgCircle
+      cx={12}
+      cy={12}
+      r={2.5}
+      stroke="#B5D750"
+      strokeWidth={2.2}
+      fill="none"
+    />
+  </Svg>
+);
 
 const { width, height } = Dimensions.get("window");
 
@@ -352,9 +382,12 @@ interface RideResponse extends RideData {
     booking_created_at?: string;
     created_at?: string;
     passenger_name?: string;
-    passenger_email?: string;  
+    passenger_email?: string;
     passenger_profile_picture_url?: string;
     passenger_contact_number?: string;
+    passenger_upi_vpa?: string;
+    passenger_is_verified?: boolean;
+    passenger_institute_name?: string;
   }>;
   [key: string]: any;
 }
@@ -392,6 +425,20 @@ const RideDetailsScreen: React.FC = () => {
   const [isHost, setIsHost] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  // Independent loading flag for per-passenger booking actions (accept
+  // / reject / remove). Was previously sharing `isActionLoading` with
+  // the delete-ride slider, which meant accepting a passenger flipped
+  // the delete-ride slider to "Deleting…". The two flows are now
+  // strictly separate — Slide to delete only reacts to delete-state.
+  const [bookingActionLoading, setBookingActionLoading] = useState<
+    "accept" | "reject" | "remove" | null
+  >(null);
+  // Passenger profile sheet — opens when the host taps any passenger
+  // row in the management list. Holds the passenger payload as state
+  // so the sheet's accept/reject/remove handlers know who they're
+  // acting on without prop drilling.
+  const [profileSheetPassenger, setProfileSheetPassenger] =
+    useState<PassengerProfile | null>(null);
 
   // Passenger booking state — derived from viewer_state. Kept as
   // separate state variables only so the existing render conditionals
@@ -666,6 +713,9 @@ const RideDetailsScreen: React.FC = () => {
                     email: found.passenger_email,
                     profile_picture_url: found.passenger_profile_picture_url,
                     contact_number: found.passenger_contact_number,
+                    upi_vpa: found.passenger_upi_vpa,
+                    is_verified: found.passenger_is_verified,
+                    institute_name: found.passenger_institute_name,
                   },
                 }
               : null,
@@ -904,7 +954,7 @@ const RideDetailsScreen: React.FC = () => {
   };
 
   const handleAcceptBooking = async (bookingId: string) => {
-    setIsActionLoading(true);
+    setBookingActionLoading("accept");
     setBookingError(null);
     try {
       console.log(`Attempting to accept booking: ${bookingId}`);
@@ -936,6 +986,11 @@ const RideDetailsScreen: React.FC = () => {
             email: booking.passenger_email,
             profile_picture_url: booking.passenger_profile_picture_url,
             contact_number: booking.passenger_contact_number,
+            // New fields used by PassengerProfileSheet — phone +
+            // UPI Pay + verified badge + institute label.
+            upi_vpa: booking.passenger_upi_vpa,
+            is_verified: booking.passenger_is_verified,
+            institute_name: booking.passenger_institute_name,
           },
         }));
         
@@ -960,7 +1015,7 @@ const RideDetailsScreen: React.FC = () => {
       console.error("Error in handleAcceptBooking:", error);
       setBookingError(error.message || "Failed to accept booking");
     } finally {
-      setIsActionLoading(false);
+      setBookingActionLoading(null);
     }
   };
 
@@ -980,7 +1035,7 @@ const RideDetailsScreen: React.FC = () => {
   };
 
   const handleRejectBooking = async (bookingId: string) => {
-    setIsActionLoading(true);
+    setBookingActionLoading("reject");
     setBookingError(null);
     try {
       console.log(`Attempting to reject booking: ${bookingId}`);
@@ -1013,6 +1068,11 @@ const RideDetailsScreen: React.FC = () => {
             email: booking.passenger_email,
             profile_picture_url: booking.passenger_profile_picture_url,
             contact_number: booking.passenger_contact_number,
+            // New fields used by PassengerProfileSheet — phone +
+            // UPI Pay + verified badge + institute label.
+            upi_vpa: booking.passenger_upi_vpa,
+            is_verified: booking.passenger_is_verified,
+            institute_name: booking.passenger_institute_name,
           },
         }));
         
@@ -1036,12 +1096,12 @@ const RideDetailsScreen: React.FC = () => {
       console.error("Error in handleRejectBooking:", error);
       setBookingError(error.message || "Failed to reject booking");
     } finally {
-      setIsActionLoading(false);
+      setBookingActionLoading(null);
     }
   };
 
   const handleRemovePassenger = async (bookingId: string) => {
-    setIsActionLoading(true);
+    setBookingActionLoading("remove");
     setBookingError(null);
     try {
       console.log(`Attempting to delete booking: ${bookingId}`);
@@ -1074,6 +1134,11 @@ const RideDetailsScreen: React.FC = () => {
             email: booking.passenger_email,
             profile_picture_url: booking.passenger_profile_picture_url,
             contact_number: booking.passenger_contact_number,
+            // New fields used by PassengerProfileSheet — phone +
+            // UPI Pay + verified badge + institute label.
+            upi_vpa: booking.passenger_upi_vpa,
+            is_verified: booking.passenger_is_verified,
+            institute_name: booking.passenger_institute_name,
           },
         }));
         
@@ -1095,7 +1160,7 @@ const RideDetailsScreen: React.FC = () => {
       console.error("Error in handleRemovePassenger:", error);
       setBookingError(error.message || "Failed to remove passenger");
     } finally {
-      setIsActionLoading(false);
+      setBookingActionLoading(null);
     }
   };
 
@@ -1177,6 +1242,79 @@ const RideDetailsScreen: React.FC = () => {
           startTime={rideData?.start_time || ""}
         />
 
+        {/* Passenger profile sheet — opens when the host taps any
+            passenger row. Forwards accept/reject/remove to the same
+            handlers the per-row sliders use, and closes itself after
+            the action resolves (handled inline via async/await). */}
+        <PassengerProfileSheet
+          visible={profileSheetPassenger !== null}
+          passenger={profileSheetPassenger}
+          actionLoading={bookingActionLoading}
+          onClose={() => setProfileSheetPassenger(null)}
+          onAccept={async () => {
+            const bookingId = profileSheetPassenger?.booking_id;
+            if (!bookingId) return;
+            await handleAcceptBooking(bookingId);
+            setProfileSheetPassenger(null);
+          }}
+          onReject={async () => {
+            const bookingId = profileSheetPassenger?.booking_id;
+            if (!bookingId) return;
+            await handleRejectBooking(bookingId);
+            setProfileSheetPassenger(null);
+          }}
+          onRemove={async () => {
+            const bookingId = profileSheetPassenger?.booking_id;
+            if (!bookingId) return;
+            await handleRemovePassenger(bookingId);
+            setProfileSheetPassenger(null);
+          }}
+          onMessage={() => {
+            // Route into UniPool chat:
+            //   - Pending requester  → 1:1 DM with the requester
+            //     (uses the same dm_<sorted-uuids> convention).
+            //   - Accepted passenger → the ride's group chat, since
+            //     they're already in the trip and the group is the
+            //     canonical surface.
+            const p = profileSheetPassenger;
+            if (!p || !rideData || !currentUserId) return;
+            setProfileSheetPassenger(null);
+            if (p.request_status === "accepted") {
+              const shortDest = (
+                (rideData.end_location || "").split(",")[0] || ""
+              ).trim();
+              router.navigate(
+                appHref("ChatMessages", {
+                  chatId: rideData.id || rideId || "",
+                  chatTitle: shortDest ? `Trip to ${shortDest}` : "Trip",
+                  isGroupChat: true,
+                  hostUserId: rideData.host_user_id,
+                } as any),
+              );
+              return;
+            }
+            // pending
+            const sorted = [currentUserId, p.id].sort();
+            const dmRoomId = `dm_${sorted[0]}_${sorted[1]}`;
+            router.navigate(
+              appHref("ChatMessages", {
+                chatId: dmRoomId,
+                chatTitle: p.name || "Requester",
+                isGroupChat: false,
+                otherUserId: p.id,
+                pendingHostInquiry: true,
+                viewerIsHost: true,
+                pendingRideId: rideData.id,
+                pendingHostName: p.name,
+                pendingRideStartLocation: rideData.start_location,
+                pendingRideEndLocation: rideData.end_location,
+                pendingRideStartTime: rideData.start_time,
+                hostPendingRequestBookingId: p.booking_id,
+              } as any),
+            );
+          }}
+        />
+
         <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
           <View style={styles.rideCardContainer}>
             <RideCard
@@ -1194,8 +1332,46 @@ const RideDetailsScreen: React.FC = () => {
             />
           </View>
 
-          <Text style={styles.requestsHeader}>Ride Management</Text>
-          
+          {/* Section header dropped — the screen-level navigation
+              already shows "Ride Management" once. Painting it again
+              as a giant uppercase label below the ride card was a
+              redundant shout. */}
+
+          {(() => {
+            // Treat "only the host themselves in the requests list" as
+            // the empty state for ride management. Net non-host
+            // bookings = 0 means nobody has requested or been
+            // accepted yet, so the right call-to-action is "share
+            // the ride," not a stale "No bookings found." line.
+            const nonHostRequests = (requests || []).filter(
+              (r) =>
+                r.id !== "host-booking" &&
+                r.passenger_id !== rideData?.host_user_id,
+            );
+            const noOneJoinedYet =
+              !requestsLoading && !bookingError && nonHostRequests.length === 0;
+            if (noOneJoinedYet) {
+              return (
+                <View style={styles.shareEmptyWrap}>
+                  <Text style={styles.shareEmptyTitle}>
+                    No one's joined yet
+                  </Text>
+                  <Text style={styles.shareEmptyBody}>
+                    Share your ride so classmates can request a seat.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.shareEmptyBtn}
+                    activeOpacity={0.85}
+                    onPress={() => setShareSheetOpen(true)}
+                  >
+                    <Text style={styles.shareEmptyBtnText}>Share ride</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            }
+            return null;
+          })()}
+
           {requestsLoading ? (
             <View style={styles.inlineLoadingContainer}>
               <LoadingComponent />
@@ -1205,9 +1381,22 @@ const RideDetailsScreen: React.FC = () => {
               <Text style={styles.errorText}>{bookingError}</Text>
             </View>
           ) : requests.length === 0 ? (
-            <Text style={styles.emptyText}>No bookings found.</Text>
+            // Host-booking entry isn't injected yet — race during the
+            // first fetch. Keep this branch dormant; the "noOneJoinedYet"
+            // card above already speaks to the empty state once the
+            // host entry lands.
+            null
           ) : (
-            requests.map((req, idx) => {
+            // Filter out rejected bookings before rendering. The
+            // previous JSX fell through to the "accepted" branch for
+            // anything non-pending, which made rejected passengers
+            // visually indistinguishable from accepted ones — the
+            // "rejecting marks them as accepted" bug. Rejected rows
+            // shouldn't appear on the host's management screen at all
+            // (the rejection is the decision; they're done).
+            requests
+              .filter((r) => r.request_status !== "rejected")
+              .map((req, idx) => {
               const passengerName = req.passenger?.name || "Unknown User";
               const isCurrentUser = req.passenger_id === currentUserId;
               const isHostPassenger = rideData?.host_user_id === req.passenger_id;
@@ -1224,21 +1413,25 @@ const RideDetailsScreen: React.FC = () => {
               }
 
               if (showSlide && selectedRequest?.id === req.id && !rideOver) {
+                // Same generic "user" copy as accept/reject — the
+                // slider replaces *that row* in-place, so context is
+                // already on screen. Putting the name on remove (but
+                // not accept/reject) created an inconsistent feel.
                 return (
                   <View key={req.id || idx} style={styles.sliderOnlyContainer}>
                     <SlideToCreate
                       text={
-                        isActionLoading
-                          ? showSlide === "accept"
+                        bookingActionLoading
+                          ? bookingActionLoading === "accept"
                             ? "Accepting..."
-                            : showSlide === "reject"
+                            : bookingActionLoading === "reject"
                             ? "Rejecting..."
-                            : `Removing ${passengerName}...`
+                            : "Removing..."
                           : showSlide === "accept"
                           ? "Slide to accept user"
                           : showSlide === "reject"
                           ? "Slide to reject user"
-                          : `Slide to remove ${passengerName}`
+                          : "Slide to remove user"
                       }
                       onSlideComplete={async () => {
                         const bookingId = req.id || req.booking_id;
@@ -1254,78 +1447,151 @@ const RideDetailsScreen: React.FC = () => {
                         setShowSlide(null);
                         setSelectedRequest(null);
                       }}
-                      disabled={isActionLoading}
-                      sliderIcon={showSlide === "reject" ? require("../assets/red-slider.png") : require("../assets/slide.png")}
+                      // Disabled flag now ties to booking-action state
+                      // ONLY. The delete-ride slider has its own
+                      // isActionLoading lane and never gets pulled
+                      // into "Accepting…" or vice versa.
+                      disabled={!!bookingActionLoading}
+                      // Red track wants the red-tinted thumb image; the
+                      // green slide.png on red looks broken (dark
+                      // forest block on a red track). Accept = forest
+                      // track + forest thumb; reject/remove = red
+                      // track + red thumb.
+                      sliderIcon={showSlide === "accept" ? require("../assets/slide.png") : require("../assets/red-slider.png")}
                       backgroundColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : "#FF3B30"}
                       sliderButtonColor={AppColors.basicWhite}
                       textColor={AppColors.basicWhite}
                       borderColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : "#FF3B30"}
+                      // Slot in as a same-size row replacement (no extra
+                      // vertical margin, matching 16pt corner radius
+                      // and 60pt height).
+                      containerStyle={{ marginVertical: 0 }}
+                      sliderStyle={{ borderRadius: 16 }}
+                      // Keep the thumb pinned at the right after a
+                      // successful swipe — the API call is in flight
+                      // and the parent dismisses the slider when it
+                      // resolves. Without this the thumb springs
+                      // back to the left mid-call and looks broken.
+                      holdAtEnd
                     />
                     {bookingError ? <Text style={styles.inlineErrorText}>{bookingError}</Text> : null}
                   </View>
                 );
               }
 
+              // Build the PassengerProfile payload for this row — the
+              // shape PassengerProfileSheet expects. Host row passes
+              // through as well so the host can pay themselves (e.g.
+              // when testing) or see their own state.
+              const profilePayload: PassengerProfile = {
+                id: req.passenger_id,
+                name: passengerName,
+                email: req.passenger?.email,
+                profile_picture_url: req.passenger?.profile_picture_url,
+                contact_number: req.passenger?.contact_number,
+                upi_vpa: req.passenger?.upi_vpa,
+                is_verified: req.passenger?.is_verified,
+                institute_name: req.passenger?.institute_name,
+                request_status: req.request_status,
+                booking_id: req.id,
+              };
+              const openProfile = () => {
+                if (!isHostBooking) setProfileSheetPassenger(profilePayload);
+              };
+
               if (req.request_status === "pending") {
                 return (
                   <View key={req.id || idx} style={styles.pendingRequestCard}>
-                    <Text style={styles.pendingRequestName}>{displayName}</Text>
+                    {/* Name takes the flex space; right cluster carries
+                        the actions: View opens the profile sheet,
+                        Reject/Accept drop the row into the slider
+                        below for confirmation. No avatar, no
+                        "Tap to review" caption — the icon set on the
+                        right is the affordance. */}
+                    <Text style={styles.pendingRequestName} numberOfLines={1}>
+                      {displayName}
+                    </Text>
                     {!rideOver ? (
-                      <View style={styles.pendingRequestActions}>
+                      <View style={styles.rowActionsCluster}>
                         <TouchableOpacity
-                          style={styles.rejectButton}
+                          style={styles.iconBtn}
+                          onPress={openProfile}
+                          activeOpacity={0.7}
+                        >
+                          <EyeGlyph />
+                          <Text style={styles.iconBtnLabel}>View</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.iconBtn}
                           onPress={() => {
                             setSelectedRequest(req);
                             setShowSlide("reject");
                           }}
+                          activeOpacity={0.7}
                         >
-                          <Image source={require("../assets/cross.png")} style={styles.actionIcon} />
-                          <Text style={styles.rejectLabel}>Reject</Text>
+                          <Image source={require("../assets/cross.png")} style={styles.iconBtnImageReject} />
+                          <Text style={styles.iconBtnLabelReject}>Reject</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={styles.acceptButton}
+                          style={styles.iconBtn}
                           onPress={() => {
                             setSelectedRequest(req);
                             setShowSlide("accept");
                           }}
+                          activeOpacity={0.7}
                         >
-                          <Image source={require("../assets/check.png")} style={styles.actionIconAccept} />
-                          <Text style={styles.acceptLabel}>Accept</Text>
+                          <Image source={require("../assets/check.png")} style={styles.iconBtnImageAccept} />
+                          <Text style={styles.iconBtnLabelAccept}>Accept</Text>
                         </TouchableOpacity>
                       </View>
                     ) : (
-                      <Text style={{ color: AppColors.secondaryDarkGreen, opacity: 0.9 }}>Ride is over</Text>
+                      <Text style={styles.rideOverInline}>Ride is over</Text>
                     )}
                   </View>
                 );
               }
 
-              // Accepted passenger
+              // Accepted passenger row.
+              // No avatar, no inverted lime card for the host, no big
+              // lime "Accepted" badge. Every row uses the same calm
+              // forest surface — status reads from the action set on
+              // the right (host gets a quiet "Host" caption; everyone
+              // else gets View + Remove icon-buttons).
               return (
                 <View
                   key={req.id || idx}
-                  style={[styles.confirmedPassengerCard, isHostBooking && styles.hostPassengerCard]}
+                  style={styles.confirmedPassengerCard}
                 >
-                  <View style={styles.passengerInfo}>
-                    <Text style={[styles.passengerName, isHostBooking && styles.hostPassengerName]}>{displayName}</Text>
-                    <View style={[styles.statusBadge, isHostBooking && styles.hostStatusBadge]}>
-                      <Text style={[styles.passengerStatusText, isHostBooking && styles.hostPassengerStatusText]}>
-                        {req.request_status === "pending" ? "Pending" : "Accepted"}
-                      </Text>
+                  <Text style={styles.passengerName} numberOfLines={1}>
+                    {displayName}
+                  </Text>
+                  {isHostBooking ? (
+                    <Text style={styles.hostCaptionInline}>Host</Text>
+                  ) : (
+                    <View style={styles.rowActionsCluster}>
+                      <TouchableOpacity
+                        style={styles.iconBtn}
+                        onPress={openProfile}
+                        activeOpacity={0.7}
+                      >
+                        <EyeGlyph />
+                        <Text style={styles.iconBtnLabel}>View</Text>
+                      </TouchableOpacity>
+                      {!rideOver && canRemove ? (
+                        <TouchableOpacity
+                          style={styles.iconBtn}
+                          onPress={() => {
+                            setSelectedRequest(req);
+                            setShowSlide("remove");
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Image source={require("../assets/cross.png")} style={styles.iconBtnImageReject} />
+                          <Text style={styles.iconBtnLabelReject}>Remove</Text>
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
-                  </View>
-
-                  {!rideOver && canRemove ? (
-                    <TouchableOpacity
-                      style={styles.removeButton}
-                      onPress={() => {
-                        setSelectedRequest(req);
-                        setShowSlide("remove");
-                      }}
-                    >
-                      <Image source={require("../assets/cross.png")} style={styles.removeIcon} />
-                    </TouchableOpacity>
-                  ) : null}
+                  )}
                 </View>
               );
             })
@@ -1768,6 +2034,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
+    // Breathing room above the fixed "Slide to delete ride" bar so
+    // the last passenger row isn't visually pinned to the slider.
+    paddingBottom: 16,
   },
   rideCardContainer: {
     marginBottom: 20,
@@ -2007,13 +2276,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   pendingRequestCard: {
-    // Forest card on the lime canvas — matches the unified surface system.
+    // Forest card flush with the ride card above it — no extra
+    // `marginHorizontal: 16`, which used to push these rows 16pt
+    // farther inset than the ride card / share button / share-empty
+    // card and broke vertical alignment. Now they all share the
+    // ScrollView's `paddingHorizontal: 20`.
     backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    height: 60,
+    marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -2024,54 +2296,73 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   pendingRequestName: {
-    color: AppColors.basicWhite,
-    fontSize: 16,
-    fontFamily: "NunitoSans_600SemiBold",
     flex: 1,
-    marginRight: 16,
+    color: AppColors.basicWhite,
+    fontSize: 15.5,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: -0.2,
+    marginRight: 8,
   },
-  pendingRequestActions: {
+  // Right-side icon-button cluster used on both pending and accepted
+  // rows. View / Reject / Accept (pending) — View / Remove (accepted).
+  // Same visual rhythm as the previous text-icon buttons so the row
+  // reads as one composed action set.
+  rowActionsCluster: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 20,
+    gap: 14,
   },
-  rejectButton: {
+  iconBtn: {
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
   },
-  acceptButton: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  actionIcon: {
-    width: 24,
-    height: 24,
+  iconBtnImageReject: {
+    width: 22,
+    height: 22,
     marginBottom: 2,
     resizeMode: "contain",
+    tintColor: "#FF6B5B",
   },
-  actionIconAccept: {
-    width: 24,
-    height: 24,
+  iconBtnImageAccept: {
+    width: 22,
+    height: 22,
     marginBottom: 2,
     resizeMode: "contain",
+    tintColor: AppColors.primaryLightGreen,
   },
-  rejectLabel: {
-    color: AppColors.basicWhite,
-    fontSize: 11,
-    fontFamily: "NunitoSans_400Regular",
-    textAlign: "center",
+  iconBtnLabel: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 10.5,
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: 0.2,
+    opacity: 0.85,
   },
-  acceptLabel: {
-    color: "#C6FF00",
-    fontSize: 11,
-    fontFamily: "NunitoSans_600SemiBold",
-    textAlign: "center",
+  iconBtnLabelAccept: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 10.5,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: 0.2,
   },
-  integratedSliderContainer: {
-    flex: 1,
-    marginTop: 8,
+  iconBtnLabelReject: {
+    color: "#FF8A7A",
+    fontSize: 10.5,
+    fontFamily: "NunitoSans_700Bold",
+    letterSpacing: 0.2,
+  },
+  hostCaptionInline: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 12,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    opacity: 0.7,
+  },
+  rideOverInline: {
+    color: AppColors.primaryLightGreen,
+    fontSize: 12,
+    fontFamily: "NunitoSans_700Bold",
+    opacity: 0.7,
   },
   inlineErrorText: {
     color: "red",
@@ -2081,14 +2372,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   confirmedPassengerCard: {
-    // Forest passenger tile on the lime canvas — matches RideCard /
-    // UpNextCard surface system. Lime text inside.
+    // Flush with the ride card above — same horizontal inset as
+    // every other card on the screen (the ScrollView's
+    // `paddingHorizontal: 20` handles outer spacing).
     backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    height: 60,
+    marginBottom: 10,
     elevation: 2,
     shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 2 },
@@ -2098,71 +2389,64 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  hostPassengerCard: {
-    // The host's own row — inverts to lime fill so they stand out as
-    // the route owner. Forest border keeps it within the system.
-    backgroundColor: AppColors.primaryLightGreen,
-    borderWidth: 2,
-    borderColor: AppColors.secondaryDarkGreen,
-    elevation: 3,
-    shadowOpacity: 0.18,
-  },
-  passengerInfo: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginRight: 12,
-  },
   passengerName: {
+    // No `marginLeft` — avatar was removed in the row redesign, so
+    // the name should hug the same 16pt left padding as every other
+    // row tile.
     color: AppColors.primaryLightGreen,
-    fontSize: 16,
-    fontFamily: "NunitoSans_700Bold",
-    letterSpacing: -0.1,
+    fontSize: 15.5,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: -0.2,
     flex: 1,
-  },
-  hostPassengerName: {
-    color: AppColors.secondaryDarkGreen,
-    fontFamily: "NunitoSans_800ExtraBold",
-  },
-  statusBadge: {
-    // Lime status pill on the forest passenger tile — inverts the
-    // tile typography for the "Confirmed" badge.
-    backgroundColor: AppColors.primaryLightGreen,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  hostStatusBadge: {
-    backgroundColor: AppColors.secondaryDarkGreen,
-  },
-  passengerStatusText: {
-    color: AppColors.secondaryDarkGreen,
-    fontSize: 11,
-    fontFamily: "NunitoSans_800ExtraBold",
-    letterSpacing: 0.4,
-  },
-  hostPassengerStatusText: {
-    // Host's tile is lime, so its forest badge wears lime label —
-    // mirror of the rest of the inverse rules.
-    color: AppColors.primaryLightGreen,
-  },
-  removeButton: {
-    backgroundColor: "#FF3B30",
-    borderRadius: 20,
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  removeIcon: {
-    width: 14,
-    height: 14,
-    tintColor: "#fff",
+    marginRight: 8,
   },
   sliderOnlyContainer: {
-    marginHorizontal: 16,
-    marginBottom: 12,
+    // No marginHorizontal — the parent ScrollView already pads 20pt
+    // on each side. Matches the pendingRequestCard / accepted card
+    // horizontal inset so the slider lands at the same edge.
+    marginBottom: 10,
+  },
+  // Minimal "No one's joined yet" empty state — no card surface, no
+  // shadow, no full-width button. Just calm centred text on the lime
+  // canvas with a small Share pill. The blocky cream card felt heavy
+  // for what is functionally "nothing here, share to get started."
+  shareEmptyWrap: {
+    paddingHorizontal: 28,
+    paddingTop: 14,
+    paddingBottom: 22,
+    alignItems: "center",
+  },
+  shareEmptyTitle: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.3,
+    color: AppColors.secondaryDarkGreen,
+    textAlign: "center",
+  },
+  shareEmptyBody: {
+    marginTop: 4,
+    fontFamily: "NunitoSans_600SemiBold",
+    fontSize: 13,
+    lineHeight: 19,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.65,
+    textAlign: "center",
+    letterSpacing: 0.05,
+  },
+  // Small inline pill — text-button scale, not a full-width CTA.
+  shareEmptyBtn: {
+    marginTop: 14,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: AppColors.secondaryDarkGreen,
+  },
+  shareEmptyBtnText: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 13.5,
+    color: AppColors.primaryLightGreen,
+    letterSpacing: 0.3,
   },
   acceptedStatusBanner: {
     // "You're confirmed" banner — forest dark tile with lime title and
