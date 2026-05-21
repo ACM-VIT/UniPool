@@ -24,7 +24,9 @@ import { useApi } from '../../utils/ApiUtil';
 import ChatService from '../../utils/ChatService';
 import BrandedAlert from "../../components/BrandedAlert";
 import ChevronBack from "../../components/ChevronBack";
+import RouteStack from "../../components/RouteStack";
 import ShareRideSheet from "../../components/ShareRideSheet";
+import SheetShell, { sheetUi } from "../../components/SheetShell";
 import { useDecodedLocalSearchParams } from "../../navigation/routes";
 
 /**
@@ -1027,21 +1029,21 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const renderSettingsModal = () => {
     const isGroup = chatParams.isGroupChat!==false;
     return (
-      <Modal
-        visible={showSettings}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={()=>setShowSettings(false)}
-      >
-        <SafeAreaView style={chatMessagesStyles.container}>
-          <View style={chatMessagesStyles.settingsHeader}>
-            <TouchableOpacity onPress={()=>setShowSettings(false)}>
-              <Text style={chatMessagesStyles.settingsCloseButton}>Done</Text>
-            </TouchableOpacity>
-            <Text style={chatMessagesStyles.settingsTitle}>Chat Settings</Text>
-            <View style={{width:50}}/>
-          </View>
-          <ScrollView style={chatMessagesStyles.settingsContent}>
+      <SheetShell visible={showSettings} onDismiss={() => setShowSettings(false)}>
+        {/* SheetShell provides the slide-up chrome (grab handle, X
+            button, rounded top corners, dim backdrop). The pageSheet
+            we used previously was an iOS-native full-screen sheet
+            that didn't match the rest of the app's bottom-sheet
+            language. Content here renders on the cream-white sheet
+            surface — same as every other sheet in the app. */}
+        <Text style={[sheetUi.sheetTitle, { marginBottom: 14 }]}>
+          {isGroup ? "Chat settings" : "Conversation"}
+        </Text>
+        <ScrollView
+          style={{ maxHeight: 520 }}
+          contentContainerStyle={{ paddingBottom: 8 }}
+          showsVerticalScrollIndicator={false}
+        >
             <View style={chatMessagesStyles.settingsSection}>
               <View style={chatMessagesStyles.chatInfoHeader}>
                 {/* No initial-letter avatar — the title carries the
@@ -1211,12 +1213,10 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             </TouchableOpacity>
 
             {chatParams.isGroupChat !== false && (
-              // Leave Ride sits *outside* any forest section card so it
-              // doesn't read as a coral pill on a black slab. Standalone
-              // destructive CTA on the lime canvas with generous side
-              // margins.
+              // Leave Ride — standalone destructive CTA at the bottom
+              // of the scroll area.
               <TouchableOpacity
-                style={[chatMessagesStyles.actionButton, chatMessagesStyles.destructiveButton, { marginHorizontal: 16, marginTop: 4, marginBottom: 24 }]}
+                style={[chatMessagesStyles.actionButton, chatMessagesStyles.destructiveButton, { marginTop: 4 }]}
                 onPress={handleLeaveRide}
               >
                 <Text style={[chatMessagesStyles.actionButtonText, chatMessagesStyles.destructiveButtonText]}>
@@ -1224,53 +1224,35 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                 </Text>
               </TouchableOpacity>
             )}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+        </ScrollView>
+      </SheetShell>
     );
   };
 
   // Report sheet — opens from the chat settings "Report a problem"
   // button. Reason chips + optional free-text. POSTs to /reports.
   const renderReportSheet = () => (
-    <Modal
+    <SheetShell
       visible={showReportSheet}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={() => !reportSubmitting && setShowReportSheet(false)}
+      onDismiss={() => setShowReportSheet(false)}
+      busy={reportSubmitting}
     >
-      <SafeAreaView style={chatMessagesStyles.container}>
-        <View style={chatMessagesStyles.settingsHeader}>
-          <TouchableOpacity
-            onPress={() => !reportSubmitting && setShowReportSheet(false)}
-            disabled={reportSubmitting}
-          >
-            <Text style={chatMessagesStyles.settingsCloseButton}>Cancel</Text>
-          </TouchableOpacity>
-          <Text style={chatMessagesStyles.settingsTitle}>Report</Text>
-          <View style={{ width: 60 }} />
-        </View>
+      {/* Same SheetShell chrome as every other sheet in the app —
+          slide-up from bottom, grab handle, X close, rounded top.
+          Previously this was a pageSheet which read as a separate
+          full-screen modal, out of step with the rest of the app. */}
+      <Text style={[sheetUi.sheetTitle, { marginBottom: 6 }]}>Report</Text>
+      <Text style={sheetUi.sheetBody}>
+        Pick what best describes the problem. Your report goes to the
+        UniPool team and the other person isn't notified.
+      </Text>
 
-        <ScrollView
-          style={{ flex: 1, backgroundColor: AppColors.primaryLightGreen }}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: 40 }}
-        >
-          <Text
-            style={{
-              fontFamily: 'NunitoSans_700Bold',
-              fontSize: 14.5,
-              color: AppColors.secondaryDarkGreen,
-              opacity: 0.78,
-              lineHeight: 20,
-              marginBottom: 18,
-              letterSpacing: -0.05,
-            }}
-          >
-            Pick what best describes the problem. Your report is sent to the
-            UniPool moderation team and the other person isn't notified.
-          </Text>
-
+      <ScrollView
+        style={{ maxHeight: 460 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 4 }}
+      >
           {/* Reason chips — single-select. Forest fill for the
               selected one, outlined forest for the rest. */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}>
@@ -1330,7 +1312,11 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             placeholderTextColor="rgba(38,59,51,0.45)"
             style={{
               minHeight: 110,
-              backgroundColor: AppColors.basicWhite,
+              // Soft forest tint instead of basicWhite — the sheet
+              // bg is already white, so a white field would
+              // disappear into it. Same surface treatment used by
+              // sheetUi.input.
+              backgroundColor: 'rgba(38,59,51,0.05)',
               borderRadius: 14,
               paddingHorizontal: 14,
               paddingTop: 12,
@@ -1341,7 +1327,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               fontFamily: 'NunitoSans_600SemiBold',
               textAlignVertical: 'top',
               borderWidth: 1,
-              borderColor: 'rgba(38,59,51,0.12)',
+              borderColor: 'rgba(38,59,51,0.10)',
             }}
             maxLength={600}
           />
@@ -1372,9 +1358,8 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               {reportSubmitting ? 'Sending…' : 'Send report'}
             </Text>
           </TouchableOpacity>
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
+      </ScrollView>
+    </SheetShell>
   );
 
   const chatRows = useMemo(() => buildRows(messages), [messages]);
@@ -1520,23 +1505,13 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                 ride they're asking about. */}
             {(chatParams.pendingRideStartLocation || chatParams.pendingRideEndLocation) ? (
               <View style={chatMessagesStyles.pendingEmptyRouteBlock}>
-                <View style={chatMessagesStyles.pendingRouteRow}>
-                  <View style={chatMessagesStyles.pendingDotOutline} />
-                  <Text style={chatMessagesStyles.pendingRoutePoint} numberOfLines={1}>
-                    {chatParams.pendingRideStartLocation || '—'}
-                  </Text>
-                </View>
-                <View style={chatMessagesStyles.pendingRouteConnector}>
-                  {[0, 1, 2].map((i) => (
-                    <View key={i} style={chatMessagesStyles.pendingRouteConnectorDash} />
-                  ))}
-                </View>
-                <View style={chatMessagesStyles.pendingRouteRow}>
-                  <View style={chatMessagesStyles.pendingDotFilled} />
-                  <Text style={chatMessagesStyles.pendingRoutePoint} numberOfLines={1}>
-                    {chatParams.pendingRideEndLocation || '—'}
-                  </Text>
-                </View>
+                <RouteStack
+                  tone="onLime"
+                  accentColor="#C46A2D"
+                  start={chatParams.pendingRideStartLocation || '—'}
+                  end={chatParams.pendingRideEndLocation || '—'}
+                  numberOfLines={1}
+                />
               </View>
             ) : null}
 
@@ -1683,7 +1658,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                     Waiting for passengers
                   </Text>
                   <Text style={chatMessagesStyles.hostEmptyMinimalBody}>
-                    Share this trip so classmates can join.
+                    Share this trip so users can join.
                   </Text>
                   {chatParams.chatId ? (
                     <TouchableOpacity
@@ -1828,7 +1803,16 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       )}
 
       <KeyboardAvoidingView
-        behavior={Platform.select({ ios: 'padding', android: undefined })}
+        // `padding` on Android too (was `undefined`, a no-op). This
+        // KAV wraps only the input bar at the bottom of the screen,
+        // not the whole chat — so `height` would shrink the input
+        // itself, which is wrong. `padding` adds bottom padding
+        // equal to the keyboard height, which lifts the input bar
+        // above the keyboard while leaving the messages list above
+        // it intact. The manifest's `adjustResize` alone wasn't
+        // enough here (edge-to-edge / immersive insets break the
+        // automatic window resize on newer Android builds).
+        behavior={Platform.select({ ios: 'padding', android: 'padding' })}
         keyboardVerticalOffset={Platform.select({ ios: 80, android: 0 })}
       >
         {/* Quick replies — hidden once the user starts typing so they don't

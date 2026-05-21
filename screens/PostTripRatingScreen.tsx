@@ -183,7 +183,11 @@ const PostTripRatingScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        // `behavior="height"` on Android so the comment TextInput at
+        // the bottom of this screen rises with the keyboard. The
+        // earlier `undefined` left the KAV inert and the input got
+        // covered.
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
         <ScrollView

@@ -380,7 +380,12 @@ const SheetShell: React.FC<SheetShellProps> = ({ visible, onDismiss, busy, child
       </Animated.View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        // `behavior="height"` on Android (not `undefined`) — the
+        // transparent Modal sits OVER the OS-resized window, so the
+        // manifest's `adjustResize` doesn't reach inside it. Without
+        // an explicit behavior here, the UPI input stays pinned to
+        // the bottom of the screen, hidden behind the keyboard.
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ ...sheetFill, justifyContent: 'flex-end' }}
         pointerEvents="box-none"
       >

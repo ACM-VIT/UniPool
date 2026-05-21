@@ -106,7 +106,12 @@ const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDis
       </Animated.View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        // Same fix as SheetShell / the UPI sheet: explicit
+        // `behavior="height"` on Android so the search input inside
+        // this country-picker sheet doesn't stay hidden behind the
+        // keyboard. `adjustResize` on the manifest doesn't reach
+        // into transparent statusBarTranslucent Modals.
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ ...fill, justifyContent: "flex-end" }}
         pointerEvents="box-none"
       >

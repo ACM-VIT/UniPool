@@ -45,42 +45,40 @@ const SheetShell: React.FC<Props> = ({
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
-  const content = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       haptic("selection");
-      content.setValue(0);
+      // Force start position before the spring. If the previous
+      // close animation was cancelled mid-flight when the Modal
+      // unmounted, these values can be stuck open and the next
+      // open would render with no animation.
+      translateY.setValue(SCREEN_HEIGHT);
+      backdrop.setValue(0);
+      // Same shape as AuthSheet: backdrop fades in, sheet springs
+      // up. No secondary content fade — that was reading as a
+      // delayed pop-in over the already-animating sheet, which the
+      // user called out as feeling weird.
       Animated.parallel([
         Animated.timing(backdrop, {
           toValue: 1,
-          duration: 220,
+          duration: 240,
           easing: Easing.out(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.spring(translateY, {
           toValue: 0,
           damping: 22,
-          stiffness: 200,
+          stiffness: 180,
           mass: 0.9,
           useNativeDriver: true,
         }),
-        Animated.sequence([
-          Animated.delay(160),
-          Animated.spring(content, {
-            toValue: 1,
-            damping: 18,
-            stiffness: 220,
-            mass: 0.7,
-            useNativeDriver: true,
-          }),
-        ]),
       ]).start();
     } else {
       Animated.parallel([
         Animated.timing(backdrop, {
           toValue: 0,
-          duration: 160,
+          duration: 180,
           easing: Easing.in(Easing.quad),
           useNativeDriver: true,
         }),
@@ -90,26 +88,15 @@ const SheetShell: React.FC<Props> = ({
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
-        Animated.timing(content, {
-          toValue: 0,
-          duration: 110,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      ]).start(() => {
+        // Belt and braces — guarantee the values land at their
+        // off-screen target so the next open's reset above is paired
+        // with a known final state.
+        translateY.setValue(SCREEN_HEIGHT);
+        backdrop.setValue(0);
+      });
     }
   }, [visible]);
-
-  const settleStyle = {
-    opacity: content,
-    transform: [
-      {
-        translateY: content.interpolate({
-          inputRange: [0, 1],
-          outputRange: [10, 0],
-        }),
-      },
-    ],
-  };
 
   const canDismiss = dismissible && !busy;
 
@@ -132,7 +119,13 @@ const SheetShell: React.FC<Props> = ({
       </Animated.View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        // `behavior="height"` on Android (not `undefined`) — this
+        // sheet is rendered inside a transparent + statusBarTranslucent
+        // Modal, which sits above the OS-resized window, so the
+        // manifest's `adjustResize` doesn't apply inside the sheet.
+        // Without an explicit behavior here, every input in any sheet
+        // built on SheetShell stays hidden behind the keyboard.
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ ...fill, justifyContent: "flex-end" }}
         pointerEvents="box-none"
       >
@@ -198,7 +191,7 @@ const SheetShell: React.FC<Props> = ({
             </TouchableOpacity>
           ) : null}
 
-          <Animated.View style={settleStyle}>{children}</Animated.View>
+          {children}
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
