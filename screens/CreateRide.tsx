@@ -7,6 +7,7 @@ import AppColors from "../design_systems/colors";
 import SlideToCreate from "../components/SlideToCreate";
 import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
+import { useUser } from "../contexts/UserContext";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import BrandedAlert from "../components/BrandedAlert";
 import SheetShell, { sheetUi } from "../components/SheetShell";
@@ -165,25 +166,11 @@ const CreateRide: React.FC = () => {
   // shown. We only surface the option to female users, and the
   // backend independently enforces the same rule on /ride/create so
   // a maliciously crafted client can't bypass the UI gate.
-  const [viewerGender, setViewerGender] = useState<string | null>(null);
+  // Reads from the shared `UserContext` — the /user/details fetch
+  // happens once at app boot, not separately on this screen.
+  const { user: viewerUser } = useUser();
+  const viewerGender = (viewerUser?.gender || "").toLowerCase() || null;
   const [isWomenOnly, setIsWomenOnly] = useState<boolean>(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiUtil
-      .get<{ user?: { gender?: string } }>("/user/details")
-      .then((res) => {
-        if (cancelled) return;
-        setViewerGender((res?.user?.gender || "").toLowerCase() || null);
-      })
-      .catch(() => {
-        // Silent — failing to fetch gender just means the toggle
-        // stays hidden, which is the correct fail-safe default.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [apiUtil]);
 
   // Keep the per-seat array length in sync with the seat count. When
   // the host bumps seats up, the new slots inherit the current

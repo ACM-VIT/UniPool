@@ -162,15 +162,12 @@ export const cachePolicyForEndpoint = (endpoint: string): CachePolicy => {
     return { enabled: false, ttlMs: 0, staleMs: 0, persist: false };
   }
 
-  if (cleanEndpoint === "/app/state") {
-    return { enabled: true, ttlMs: 30_000, staleMs: 24 * 60 * 60_000, persist: true };
-  }
-
   if (cleanEndpoint === "/user/details") {
     return { enabled: true, ttlMs: 5 * 60_000, staleMs: 24 * 60 * 60_000, persist: true };
   }
 
   if (
+    cleanEndpoint === "/app/state" ||
     cleanEndpoint === "/user/rides" ||
     cleanEndpoint === "/booking/list" ||
     cleanEndpoint === "/trip-card/active" ||
@@ -181,7 +178,7 @@ export const cachePolicyForEndpoint = (endpoint: string): CachePolicy => {
     cleanEndpoint === "/rides/involved" ||
     cleanEndpoint === "/passengers/all"
   ) {
-    return { enabled: true, ttlMs: 30_000, staleMs: 12 * 60 * 60_000, persist: true };
+    return { enabled: false, ttlMs: 0, staleMs: 0, persist: false };
   }
 
   if (
@@ -191,7 +188,7 @@ export const cachePolicyForEndpoint = (endpoint: string): CachePolicy => {
     /\/ride\/[^/]+\/settings$/.test(cleanEndpoint) ||
     /\/ride\/[^/]+\/chat-mute$/.test(cleanEndpoint)
   ) {
-    return { enabled: true, ttlMs: 45_000, staleMs: 6 * 60 * 60_000, persist: true };
+    return { enabled: false, ttlMs: 0, staleMs: 0, persist: false };
   }
 
   if (/^\/user\/[^/?]+$/.test(cleanEndpoint)) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, Animated, Easing, Dimensions, StatusBar } from "react-native";
 import * as Location from "expo-location";
 import Svg, { Circle, Path } from "react-native-svg";
@@ -10,9 +10,14 @@ import { ensurePushNotificationsRegistered } from "../../utils/pushNotifications
 import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import type { AppRouteTarget } from "../../navigation/routes";
 import { useLocationInfo } from "../../contexts/location-context";
+import {
+  HAS_SEEN_PERMISSIONS_PROMPT_KEY,
+  hasGrantedForegroundLocationPermission,
+  markPermissionsPromptSeen,
+} from "../../utils/permissionsPrompt";
 
 const { width, height } = Dimensions.get("window");
-const RADAR = Math.min(width * 0.78, height * 0.38, 340);
+const RADAR = Math.min(width * 0.68, height * 0.30, 286);
 
 /**
  * Polished map-card illustration. Replaces the old radar concept,
@@ -100,22 +105,17 @@ const RadarMap: React.FC<{ size: number }> = ({ size }) => {
 
   return (
     <View style={{ width: W, height: H, alignItems: "center", justifyContent: "center" }}>
-      {/* Card surface — warm cream tile on the lime canvas. No tilt,
-          subtle border, soft shadow. */}
+      {/* Lightweight map tile — restrained so the permission prompt
+          reads as product utility, not an abstract illustration. */}
       <View
         style={{
           width: W,
           height: H,
           borderRadius: RADIUS,
           overflow: "hidden",
-          backgroundColor: "#F4F6EC",
-          borderWidth: 1,
-          borderColor: "rgba(38,59,51,0.06)",
-          shadowColor: AppColors.basicBlack,
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.14,
-          shadowRadius: 22,
-          elevation: 6,
+          backgroundColor: "rgba(244,246,236,0.72)",
+          borderWidth: 1.5,
+          borderColor: "rgba(38,59,51,0.10)",
         }}
       >
         {/* Stylised map — minimal: one sage park, two white avenues
@@ -262,7 +262,7 @@ const RadarMap: React.FC<{ size: number }> = ({ size }) => {
 // Persisted flag — once the user has seen the combined location +
 // notifications permission sheet (whether they tapped Allow access or
 // Not now), we don't show it unprompted again. Read by AppShell.
-export const HAS_SEEN_PERMISSIONS_PROMPT_KEY = "hasSeenPermissionsPrompt";
+export { HAS_SEEN_PERMISSIONS_PROMPT_KEY };
 
 /**
  * Inline icon glyph next to a feature row. Pure forest stroke / fill,
@@ -301,11 +301,11 @@ const LocationPermissionScreen: React.FC = () => {
   const returnTo = routeParams.returnTo;
   const { apiUtil } = useApi();
   const { refreshLocation } = useLocationInfo();
+  const [checkingPermissions, setCheckingPermissions] = useState(true);
 
-  const markSeenAndLeave = async () => {
+  const markSeenAndLeave = useCallback(async () => {
     try {
-      const { default: AsyncStorage } = await import("@react-native-async-storage/async-storage");
-      await AsyncStorage.setItem(HAS_SEEN_PERMISSIONS_PROMPT_KEY, "true");
+      await markPermissionsPromptSeen();
     } catch (e) {
       console.warn("Failed to persist permissions-prompt-seen flag", e);
     }
@@ -314,7 +314,25 @@ const LocationPermissionScreen: React.FC = () => {
     } else {
       router.replace(appHref("HomeScreen"));
     }
-  };
+  }, [returnTo, router]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (await hasGrantedForegroundLocationPermission()) {
+          if (!cancelled) await markSeenAndLeave();
+          return;
+        }
+      } catch (e) {
+        console.warn("Permission preflight failed; showing permission screen", e);
+      }
+      if (!cancelled) setCheckingPermissions(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [markSeenAndLeave]);
 
   const goHome = markSeenAndLeave;
 
@@ -341,6 +359,14 @@ const LocationPermissionScreen: React.FC = () => {
     await markSeenAndLeave();
   };
 
+  if (checkingPermissions) {
+    return (
+      <View style={styles.root}>
+        <StatusBar barStyle="dark-content" backgroundColor={AppColors.primaryLightGreen} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor={AppColors.primaryLightGreen} />
@@ -350,7 +376,9 @@ const LocationPermissionScreen: React.FC = () => {
       </View>
 
       <View style={styles.textBlock}>
-        <Text style={styles.headline}>Make UniPool work for you.</Text>
+        <Text style={styles.headline}>
+          Make UniPool work{"\n"}for you.
+        </Text>
         <Text style={styles.subhead}>
           A couple of permissions and we can match you with the right rides at the right time.
         </Text>
@@ -359,13 +387,13 @@ const LocationPermissionScreen: React.FC = () => {
           <View style={styles.featureRow}>
             <FeatureGlyph kind="location" />
             <Text style={styles.featureText}>
-              Carpools heading your way on the map
+              Carpools heading your way{"\n"}on the map
             </Text>
           </View>
           <View style={styles.featureRow}>
             <FeatureGlyph kind="bell" />
             <Text style={styles.featureText}>
-              A ping the moment your seat is confirmed
+              A ping when your seat{"\n"}is confirmed
             </Text>
           </View>
         </View>

@@ -1,15 +1,16 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Modal,
   Animated,
   Easing,
   KeyboardAvoidingView,
+  LayoutChangeEvent,
   Platform,
   Pressable,
   Dimensions,
+  StatusBar,
   TouchableOpacity,
-  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
@@ -17,6 +18,13 @@ import AppColors from "../design_systems/colors";
 import { haptic } from "./PressableScale";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const SHEET_TOP_GAP = 8;
+const MIN_MEASURED_HEIGHT = 1;
+
+const initialModalHeight =
+  Platform.OS === "android"
+    ? Math.max(SCREEN_HEIGHT - (StatusBar.currentHeight ?? 0), MIN_MEASURED_HEIGHT)
+    : SCREEN_HEIGHT;
 
 type Props = {
   visible: boolean;
@@ -52,6 +60,27 @@ const SheetShell: React.FC<Props> = ({
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
+  const [modalHeight, setModalHeight] = useState(initialModalHeight);
+
+  const handleModalLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = event.nativeEvent.layout.height;
+    if (nextHeight > 0) {
+      setModalHeight(nextHeight);
+    }
+  }, []);
+
+  // Android transparent Modals do not reliably receive a non-zero
+  // safe-area inset, and `behavior="height"` changes the available
+  // modal height when the keyboard opens. Capping the sheet against
+  // the laid-out KeyboardAvoidingView keeps the sheet inside the
+  // residual visible area instead of letting tall content overflow
+  // upward behind the system status bar. iOS keeps using the safe-area
+  // top inset because its Modal/KAV path does preserve that context.
+  const sheetMaxHeight =
+    Math.max(
+      modalHeight - (Platform.OS === "ios" ? insets.top : 0) - SHEET_TOP_GAP,
+      MIN_MEASURED_HEIGHT,
+    );
 
   useEffect(() => {
     if (visible) {
@@ -112,7 +141,10 @@ const SheetShell: React.FC<Props> = ({
       visible={visible}
       transparent
       animationType="none"
-      statusBarTranslucent
+      // Keep Android Modal layout below the status bar. The dynamic
+      // height cap below handles the keyboard-shrunk space; this prop
+      // prevents the modal itself from starting behind system chrome.
+      statusBarTranslucent={Platform.OS === "ios"}
       onRequestClose={() => canDismiss && onDismiss()}
     >
       <Animated.View
@@ -125,82 +157,87 @@ const SheetShell: React.FC<Props> = ({
         />
       </Animated.View>
 
-      <KeyboardAvoidingView
-        // `behavior="height"` on Android (not `undefined`) — this
-        // sheet is rendered inside a transparent + statusBarTranslucent
-        // Modal, which sits above the OS-resized window, so the
-        // manifest's `adjustResize` doesn't apply inside the sheet.
-        // Without an explicit behavior here, every input in any sheet
-        // built on SheetShell stays hidden behind the keyboard.
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ ...fill, justifyContent: "flex-end" }}
-        pointerEvents="box-none"
-      >
-        <Animated.View
-          style={{
-            backgroundColor: surfaceColor ?? AppColors.basicWhite,
-            borderTopLeftRadius: 28,
-            borderTopRightRadius: 28,
-            paddingHorizontal: 24,
-            paddingTop: 14,
-            paddingBottom: Platform.OS === "ios" ? 36 : 24,
-            transform: [{ translateY }],
-            shadowColor: AppColors.basicBlack,
-            shadowOffset: { width: 0, height: -8 },
-            shadowOpacity: 0.22,
-            shadowRadius: 28,
-            elevation: 18,
-            // Cap the sheet so it never extends behind the (translucent)
-            // status bar when the keyboard forces it tall on Android.
-            // Without this the title row got clipped under the system
-            // chrome on smaller / shorter Android screens.
-            maxHeight: SCREEN_HEIGHT - insets.top - 8,
-          }}
+      <View style={fill} pointerEvents="box-none">
+        <KeyboardAvoidingView
+          // `behavior="height"` on Android (not `undefined`) because a
+          // transparent Modal sits above the OS-resized window. We then
+          // measure this KAV after it shrinks and cap the bottom sheet to
+          // that measured space, so oversized content cannot push the
+          // title/handle above the visible modal area.
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1, justifyContent: "flex-end" }}
+          pointerEvents="box-none"
+          onLayout={handleModalLayout}
         >
-          {/* Grab handle */}
-          <View
+          <Animated.View
             style={{
-              alignSelf: "center",
-              width: 44,
-              height: 5,
-              borderRadius: 3,
-              backgroundColor: "rgba(38,59,51,0.18)",
-              marginBottom: 18,
+              backgroundColor: surfaceColor ?? AppColors.basicWhite,
+              borderTopLeftRadius: 28,
+              borderTopRightRadius: 28,
+              paddingHorizontal: 24,
+              // Plain 14pt top padding. With statusBarTranslucent OFF on
+              // Android, the Modal sits below the system chrome on its
+              // own, so we don't need to push the content down ourselves
+              // any more.
+              paddingTop: 14,
+              paddingBottom: Platform.OS === "ios" ? 36 : 24,
+              transform: [{ translateY }],
+              shadowColor: AppColors.basicBlack,
+              shadowOffset: { width: 0, height: -8 },
+              shadowOpacity: 0.22,
+              shadowRadius: 28,
+              elevation: 18,
+              maxHeight: sheetMaxHeight,
             }}
-          />
-
-          {dismissible ? (
-            <TouchableOpacity
-              onPress={() => canDismiss && onDismiss()}
-              disabled={!canDismiss}
-              activeOpacity={0.6}
+          >
+            {/* Grab handle */}
+            <View
               style={{
-                position: "absolute",
-                top: 22,
-                right: 18,
-                width: 36,
-                height: 36,
-                borderRadius: 18,
-                backgroundColor: "rgba(38,59,51,0.08)",
-                alignItems: "center",
-                justifyContent: "center",
-                zIndex: 4,
+                alignSelf: "center",
+                width: 44,
+                height: 5,
+                borderRadius: 3,
+                backgroundColor: "rgba(38,59,51,0.18)",
+                marginBottom: 18,
               }}
-            >
-              <Svg width={14} height={14} viewBox="0 0 16 16">
-                <Path
-                  d="M3 3 L 13 13 M13 3 L 3 13"
-                  stroke={AppColors.secondaryDarkGreen}
-                  strokeWidth={2.2}
-                  strokeLinecap="round"
-                />
-              </Svg>
-            </TouchableOpacity>
-          ) : null}
+            />
 
-          {children}
-        </Animated.View>
-      </KeyboardAvoidingView>
+            {dismissible ? (
+              <TouchableOpacity
+                onPress={() => canDismiss && onDismiss()}
+                disabled={!canDismiss}
+                activeOpacity={0.6}
+                style={{
+                  position: "absolute",
+                  // Plain 22pt offset — paired with the 14pt paddingTop
+                  // above. No Android special-case since the Modal sits
+                  // below the status bar now (statusBarTranslucent off).
+                  top: 22,
+                  right: 18,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: "rgba(38,59,51,0.08)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  zIndex: 4,
+                }}
+              >
+                <Svg width={14} height={14} viewBox="0 0 16 16">
+                  <Path
+                    d="M3 3 L 13 13 M13 3 L 3 13"
+                    stroke={AppColors.secondaryDarkGreen}
+                    strokeWidth={2.2}
+                    strokeLinecap="round"
+                  />
+                </Svg>
+              </TouchableOpacity>
+            ) : null}
+
+            {children}
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };

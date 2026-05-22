@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { ScrollView, View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, Platform, Linking } from "react-native";
 import { Share } from 'react-native';
 // const shareIcon = require('../assets/megaphone.png');
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+// `TripPreviewMap` owns the non-interactive A→B map composition that
+// used to live inline here as a `<MapView>` + `<Marker>` + `<Polyline>`
+// block. Same component drives the trip preview on
+// AvailableRideScreenSelected. Removing `react-native-maps` from this
+// file's imports because nothing else on the screen uses it.
+import TripPreviewMap from '../components/TripPreviewMap';
 import Svg, { Circle as SvgCircle, Path as SvgPath } from "react-native-svg";
 import * as Location from 'expo-location';
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
 import ChevronBack from '../components/ChevronBack/ChevronBack';
@@ -393,9 +398,21 @@ interface RideResponse extends RideData {
   [key: string]: any;
 }
 
+type ViewerState =
+  | "host"
+  | "confirmed_passenger"
+  | "pending_passenger"
+  | "rejected_passenger"
+  | "available"
+  | "full"
+  | "past";
+
 const RideDetailsScreen: React.FC = () => {
   const router = useRouter();
-  const routeParams = useDecodedLocalSearchParams<{ rideId?: string }>();
+  const routeParams = useDecodedLocalSearchParams<{
+    rideId?: string;
+    expectedViewerState?: ViewerState;
+  }>();
   const { rideId } = routeParams;
   const { apiUtil } = useApi();
   
@@ -406,15 +423,9 @@ const RideDetailsScreen: React.FC = () => {
   // Server-computed UI state — the single source of truth. `isHost`
   // and `userBookingStatus` below are now thin derivations of this
   // so the existing JSX keeps working without conditional rewrites.
-  type ViewerState =
-    | "host"
-    | "confirmed_passenger"
-    | "pending_passenger"
-    | "rejected_passenger"
-    | "available"
-    | "full"
-    | "past";
-  const [viewerState, setViewerState] = useState<ViewerState | null>(null);
+  const [viewerState, setViewerState] = useState<ViewerState | null>(
+    routeParams.expectedViewerState ?? null,
+  );
   const [viewerActions, setViewerActions] = useState<{
     can_request_seat?: boolean;
     can_cancel_booking?: boolean;
@@ -426,14 +437,10 @@ const RideDetailsScreen: React.FC = () => {
   const [isHost, setIsHost] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
-  // Independent loading flag for per-passenger booking actions (accept
-  // / reject / remove). Was previously sharing `isActionLoading` with
-  // the delete-ride slider, which meant accepting a passenger flipped
-  // the delete-ride slider to "Deleting…". The two flows are now
-  // strictly separate — Slide to delete only reacts to delete-state.
-  const [bookingActionLoading, setBookingActionLoading] = useState<
-    "accept" | "reject" | "remove" | null
-  >(null);
+  // (The earlier `bookingActionLoading` state has been removed —
+  // accept / reject / remove now apply optimistically to local state
+  // and the slider / profile sheet dismiss synchronously, so there's
+  // no API-wait window left to spin over.)
   // Passenger profile sheet — opens when the host taps any passenger
   // row in the management list. Holds the passenger payload as state
   // so the sheet's accept/reject/remove handlers know who they're
@@ -444,7 +451,15 @@ const RideDetailsScreen: React.FC = () => {
   // Passenger booking state — derived from viewer_state. Kept as
   // separate state variables only so the existing render conditionals
   // continue to compile; we never compute them from raw fields anymore.
-  const [userBookingStatus, setUserBookingStatus] = useState<'none' | 'pending' | 'accepted' | 'rejected'>('none');
+  const [userBookingStatus, setUserBookingStatus] = useState<'none' | 'pending' | 'accepted' | 'rejected'>(
+    routeParams.expectedViewerState === "pending_passenger"
+      ? "pending"
+      : routeParams.expectedViewerState === "confirmed_passenger"
+      ? "accepted"
+      : routeParams.expectedViewerState === "rejected_passenger"
+      ? "rejected"
+      : "none",
+  );
   const [userBooking, setUserBooking] = useState<any>(null);
   
   // Host management state
@@ -453,6 +468,7 @@ const RideDetailsScreen: React.FC = () => {
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [requests, setRequests] = useState<any[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
+  const [refreshTick, setRefreshTick] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
   
   // Map related state
@@ -627,13 +643,21 @@ const RideDetailsScreen: React.FC = () => {
     const fetchRideDetails = async () => {
       setLoading(true);
       setError(null);
+
+      if (!rideId) {
+        setRideData(null);
+        setError("Ride details are missing. Please reopen this trip from Your trips.");
+        setLoading(false);
+        setRequestsLoading(false);
+        return;
+      }
       
       try {
-        const userInfo = await apiUtil.get<UserResponse>("/user/details");
+        const userInfo = await apiUtil.getUncached<UserResponse>("/user/details");
         const userId = userInfo?.user?.id || null;
         setCurrentUserId(userId);
 
-        const completeRideData = await apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
+        const completeRideData = await apiUtil.getUncached<RideResponse>(`/ride/details/${rideId}`);
         setRideData(completeRideData);
 
         // ----- Server-computed state -----
@@ -756,7 +780,13 @@ const RideDetailsScreen: React.FC = () => {
 
     fetchRideDetails();
     requestLocationPermission();
-  }, [rideId, apiUtil, router]);
+  }, [rideId, apiUtil, router, refreshTick]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setRefreshTick((tick) => tick + 1);
+    }, []),
+  );
 
   useEffect(() => {
     if (rideData) {
@@ -954,70 +984,69 @@ const RideDetailsScreen: React.FC = () => {
     }
   };
 
-  const handleAcceptBooking = async (bookingId: string) => {
-    setBookingActionLoading("accept");
-    setBookingError(null);
-    try {
-      console.log(`Attempting to accept booking: ${bookingId}`);
-      
-      try {
-        const acceptResponse = await apiUtil.put(`/bookings/accept/${bookingId}`, {});
-        console.log("Accept response:", acceptResponse);
-      } catch (acceptError: any) {
-        console.log("Accept error details:", acceptError);
-        
-        if (acceptError.message?.includes("Empty response") || acceptError.message?.includes("JSON Parse Error")) {
-          console.log("Got empty response from accept - will check if acceptance was successful by fetching updated data");
-        } else {
-          throw acceptError;
-        }
-      }
-      
-      console.log("Fetching updated ride data to verify acceptance...");
-      const completeRideData = await apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
-      if (completeRideData && completeRideData.bookings) {
-        const transformedBookings = completeRideData.bookings.map((booking: any) => ({
-          id: booking.id,
-          passenger_id: booking.passenger_id,
-          request_status: booking.request_status,
-          created_at: booking.booking_created_at || booking.created_at,
-          passenger: {
-            id: booking.passenger_id,
-            name: booking.passenger_name,
-            email: booking.passenger_email,
-            profile_picture_url: booking.passenger_profile_picture_url,
-            contact_number: booking.passenger_contact_number,
-            // New fields used by PassengerProfileSheet — phone +
-            // UPI Pay + verified badge + institute label.
-            upi_vpa: booking.passenger_upi_vpa,
-            is_verified: booking.passenger_is_verified,
-            institute_name: booking.passenger_institute_name,
-          },
-        }));
-        
-        // Check if the booking was actually accepted
-        const acceptedBooking = transformedBookings.find((booking: any) => 
-          booking.id === bookingId && booking.request_status === 'accepted'
-        );
-        
-        if (acceptedBooking) {
-          console.log("Booking successfully accepted - updating UI");
-          setRequests(transformedBookings);
-          setRideData(prev => prev ? { ...prev, booked_seats: completeRideData.booked_seats } : null);
-        } else {
-          console.error("Booking was not accepted - status may not have changed");
-          setBookingError("Failed to accept booking - status unchanged");
-        }
-      } else {
-        console.error("Failed to fetch updated ride data after acceptance");
-        setBookingError("Unable to verify booking acceptance - please refresh");
-      }
-    } catch (error: any) {
-      console.error("Error in handleAcceptBooking:", error);
-      setBookingError(error.message || "Failed to accept booking");
-    } finally {
-      setBookingActionLoading(null);
+  // Optimistic accept. The previous flow awaited two round-trips
+  // (PUT /bookings/accept then GET /ride/details to verify) while
+  // showing an "Accepting…" loading state — a clean accept took
+  // 600-1200ms, and for a host processing 4 requests in a row the
+  // wait stacked into multi-second pause. This rewrite flips the
+  // row to "accepted" locally the instant the slider lands, fires
+  // the API in the background, and rolls back the local change if
+  // the request fails. Reconciliation with server truth happens
+  // via the periodic `refreshTick` refetch, so we don't need a
+  // synchronous verify-step.
+  const handleAcceptBooking = (bookingId: string) => {
+    // Pre-flight: don't optimistically accept past capacity, since
+    // the server will reject and we'd flash a phantom acceptance
+    // before rolling back.
+    if (rideData && rideData.booked_seats >= rideData.total_seats) {
+      setBookingError("This ride is already full.");
+      return;
     }
+
+    const prevRequests = requests;
+    const prevBookedSeats = rideData?.booked_seats ?? 0;
+
+    setRequests(prev =>
+      prev.map(r =>
+        r.id === bookingId ? { ...r, request_status: "accepted" } : r,
+      ),
+    );
+    setRideData(prev =>
+      prev ? { ...prev, booked_seats: prev.booked_seats + 1 } : null,
+    );
+    setBookingError(null);
+
+    // Fire-and-forget. Wrapped in an IIFE so the outer handler stays
+    // synchronous and the slider / profile sheet that called us can
+    // dismiss immediately, before the API even leaves the device.
+    (async () => {
+      try {
+        await apiUtil.put(`/bookings/accept/${bookingId}`, {});
+        // Best-effort reconciliation in the background. If the server
+        // truth diverges from our optimistic guess (e.g. another host
+        // device accepted a different request in the same window),
+        // the next refetch will correct it.
+        setRefreshTick(tick => tick + 1);
+      } catch (error: any) {
+        // Roll back the optimistic change. An empty-body response
+        // from the backend isn't a real failure (older versions
+        // returned 204 + empty body), so we treat that as success
+        // and let the refetch reconcile.
+        const empty =
+          error?.message?.includes("Empty response") ||
+          error?.message?.includes("JSON Parse Error");
+        if (empty) {
+          setRefreshTick(tick => tick + 1);
+          return;
+        }
+        console.error("Accept failed, rolling back optimistic update:", error);
+        setRequests(prevRequests);
+        setRideData(prev =>
+          prev ? { ...prev, booked_seats: prevBookedSeats } : null,
+        );
+        setBookingError(error?.message || "Couldn't accept the request. Try again.");
+      }
+    })();
   };
 
   const handleShare = async () => {
@@ -1035,134 +1064,83 @@ const RideDetailsScreen: React.FC = () => {
     }
   };
 
-  const handleRejectBooking = async (bookingId: string) => {
-    setBookingActionLoading("reject");
+  // Optimistic reject. Same pattern as `handleAcceptBooking` above:
+  // flip the row locally first, fire the API in the background, roll
+  // back on real failure. Rejected rows are filtered out of the
+  // visible list (the rendering branch upstream drops anything with
+  // `request_status === 'rejected'`), so the row disappears from
+  // the screen the moment we mark it rejected — no "Rejecting…" hold.
+  const handleRejectBooking = (bookingId: string) => {
+    const prevRequests = requests;
+
+    setRequests(prev =>
+      prev.map(r =>
+        r.id === bookingId ? { ...r, request_status: "rejected" } : r,
+      ),
+    );
     setBookingError(null);
-    try {
-      console.log(`Attempting to reject booking: ${bookingId}`);
-      
+
+    (async () => {
       try {
-        const rejectResponse = await apiUtil.put(`/bookings/reject/${bookingId}`, {});
-        console.log("Reject response:", rejectResponse);
-      } catch (rejectError: any) {
-        console.log("Reject error details:", rejectError);
-        
-        // If it's just an empty response error, continue and check if rejection was successful
-        if (rejectError.message?.includes("Empty response") || rejectError.message?.includes("JSON Parse Error")) {
-          console.log("Got empty response from reject - will check if rejection was successful by fetching updated data");
-        } else {
-          throw rejectError;
+        await apiUtil.put(`/bookings/reject/${bookingId}`, {});
+        setRefreshTick(tick => tick + 1);
+      } catch (error: any) {
+        const empty =
+          error?.message?.includes("Empty response") ||
+          error?.message?.includes("JSON Parse Error");
+        if (empty) {
+          setRefreshTick(tick => tick + 1);
+          return;
         }
+        console.error("Reject failed, rolling back optimistic update:", error);
+        setRequests(prevRequests);
+        setBookingError(error?.message || "Couldn't reject the request. Try again.");
       }
-      
-      console.log("Fetching updated ride data to verify rejection...");
-      const completeRideData = await apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
-      if (completeRideData && completeRideData.bookings) {
-        const transformedBookings = completeRideData.bookings.map((booking: any) => ({
-          id: booking.id,
-          passenger_id: booking.passenger_id,
-          request_status: booking.request_status,
-          created_at: booking.booking_created_at || booking.created_at,
-          passenger: {
-            id: booking.passenger_id,
-            name: booking.passenger_name,
-            email: booking.passenger_email,
-            profile_picture_url: booking.passenger_profile_picture_url,
-            contact_number: booking.passenger_contact_number,
-            // New fields used by PassengerProfileSheet — phone +
-            // UPI Pay + verified badge + institute label.
-            upi_vpa: booking.passenger_upi_vpa,
-            is_verified: booking.passenger_is_verified,
-            institute_name: booking.passenger_institute_name,
-          },
-        }));
-        
-        // Check if the booking was actually rejected
-        const rejectedBooking = transformedBookings.find((booking: any) => 
-          booking.id === bookingId && booking.request_status === 'rejected'
-        );
-        
-        if (rejectedBooking) {
-          console.log("Booking successfully rejected - updating UI");
-          setRequests(transformedBookings);
-        } else {
-          console.error("Booking was not rejected - status may not have changed");
-          setBookingError("Failed to reject booking - status unchanged");
-        }
-      } else {
-        console.error("Failed to fetch updated ride data after rejection");
-        setBookingError("Unable to verify booking rejection - please refresh");
-      }
-    } catch (error: any) {
-      console.error("Error in handleRejectBooking:", error);
-      setBookingError(error.message || "Failed to reject booking");
-    } finally {
-      setBookingActionLoading(null);
-    }
+    })();
   };
 
-  const handleRemovePassenger = async (bookingId: string) => {
-    setBookingActionLoading("remove");
-    setBookingError(null);
-    try {
-      console.log(`Attempting to delete booking: ${bookingId}`);
-      
-      try {
-        const deleteResponse = await apiUtil.delete(`/booking/delete/${bookingId}`);
-        console.log("Delete response:", deleteResponse);
-      } catch (deleteError: any) {
-        console.log("Delete error details:", deleteError);
-        
-        if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
-          console.log("Got empty response from delete - will check if deletion was successful by fetching updated data");
-        } else {
-          throw deleteError;
-        }
-      }
-      
-      console.log("Fetching updated ride data to verify deletion...");
-      const completeRideData = await apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
-      
-      if (completeRideData && completeRideData.bookings) {
-        const transformedBookings = completeRideData.bookings.map((booking: any) => ({
-          id: booking.id,
-          passenger_id: booking.passenger_id,
-          request_status: booking.request_status,
-          created_at: booking.booking_created_at || booking.created_at,
-          passenger: {
-            id: booking.passenger_id,
-            name: booking.passenger_name,
-            email: booking.passenger_email,
-            profile_picture_url: booking.passenger_profile_picture_url,
-            contact_number: booking.passenger_contact_number,
-            // New fields used by PassengerProfileSheet — phone +
-            // UPI Pay + verified badge + institute label.
-            upi_vpa: booking.passenger_upi_vpa,
-            is_verified: booking.passenger_is_verified,
-            institute_name: booking.passenger_institute_name,
-          },
-        }));
-        
-        const bookingStillExists = transformedBookings.some((booking: any) => booking.id === bookingId);
-        
-        if (bookingStillExists) {
-          console.error("Booking still exists after delete request - deletion may have failed");
-          setBookingError("Failed to remove passenger - booking still exists");
-        } else {
-          console.log("Booking successfully removed - updating UI");
-          setRequests(transformedBookings);
-          setRideData(prev => prev ? { ...prev, booked_seats: completeRideData.booked_seats } : null);
-        }
-      } else {
-        console.error("Failed to fetch updated ride data after deletion");
-        setBookingError("Unable to verify passenger removal - please refresh");
-      }
-    } catch (error: any) {
-      console.error("Error in handleRemovePassenger:", error);
-      setBookingError(error.message || "Failed to remove passenger");
-    } finally {
-      setBookingActionLoading(null);
+  // Optimistic remove. Drops the booking out of the list immediately
+  // and (if the removed booking was an accepted seat) decrements
+  // booked_seats so the seat count + capacity gate update in lockstep.
+  // Rolls back the whole change on real failure.
+  const handleRemovePassenger = (bookingId: string) => {
+    const prevRequests = requests;
+    const removed = requests.find(r => r.id === bookingId);
+    const wasAccepted = removed?.request_status === "accepted";
+    const prevBookedSeats = rideData?.booked_seats ?? 0;
+
+    setRequests(prev => prev.filter(r => r.id !== bookingId));
+    if (wasAccepted) {
+      setRideData(prev =>
+        prev
+          ? { ...prev, booked_seats: Math.max(0, prev.booked_seats - 1) }
+          : null,
+      );
     }
+    setBookingError(null);
+
+    (async () => {
+      try {
+        await apiUtil.delete(`/booking/delete/${bookingId}`);
+        setRefreshTick(tick => tick + 1);
+      } catch (error: any) {
+        const empty =
+          error?.message?.includes("Empty response") ||
+          error?.message?.includes("JSON Parse Error");
+        if (empty) {
+          setRefreshTick(tick => tick + 1);
+          return;
+        }
+        console.error("Remove failed, rolling back optimistic update:", error);
+        setRequests(prevRequests);
+        if (wasAccepted) {
+          setRideData(prev =>
+            prev ? { ...prev, booked_seats: prevBookedSeats } : null,
+          );
+        }
+        setBookingError(error?.message || "Couldn't remove the passenger. Try again.");
+      }
+    })();
   };
 
   if (loading) {
@@ -1245,30 +1223,33 @@ const RideDetailsScreen: React.FC = () => {
 
         {/* Passenger profile sheet — opens when the host taps any
             passenger row. Forwards accept/reject/remove to the same
-            handlers the per-row sliders use, and closes itself after
-            the action resolves (handled inline via async/await). */}
+            optimistic handlers the per-row sliders use. The sheet
+            closes synchronously on action; the API runs in the
+            background. `actionLoading={null}` because the sheet has
+            no spinner state any more — there's no API wait to spin
+            over. */}
         <PassengerProfileSheet
           visible={profileSheetPassenger !== null}
           passenger={profileSheetPassenger}
-          actionLoading={bookingActionLoading}
+          actionLoading={null}
           onClose={() => setProfileSheetPassenger(null)}
-          onAccept={async () => {
+          onAccept={() => {
             const bookingId = profileSheetPassenger?.booking_id;
             if (!bookingId) return;
-            await handleAcceptBooking(bookingId);
             setProfileSheetPassenger(null);
+            handleAcceptBooking(bookingId);
           }}
-          onReject={async () => {
+          onReject={() => {
             const bookingId = profileSheetPassenger?.booking_id;
             if (!bookingId) return;
-            await handleRejectBooking(bookingId);
             setProfileSheetPassenger(null);
+            handleRejectBooking(bookingId);
           }}
-          onRemove={async () => {
+          onRemove={() => {
             const bookingId = profileSheetPassenger?.booking_id;
             if (!bookingId) return;
-            await handleRemovePassenger(bookingId);
             setProfileSheetPassenger(null);
+            handleRemovePassenger(bookingId);
           }}
           onMessage={() => {
             // Route into UniPool chat:
@@ -1421,38 +1402,34 @@ const RideDetailsScreen: React.FC = () => {
                 return (
                   <View key={req.id || idx} style={styles.sliderOnlyContainer}>
                     <SlideToCreate
+                      // Just the prompt — no "Accepting…/Rejecting…
+                      // /Removing…" loading variant any more. The
+                      // handlers below update local state
+                      // optimistically and we dismiss the slider
+                      // synchronously on slide-complete, so the
+                      // intermediate loading text is never visible.
                       text={
-                        bookingActionLoading
-                          ? bookingActionLoading === "accept"
-                            ? "Accepting..."
-                            : bookingActionLoading === "reject"
-                            ? "Rejecting..."
-                            : "Removing..."
-                          : showSlide === "accept"
+                        showSlide === "accept"
                           ? "Slide to accept user"
                           : showSlide === "reject"
                           ? "Slide to reject user"
                           : "Slide to remove user"
                       }
-                      onSlideComplete={async () => {
+                      onSlideComplete={() => {
                         const bookingId = req.id || req.booking_id;
-                        if (showSlide === "accept") {
-                          await handleAcceptBooking(bookingId);
-                        } else if (showSlide === "reject") {
-                          await handleRejectBooking(bookingId);
-                        } else if (showSlide === "remove") {
-                          if (!isHostBooking) {
-                            await handleRemovePassenger(bookingId);
-                          }
-                        }
+                        // Dismiss INSTANTLY — the optimistic handler
+                        // already flipped the local row state before
+                        // the API request leaves the device.
                         setShowSlide(null);
                         setSelectedRequest(null);
+                        if (showSlide === "accept") {
+                          handleAcceptBooking(bookingId);
+                        } else if (showSlide === "reject") {
+                          handleRejectBooking(bookingId);
+                        } else if (showSlide === "remove" && !isHostBooking) {
+                          handleRemovePassenger(bookingId);
+                        }
                       }}
-                      // Disabled flag now ties to booking-action state
-                      // ONLY. The delete-ride slider has its own
-                      // isActionLoading lane and never gets pulled
-                      // into "Accepting…" or vice versa.
-                      disabled={!!bookingActionLoading}
                       // Accept = forest track + forest thumb (the
                       // "safe" primary affordance). Reject / remove =
                       // white track + red text + red thumb (borderless;
@@ -1470,12 +1447,13 @@ const RideDetailsScreen: React.FC = () => {
                       // and 60pt height).
                       containerStyle={{ marginVertical: 0 }}
                       sliderStyle={{ borderRadius: 16 }}
-                      // Keep the thumb pinned at the right after a
-                      // successful swipe — the API call is in flight
-                      // and the parent dismisses the slider when it
-                      // resolves. Without this the thumb springs
-                      // back to the left mid-call and looks broken.
-                      holdAtEnd
+                      // No `holdAtEnd` any more — the optimistic
+                      // handlers dismiss the slider on slide-complete,
+                      // so there's no "API in flight" window to hold
+                      // the thumb for. Letting the thumb spring back
+                      // would be visible if the slider stayed mounted,
+                      // but it doesn't — onSlideComplete fires
+                      // setShowSlide(null) synchronously.
                     />
                     {bookingError ? <Text style={styles.inlineErrorText}>{bookingError}</Text> : null}
                   </View>
@@ -1893,88 +1871,25 @@ const RideDetailsScreen: React.FC = () => {
               </View>
 
               <View style={styles.mapSection}>
-                {isValidCoordinate(rideData.start_latitude, rideData.start_longitude) && 
+                {isValidCoordinate(rideData.start_latitude, rideData.start_longitude) &&
                  isValidCoordinate(rideData.end_latitude, rideData.end_longitude) ? (
-                  <MapView
-                    provider={PROVIDER_GOOGLE}
+                  // Modular trip preview — see components/TripPreviewMap.tsx.
+                  // Owns the camera framing, start dot, end arrow, and
+                  // dashed-red line that used to live inline as a
+                  // react-native-maps MapView/Marker/Polyline block. Same
+                  // OpenFreeMap tile stack the HomeScreen map uses now.
+                  <TripPreviewMap
                     style={styles.mapView}
-                    // Frame the route at ~30% padding on each side
-                    // (× 1.6) with a 0.04° minimum so very short hops
-                    // don't render as a pinhole. The previous math
-                    // added a flat 0.5° (~55 km) buffer to every trip,
-                    // which made medium routes look like they spanned
-                    // half a state.
-                    initialRegion={{
-                      latitude: (rideData.start_latitude! + rideData.end_latitude!) / 2,
-                      longitude: (rideData.start_longitude! + rideData.end_longitude!) / 2,
-                      latitudeDelta: Math.max(Math.abs(rideData.end_latitude! - rideData.start_latitude!) * 1.6, 0.04),
-                      longitudeDelta: Math.max(Math.abs(rideData.end_longitude! - rideData.start_longitude!) * 1.6, 0.04),
+                    start={{
+                      latitude: rideData.start_latitude!,
+                      longitude: rideData.start_longitude!,
                     }}
-                    scrollEnabled={false}
-                    zoomEnabled={false}
-                    pitchEnabled={false}
-                    rotateEnabled={false}
-                    showsUserLocation={false}
-                    showsMyLocationButton={false}
-                    toolbarEnabled={false}
-                    customMapStyle={customMapStyle}
-                  >
-                    {/* Custom start marker — small black dot with a
-                        white halo so it reads cleanly on any map tile.
-                        Replaces the default teardrop pin which (on
-                        Android) bypasses customMapStyle's calm palette
-                        and dropped a saturated red/green blob on the
-                        map. */}
-                    <Marker
-                      coordinate={{ latitude: rideData.start_latitude!, longitude: rideData.start_longitude! }}
-                      title={rideData.start_location}
-                      anchor={{ x: 0.5, y: 0.5 }}
-                      tracksViewChanges={false}
-                    >
-                      <View style={styles.routeStartDot}>
-                        <View style={styles.routeStartDotInner} />
-                      </View>
-                    </Marker>
-
-                    {/* Custom end marker — navigation arrow in solid
-                        black, anchored to its base so it points at the
-                        destination coordinate. */}
-                    <Marker
-                      coordinate={{ latitude: rideData.end_latitude!, longitude: rideData.end_longitude! }}
-                      title={rideData.end_location}
-                      anchor={{ x: 0.5, y: 1 }}
-                      tracksViewChanges={false}
-                    >
-                      <View style={styles.routeEndArrowWrap}>
-                        <Svg width={26} height={26} viewBox="0 0 24 24" fill="none">
-                          <SvgPath
-                            d="M3 11L21 3L13 21L11 13L3 11Z"
-                            fill={AppColors.basicBlack}
-                            stroke={AppColors.basicBlack}
-                            strokeWidth={1.6}
-                            strokeLinejoin="round"
-                          />
-                        </Svg>
-                      </View>
-                    </Marker>
-
-                    {routeCoordinates.length > 0 && (
-                      <Polyline
-                        coordinates={routeCoordinates}
-                        // Dashed red trip line — high-contrast against
-                        // the calm sage tiles, reads as the headline
-                        // attribute of the map without overpowering it.
-                        // `lineDashPattern` is honoured by both
-                        // PROVIDER_GOOGLE on iOS and the default
-                        // provider on Android.
-                        strokeColor="#E5453B"
-                        strokeWidth={3.6}
-                        lineDashPattern={[8, 6]}
-                        lineJoin="round"
-                        lineCap="round"
-                      />
-                    )}
-                  </MapView>
+                    end={{
+                      latitude: rideData.end_latitude!,
+                      longitude: rideData.end_longitude!,
+                    }}
+                    routePoints={routeCoordinates}
+                  />
                 ) : (
                   <View style={styles.mapPlaceholder}>
                     <Image source={require('../assets/location-pin.png')} style={styles.mapPlaceholderIcon} />

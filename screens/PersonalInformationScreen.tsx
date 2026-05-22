@@ -1,21 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   TextInput,
-  Modal,
-  Animated,
-  Easing,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
-  Pressable,
-  Dimensions,
   ScrollView,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
 import BrandInfo from '../components/BrandInfo';
@@ -25,8 +17,7 @@ import LoadingComponent from '../components/LoadingComponent';
 import AppColors from '../design_systems/colors';
 import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/PressableScale";
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+import SheetShell from "../components/SheetShell";
 
 interface User {
   name: string;
@@ -217,7 +208,7 @@ const PersonalInformationScreen: React.FC = () => {
                     Not verified
                   </Text>
                   <View style={ui.badgeAction}>
-                    <Text style={ui.badgeActionText}>Verify academic status →</Text>
+                    <Text style={ui.badgeActionText}>Verify academic status</Text>
                   </View>
                 </>
               )}
@@ -248,7 +239,7 @@ const PersonalInformationScreen: React.FC = () => {
               numberOfLines={1}
               ellipsizeMode="tail"
             >
-              {user.upi_vpa || 'Add UPI ID →'}
+              {user.upi_vpa || 'Add UPI ID'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -277,179 +268,6 @@ const PersonalInformationScreen: React.FC = () => {
 };
 
 export default PersonalInformationScreen;
-
-// --------------------------------------------------------------------
-// Sheet chrome — shared between the UPI editor and the verify flow.
-// Slide-up overlay with backdrop dim, grab handle, optional close X.
-// Modelled on `AuthSheet` but lighter (no OAuth ceremony).
-// --------------------------------------------------------------------
-
-type SheetShellProps = {
-  visible: boolean;
-  onDismiss: () => void;
-  busy?: boolean;
-  children: React.ReactNode;
-};
-
-const SheetShell: React.FC<SheetShellProps> = ({ visible, onDismiss, busy, children }) => {
-  const insets = useSafeAreaInsets();
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-  const backdrop = useRef(new Animated.Value(0)).current;
-  const content = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (visible) {
-      haptic('selection');
-      content.setValue(0);
-      Animated.parallel([
-        Animated.timing(backdrop, {
-          toValue: 1,
-          duration: 220,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.spring(translateY, {
-          toValue: 0,
-          damping: 22,
-          stiffness: 200,
-          mass: 0.9,
-          useNativeDriver: true,
-        }),
-        Animated.sequence([
-          Animated.delay(160),
-          Animated.spring(content, {
-            toValue: 1,
-            damping: 18,
-            stiffness: 220,
-            mass: 0.7,
-            useNativeDriver: true,
-          }),
-        ]),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(backdrop, {
-          toValue: 0,
-          duration: 160,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: SCREEN_HEIGHT,
-          duration: 220,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(content, {
-          toValue: 0,
-          duration: 110,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [visible]);
-
-  const settleStyle = {
-    opacity: content,
-    transform: [
-      {
-        translateY: content.interpolate({
-          inputRange: [0, 1],
-          outputRange: [10, 0],
-        }),
-      },
-    ],
-  };
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      statusBarTranslucent
-      onRequestClose={() => !busy && onDismiss()}
-    >
-      <Animated.View
-        style={{
-          ...sheetFill,
-          backgroundColor: 'rgba(0,0,0,0.42)',
-          opacity: backdrop,
-        }}
-      >
-        <Pressable style={sheetFill} onPress={() => !busy && onDismiss()} disabled={busy} />
-      </Animated.View>
-
-      <KeyboardAvoidingView
-        // `behavior="height"` on Android (not `undefined`) — the
-        // transparent Modal sits OVER the OS-resized window, so the
-        // manifest's `adjustResize` doesn't reach inside it. Without
-        // an explicit behavior here, the UPI input stays pinned to
-        // the bottom of the screen, hidden behind the keyboard.
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ ...sheetFill, justifyContent: 'flex-end' }}
-        pointerEvents="box-none"
-      >
-        <Animated.View
-          style={{
-            backgroundColor: AppColors.basicWhite,
-            borderTopLeftRadius: 28,
-            borderTopRightRadius: 28,
-            paddingHorizontal: 24,
-            paddingTop: 14,
-            paddingBottom: Platform.OS === 'ios' ? 36 : 24,
-            transform: [{ translateY }],
-            shadowColor: AppColors.basicBlack,
-            shadowOffset: { width: 0, height: -8 },
-            shadowOpacity: 0.22,
-            shadowRadius: 28,
-            elevation: 18,
-            // Same Android keyboard guard as components/SheetShell: cap
-            // the sheet so it can't slide behind the translucent status
-            // bar when an autofocused field opens the keyboard.
-            maxHeight: SCREEN_HEIGHT - insets.top - 8,
-          }}
-        >
-          {/* Grab handle */}
-          <View style={{
-            alignSelf: 'center',
-            width: 44,
-            height: 5,
-            borderRadius: 3,
-            backgroundColor: 'rgba(38,59,51,0.18)',
-            marginBottom: 18,
-          }} />
-
-          {/* Close X — top right, mirrors AuthSheet */}
-          <TouchableOpacity
-            onPress={() => !busy && onDismiss()}
-            disabled={busy}
-            activeOpacity={0.6}
-            style={{
-              position: 'absolute',
-              top: 22,
-              right: 18,
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: 'rgba(38,59,51,0.08)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 4,
-            }}
-          >
-            <Svg width={14} height={14} viewBox="0 0 16 16">
-              <Path d="M3 3 L 13 13 M13 3 L 3 13" stroke={AppColors.secondaryDarkGreen} strokeWidth={2.2} strokeLinecap="round" />
-            </Svg>
-          </TouchableOpacity>
-
-          <Animated.View style={settleStyle}>
-            {children}
-          </Animated.View>
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-};
 
 // --------------------------------------------------------------------
 // UPI editor sheet. Single text field + helper copy + primary button.
@@ -530,7 +348,7 @@ const UpiEditSheet: React.FC<UpiEditSheetProps> = ({ visible, initialValue, onDi
         style={[ui.primaryBtn, busy && { opacity: 0.6 }]}
       >
         {busy ? (
-          <ActivityIndicator size="small" color={AppColors.primaryLightGreen} />
+          <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
         ) : (
           <Text style={ui.primaryBtnText}>Save UPI ID</Text>
         )}
@@ -749,18 +567,14 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             />
           </View>
 
-          {/* Results area — fixed height so the sheet stays a stable
-              size whether 0 or 20 rows render. Hint / loader / list
-              all occupy the same surface. */}
+          {/* Results area collapses when empty so the sheet doesn't
+              reserve space for non-existent content. The empty hint
+              before the user types is gone — the input placeholder
+              ("University name or email domain") is enough cue. */}
           <View style={ui.resultsWrap}>
-            {searchQuery.trim().length < 2 ? (
-              <Text style={ui.resultsHint}>
-                Type at least 2 letters. You can search by name
-                ("Vellore"), acronym ("VIT") or email domain
-                ("vitstudent").
-              </Text>
-            ) : searching ? (
-              <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} style={{ marginTop: 12 }} />
+            {searchQuery.trim().length < 2 ? null
+            : searching ? (
+              <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} style={{ marginTop: 12 }} accessibilityLabel="Loading" />
             ) : searchResults.length === 0 ? (
               <Text style={ui.resultsHint}>
                 No matches. Try the full school name or your email's
@@ -828,7 +642,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             style={[ui.primaryBtn, busy && { opacity: 0.6 }]}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} />
+              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
             ) : (
               <Text style={ui.primaryBtnText}>Send verification link</Text>
             )}
@@ -840,7 +654,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             onPress={() => setStep('pick')}
             style={ui.linkBtn}
           >
-            <Text style={ui.linkBtnText}>← Change university</Text>
+            <Text style={ui.linkBtnText}>Change university</Text>
           </TouchableOpacity>
         </>
       ) : (
@@ -876,7 +690,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             style={[ui.primaryBtn, (busy || code.length !== 6) && { opacity: 0.4 }]}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} />
+              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
             ) : (
               <Text style={ui.primaryBtnText}>Verify with code</Text>
             )}
@@ -889,7 +703,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
               onPress={() => setStep('email')}
               style={ui.linkBtn}
             >
-              <Text style={ui.linkBtnText}>← Change email</Text>
+              <Text style={ui.linkBtnText}>Change email</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -913,11 +727,6 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
 // Local UI tokens. Kept inline because they're tightly coupled to the
 // two sheets here and reuse the brand palette directly.
 // --------------------------------------------------------------------
-
-const sheetFill = {
-  position: 'absolute' as const,
-  top: 0, left: 0, right: 0, bottom: 0,
-};
 
 const ui = {
   sheetTitle: {
@@ -1036,8 +845,11 @@ const ui = {
     letterSpacing: 0.2,
   },
   // University picker — step 1 of the verify flow. Fixed height
-  // so the sheet doesn't jump as results stream in; the inner
-  // ScrollView absorbs longer lists.
+  // Fixed-height stage so the sheet stays a stable size as the
+  // user types / clears / re-types. The Android keyboard-clip bug
+  // this once contributed to is now solved at the SheetShell level
+  // (it caps itself to the live KeyboardAvoidingView height), so
+  // it's safe to keep the reservation again.
   resultsWrap: {
     marginBottom: 12,
     height: 320,

@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Dimensions } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import Svg, { Path as SvgPath } from 'react-native-svg';
+import TripPreviewMap from '../../components/TripPreviewMap';
 import * as Location from 'expo-location';
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
 const { width, height } = Dimensions.get("window");
 
@@ -318,6 +317,7 @@ const AvailableRideScreenSelected: React.FC = () => {
   const [hostSameInstituteAsViewer, setHostSameInstituteAsViewer] = useState<boolean>(false);
   const [hostUserNameFetched, setHostUserNameFetched] = useState<string | null>(null);
   const [hostUserYobFetched, setHostUserYobFetched] = useState<number | null>(null);
+  const [detailsRefreshTick, setDetailsRefreshTick] = useState(0);
 
   const [viewerBookingId, setViewerBookingId] = useState<string | null>(
     (routeParams?.ride as any)?.viewer_booking_id ?? null,
@@ -511,6 +511,12 @@ const AvailableRideScreenSelected: React.FC = () => {
     requestLocationPermission();
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      setDetailsRefreshTick((tick) => tick + 1);
+    }, []),
+  );
+
   // Backfill viewer_state from /ride/details/:id when it wasn't
   // included in route params (e.g. map-pin taps from the public
   // /rides/nearby endpoint don't carry viewer context). The detail
@@ -521,7 +527,7 @@ const AvailableRideScreenSelected: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const details = await apiUtil.get<any>(`/ride/details/${ride.id}`);
+        const details = await apiUtil.getUncached<any>(`/ride/details/${ride.id}`);
         if (cancelled) return;
         if (details?.viewer_state) setViewerState(details.viewer_state);
         if (details?.actions) setViewerActions(details.actions);
@@ -541,7 +547,7 @@ const AvailableRideScreenSelected: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [ride?.id]);
+  }, [apiUtil, detailsRefreshTick, ride?.id]);
 
   // Pending / rejected viewers can't act here — there's no slide-to-
   // request CTA, and the screen would be the awkward "notice card"
@@ -778,78 +784,24 @@ const AvailableRideScreenSelected: React.FC = () => {
           </View>
 
           <View style={styles.mapSection}>
-            {hasPermission && isValidCoordinate(ride.start_latitude, ride.start_longitude) && 
+            {hasPermission && isValidCoordinate(ride.start_latitude, ride.start_longitude) &&
              isValidCoordinate(ride.end_latitude, ride.end_longitude) ? (
-              <MapView
-                provider={PROVIDER_GOOGLE}
+              // Modular trip preview — same component used by
+              // RideDetailsScreen. Owns the camera framing + start dot +
+              // end arrow + dashed-red polyline. Runs on the OpenFreeMap
+              // tile stack the HomeScreen map switched to.
+              <TripPreviewMap
                 style={styles.mapView}
-                // Bound the viewport to the trip route with ~30% of the
-                // span as padding on each side, clamped to 0.04° so a
-                // 1-km hop doesn't render as a pinhole. The previous
-                // `× 1.5 + 0.5` math added a flat 0.5° (~55 km) buffer
-                // on every trip, which read fine for tiny routes and
-                // catastrophically zoomed-out for medium ones.
-                initialRegion={{
-                  latitude: (ride.start_latitude! + ride.end_latitude!) / 2,
-                  longitude: (ride.start_longitude! + ride.end_longitude!) / 2,
-                  latitudeDelta: Math.max(Math.abs(ride.end_latitude! - ride.start_latitude!) * 1.6, 0.04),
-                  longitudeDelta: Math.max(Math.abs(ride.end_longitude! - ride.start_longitude!) * 1.6, 0.04),
+                start={{
+                  latitude: ride.start_latitude!,
+                  longitude: ride.start_longitude!,
                 }}
-                scrollEnabled={false}
-                zoomEnabled={false}
-                pitchEnabled={false}
-                rotateEnabled={false}
-                showsUserLocation={false}
-                showsMyLocationButton={false}
-                toolbarEnabled={false}
-                customMapStyle={customMapStyle}
-                onMapReady={() => console.log("Ride details map ready")}
-              >
-                {/* Custom start + end markers — same idiom as the
-                    RideDetailsScreen map. Black dot for start, black
-                    navigation arrow for destination, dashed red trip
-                    line. Replaces the default teardrop pins which
-                    bypassed customMapStyle on Android and dropped
-                    saturated stock pins on the calm sage tiles. */}
-                <Marker
-                  coordinate={{ latitude: ride.start_latitude!, longitude: ride.start_longitude! }}
-                  title={ride.start_location}
-                  anchor={{ x: 0.5, y: 0.5 }}
-                  tracksViewChanges={false}
-                >
-                  <View style={styles.routeStartDot}>
-                    <View style={styles.routeStartDotInner} />
-                  </View>
-                </Marker>
-
-                <Marker
-                  coordinate={{ latitude: ride.end_latitude!, longitude: ride.end_longitude! }}
-                  title={ride.end_location}
-                  anchor={{ x: 0.5, y: 1 }}
-                  tracksViewChanges={false}
-                >
-                  <View style={styles.routeEndArrowWrap}>
-                    <Svg width={26} height={26} viewBox="0 0 24 24" fill="none">
-                      <SvgPath
-                        d="M3 11L21 3L13 21L11 13L3 11Z"
-                        fill={AppColors.basicBlack}
-                        stroke={AppColors.basicBlack}
-                        strokeWidth={1.6}
-                        strokeLinejoin="round"
-                      />
-                    </Svg>
-                  </View>
-                </Marker>
-
-                <Polyline
-                  coordinates={routeCoordinates}
-                  strokeColor="#E5453B"
-                  strokeWidth={3.6}
-                  lineDashPattern={[8, 6]}
-                  lineJoin="round"
-                  lineCap="round"
-                />
-              </MapView>
+                end={{
+                  latitude: ride.end_latitude!,
+                  longitude: ride.end_longitude!,
+                }}
+                routePoints={routeCoordinates}
+              />
             ) : (
               <View style={styles.mapPlaceholder}>
                 <Text style={styles.loadingText}>Loading map...</Text>

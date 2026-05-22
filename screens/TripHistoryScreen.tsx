@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
 import { appHref } from "../navigation/routes";
@@ -64,14 +64,14 @@ const TripHistoryScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async (isRefresh = false) => {
+  const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     setError(null);
     try {
       const [ridesResp, pendingResp] = await Promise.all([
-        apiUtil.get<Ride[]>("/user/rides?scope=past"),
+        apiUtil.getUncached<Ride[]>("/user/rides?scope=past"),
         apiUtil
-          .get<{ rides: PendingRating[] }>("/user/pending-ratings")
+          .getUncached<{ rides: PendingRating[] }>("/user/pending-ratings")
           .catch(() => ({ rides: [] })),
       ]);
       const list = Array.isArray(ridesResp) ? ridesResp : [];
@@ -88,12 +88,17 @@ const TripHistoryScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [apiUtil]);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiUtil]);
+  }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load(true);
+    }, [load]),
+  );
 
   const pastRides = useMemo(() => {
     const seen = new Set<string>();
@@ -129,7 +134,7 @@ const TripHistoryScreen: React.FC = () => {
 
       {loading ? (
         <View style={[styles.center, { flex: 1 }]}>
-          <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} />
+          <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} accessibilityLabel="Loading" />
         </View>
       ) : error ? (
         <View style={[styles.center, { flex: 1, paddingHorizontal: 24 }]}>

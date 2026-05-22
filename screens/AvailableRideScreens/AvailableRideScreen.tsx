@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions, Platform } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions, Platform, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import DateTimePicker, {
@@ -10,12 +10,12 @@ import DateTimePicker, {
 import BrandInfo from "../../components/BrandInfo";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import RideCard from "../../components/RideCard";
-import LoadingComponent from "../../components/LoadingComponent";
-import SearchingForRidesLoader from "../../components/SearchingForRidesLoader";
+import RideCardSkeleton from "../../components/RideCardSkeleton";
 import AppColors from "../../design_systems/colors";
 
 import { useApi } from "../../utils/ApiUtil";
 import { useAuthGate } from "../../contexts/AuthGate";
+import { useUser } from "../../contexts/UserContext";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import styles from "./AvailableRideScreens.styles";
 import BrandedAlert from "../../components/BrandedAlert";
@@ -116,6 +116,11 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
   const [rides, setRides] = useState<RideData[]>([]);
   const [loading, setLoading] = useState(false);
+  // Pull-to-refresh — kept separate from `loading` so the result list
+  // stays mounted while the user yanks the ScrollView down. `loading`
+  // drives the full-screen searching loader on first mount; this
+  // drives the inline spinner that hangs from the top of the list.
+  const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   // Buffered selection so iOS users can scroll the spinner without
@@ -124,10 +129,13 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   // to revert because we'd have already written through to `filters`.
   const [tempPickerDate, setTempPickerDate] = useState<Date | null>(null);
   const [searchMeta, setSearchMeta] = useState<ApiResponse['meta'] | null>(null);
-  // Viewer's gender — used to gate the same-gender pink affinity tint on
-  // host cards. Null while we wait for /user/details (or for guests, who
-  // simply never qualify).
-  const [viewerGender, setViewerGender] = useState<string | null>(null);
+  // Viewer's gender — used to gate the same-gender pink affinity tint
+  // on host cards. Sourced from the shared `UserContext` so the
+  // /user/details fetch on cold boot happens ONCE for the whole app
+  // instead of separately per screen. Stays `null` for guests and
+  // while the context is still hydrating.
+  const { user: viewerUser } = useUser();
+  const viewerGender = (viewerUser?.gender || "").toLowerCase() || null;
   
   // State for locations and coordinates
   const [fromLocation, setFromLocation] = useState("");
@@ -151,29 +159,10 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     }, []),
   );
 
-  // One-shot fetch for the viewer's gender. Guests never qualify for the
-  // same-gender tint, so skip the call entirely. Stored as lower-case to
-  // line up with what the server returns on host cards.
-  useEffect(() => {
-    if (isGuest) {
-      setViewerGender(null);
-      return;
-    }
-    let cancelled = false;
-    apiUtil
-      .get<{ user?: { gender?: string } }>("/user/details")
-      .then((res) => {
-        if (cancelled) return;
-        const g = (res?.user?.gender || "").toLowerCase();
-        setViewerGender(g || null);
-      })
-      .catch((err) => {
-        console.warn("viewer gender fetch failed", err);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isGuest, apiUtil]);
+  // (The dedicated `/user/details` fetch that used to live here has
+  //  moved into the shared `UserContext` — `viewerGender` above is
+  //  derived from `useUser()`. This avoids a second network round
+  //  trip on every visit to the search screen.)
 
   // Extract and update route parameters when they change
   useEffect(() => {
@@ -253,20 +242,26 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     return queryParams;
   };
 
-  const fetchRides = () => {
+  const fetchRides = ({ refresh = false }: { refresh?: boolean } = {}) => {
     if (!fromLocation || !toLocation) {
       console.log("No locations provided, not fetching rides.");
       setRides([]);
       return;
     }
 
-    setLoading(true);
+    // First fetch shows the full-screen searching loader; subsequent
+    // pull-to-refresh shows the inline spinner so the list stays put.
+    if (refresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     console.log("Fetching rides for:", { fromLocation, toLocation, fromCoordinates, toCoordinates, filters });
-    
+
     const queryParams = buildQueryParams();
-    
+
     apiUtil
-      .get<ApiResponse>(`/ride/search?${queryParams}`)
+      .getUncached<ApiResponse>(`/ride/search?${queryParams}`)
       .then((response) => {
         console.log("API response:", response);
         if (response && response.rides) {
@@ -295,7 +290,10 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
           BrandedAlert.alert("Error", "Failed to fetch rides. Please try again.");
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
   };
 
   useEffect(() => {
@@ -813,20 +811,46 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
             Home composer, not as a permanent header chip. */}
       </View>
 
-      {/* Loader only on COLD fetches — i.e. when there's nothing on
-          screen yet. If we already have cards from a previous fetch
-          (focus regain, filter apply, etc.), keep them visible and
-          let the new payload swap them in silently. The "Searching..."
-          label in the header still tells the user a request is in
-          flight, so this isn't a stealth update. */}
-      {loading && rides.length === 0 && <SearchingForRidesLoader />}
+      {/* Cold-fetch loading state is handled INSIDE the ScrollView
+          below — we render `RideCardSkeleton` placeholders in the
+          same wrapper the real cards use, so the swap from loading
+          to results is a content fade rather than a layout jump.
+          Previous overlay (`SearchingForRidesLoader`) sat on top of
+          the page as a full-bleed spinner; replaced because the
+          skeleton stack reads as "list loading" instead of "screen
+          is broken." */}
 
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        // Pull-to-refresh — re-runs the search query without tearing
+        // down the result list. Forest spinner matches the brand;
+        // skipped while `fromLocation`/`toLocation` aren't both set
+        // (handled internally by `fetchRides`).
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => fetchRides({ refresh: true })}
+            tintColor={AppColors.secondaryDarkGreen}
+            colors={[AppColors.secondaryDarkGreen]}
+          />
+        }
       >
         <View style={[styles.contentContainer, { backgroundColor: require('../../design_systems/colors').default.primaryLightGreen }]}>
-          {rides.length === 0 && !loading ? (
+          {loading && rides.length === 0 ? (
+            // Cold-fetch skeleton stack — three placeholder rows
+            // sized to match the real ride cards so the list reserves
+            // the right space and content fades in rather than
+            // shifting layout. Each wrapped in `rideCardWrapper`
+            // (same spacing as the live cards below).
+            <>
+              {[0, 1, 2].map((i) => (
+                <View key={`skeleton-${i}`} style={styles.rideCardWrapper}>
+                  <RideCardSkeleton />
+                </View>
+              ))}
+            </>
+          ) : rides.length === 0 && !loading ? (
             <View style={styles.noRidesContainer}>
               <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                 <Image

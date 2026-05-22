@@ -149,6 +149,13 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
             key={index}
             style={styles.navItem}
             onPress={() => handleNavigation(item.route)}
+            // VoiceOver: announce each tab by its label ("Home tab"
+            // etc.) and convey the selected state so blind users
+            // know which tab is active. Uses the iOS-standard "tab"
+            // role so the screen reader's tab gestures work.
+            accessibilityRole="tab"
+            accessibilityLabel={item.label}
+            accessibilityState={{ selected: isActive }}
           >
             <Image
               source={item.iconPath}

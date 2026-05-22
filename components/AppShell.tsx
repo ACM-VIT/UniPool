@@ -31,6 +31,7 @@ import * as Notifications from "expo-notifications";
 import * as SystemUI from "expo-system-ui";
 import * as Device from "expo-device";
 import AppColors from "../design_systems/colors";
+import { shouldShowPermissionsPrompt } from "../utils/permissionsPrompt";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 void SystemUI.setBackgroundColorAsync(AppColors.primaryLightGreen).catch(() => {});
@@ -270,6 +271,19 @@ const AppShell = () => {
       }
     } else if (type === "booking_rejected") {
       router.navigate(appHref("HomeScreen"));
+    } else if (type === "booking_withdrawn") {
+      // Accepted passenger backed out before the ride. Drop the host
+      // on the ride's management view so they can see the freshly-
+      // opened seat and (if they want) share the ride again to
+      // refill it. Fall back to Home if for some reason the push
+      // lacks a ride_id.
+      if (rideId) {
+        router.navigate(appHref("RideDetailsScreen", {
+          rideId: String(rideId),
+        }));
+      } else {
+        router.navigate(appHref("HomeScreen"));
+      }
     } else if (data?.type === "ride_reminder") {
       if (rideId) {
         router.navigate(appHref("RideDetailsScreen", {
@@ -640,24 +654,16 @@ const AppShell = () => {
           if (!cancelled) setLocationDetour(null);
           return;
         }
-        const { default: AsyncStorage } = await import(
-          "@react-native-async-storage/async-storage"
-        );
         // New combined-prompt sheet covers BOTH location + notifications.
         // Renamed key so the rollout shows the new sheet once even to
         // users who previously dismissed the old location-only one.
-        const seen = await AsyncStorage.getItem("hasSeenPermissionsPrompt");
-        if (seen === "true") {
-          if (!cancelled) setLocationDetour(null);
-          return;
+        // If foreground location is already granted, the prompt has
+        // nothing useful to ask for on startup; skip it and mark it
+        // seen so onboarding/signup paths don't route through it later.
+        const needsPrompt = await shouldShowPermissionsPrompt();
+        if (!cancelled) {
+          setLocationDetour(needsPrompt ? "LocationPermissionScreen" : null);
         }
-        // We deliberately don't short-circuit on "location already
-        // granted" anymore — the sheet also asks for notifications,
-        // so even a returning user with location pre-granted should
-        // still see the sheet once. The native location prompt
-        // silently no-ops when status is already granted, so this
-        // doesn't double-ask.
-        if (!cancelled) setLocationDetour("LocationPermissionScreen");
       } catch (e) {
         console.warn("Location-detour check failed; skipping prompt", e);
         if (!cancelled) setLocationDetour(null);
@@ -716,7 +722,25 @@ const AppShell = () => {
         }}
       >
         <View style={globalStyles.shellRoot}>
-          <Stack screenOptions={{ headerShown: false }}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              // Default the screen container background to the brand
+              // lime canvas. Without this, Android's native stack
+              // renders each screen on top of a white `windowBackground`
+              // and the user sees a one-frame WHITE FLASH on every
+              // back-navigation toward Home — the destination screen
+              // hasn't painted its own lime background yet, so the
+              // window's default shows through. Setting `contentStyle`
+              // here means the underlying view IS already lime when
+              // the new screen mounts, so the transition is seamless.
+              // Doubly safe with the global `SystemUI.setBackgroundColorAsync`
+              // call up top, which sets the same colour for the
+              // OS-level window background that surrounds the React
+              // root view.
+              contentStyle: { backgroundColor: AppColors.primaryLightGreen },
+            }}
+          >
             <Stack.Screen name="index" options={{ headerShown: false, animation: "fade" }} />
             <Stack.Screen name="AuthScreen" options={{ headerShown: false, presentation: "card" }} />
             {/* Profile completion is a forced onboarding step, not a

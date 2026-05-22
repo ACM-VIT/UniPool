@@ -186,7 +186,7 @@ const DefaultAddressScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
               {loading && (
-                <ActivityIndicator size="small" color={AppColors.primaryLightGreen} style={styles.loadingIcon} />
+                <ActivityIndicator size="small" color={AppColors.primaryLightGreen} style={styles.loadingIcon} accessibilityLabel="Loading" />
               )}
             </View>
           </TouchableOpacity>
@@ -229,6 +229,7 @@ const DefaultAddressScreen: React.FC = () => {
                   size="small" 
                   color={AppColors.basicWhite} 
                   style={styles.searchLoader}
+                accessibilityLabel="Loading"
                 />
               )}
             </View>
@@ -236,7 +237,7 @@ const DefaultAddressScreen: React.FC = () => {
             <ScrollView style={styles.locationList} showsVerticalScrollIndicator={false}>
               {isLoadingPopular ? (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={AppColors.basicWhite} />
+                  <ActivityIndicator size="small" color={AppColors.basicWhite} accessibilityLabel="Loading" />
                   <Text style={styles.loadingText}>Loading nearby places...</Text>
                 </View>
               ) : popularLocations.length > 0 ? (

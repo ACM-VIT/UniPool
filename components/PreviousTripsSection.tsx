@@ -72,7 +72,7 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
             // trips live under Profile → Trip history. Server-side
             // scope filter keeps the carousel honest even if a future
             // viewer_state changes.
-            const response = await apiUtil.get<UserRideData[]>("/user/rides?scope=upcoming");
+            const response = await apiUtil.getUncached<UserRideData[]>("/user/rides?scope=upcoming");
             console.log("Raw API Response:", response);
             
             if (!Array.isArray(response)) {

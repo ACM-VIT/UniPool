@@ -20,11 +20,12 @@ import { useApi } from "../../utils/ApiUtil";
 import styles from "./SignUpScreen.styles";
 import AppColors from "../../design_systems/colors";
 import BrandedAlert from "../../components/BrandedAlert";
-import { appHref, useDecodedLocalSearchParams } from "../../navigation/routes";
+import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import type { AppRouteTarget } from "../../navigation/routes";
 import { Country, DEFAULT_COUNTRY, flagFor } from "../../data/countries";
 import CountryPicker from "../../components/CountryPicker";
 import VerifyAcademicSheet from "../../components/VerifyAcademicSheet";
+import { shouldShowPermissionsPrompt } from "../../utils/permissionsPrompt";
 
 type FieldKey = "phone" | "yob" | null;
 
@@ -147,7 +148,19 @@ const SignUpScreen: React.FC = () => {
     setLoading(true);
     const ok = await submitProfile();
     setLoading(false);
-    if (ok) router.replace(appHref("LocationPermissionScreen", { returnTo }));
+    if (ok) {
+      let needsPermissionsStep = true;
+      try {
+        needsPermissionsStep = await shouldShowPermissionsPrompt();
+      } catch (e) {
+        console.warn("Permissions preflight failed; showing permission screen", e);
+      }
+      if (needsPermissionsStep) {
+        router.replace(appHref("LocationPermissionScreen", { returnTo }));
+      } else {
+        router.replace(returnTo ? targetHref(returnTo) : appHref("HomeScreen"));
+      }
+    }
   };
 
   const handleVerifyTap = async () => {
@@ -344,7 +357,7 @@ const SignUpScreen: React.FC = () => {
             activeOpacity={0.85}
           >
             {loading ? (
-              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} />
+              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
             ) : (
               <Text style={styles.primaryBtnText}>
                 {profileSubmitted ? "Continue" : "Complete profile"}

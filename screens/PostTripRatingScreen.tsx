@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
   Easing,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import Svg, { Path } from "react-native-svg";
 import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
@@ -69,7 +69,7 @@ const PostTripRatingScreen: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadEligibility = useCallback(() => {
     if (!rideId) {
       setError("Missing ride id.");
       setLoading(false);
@@ -78,14 +78,16 @@ const PostTripRatingScreen: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const resp = await apiUtil.get<Eligibility>(`/ride/${rideId}/rating-eligibility`);
+        const resp = await apiUtil.getUncached<Eligibility>(`/ride/${rideId}/rating-eligibility`);
         if (cancelled) return;
         setEligibility(resp);
-        const init: Record<string, Draft> = {};
-        for (const t of resp?.targets || []) {
-          init[t.user_id] = { stars: 0, comment: "" };
-        }
-        setDrafts(init);
+        setDrafts((current) => {
+          const next: Record<string, Draft> = {};
+          for (const t of resp?.targets || []) {
+            next[t.user_id] = current[t.user_id] ?? { stars: 0, comment: "" };
+          }
+          return next;
+        });
       } catch (err: any) {
         if (cancelled) return;
         setError(err?.response?.data?.error || "Couldn't load your trip.");
@@ -97,6 +99,16 @@ const PostTripRatingScreen: React.FC = () => {
       cancelled = true;
     };
   }, [apiUtil, rideId]);
+
+  useEffect(() => {
+    return loadEligibility();
+  }, [loadEligibility]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return loadEligibility();
+    }, [loadEligibility]),
+  );
 
   const allRated = useMemo(() => {
     const targets = eligibility?.targets || [];
@@ -137,7 +149,7 @@ const PostTripRatingScreen: React.FC = () => {
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} />
+        <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -233,7 +245,7 @@ const PostTripRatingScreen: React.FC = () => {
             onPress={submit}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} />
+              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
             ) : (
               <Text style={styles.primaryBtnText}>Submit</Text>
             )}

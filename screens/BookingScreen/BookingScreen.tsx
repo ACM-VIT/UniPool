@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,15 +6,16 @@ import {
   FlatList,
   Image,
   StatusBar,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import styles from "./BookingScreen.styles";
 import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
-import LoadingComponent from "../../components/LoadingComponent";
+import RideCardSkeleton from "../../components/RideCardSkeleton";
 import RideCard from "../../components/RideCard";
 import EmptyState from "../../components/EmptyState";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useAuthGate } from "../../contexts/AuthGate";
 import { appHref } from "../../navigation/routes";
 
@@ -71,6 +72,11 @@ const formatDate = (iso: string): string => {
 const BookingScreen: React.FC = () => {
   const [rides, setRides] = useState<RideData[]>([]);
   const [loading, setLoading] = useState(true);
+  // Separate flag for pull-to-refresh so the existing list stays
+  // mounted (no "Loading…" full-screen state) while the user yanks
+  // the FlatList down to re-fetch. `loading` is for the FIRST mount
+  // when there's no data yet; `refreshing` is for everything after.
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("upcoming");
   // Backend UUID for the current user — NOT the Firebase uid.
@@ -83,9 +89,15 @@ const BookingScreen: React.FC = () => {
   const { requireAuth } = useAuthGate();
   const insets = useSafeAreaInsets();
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
+  const fetchAll = useCallback(async ({ refresh = false }: { refresh?: boolean } = {}) => {
+      // Only show the full-screen loading state on the first fetch.
+      // Refreshes keep the list mounted and use the `refreshing` flag
+      // so the user sees the existing rides while the new data arrives.
+      if (refresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       try {
         const auth = require("@react-native-firebase/auth").getAuth();
@@ -97,8 +109,8 @@ const BookingScreen: React.FC = () => {
         // so the Hosting / Upcoming bucketing has the right key to
         // compare against `host_user_id`.
         const [details, ridesData] = await Promise.all([
-          apiUtil.get<any>("/user/details").catch(() => null),
-          apiUtil.get<any>("/user/rides"),
+          apiUtil.getUncached<any>("/user/details").catch(() => null),
+          apiUtil.getUncached<any>("/user/rides"),
         ]);
         const myId: string | undefined = details?.user?.id ?? details?.id;
         if (myId) setCurrentUserId(myId);
@@ -108,10 +120,19 @@ const BookingScreen: React.FC = () => {
         setError(err.message || "Failed to fetch trips");
       } finally {
         setLoading(false);
+        setRefreshing(false);
       }
-    };
+    }, [apiUtil]);
+
+  useEffect(() => {
     fetchAll();
-  }, [apiUtil]);
+  }, [fetchAll]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchAll();
+    }, [fetchAll]),
+  );
 
   // Bucket rides into the three tabs by the server-computed
   // viewer_state. No more client-side "isHost && hasBooking" math —
@@ -283,7 +304,18 @@ const BookingScreen: React.FC = () => {
       </View>
 
       {loading ? (
-        <LoadingComponent />
+        // Skeleton list instead of a generic spinner. Three
+        // `RideCardSkeleton` rows occupy the same vertical space
+        // three real `RideCard`s would, so the swap to real data is
+        // a content fade rather than a layout jump. Same `cardSlot`
+        // wrapper the real list uses for inter-card spacing.
+        <View style={styles.listContent}>
+          {[0, 1, 2].map((i) => (
+            <View key={`skeleton-${i}`} style={styles.cardSlot}>
+              <RideCardSkeleton />
+            </View>
+          ))}
+        </View>
       ) : error ? (
         <View style={styles.errorWrap}>
           <Text style={styles.errorText}>{error}</Text>
@@ -295,6 +327,18 @@ const BookingScreen: React.FC = () => {
           data={tabRides}
           keyExtractor={(item) => item.ride_id || item.id || Math.random().toString()}
           contentContainerStyle={styles.listContent}
+          // Pull-to-refresh — yanks `/user/rides` again without
+          // tearing down the list mid-fetch. Forest spinner on the
+          // lime canvas to match the brand instead of the system
+          // grey default.
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => fetchAll({ refresh: true })}
+              tintColor={AppColors.secondaryDarkGreen}
+              colors={[AppColors.secondaryDarkGreen]}
+            />
+          }
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const rideId = item.ride_id || item.id || "";

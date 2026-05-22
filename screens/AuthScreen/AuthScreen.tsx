@@ -203,7 +203,7 @@ const AuthScreen: React.FC = () => {
         >
           <View style={styles.iconWrap}>
             {isSigningIn ? (
-              <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} />
+              <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} accessibilityLabel="Loading" />
             ) : (
               // Google G — inline SVG with brand colors. PNG version
               // we shipped earlier flattened to a single color and

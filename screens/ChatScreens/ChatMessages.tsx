@@ -16,7 +16,7 @@ import {
   Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { chatMessagesStyles } from './ChatScreen.styles';
 import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
@@ -55,7 +55,6 @@ interface Participant {
 interface RideDetails {
   id: string;
   title: string;
-  subtitle: string;
   destination: string;
   departure: string;
   date: string;
@@ -245,12 +244,17 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const chatParams = useDecodedLocalSearchParams<ChatRouteParams>();
   const [chatTitle, setChatTitle] = useState(chatParams.chatTitle ?? 'Vellore to Chennai');
   const isPendingHostInquiry = !!chatParams.pendingHostInquiry;
+
+  const otherUserIdFromDMRoom = useMemo(() => {
+    const roomId = chatParams.chatRoom?.id || chatParams.chatId || "";
+    if (!userUuid || !roomId.startsWith("dm_")) return undefined;
+    const ids = roomId.replace(/^dm_/, "").split("_");
+    if (ids.length !== 2) return undefined;
+    return ids.find((id) => id !== userUuid);
+  }, [chatParams.chatId, chatParams.chatRoom?.id, userUuid]);
   const viewerIsHost = !!chatParams.viewerIsHost;
   // No subtitle for pending DMs — route/date live in the empty-state
   // card below. Group chats keep their original subtitle.
-  const chatSubtitle = isPendingHostInquiry
-    ? ''
-    : (chatParams.chatSubtitle ?? 'You, Bhallaldeva, Kattappa and 3 more');
   // `pendingHostName` is misnamed historically — it's actually the
   // OTHER party's display name. For a host viewing a requester's DM,
   // that's the requester (e.g. "Priya"); for a passenger viewing
@@ -369,10 +373,13 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   }, [applyOnlinePresence, onlineUserIds]);
 
   const fetchUserProfile = async (uid: string) => {
-    if (userProfiles[uid]) return userProfiles[uid];
+    if (userProfiles[uid]?.name && userProfiles[uid].name !== "Unknown") return userProfiles[uid];
     try {
-      const res = await apiUtil.get<{ user: { name: string; avatar?: string } }>(`/user/${uid}`);
-      const prof = { name: res.user.name || 'Unknown', avatar: res.user.avatar };
+      const res = await apiUtil.get<{ user: { name: string; avatar?: string; profile_picture_url?: string } }>(`/user/${uid}`);
+      const prof = {
+        name: res.user.name || 'Unknown',
+        avatar: res.user.profile_picture_url || res.user.avatar,
+      };
       setUserProfiles(prev => ({ ...prev, [uid]: prof }));
       return prof;
     } catch {
@@ -493,7 +500,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
 
   const fetchChatDetails = async (rideId: string) => {
     try {
-      const r = await apiUtil.get<{
+      const r = await apiUtil.getUncached<{
         id: string;
         host_user_id: string;
         start_location: string;
@@ -510,7 +517,6 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       setRideDetails({
         id: r.id,
         title: `${r.start_location} to ${r.end_location}`,
-        subtitle: `${r.booked_seats + 1} participants`,
         departure: r.start_location,
         destination: r.end_location,
         date: new Date(r.start_time).toLocaleDateString(),
@@ -552,8 +558,8 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       }));
 
       const [settingsResult, muteResult] = await Promise.allSettled([
-        apiUtil.get<{ settings: { chat_name?: string } }>(`/ride/${rideId}/settings`),
-        apiUtil.get<{ muted: boolean }>(`/ride/${rideId}/chat-mute`),
+        apiUtil.getUncached<{ settings: { chat_name?: string } }>(`/ride/${rideId}/settings`),
+        apiUtil.getUncached<{ muted: boolean }>(`/ride/${rideId}/chat-mute`),
       ]);
 
       if (settingsResult.status === 'fulfilled') {
@@ -570,7 +576,6 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       setRideDetails({
         id: rideId,
         title: chatTitle,
-        subtitle: chatSubtitle,
         departure: 'Unknown',
         destination: 'Unknown',
         date: new Date().toLocaleDateString(),
@@ -597,22 +602,24 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       fetchChatDetails(chatId);
     } else {
       setRideDetails(null);
-      if (chatParams.otherUserId) {
-        fetchUserProfile(chatParams.otherUserId).then(p =>
+      const otherUserId = chatParams.otherUserId || otherUserIdFromDMRoom;
+      if (otherUserId) {
+        fetchUserProfile(otherUserId).then(p =>
           setParticipants([
             { id: userUuid, name: userProfiles[userUuid]?.name||'You', role:'member', isOnline:true },
             {
-              id: chatParams.otherUserId!,
+              id: otherUserId,
               name:p.name,
               role:'member',
-              isOnline: onlineUserIdsRef.current.has(chatParams.otherUserId!),
+              isOnline: onlineUserIdsRef.current.has(otherUserId),
             },
           ])
         );
       } else {
+        const fallbackName = chatParams.chatTitle?.replace('Chat with ','')||'Other User';
         setParticipants([
           { id:userUuid, name:userProfiles[userUuid]?.name||'You', role:'member', isOnline:true },
-          { id:'unknown', name:chatParams.chatTitle?.replace('Chat with ','')||'Other User', role:'member', isOnline:false },
+          { id:'unknown', name:fallbackName, role:'member', isOnline:false },
         ]);
       }
     }
@@ -704,8 +711,67 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     chatParams.isGroupChat,
     chatParams.otherUserId,
     chatParams.userId,
+    otherUserIdFromDMRoom,
     userUuid,
   ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!userUuid) return undefined;
+
+      const chatId = chatParams.chatRoom?.id || chatParams.chatId;
+      const isGroup = chatParams.isGroupChat !== false;
+      if (!chatId) return undefined;
+
+      let cancelled = false;
+
+      if (isGroup) {
+        void fetchChatDetails(chatId);
+      } else {
+        const otherUserId = chatParams.otherUserId || otherUserIdFromDMRoom;
+        if (otherUserId) {
+          fetchUserProfile(otherUserId).then((profile) => {
+            if (cancelled) return;
+            setParticipants([
+              { id: userUuid, name: userProfiles[userUuid]?.name || "You", role: "member", isOnline: true },
+              {
+                id: otherUserId,
+                name: profile.name,
+                role: "member",
+                isOnline: onlineUserIdsRef.current.has(otherUserId),
+              },
+            ]);
+          });
+        }
+      }
+
+      ChatService.fetchMessages(apiUtil, chatId, { limit: 50 })
+        .then((res) => {
+          if (cancelled) return;
+          const processed = res.messages.map((msg: any) => processBackendMessage(msg, userUuid));
+          setMessages(processed);
+          setHasMoreMessages(res.hasMore);
+        })
+        .catch((err) => {
+          if (isGroup) console.error("[Chat] focus fetchMessages err", err);
+        });
+
+      ChatService.markRideRead(apiUtil, chatId);
+
+      return () => {
+        cancelled = true;
+      };
+    }, [
+      apiUtil,
+      chatParams.chatRoom?.id,
+      chatParams.chatId,
+      chatParams.isGroupChat,
+      chatParams.otherUserId,
+      otherUserIdFromDMRoom,
+      userProfiles,
+      userUuid,
+    ]),
+  );
 
   const sendMessage = (override?: string) => {
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
@@ -1107,7 +1173,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                   <View style={chatMessagesStyles.participantInfo}>
                     <Text style={chatMessagesStyles.participantName}>
                       {p.id===userUuid
-                        ? `${userProfiles[userUuid]?.name} (You)`
+                        ? `${userProfiles[userUuid]?.name || p.name || 'You'} (You)`
                         : p.name
                       }
                     </Text>
@@ -1197,8 +1263,6 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                 paddingVertical: 13,
                 paddingHorizontal: 20,
                 borderRadius: 14,
-                borderWidth: 1.5,
-                borderColor: AppColors.secondaryDarkGreen,
                 alignItems: 'center',
                 backgroundColor: AppColors.basicWhite,
               }}
@@ -1411,11 +1475,6 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               </Text>
             );
           })()}
-          {chatSubtitle ? (
-            <Text style={chatMessagesStyles.chatHeaderSubtitle} numberOfLines={1} ellipsizeMode="tail">
-              {chatSubtitle}
-            </Text>
-          ) : null}
         </View>
 
         <View style={chatMessagesStyles.chatHeaderRight}>
@@ -1521,7 +1580,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                   accentColor="#C46A2D"
                   start={chatParams.pendingRideStartLocation || '—'}
                   end={chatParams.pendingRideEndLocation || '—'}
-                  numberOfLines={1}
+                  numberOfLines={2}
                 />
               </View>
             ) : null}
@@ -1596,7 +1655,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             />
           ))}
         </View>
-      ) : (
+      ) : isPendingHostInquiry && messages.length === 0 ? null : (
       <FlatList
         ref={flatListRef}
         style={[chatMessagesStyles.messagesContainer, { flex: 1 }]}
