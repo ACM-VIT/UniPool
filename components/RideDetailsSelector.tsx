@@ -836,6 +836,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                   size="small" 
                   color={AppColors.basicWhite} 
                   style={styles.searchLoader}
+                accessibilityLabel="Loading"
                 />
               )}
             </View>
@@ -849,7 +850,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               {/* Show loading state */}
               {isLoadingPopular ? (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={AppColors.basicWhite} />
+                  <ActivityIndicator size="small" color={AppColors.basicWhite} accessibilityLabel="Loading" />
                   <Text style={styles.loadingText}>Loading nearby places...</Text>
                 </View>
               ) : null}

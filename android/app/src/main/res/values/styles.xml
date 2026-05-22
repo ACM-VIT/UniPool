@@ -5,6 +5,17 @@
     <item name="colorPrimary">@color/colorPrimary</item>
     <item name="android:statusBarColor">@android:color/transparent</item>
     <item name="android:navigationBarColor">@android:color/transparent</item>
+    <!--
+      Match the splash theme's lime background so the window stays
+      lime between the splash dismissal and the JS bundle's first
+      paint. Without this, AppCompat's default windowBackground
+      (white) leaked through for ~one frame on cold boot, producing
+      a visible white flash before the React canvas painted.
+      `SystemUI.setBackgroundColorAsync` at the JS layer is a
+      belt-and-braces second line of defence; the native theme below
+      is what actually owns the cold-boot pixel.
+    -->
+    <item name="android:windowBackground">@color/splashscreen_background</item>
   </style>
   <style name="Theme.App.SplashScreen" parent="Theme.SplashScreen">
     <item name="windowSplashScreenBackground">@color/splashscreen_background</item>

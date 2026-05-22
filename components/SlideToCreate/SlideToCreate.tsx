@@ -166,7 +166,7 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
         dynamicStyles.loadingContainer,
         containerStyle
       ]}>
-        <ActivityIndicator size="large" color={sliderButtonColor} />
+        <ActivityIndicator size="large" color={sliderButtonColor} accessibilityLabel="Loading" />
         <Text style={[
           styles.loadingText, 
           dynamicStyles.text,

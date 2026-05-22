@@ -91,7 +91,7 @@ const AccountSettingsScreen: React.FC = () => {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color={DESTRUCTIVE} />
+              <ActivityIndicator color={DESTRUCTIVE} accessibilityLabel="Loading" />
             ) : (
               <Text style={[styles.menuItemText, { color: DESTRUCTIVE }]}>
                 Delete my account

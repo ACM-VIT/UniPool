@@ -42,6 +42,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.6,
     marginBottom: 8,
     textAlign: "center",
+    maxWidth: 320,
   },
   subhead: {
     fontFamily: "NunitoSans_400Regular",
@@ -51,6 +52,7 @@ const styles = StyleSheet.create({
     opacity: 0.78,
     textAlign: "center",
     paddingHorizontal: 6,
+    maxWidth: 320,
   },
   // Two short "what this unlocks" lines. No pill background, no
   // lime icon chip — those felt blocky next to the airy radar.
@@ -66,6 +68,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    maxWidth: 320,
+    alignSelf: "center",
   },
   featureText: {
     flex: 1,

@@ -1,8 +1,23 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView, InteractionManager, AppState } from "react-native";
+import { View, Text, Image, TouchableOpacity, SafeAreaView, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView, InteractionManager, AppState } from "react-native";
 import navigationImg from "../assets/navigation.png";
 import locationPinImg from "../assets/location-pin-2.png";
-import MapView, { Marker, Polyline, Circle, PROVIDER_GOOGLE } from "react-native-maps";
+// MapLibre replaces react-native-maps. We control tiles via a style
+// URL (currently OpenFreeMap's `liberty` — donation-funded, no API
+// key, see MAP_STYLE_URL note below) and draw shapes via GeoJSON
+// sources + style-spec layers instead of imperative
+// `<Marker>`/`<Polyline>`/`<Circle>` children. Marker is preserved
+// for custom-view pins (our forest chip cluster pin).
+import {
+  Map as MapLibreMap,
+  Camera,
+  Marker as MapLibreMarker,
+  GeoJSONSource,
+  Layer as MapLibreLayer,
+  UserLocation,
+  type CameraRef,
+  type MapRef,
+} from "@maplibre/maplibre-react-native";
 import * as Location from "expo-location";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -86,6 +101,99 @@ const FALLBACK_REGION = {
   longitudeDelta: 0.06,
 };
 
+// OpenFreeMap — donation-funded, OSM-based, no API key, no usage caps.
+// `liberty` is the well-rounded default (streets, POI icons, place
+// labels at every zoom). Other styles available on the same host if
+// we ever want to switch the look: `positron` (light/minimal — closer
+// to the old Google Maps "#f8f8f8" palette), `bright`, `dark`.
+const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+
+// MapLibre uses [longitude, latitude] tuples and a single `zoom`
+// level instead of react-native-maps' `{latitude, longitude,
+// latitudeDelta, longitudeDelta}`. We translate by approximating
+// zoom from `latitudeDelta` (which is "visible degrees latitude" —
+// halves with each zoom step). Empirically:
+//   delta 0.06 (city)        → zoom ~12.5
+//   delta 0.045 (neighborhood)→ zoom ~13
+//   delta 0.02 (street)      → zoom ~14
+const deltaToZoom = (latitudeDelta: number) =>
+  Math.max(1, Math.min(20, Math.log2(360 / Math.max(latitudeDelta, 0.0001))));
+
+const regionToCenter = (region: {
+  latitude: number;
+  longitude: number;
+}): [number, number] => [region.longitude, region.latitude];
+
+/**
+ * Build a GeoJSON polygon approximating a circle of `radiusMeters`
+ * around `(lat, lng)`. MapLibre's circle *layer* draws a screen-space
+ * circle (radius scales with zoom in pixels, not real-world metres),
+ * which is wrong for our "5 km service area" visual — so we use a
+ * polygon ring instead. 64 vertices is smooth enough at any zoom
+ * level we'd ever show.
+ */
+const buildCirclePolygon = (
+  lat: number,
+  lng: number,
+  radiusMeters: number,
+  steps = 64,
+): GeoJSON.Feature<GeoJSON.Polygon> => {
+  const coords: [number, number][] = [];
+  // Convert radius (m) to degrees. 1 deg latitude ≈ 111_320 m. Longitude
+  // shrinks with latitude (* cos(lat)). Plenty accurate at this scale.
+  const dLat = radiusMeters / 111_320;
+  const dLng = radiusMeters / (111_320 * Math.cos((lat * Math.PI) / 180));
+  for (let i = 0; i <= steps; i++) {
+    const theta = (i / steps) * 2 * Math.PI;
+    coords.push([
+      lng + dLng * Math.cos(theta),
+      lat + dLat * Math.sin(theta),
+    ]);
+  }
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: { type: "Polygon", coordinates: [coords] },
+  };
+};
+
+/**
+ * Build a GeoJSON LineString from an array of {latitude, longitude}
+ * waypoints. MapLibre's LineLayer is fed via a GeoJSONSource, not
+ * an inline `coordinates` prop.
+ */
+const buildLineString = (
+  pts: { latitude: number; longitude: number }[],
+): GeoJSON.Feature<GeoJSON.LineString> => ({
+  type: "Feature",
+  properties: {},
+  geometry: {
+    type: "LineString",
+    coordinates: pts.map((p) => [p.longitude, p.latitude]),
+  },
+});
+
+/**
+ * Compute a bounding box `[west, south, east, north]` from a set of
+ * waypoints. Used to drive Camera.fitBounds the same way
+ * react-native-maps' fitToCoordinates did.
+ */
+const coordsToBounds = (
+  pts: { latitude: number; longitude: number }[],
+): [number, number, number, number] => {
+  let minLng = pts[0].longitude;
+  let maxLng = pts[0].longitude;
+  let minLat = pts[0].latitude;
+  let maxLat = pts[0].latitude;
+  for (const p of pts) {
+    if (p.longitude < minLng) minLng = p.longitude;
+    if (p.longitude > maxLng) maxLng = p.longitude;
+    if (p.latitude < minLat) minLat = p.latitude;
+    if (p.latitude > maxLat) maxLat = p.latitude;
+  }
+  return [minLng, minLat, maxLng, maxLat];
+};
+
 // Short, comma-stripped, ellipsized destination label for pin badges.
 // Pulled out of the marker render so the rotating-pin component below
 // can use the same shortening.
@@ -132,11 +240,12 @@ const ClusterMarker: React.FC<{
     : shortenDestination(cluster.cheapest.end_location);
 
   return (
-    <Marker
-      coordinate={{ latitude: cluster.latitude, longitude: cluster.longitude }}
+    <MapLibreMarker
+      lngLat={[cluster.longitude, cluster.latitude]}
       onPress={onPress}
-      tracksViewChanges={false}
-      anchor={{ x: 0.5, y: 1 }}
+      // Anchor the chip's bottom (the lime dot) at the geo coordinate,
+      // same as the old `{x:0.5, y:1}` Marker anchor.
+      anchor="bottom"
     >
       <View style={styles.pinWrap}>
         <View style={styles.pinBadge}>
@@ -145,7 +254,7 @@ const ClusterMarker: React.FC<{
         <View style={styles.pinTail} />
         <View style={styles.pinDot} />
       </View>
-    </Marker>
+    </MapLibreMarker>
   );
 };
 
@@ -166,7 +275,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [isFocused, setIsFocused] = useState(true);
   const { apiUtil, revalidate } = useApi();
   const { requireAuth, isGuest } = useAuthGate();
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<MapRef>(null);
+  // MapLibre splits ref surfaces: the Map ref exposes geometry
+  // queries (project/unproject/getCenter); the Camera ref drives
+  // imperative camera moves (fitBounds/easeTo/jumpTo). The old
+  // react-native-maps MapView did both — we need both refs.
+  const cameraRef = useRef<CameraRef>(null);
 
   const [location, setLocation] = useState<LocationCoords | null>(null);
   // Cluster sheet state — populated when the user taps a multi-ride
@@ -410,230 +524,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     return coordinates;
   };
 
-const customMapStyle = React.useMemo(() => [
-  {
-    featureType: "all",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#f8f8f8"
-      }
-    ]
-  },
-  {
-    featureType: "all",
-    elementType: "labels.text.fill",
-    stylers: [
-      {
-        color: "#273B33"
-      }
-    ]
-  },
-  {
-    featureType: "all",
-    elementType: "labels.text.stroke",
-    stylers: [
-      {
-        color: "#ffffff"
-      },
-      {
-        weight: 2
-      }
-    ]
-  },
-  {
-    featureType: "all",
-    elementType: "labels.icon",
-    stylers: [
-      {
-        visibility: "simplified"
-      }
-    ]
-  },
-  {
-    featureType: "road",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#ffffff"
-      }
-    ]
-  },
-  {
-    featureType: "road",
-    elementType: "geometry.stroke",
-    stylers: [
-      {
-        color: "#e0e0e0"
-      },
-      {
-        weight: 0.5
-      }
-    ]
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#ffffff"
-      }
-    ]
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry.stroke",
-    stylers: [
-      {
-        color: "#B5D750"
-      },
-      {
-        weight: 2
-      }
-    ]
-  },
-  {
-    featureType: "road.arterial",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#ffffff"
-      }
-    ]
-  },
-  {
-    featureType: "road.arterial",
-    elementType: "geometry.stroke",
-    stylers: [
-      {
-        color: "#e0e0e0"
-      },
-      {
-        weight: 1
-      }
-    ]
-  },
-  {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#b3d9ff"
-      }
-    ]
-  },
-  {
-    featureType: "landscape",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#f8f8f8"
-      }
-    ]
-  },
-  {
-    featureType: "landscape.natural",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#e8f5e8"
-      }
-    ]
-  },
-  {
-    featureType: "poi",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#f0f0f0"
-      }
-    ]
-  },
-  {
-    featureType: "poi.park",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#B5D750"
-      },
-      {
-        lightness: 20
-      }
-    ]
-  },
-  {
-    featureType: "poi.business",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#f5f5f5"
-      }
-    ]
-  },
-  {
-    featureType: "poi.attraction",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#B5D750"
-      },
-      {
-        lightness: 40
-      }
-    ]
-  },
-  {
-    featureType: "transit",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#273B33"
-      }
-    ]
-  },
-  {
-    featureType: "transit.line",
-    elementType: "geometry",
-    stylers: [
-      {
-        color: "#B5D750"
-      }
-    ]
-  },
-  {
-    featureType: "administrative",
-    elementType: "geometry.stroke",
-    stylers: [
-      {
-        color: "#d0d0d0"
-      },
-      {
-        weight: 0.3
-      }
-    ]
-  },
-  {
-    featureType: "administrative.country",
-    elementType: "geometry.stroke",
-    stylers: [
-      {
-        color: "#273B33"
-      },
-      {
-        weight: 1
-      }
-    ]
-  },
-  {
-    featureType: "administrative.locality",
-    elementType: "labels.text.fill",
-    stylers: [
-      {
-        color: "#273B33"
-      }
-    ]
-  }
-], []);
+// NOTE: the old Google Maps `customMapStyle` JSON lived here. It is
+// gone now that we render with MapLibre, which styles tiles via a
+// full style.json (vector source + layer paint specs) instead of
+// the Google Maps Styling Wizard schema. The custom palette ("#f8f8f8"
+// geometries, "#273B33" labels, white roads with grey strokes) will
+// move into a hand-rolled style.json once we pick a real tile
+// provider — until then we ship MapLibre's free demotiles, which is
+// good enough to evaluate the migration but not the final visual.
 
 
   const panResponder = React.useMemo(() => PanResponder.create({
@@ -776,18 +674,18 @@ const customMapStyle = React.useMemo(() => [
   };
 
   const fitMapToWaypoints = (from: LocationCoords, to: LocationCoords, userLoc: LocationCoords) => {
-    if (!mapRef.current) return;
+    const camera = cameraRef.current;
+    if (!camera) return;
 
-    const coordinates = [from, to, userLoc];
-    
-    mapRef.current.fitToCoordinates(coordinates, {
-      edgePadding: {
+    const bounds = coordsToBounds([from, to, userLoc]);
+    camera.fitBounds(bounds, {
+      padding: {
         top: screenHeight * 0.1,
         right: screenWidth * 0.1,
         bottom: screenHeight * 0.4,
         left: screenWidth * 0.1,
       },
-      animated: true,
+      duration: MAP_CAMERA_ANIMATION_MS,
     });
   };
 
@@ -865,7 +763,7 @@ const customMapStyle = React.useMemo(() => [
   const ratingPromptShownRef = useRef(false);
   useEffect(() => {
     if (!isFocused || isGuest || ratingPromptShownRef.current) return;
-    const pendingRatings = appState?.home.pending_ratings ?? [];
+    const pendingRatings = appState?.home?.pending_ratings ?? [];
     if (!pendingRatings.length) return;
 
     ratingPromptShownRef.current = true;
@@ -885,37 +783,38 @@ const customMapStyle = React.useMemo(() => [
         },
       ],
     });
-  }, [appState?.home.pending_ratings, isFocused, isGuest, router]);
+  }, [appState?.home?.pending_ratings, isFocused, isGuest, router]);
 
   const runMapCameraUpdate = useCallback((from: LocationCoords | null, to: LocationCoords | null) => {
-    const map = mapRef.current;
-    if (!map) return;
+    const camera = cameraRef.current;
+    if (!camera) return;
 
     if (from && to) {
       const padTop = screenHeight * 0.10;
       const padBottom = screenHeight * (BOTTOM_SHEET_MIN_HEIGHT / screenHeight + 0.04);
-      map.fitToCoordinates([from, to], {
-        edgePadding: {
+      const bounds = coordsToBounds([from, to]);
+      camera.fitBounds(bounds, {
+        padding: {
           top: padTop,
           bottom: padBottom,
           left: screenWidth * 0.16,
           right: screenWidth * 0.16,
         },
-        animated: true,
+        duration: MAP_CAMERA_ANIMATION_MS,
       });
     } else if (from || to) {
       const pin = (from ?? to)!;
-      map.animateToRegion(
-        {
-          latitude: pin.latitude,
-          longitude: pin.longitude,
-          latitudeDelta: 0.045,
-          longitudeDelta: 0.045,
-        },
-        MAP_CAMERA_ANIMATION_MS,
-      );
+      camera.easeTo({
+        center: [pin.longitude, pin.latitude],
+        zoom: deltaToZoom(0.045),
+        duration: MAP_CAMERA_ANIMATION_MS,
+      });
     } else if (initialRegion) {
-      map.animateToRegion(initialRegion, MAP_CAMERA_ANIMATION_MS);
+      camera.easeTo({
+        center: regionToCenter(initialRegion),
+        zoom: deltaToZoom(initialRegion.latitudeDelta),
+        duration: MAP_CAMERA_ANIMATION_MS,
+      });
     }
   }, [initialRegion]);
 
@@ -1066,30 +965,36 @@ const customMapStyle = React.useMemo(() => [
       <View style={styles.mapContainer}>
         {shouldRenderMap ? (
           <>
-          <MapView
+          <MapLibreMap
             ref={mapRef}
-            provider={PROVIDER_GOOGLE}
             style={styles.map}
-            // Fall back to the seed catalogue centroid so the map has a
-            // real region to draw while we wait on a GPS fix. Once we
-            // have the user's actual coords we animate to them via the
-            // initialRegion-watcher effect lower down.
-            initialRegion={initialRegion ?? FALLBACK_REGION}
-            // Only show the blue user-dot puck once permission is
-            // granted — otherwise the SDK silently no-ops here.
-            showsUserLocation={isFocused && hasPermission}
-            // The native "my location" FAB renders as an awful
-            // bare-aluminum square in the top-right on Android.
-            // We have our own UX for centering on the user.
-            showsMyLocationButton={false}
-            toolbarEnabled={false}
-            customMapStyle={customMapStyle}
-            onMapReady={() => {
-              // Fade the lime cover out the moment the native map
-              // signals it's painted its first frame. The 240ms hold
-              // before fade gives the tiles a beat to colour in so the
-              // user never glimpses the white-on-black "loading map"
-              // texture underneath.
+            // OpenFreeMap tiles — see MAP_STYLE_URL note at top of file.
+            mapStyle={MAP_STYLE_URL}
+            // Apple's HIG treats a map as a single navigable region for
+            // VoiceOver; individual pins/the user puck render to the
+            // native canvas and can't carry their own labels. A region
+            // label here lets a blind user understand the screen
+            // contains a map of nearby rides without having to
+            // brute-force-explore the canvas.
+            accessibilityLabel="Map of nearby rides"
+            accessibilityHint="Shows your current location and pickup points for rides leaving from nearby."
+            // Kill MapLibre's stock ornaments. We have our own map UX
+            // so the maplibre logo, attribution chip, compass and
+            // scale bar would just be clutter on top of the lime
+            // brand canvas. (Attribution is still legally required —
+            // we'll surface it through an in-app About / Credits
+            // screen before shipping.)
+            logo={false}
+            attribution={false}
+            compass={false}
+            scaleBar={false}
+            onDidFinishLoadingMap={() => {
+              // Fade the lime cover out the moment MapLibre signals
+              // the style + first frame are painted. The 240ms hold
+              // before fade gives the tiles a beat to colour in so
+              // the user never glimpses the loading texture
+              // underneath. (Direct equivalent of the old
+              // `onMapReady` callback on react-native-maps.)
               if (!mapTilesReady) setMapTilesReady(true);
               Animated.timing(mapCoverOpacity, {
                 toValue: 0,
@@ -1100,17 +1005,68 @@ const customMapStyle = React.useMemo(() => [
               }).start();
             }}
           >
-            {/* Service-area ring around the user — gives the map a sense of
-                coverage ("UniPool finds carpools within this radius").
-                Same idiom as Tesla Robotaxi's coverage polygon. */}
+            {/* Camera — drives both the initial framing (fallback /
+                user-coords region) and every imperative move below
+                via cameraRef. MapLibre's camera centers on a
+                [lng, lat] pair + zoom level, so we translate
+                `initialRegion`'s deltas with `deltaToZoom`. */}
+            <Camera
+              ref={cameraRef}
+              initialViewState={{
+                center: regionToCenter(initialRegion ?? FALLBACK_REGION),
+                zoom: deltaToZoom(
+                  (initialRegion ?? FALLBACK_REGION).latitudeDelta,
+                ),
+              }}
+            />
+
+            {/* Blue user-dot puck — only mounted once location
+                permission is granted (matches the old
+                `showsUserLocation` gating).
+                - `accuracy` paints the translucent radius ring
+                  (Google Maps' familiar pulse circle). Without it
+                  you only get a 15-pixel dot, easy to miss against
+                  the lime canvas.
+                - `heading` paints the directional fan arrow over the
+                  dot so the user can see which way they're facing.
+                - `minDisplacement={1}` keeps the puck smooth — updates
+                  on every metre of movement instead of MapLibre's
+                  default which only fires on larger jumps. */}
+            {isFocused && hasPermission && (
+              <UserLocation animated accuracy heading minDisplacement={1} />
+            )}
+
+            {/* Service-area ring around the user — gives the map a
+                sense of coverage ("UniPool finds carpools within
+                this radius"). Implemented as a GeoJSON polygon
+                rather than a CircleLayer because CircleLayer
+                radii are in *pixels*, not metres, which would
+                shrink-and-grow with zoom. */}
             {location && (
-              <Circle
-                center={location}
-                radius={5000}
-                strokeColor={AppColors.secondaryDarkGreen}
-                strokeWidth={2}
-                fillColor="rgba(181,215,80,0.12)"
-              />
+              <GeoJSONSource
+                id="service-area-source"
+                data={buildCirclePolygon(
+                  location.latitude,
+                  location.longitude,
+                  5000,
+                )}
+              >
+                <MapLibreLayer
+                  id="service-area-fill"
+                  type="fill"
+                  paint={{
+                    "fill-color": "rgba(181,215,80,0.12)",
+                  }}
+                />
+                <MapLibreLayer
+                  id="service-area-stroke"
+                  type="line"
+                  paint={{
+                    "line-color": AppColors.secondaryDarkGreen,
+                    "line-width": 2,
+                  }}
+                />
+              </GeoJSONSource>
             )}
 
             {/* Nearby ride pins — Bolt / Uber pattern: a forest chip
@@ -1148,35 +1104,62 @@ const customMapStyle = React.useMemo(() => [
               />
             ))}
 
-              {fromCoords && (
-                <Marker
-                  coordinate={fromCoords}
-                  title="From"
-                  description={rideDetails?.from}
-                  image={navigationImg}
+            {/* From / To pins — react-native-maps' Marker had a
+                native `image` prop that took an asset directly.
+                MapLibre Markers wrap arbitrary React Native views,
+                so we render the asset via `<Image>` inside the
+                marker. Anchored at the bottom of the icon so the
+                tip sits on the coordinate. */}
+            {fromCoords && (
+              <MapLibreMarker
+                lngLat={[fromCoords.longitude, fromCoords.latitude]}
+                anchor="bottom"
+              >
+                <Image
+                  source={navigationImg}
+                  style={styles.routePinImage}
+                  resizeMode="contain"
                 />
-              )}
+              </MapLibreMarker>
+            )}
 
-              {toCoords && (
-                <Marker
-                  coordinate={toCoords}
-                  title="To"
-                  description={rideDetails?.to}
-                  image={locationPinImg}
+            {toCoords && (
+              <MapLibreMarker
+                lngLat={[toCoords.longitude, toCoords.latitude]}
+                anchor="bottom"
+              >
+                <Image
+                  source={locationPinImg}
+                  style={styles.routePinImage}
+                  resizeMode="contain"
                 />
-              )}
+              </MapLibreMarker>
+            )}
 
             {fromCoords && toCoords && (
-              <Polyline
-                coordinates={routePolylineCoordinates}
-                strokeColor={AppColors.secondaryDarkGreen || "#2d5016"}
-                strokeWidth={3}
-                lineDashPattern={[10, 10]}
-                lineJoin="round"
-                lineCap="round"
-              />
+              <GeoJSONSource
+                id="route-source"
+                data={buildLineString(routePolylineCoordinates)}
+              >
+                <MapLibreLayer
+                  id="route-line"
+                  type="line"
+                  layout={{
+                    "line-join": "round",
+                    "line-cap": "round",
+                  }}
+                  paint={{
+                    "line-color": AppColors.secondaryDarkGreen || "#2d5016",
+                    "line-width": 3,
+                    // MapLibre style-spec dash pattern is in
+                    // line-width multiples (not pixels), so 3 width
+                    // × [3.3, 3.3] ≈ the old [10, 10] pixel dash.
+                    "line-dasharray": [3.3, 3.3],
+                  }}
+                />
+              </GeoJSONSource>
             )}
-          </MapView>
+          </MapLibreMap>
           {/* Lime fade-in cover. Sits on top of the MapView until the
               native surface signals `onMapReady`, then animates out.
               Replaces the previous "black flash" with a soft handoff
@@ -1185,7 +1168,7 @@ const customMapStyle = React.useMemo(() => [
           <Animated.View
             pointerEvents="none"
             style={[
-              StyleSheet.absoluteFillObject,
+              StyleSheet.absoluteFill,
               {
                 backgroundColor: AppColors.primaryLightGreen,
                 opacity: mapCoverOpacity,
@@ -1248,7 +1231,7 @@ const customMapStyle = React.useMemo(() => [
                 manage from here. */}
             {!isGuest && (
               <ActiveTripCard
-                cardFromState={appState?.home.active_trip_card ?? null}
+                cardFromState={appState?.home?.active_trip_card ?? null}
                 appStateResolved={appStateResolved}
                 onPressOpen={(rideId) =>
                   router.navigate(appHref("RideDetailsScreen", { rideId } as any))
@@ -1269,7 +1252,7 @@ const customMapStyle = React.useMemo(() => [
             {!isGuest && !hasActiveTripCard && (
               <View style={styles.previousTripsWrapper}>
                 <PreviousTripsSection
-                  ridesFromState={appState?.home.user_rides ?? []}
+                  ridesFromState={appState?.home?.user_rides ?? []}
                   appStateResolved={appStateResolved}
                   onHasTripsChange={setHasUserTrips}
                 />
@@ -1440,6 +1423,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: AppColors.secondaryDarkGreen,
     marginTop: -2,
+  },
+  // Size for the From / To pin asset rendered inside MapLibre markers.
+  // react-native-maps' `image={...}` prop sized the asset for us; under
+  // MapLibre the marker is a plain RN view so we need an explicit size.
+  // Matches the visual weight of the old native asset (~28×28 hit area).
+  routePinImage: {
+    width: 28,
+    height: 36,
   },
   loadingContainer: {
     flex: 1,

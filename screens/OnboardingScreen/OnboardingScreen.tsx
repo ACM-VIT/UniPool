@@ -13,6 +13,7 @@ import { useRouter } from "expo-router";
 import styles, { SLIDE_WIDTH, HERO_SIZE } from "./OnboardingScreen.styles";
 import AppColors from "../../design_systems/colors";
 import { appHref } from "../../navigation/routes";
+import { shouldShowPermissionsPrompt } from "../../utils/permissionsPrompt";
 import {
   RouteHero,
   FairPriceHero,
@@ -95,8 +96,7 @@ const OnboardingScreen: React.FC = () => {
       let needsPermissionsStep = false;
       if (target === "HomeScreen") {
         try {
-          const seen = await AsyncStorage.getItem("hasSeenPermissionsPrompt");
-          needsPermissionsStep = seen !== "true";
+          needsPermissionsStep = await shouldShowPermissionsPrompt();
         } catch {
           needsPermissionsStep = true;
         }

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, Image, ScrollView, TouchableOpacity, Platform, StatusBar } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { ProfileScreenProps } from "./ProfileScreen.types";
 import BrandInfo from "../../components/BrandInfo";
 import styles from "./ProfileScreen.styles";
@@ -75,7 +75,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     return Math.round(distanceKm * avgEmissionPerKm * carpoolSavingRate);
   };
 
-  const fetchRideStats = async () => {
+  const fetchRideStats = useCallback(async () => {
     try {
       const auth = require('@react-native-firebase/auth').getAuth();
       const currentUser = auth.currentUser;
@@ -87,8 +87,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       console.log("Fetching user rides and bookings for stats calculation...");
       
       const [hostedRidesResponse, bookingsResponse] = await Promise.allSettled([
-        apiUtil.get<any>("/user/rides"),
-        apiUtil.get<any>("/booking/list")
+        apiUtil.getUncached<any>("/user/rides"),
+        apiUtil.getUncached<any>("/booking/list")
       ]);
       
       let totalDistance = 0;
@@ -206,7 +206,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       // Set default values if calculation fails
       setCalculatedStats({ totalDistance: 0, co2Saved: 0, completedTrips: 0 });
     }
-  };
+  }, [apiUtil]);
 
   const estimateDistanceFromLocations = (startLocation: string, endLocation: string): number => {
     const start = startLocation.toLowerCase();
@@ -246,7 +246,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     return matches / longer.length;
   };
 
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -261,7 +261,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       }
 
       console.log("User authenticated, fetching profile data...");
-      const response = await apiUtil.get<ApiResponse>("/user/details");
+      const response = await apiUtil.getUncached<ApiResponse>("/user/details");
       setUserData(response.user);
       console.log("User data fetched successfully:", response);
     } catch (error: any) {
@@ -285,12 +285,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiUtil]);
 
   useEffect(() => {
     fetchUserData();
     fetchRideStats();
-  }, [apiUtil]);
+  }, [fetchRideStats, fetchUserData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchUserData();
+      void fetchRideStats();
+    }, [fetchRideStats, fetchUserData]),
+  );
 
 
   // "Bookings" row was removed — the Trips tab in the main nav is the

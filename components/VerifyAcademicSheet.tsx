@@ -220,13 +220,8 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
           </View>
 
           <View style={styles.resultsWrap}>
-            {searchQuery.trim().length < 2 ? (
-              <Text style={styles.resultsHint}>
-                Type at least 2 letters. You can search by name (e.g.
-                "Vellore"), by acronym ("VIT") or by email domain
-                ("vitstudent").
-              </Text>
-            ) : searching ? (
+            {searchQuery.trim().length < 2 ? null
+            : searching ? (
               <SearchSkeleton />
             ) : searchResults.length === 0 ? (
               <Text style={styles.resultsHint}>
@@ -292,7 +287,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
             style={[sheetUi.primaryBtn, busy && { opacity: 0.6 }]}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} />
+              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
             ) : (
               <Text style={sheetUi.primaryBtnText}>Send verification link</Text>
             )}
@@ -340,7 +335,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
             style={[sheetUi.primaryBtn, (busy || code.length !== 6) && { opacity: 0.4 }]}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} />
+              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
             ) : (
               <Text style={sheetUi.primaryBtnText}>Verify with code</Text>
             )}
@@ -353,7 +348,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
               onPress={() => setStep("email")}
               style={sheetUi.linkBtn}
             >
-              <Text style={sheetUi.linkBtnText}>← Change email</Text>
+              <Text style={sheetUi.linkBtnText}>Change email</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -456,6 +451,13 @@ export default VerifyAcademicSheet;
 
 const styles = {
   resultsWrap: {
+    // Fixed-height stage so the sheet stays a stable size as the
+    // results stream in / out — without it, the keyboard, the layout
+    // and the user's eye all shift each time results land. The
+    // Android keyboard-clip bug that this height once contributed to
+    // is now handled by SheetShell capping itself to the actual
+    // KeyboardAvoidingView height (post-codex rewrite), so it's safe
+    // to keep this reservation again.
     marginBottom: 12,
     height: 320,
   },

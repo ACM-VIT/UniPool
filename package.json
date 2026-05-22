@@ -12,6 +12,7 @@
     "@expo-google-fonts/nunito-sans": "^0.4.2",
     "@expo/metro-runtime": "~56.0.9",
     "@invertase/react-native-apple-authentication": "^2.5.1",
+    "@maplibre/maplibre-react-native": "^11.2.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
     "@react-native-firebase/app": "^24.0.0",

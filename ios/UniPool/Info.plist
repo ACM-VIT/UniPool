@@ -21,7 +21,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.0.0</string>
+    <string>2.0.7</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -47,7 +47,14 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>10</string>
+    <!-- App Store Connect requires every binary to declare its
+         encryption posture. UniPool only uses TLS (Firebase Auth,
+         REST API, HTTPS) which is exempt from the US BIS export
+         compliance rules. Setting this to false short-circuits the
+         upload-time gate that would otherwise demand a CCATS filing. -->
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>LSApplicationQueriesSchemes</key>
     <array>
       <string>upi</string>

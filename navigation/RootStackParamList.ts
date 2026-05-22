@@ -57,7 +57,11 @@ export type RootStackParamList = {
     hostPendingRequestBookingId?: string;
   };
   TripsListScreen: undefined;
-  RideDetailsScreen: { ride?: any; rideId?: string };
+  RideDetailsScreen: {
+    ride?: any;
+    rideId?: string;
+    expectedViewerState?: "pending_passenger" | "confirmed_passenger" | "rejected_passenger" | "host";
+  };
   NearbyRidesScreen: undefined;
   PrivacyPolicyScreen: undefined;
   TermsOfServiceScreen: undefined;

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    ExportOptions for App Store distribution of UniPool.
+
+    method: app-store-connect is the Xcode 15+ key. Xcode 14 used
+    app-store, which still works for backward compatibility but the
+    modern key is preferred. asc xcode export wraps xcodebuild
+    -exportArchive, which reads this file to decide how to package
+    the .xcarchive into an IPA.
+
+    teamID + signingStyle: with automatic signing, Xcode resolves the
+    Distribution certificate and App Store provisioning profile from
+    the developer account at archive time, given the team ID.
+
+    uploadSymbols: ships the dSYMs alongside the IPA so App Store
+    Connect / Xcode Organizer can symbolicate crash reports without
+    a manual dSYM upload step.
+
+    stripSwiftSymbols: removes Swift symbol names from the binary
+    (smaller IPA, slightly harder reverse engineering). Standard
+    practice for App Store builds.
+
+    generateAppStoreInformation: prompts xcodebuild to bundle the
+    App Store metadata it can derive from the archive into the
+    export output. Not strictly required, just convenient.
+
+    destination: omitted so the default (export to local IPA path)
+    applies. Swap to "upload" if we ever want a one-shot archive +
+    upload without the validate checkpoint.
+  -->
+  <key>method</key>
+  <string>app-store-connect</string>
+  <key>teamID</key>
+  <string>RZGK9VX3KX</string>
+  <key>signingStyle</key>
+  <string>automatic</string>
+  <key>uploadSymbols</key>
+  <true/>
+  <key>stripSwiftSymbols</key>
+  <true/>
+  <key>generateAppStoreInformation</key>
+  <true/>
+</dict>
+</plist>

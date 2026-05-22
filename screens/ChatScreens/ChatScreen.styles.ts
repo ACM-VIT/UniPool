@@ -799,24 +799,15 @@ export const chatMessagesStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 22,
-    paddingBottom: 80,
+    paddingTop: 52,
+    paddingBottom: 118,
   },
   pendingEmptyCard: {
     width: '100%',
     maxWidth: 360,
-    backgroundColor: AppColors.cardSurface,
-    borderRadius: 24,
-    // Snugger vertical rhythm now that the pill + title are gone —
-    // the route block is the only visual anchor, so the card can
-    // breathe horizontally instead of feeling top-heavy.
-    paddingVertical: 22,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
     alignItems: 'center',
-    shadowColor: AppColors.basicBlack,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 22,
-    elevation: 5,
   },
   pendingEmptyRouteBlock: {
     width: '100%',
@@ -881,9 +872,9 @@ export const chatMessagesStyles = StyleSheet.create({
   // explanatory caption — gives the card a sense of two zones
   // without needing a heavy divider or a section header.
   pendingEmptyDivider: {
-    width: '100%',
+    width: '84%',
     height: 1,
-    backgroundColor: 'rgba(38,59,51,0.10)',
+    backgroundColor: 'rgba(38,59,51,0.16)',
     marginTop: 18,
     marginBottom: 16,
   },
@@ -896,6 +887,7 @@ export const chatMessagesStyles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.05,
     paddingHorizontal: 6,
+    maxWidth: 280,
   },
 
   // Host-only accept/reject row inside the pending card. Two equal-

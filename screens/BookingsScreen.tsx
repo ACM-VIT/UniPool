@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import ChevronBack from "../components/ChevronBack";
 import RideCard from "../components/RideCard";
 import UpNextCard from "../components/UpNextCard";
 import AppColors from "../design_systems/colors";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useAuthGate } from "../contexts/AuthGate";
 import LoadingComponent from "../components/LoadingComponent";
 import { appHref } from "../navigation/routes";
@@ -82,7 +82,7 @@ const BookingsScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("upcoming");
 
-  const fetchAllUserRides = async (isRefresh = false) => {
+  const fetchAllUserRides = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
@@ -95,8 +95,8 @@ const BookingsScreen: React.FC = () => {
       }
 
       const [bookingsRes, hostedRes] = await Promise.allSettled([
-        apiUtil.get<BookingsResponse>("/booking/list"),
-        apiUtil.get<RawRide[]>("/user/rides"),
+        apiUtil.getUncached<BookingsResponse>("/booking/list"),
+        apiUtil.getUncached<RawRide[]>("/user/rides"),
       ]);
 
       const now = new Date();
@@ -172,11 +172,17 @@ const BookingsScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [apiUtil]);
 
   useEffect(() => {
     fetchAllUserRides();
-  }, [apiUtil]);
+  }, [fetchAllUserRides]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchAllUserRides(true);
+    }, [fetchAllUserRides]),
+  );
 
   // Soonest upcoming ride for the "Up next" hero. Must start within 24h to
   // earn the slot — otherwise the hero would always be the next future

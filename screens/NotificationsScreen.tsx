@@ -111,7 +111,7 @@ const NotificationsScreen: React.FC = () => {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator color={AppColors.secondaryDarkGreen} />
+          <ActivityIndicator color={AppColors.secondaryDarkGreen} accessibilityLabel="Loading" />
         </View>
       ) : (
         <ScrollView

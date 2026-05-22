@@ -3,6 +3,20 @@ import { View, Text, Image, StyleSheet, TextStyle, ViewStyle } from "react-nativ
 import AppColors from "../design_systems/colors";
 
 /**
+ * Cap the first letter of every word, leaving already-capitalised
+ * letters alone. The geocoder sometimes returns secondary segments
+ * lowercased ("VIT University, vellore", "Kempegowda Airport,
+ * bangalore"), and this fixes the casing at the display layer
+ * without touching "VIT", "ACM", or other intentionally-uppercase
+ * tokens already in the string. Word boundary is start-of-string
+ * or any of [whitespace , . ' - / (], which is broad enough to
+ * handle place names with punctuation like "St. Peter's" or "Port-
+ * au-Prince" without mangling.
+ */
+const titleCaseLocation = (s: string): string =>
+  s.replace(/(^|[\s,.'\-/(])([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
+
+/**
  * Canonical start → end route block used wherever the app shows
  * a from / to pair: trip cards, chat list rows, post-trip cards,
  * the ride-details hero, pending-DM headers, etc. Replaces the
@@ -84,7 +98,7 @@ const RouteStack: React.FC<RouteStackProps> = ({
           numberOfLines={numberOfLines}
           ellipsizeMode="tail"
         >
-          {start}
+          {titleCaseLocation(start)}
         </Text>
         {startAccessory ? <View style={styles.accessory}>{startAccessory}</View> : null}
       </View>
@@ -113,7 +127,7 @@ const RouteStack: React.FC<RouteStackProps> = ({
           numberOfLines={numberOfLines}
           ellipsizeMode="tail"
         >
-          {end}
+          {titleCaseLocation(end)}
         </Text>
         {endAccessory ? <View style={styles.accessory}>{endAccessory}</View> : null}
       </View>

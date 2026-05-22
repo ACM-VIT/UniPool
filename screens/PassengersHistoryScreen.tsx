@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, ListRenderItem, TouchableOpacity } from 'react-native';
 import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
 import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import LoadingComponent from '../components/LoadingComponent';
 import AppColors from '../design_systems/colors';
 import EmptyState from '../components/EmptyState';
@@ -24,8 +24,9 @@ const PassengersHistoryScreen: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    apiUtil.get<Passenger[]>("/user/passengers")
+  const loadPassengers = useCallback(() => {
+    setLoading(true);
+    apiUtil.getUncached<Passenger[]>("/user/passengers")
       .then((data: Passenger[]) => {
         setPassengers(data ?? []);
         setError(null);
@@ -36,6 +37,16 @@ const PassengersHistoryScreen: React.FC = () => {
       })
       .finally(() => setLoading(false));
   }, [apiUtil]);
+
+  useEffect(() => {
+    loadPassengers();
+  }, [loadPassengers]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPassengers();
+    }, [loadPassengers]),
+  );
 
   if (loading) return (
     <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}> 

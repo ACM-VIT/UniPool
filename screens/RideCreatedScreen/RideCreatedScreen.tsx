@@ -19,7 +19,10 @@ const RideCreatedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }>
     // where the host can share their ride link / QR with users.
     const timer = setTimeout(() => {
       if (params?.rideId) {
-        router.replace(appHref("RideDetailsScreen", { rideId: params.rideId } as any) as any);
+        router.replace(appHref("RideDetailsScreen", {
+          rideId: params.rideId,
+          expectedViewerState: "host",
+        } as any) as any);
       } else {
         router.replace(appHref("BookingScreen"));
       }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { passengerInfoStyles } from './ChatScreen.styles';
 import { PassengerInfoScreenProps, User } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
@@ -37,12 +37,12 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
     }
   }, [setNavBarVariant]);
 
-  useEffect(() => {
-    const fetchPassengers = async () => {
+  const fetchPassengers = useCallback(async () => {
       try {
+        setLoading(true);
         const involvedRides = await RideService.getInvolvedRides(apiUtil);
         
-        const currentUserResponse = await apiUtil.get<{user: {id: string, name: string}}>("/user/details");
+        const currentUserResponse = await apiUtil.getUncached<{user: {id: string, name: string}}>("/user/details");
         const fetchedCurrentUserId = currentUserResponse.user.id;
         setCurrentUserId(fetchedCurrentUserId);
         
@@ -51,7 +51,7 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
         
         for (const ride of involvedRides) {
           try {
-            const rideDetails = await apiUtil.get<{
+            const rideDetails = await apiUtil.getUncached<{
               host: {
                 id: string;
                 name: string;
@@ -108,10 +108,17 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
       } finally {
         setLoading(false);
       }
-    };
+    }, [apiUtil]);
 
+  useEffect(() => {
     fetchPassengers();
-  }, [apiUtil]);
+  }, [fetchPassengers]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchPassengers();
+    }, [fetchPassengers]),
+  );
 
   return (
     <View style={passengerInfoStyles.container}>

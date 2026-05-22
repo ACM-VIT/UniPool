@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { Animated, View, Image, Easing, Text, TouchableOpacity } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import styles from "./RideRequestedScreen.styles";
 import { appHref } from "../../navigation/routes";
-import { useApi } from "../../utils/ApiUtil";
+import { useUser } from "../../contexts/UserContext";
 
 // Confirmation interstitial. Lands with a spring scale + fade-in,
 // holds briefly so the user registers the moment, then morphs into a
@@ -30,8 +30,12 @@ type RouteParams = {
 const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }> = (props) => {
   const router = useRouter();
   const params = useLocalSearchParams<RouteParams>();
-  const { apiUtil } = useApi();
-  const [viewerId, setViewerId] = useState<string | null>(null);
+  // Viewer's UUID from the shared `UserContext`. Used to derive the
+  // dm_<sortedUUIDs> DM room id for the "Message host" CTA. Sourced
+  // from context so this screen doesn't re-fetch `/user/details` on
+  // top of whatever the host's notification flow already triggered.
+  const { user: viewer } = useUser();
+  const viewerId = viewer?.id ?? null;
 
   // Entrance: scale + fade. Read as a confident "done!" pulse instead
   // of a slideshow image.
@@ -78,14 +82,6 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
     return () => clearTimeout(timer);
   }, [props.setNavBarVariant]);
 
-  // Need the viewer's UUID to derive the dm_<sortedUUIDs> DM room id.
-  useEffect(() => {
-    apiUtil
-      .get<{ user: { id: string } }>("/user/details")
-      .then((r) => setViewerId(r.user.id))
-      .catch(() => {});
-  }, [apiUtil]);
-
   const rideId = (params.rideId as string) || "";
   const hostUserId = (params.hostUserId as string) || "";
   const hostUserName = (params.hostUserName as string) || "the host";
@@ -103,7 +99,10 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
   // rather than dead-ending.
   const viewRequestStatus = () => {
     if (rideId) {
-      router.replace(appHref("RideDetailsScreen", { rideId }));
+      router.replace(appHref("RideDetailsScreen", {
+        rideId,
+        expectedViewerState: "pending_passenger",
+      }));
     } else {
       router.replace(appHref("BookingScreen"));
     }

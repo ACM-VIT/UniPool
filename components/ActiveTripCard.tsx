@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Linking, Platform } from "react-native";
+import { useFocusEffect } from "expo-router";
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "./BrandedAlert";
@@ -60,7 +61,7 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
 
   const load = useCallback(async () => {
     try {
-      const resp = await apiUtil.get<{ trip_card: TripCard | null }>("/trip-card/active");
+      const resp = await apiUtil.getUncached<{ trip_card: TripCard | null }>("/trip-card/active");
       setCard(resp?.trip_card ?? null);
     } catch {
       // 204 No Content shows up here too — silent failure is fine,
@@ -73,6 +74,14 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
     if (controlledByAppState) return;
     load();
   }, [controlledByAppState, load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (controlledByAppState) return undefined;
+      void load();
+      return undefined;
+    }, [controlledByAppState, load]),
+  );
 
   useEffect(() => {
     if (!controlledByAppState || !appStateResolved) return;
@@ -110,7 +119,7 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
       // the user we couldn't open UPI directly.
       BrandedAlert.alert(
         "Pay outside the app",
-        `${hostFirst} hasn't added a UPI ID — settle the fare directly.`,
+        `${hostFirst} hasn't added a UPI ID. Settle the fare directly.`,
         [
           { text: "Cancel", style: "cancel" },
           { text: "Mark as paid", onPress: () => dismiss("paid") },
