@@ -9,6 +9,14 @@ import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "../components/BrandedAlert";
 import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/responsive";
+import type { LocationResult } from "../utils/LocationService";
+import {
+  getPopularLocations,
+  getPopularLocationsFallback,
+  searchLocationsWithFallback,
+} from "../utils/LocationService";
+
+type DefaultAddressResponse = { address?: string };
 
 const { width, height } = Dimensions.get("window");
 
@@ -28,10 +36,10 @@ const DefaultAddressScreen: React.FC = () => {
         if (cached) {
           setDefaultAddress(cached);
         } else {
-          const res = await apiUtil.get("/user/default-address");
-          if (typeof res === "object" && res !== null && "address" in res && typeof (res as any).address === "string") {
-            setDefaultAddress((res as any).address);
-            await AsyncStorage.setItem("defaultAddress", (res as any).address);
+          const res = await apiUtil.get<DefaultAddressResponse>("/user/default-address");
+          if (res && typeof res.address === "string") {
+            setDefaultAddress(res.address);
+            await AsyncStorage.setItem("defaultAddress", res.address);
           }
         }
       } catch (err) {
@@ -61,10 +69,15 @@ const DefaultAddressScreen: React.FC = () => {
     }
   };
 
-  // Location search UI state
+  // Location search UI state. `popularLocations` was previously typed
+  // as `string[]`, but the LocationService helpers always return
+  // LocationResult objects ({display_name, lat, lon, place_id, name,
+  // source, score}). Mapping that into <Text>{location}</Text> threw
+  // "Objects are not valid as a React child" the moment the sheet
+  // opened on a network with cached popular results.
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [popularLocations, setPopularLocations] = useState<string[]>([]);
+  const [searchResults, setSearchResults] = useState<LocationResult[]>([]);
+  const [popularLocations, setPopularLocations] = useState<LocationResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingPopular, setIsLoadingPopular] = useState(false);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
@@ -78,19 +91,16 @@ const DefaultAddressScreen: React.FC = () => {
     setSearchQuery(text);
     if (searchTimeout) clearTimeout(searchTimeout);
     try {
-      const { getPopularLocations, getPopularLocationsFallback } = require("../utils/LocationService");
-      const popular = await getPopularLocations(text, undefined);
+      const popular: LocationResult[] = await getPopularLocations(text, undefined);
       setPopularLocations(popular);
     } catch {
-      const { getPopularLocationsFallback } = require("../utils/LocationService");
       setPopularLocations(getPopularLocationsFallback(text));
     }
     if (text.length >= 2) {
       setIsSearching(true);
       const timeout = setTimeout(async () => {
         try {
-          const { searchLocationsWithFallback } = require("../utils/LocationService");
-          const results = await searchLocationsWithFallback(text);
+          const results: LocationResult[] = await searchLocationsWithFallback(text);
           setSearchResults(results);
         } catch {
           setSearchResults([]);
@@ -246,20 +256,30 @@ const DefaultAddressScreen: React.FC = () => {
               ) : popularLocations.length > 0 ? (
                 <>
                   <Text style={styles.sectionHeader}>Popular Locations</Text>
-                  {popularLocations.map((location, index) => (
-                    <TouchableOpacity
-                      key={`popular-${index}`}
-                      style={styles.locationItem}
-                      onPress={() => handleLocationSelect(location)}
-                      activeOpacity={0.7}
-                    >
-                      <Image
-                        source={require("../assets/location-pin.png")}
-                        style={styles.locationIcon}
-                      />
-                      <Text style={styles.locationText}>{location}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {popularLocations.map((location, index) => {
+                    // LocationResult — pick the same human-friendly
+                    // label the search-results branch below uses so
+                    // we never bind an object straight into a <Text>
+                    // child.
+                    const label =
+                      location.name ||
+                      location.display_name.split(",")[0] ||
+                      location.display_name;
+                    return (
+                      <TouchableOpacity
+                        key={`popular-${location.place_id || index}`}
+                        style={styles.locationItem}
+                        onPress={() => handleLocationSelect(label)}
+                        activeOpacity={0.7}
+                      >
+                        <Image
+                          source={require("../assets/location-pin.png")}
+                          style={styles.locationIcon}
+                        />
+                        <Text style={styles.locationText}>{label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </>
               ) : null}
 
