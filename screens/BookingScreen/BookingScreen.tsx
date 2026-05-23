@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -81,6 +81,15 @@ const BookingScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("upcoming");
+  // Once the user manually picks a tab, the smart-default effect
+  // stops nudging them — auto-defaulting on every refetch would
+  // yank the user out of the bucket they were looking at.
+  const userPickedTabRef = useRef(false);
+  // Ride IDs that have unrated counterparts for the viewer, surfaced
+  // as a "Rate ↗" pill on the corresponding past-tab row. Replaces
+  // the old BrandedAlert popup on HomeScreen focus — the affordance
+  // now lives in context next to the trip the rating belongs to.
+  const [pendingRatingRideIds, setPendingRatingRideIds] = useState<Set<string>>(new Set());
   // Backend UUID for the current user — NOT the Firebase uid.
   // `host_user_id` on a ride comes from the backend's `users.id`
   // column; the Firebase uid is unrelated. Comparing the two
@@ -124,16 +133,26 @@ const BookingScreen: React.FC = () => {
           setError("Please sign in to view your trips");
           return;
         }
-        // Resolve the backend user id + the user's rides in parallel
-        // so the Hosting / Upcoming bucketing has the right key to
-        // compare against `host_user_id`.
-        const [details, ridesData] = await Promise.all([
+        // Resolve the backend user id + the user's rides + the
+        // pending-ratings list in parallel. Pending-ratings used to
+        // be a Home-screen popup; it now drives the "Rate ↗" pill
+        // on past-trip rows so the affordance lives next to the
+        // trip you'd actually rate.
+        const [details, ridesData, ratingsResp] = await Promise.all([
           apiUtil.getUncached<any>("/user/details").catch(() => null),
           apiUtil.getUncached<any>("/user/rides"),
+          apiUtil
+            .getUncached<{ rides: { ride_id: string }[] }>("/user/pending-ratings")
+            .catch(() => ({ rides: [] })),
         ]);
         const myId: string | undefined = details?.user?.id ?? details?.id;
         if (myId) setCurrentUserId(myId);
         setRides(Array.isArray(ridesData) ? ridesData : []);
+        const pendingSet = new Set<string>();
+        for (const r of ratingsResp?.rides ?? []) {
+          if (r?.ride_id) pendingSet.add(r.ride_id);
+        }
+        setPendingRatingRideIds(pendingSet);
       } catch (err: any) {
         if (err.message === "AUTHENTICATION_REDIRECT") return;
         setError(err.message || "Failed to fetch trips");
@@ -209,6 +228,21 @@ const BookingScreen: React.FC = () => {
     hosting: buckets.hosting.length,
     past: buckets.past.length,
   };
+
+  // Smart default: on first load, jump to the first non-empty bucket
+  // in [upcoming, hosting, past] order so a user who hosts but has
+  // no upcoming bookings doesn't open the screen onto an empty pane
+  // and assume the app is broken. Once the user explicitly taps a
+  // tab, the auto-pick stops firing — refetches don't yank them
+  // back to a bucket they navigated away from.
+  useEffect(() => {
+    if (userPickedTabRef.current || loading) return;
+    const order: TabKey[] = ["upcoming", "hosting", "past"];
+    const winner = order.find((k) => counts[k] > 0);
+    if (winner && winner !== tab) {
+      setTab(winner);
+    }
+  }, [counts.upcoming, counts.hosting, counts.past, loading, tab]);
 
   const openRide = (rideId: string) => {
     if (!rideId) return;
@@ -320,7 +354,12 @@ const BookingScreen: React.FC = () => {
               key={key}
               style={[styles.tabBtn, active && styles.tabBtnActive]}
               activeOpacity={0.8}
-              onPress={() => setTab(key)}
+              onPress={() => {
+                // Mark the user as having explicitly chosen a tab so
+                // the smart-default effect stops nudging them.
+                userPickedTabRef.current = true;
+                setTab(key);
+              }}
             >
               <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
               {counts[key] > 0 ? (
@@ -375,6 +414,7 @@ const BookingScreen: React.FC = () => {
           renderItem={({ item }) => {
             const rideId = item.ride_id || item.id || "";
             const remaining = `${item.booked_seats}/${item.total_seats}`;
+            const hasPendingRating = pendingRatingRideIds.has(rideId);
             return (
               <View style={styles.cardSlot}>
                 <RideCard
@@ -395,6 +435,57 @@ const BookingScreen: React.FC = () => {
                   shareable
                   startTimeIso={item.start_time}
                 />
+                {/* Rating affordance — moved here from the old
+                    HomeScreen popup. Sits as a soft pill beneath
+                    the trip card. Only renders for past trips with
+                    at least one unrated counterpart (driven by
+                    /user/pending-ratings). Tapping routes into the
+                    rating screen for this specific ride; the
+                    BrandedAlert that used to interrupt every Home
+                    focus is gone. */}
+                {tab === "past" && hasPendingRating ? (
+                  <TouchableOpacity
+                    onPress={() =>
+                      router.navigate(
+                        appHref("PostTripRatingScreen", { rideId }),
+                      )
+                    }
+                    activeOpacity={0.85}
+                    accessibilityLabel="Rate this trip"
+                    style={{
+                      marginTop: 6,
+                      alignSelf: "flex-start",
+                      backgroundColor: "rgba(181,215,80,0.30)",
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 999,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: "NunitoSans_800ExtraBold",
+                        fontSize: 12,
+                        color: AppColors.secondaryDarkGreen,
+                        letterSpacing: 0.2,
+                      }}
+                    >
+                      Rate this trip
+                    </Text>
+                    <Text
+                      style={{
+                        fontFamily: "NunitoSans_800ExtraBold",
+                        fontSize: 12,
+                        color: AppColors.secondaryDarkGreen,
+                        opacity: 0.7,
+                      }}
+                    >
+                      ↗
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             );
           }}

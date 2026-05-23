@@ -771,38 +771,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     void loadHomeState();
   }, [loadHomeState, revalidate]);
 
-  // Post-trip rating prompt — fires when the user returns to Home
-  // and has at least one trip that's 12h+ past its scheduled start
-  // and not yet rated. Surfaces a BrandedAlert with a single CTA
-  // that opens the rating screen for the oldest pending trip. Skips
-  // for guests and re-runs at most once per focus, not on every
-  // render. A user who hits Later just sees the same prompt next
-  // time they open the app (no persistent dismissal — these are
-  // 5-second forms and we shouldn't have to nag).
-  const ratingPromptShownRef = useRef(false);
-  useEffect(() => {
-    if (!isFocused || isGuest || ratingPromptShownRef.current) return;
-    const pendingRatings = appState?.home?.pending_ratings ?? [];
-    if (!pendingRatings.length) return;
-
-    ratingPromptShownRef.current = true;
-    const trip = pendingRatings[0];
-    BrandedAlert.show({
-      title: "How was your ride?",
-      body: `Rate ${trip.pending_count === 1 ? "the host" : `${trip.pending_count} riders`} on ${trip.start_location} → ${trip.end_location}. Takes 5 seconds.`,
-      buttons: [
-        { label: "Later", style: "cancel" },
-        {
-          label: "Rate now",
-          style: "primary",
-          onPress: () =>
-            router.navigate(
-              appHref("PostTripRatingScreen", { rideId: trip.ride_id }),
-            ),
-        },
-      ],
-    });
-  }, [appState?.home?.pending_ratings, isFocused, isGuest, router]);
+  // The post-trip rating BrandedAlert that used to fire here is
+  // gone. It interrupted Home focus every time and gave no escape
+  // valve short of completing the form, which made it feel like a
+  // nag. The affordance now lives in context on each past-trip row
+  // in the Trips tab (driven by the same /user/pending-ratings
+  // payload), so a user can rate when they choose to instead of
+  // being prompted out of whatever they were doing on Home.
 
   const runMapCameraUpdate = useCallback((from: LocationCoords | null, to: LocationCoords | null) => {
     const camera = cameraRef.current;

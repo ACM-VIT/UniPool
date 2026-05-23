@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from "expo-router";
 import { chatMessagesStyles } from './ChatScreen.styles';
 import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
+import PaymentChatCard from '../../components/PaymentChatCard';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
 import { useTabletContentStyle } from '../../utils/responsive';
@@ -307,6 +308,12 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       timeLabel: formatChatTime(parsedTimestamp),
       status: isFromCurrentUser ? 'sent' : undefined,
       readBy: backendMsg.read_by || [],
+      // Carry server kind + metadata through so the render branch
+      // can dispatch on system message types (payment_marker /
+      // payment_ack). Falls back to 'user' for any older API
+      // response shape that omits the field.
+      kind: backendMsg.kind || 'user',
+      metadata: backendMsg.metadata || undefined,
     };
 
     return processedMessage;
@@ -1050,6 +1057,29 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   };
 
   const renderMessage = (msg: ChatMessage) => {
+    // System-message dispatch. payment_marker and payment_ack live
+    // in their own card component (PaymentChatCard) and break out
+    // of the message-bubble lane to span the chat full-width — the
+    // Apple-Pay-in-iMessage idiom. Anything else falls through to
+    // the regular text bubble.
+    if (msg.kind === 'payment_marker' || msg.kind === 'payment_ack') {
+      const viewerIsHostHere =
+        rideDetails?.isUserHost === true ||
+        (rideDetails?.hostUserId !== undefined && rideDetails.hostUserId === userUuid);
+      return (
+        <PaymentChatCard
+          key={msg.id}
+          message={msg}
+          viewerIsHost={viewerIsHostHere}
+          onAcked={() => {
+            // Bump the messages list so the inbound payment_ack
+            // socket push lands at the bottom — we don't need to
+            // refetch here, the broadcast covers it.
+          }}
+        />
+      );
+    }
+
     const me = msg.sender === 'user';
     const isGroup = chatParams.isGroupChat !== false;
     // Sender colour is reused for the in-bubble name so each

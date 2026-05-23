@@ -30,6 +30,17 @@ export interface ChatMessage {
   timeLabel?: string;
   status?: 'sending' | 'sent' | 'delivered' | 'seen' | 'failed';
   readBy?: string[];
+  /** Server-defined render dispatch. Default 'user' is a plain text
+   *  bubble; system kinds (payment_marker, payment_ack) render as
+   *  cards driven by `metadata`. Older API versions / cached
+   *  messages may not carry this field — treat undefined as 'user'. */
+  kind?: 'user' | 'payment_marker' | 'payment_ack' | string;
+  /** Structured sidecar for system kinds. Empty / undefined for
+   *  kind='user'. For payment_marker:
+   *      { booking_id, passenger_id, passenger_name, amount }
+   *  For payment_ack:
+   *      { booking_id, ack: 'received' | 'missing', amount } */
+  metadata?: Record<string, any>;
 }
 
 export interface ChatParticipant {
