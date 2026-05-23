@@ -76,10 +76,16 @@ const haversineKm = (
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 };
 
+// Trip distances we surface only need to read at a glance — under
+// 10km we keep one decimal ("4.3 km"), 10-1000km rounds to a whole
+// number ("280 km"), beyond 1000km we collapse to a "1.4k km"
+// shorthand to keep the chevron label compact. Real UniPool rides
+// don't cross the 1000km bar but the format stays sane if someone
+// posts a Vellore → Delhi run.
 const formatDistance = (km: number): string => {
   if (km < 10) return `${km.toFixed(1)} km`;
   if (km < 1000) return `${Math.round(km)} km`;
-  return `${(km / 1000).toFixed(1)}× 1000km`;
+  return `${(km / 1000).toFixed(1)}k km`;
 };
 
 /**
@@ -218,13 +224,15 @@ const DestinationChevron: React.FC<{
 
   const scale = reveal.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
   const opacity = reveal;
-  const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
-  const pulseOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] });
+  const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  const pulseOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0, 0.32] });
 
-  // The chevron SVG is drawn pointing RIGHT (positive x). We rotate
-  // the icon wrapper to align with the segment angle. RN rotates
-  // clockwise for positive degrees, but our `angle` is a standard
-  // math angle (CCW positive). Negate to convert.
+  // Inner chevron icon rotates to match the bearing toward the
+  // destination. RN rotates clockwise for positive degrees but our
+  // `angle` is a standard math angle (CCW positive), so negate.
+  // Crucially we DON'T rotate the whole pill — that would make the
+  // text upside down for west-facing destinations. Only the
+  // directional glyph rotates; the typography stays level.
   const rotateDeg = (-angle * 180) / Math.PI;
 
   return (
@@ -261,7 +269,129 @@ const DestinationChevron: React.FC<{
           <Text style={styles.chevronDistance}>{distance}</Text>
         </View>
       </View>
-      <View style={styles.chevronTail} />
+    </Animated.View>
+  );
+};
+
+/**
+ * Source breath — a continuous lime halo expanding out from the
+ * pickup coordinate while a preview is active. Tells the eye "this
+ * is where you are leaving from" without competing with the
+ * destination's single-shot arrival pulse. Rendered as a stacked
+ * pair of rings firing slightly out of phase so the breath reads
+ * as alive rather than mechanical.
+ */
+const SourceBreath: React.FC = () => {
+  const a = useRef(new Animated.Value(0)).current;
+  const b = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = (val: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(val, {
+            toValue: 1,
+            duration: 1600,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(val, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+    const la = loop(a, 0);
+    const lb = loop(b, 800);
+    la.start();
+    lb.start();
+    return () => {
+      la.stop();
+      lb.stop();
+    };
+  }, [a, b]);
+
+  const aScale = a.interpolate({ inputRange: [0, 1], outputRange: [0.6, 2.4] });
+  const aOpacity = a.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.5, 0.15, 0] });
+  const bScale = b.interpolate({ inputRange: [0, 1], outputRange: [0.6, 2.4] });
+  const bOpacity = b.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.5, 0.15, 0] });
+
+  return (
+    <View style={styles.sourceWrap} pointerEvents="none">
+      <Animated.View
+        style={[
+          styles.sourceRing,
+          { opacity: aOpacity, transform: [{ scale: aScale }] },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.sourceRing,
+          { opacity: bOpacity, transform: [{ scale: bScale }] },
+        ]}
+      />
+      <View style={styles.sourceCore} />
+    </View>
+  );
+};
+
+/**
+ * Destination terminus — small lime-ringed forest dot rendered when
+ * the destination IS on the visible map (no clip). Fades + scales in
+ * with a tiny arrival-pulse the moment the dotted line reaches it,
+ * so the eye sees the dots literally landing somewhere instead of
+ * the line just ending in space.
+ */
+const DestinationDot: React.FC<{ visible: boolean }> = ({ visible }) => {
+  const reveal = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!visible) {
+      reveal.setValue(0);
+      pulse.setValue(0);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(reveal, {
+        toValue: 1,
+        duration: 260,
+        easing: Easing.out(Easing.back(2)),
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.delay(120),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 700,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, [reveal, pulse, visible]);
+
+  const scale = reveal.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
+  const opacity = reveal;
+  const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.6] });
+  const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] });
+
+  return (
+    <Animated.View
+      style={[styles.destWrap, { opacity, transform: [{ scale }] }]}
+      pointerEvents="none"
+    >
+      <Animated.View
+        style={[
+          styles.destRing,
+          { opacity: ringOpacity, transform: [{ scale: ringScale }] },
+        ]}
+      />
+      <View style={styles.destOuter}>
+        <View style={styles.destInner} />
+      </View>
     </Animated.View>
   );
 };
@@ -283,6 +413,12 @@ const DestinationChevron: React.FC<{
  */
 const RoutePreviewLayer: React.FC<Props> = ({ ride, bounds, onTapDestination }) => {
   const [progress, setProgress] = useState(0);
+  // After the draw-in completes, a slow line-width pulse runs
+  // forever so the dots feel alive rather than freezing in place.
+  // Driven by a sine wave over time — much cheaper than animating
+  // the dasharray (which would force a per-frame paint object diff
+  // on MapLibre's bridge).
+  const [pulsePhase, setPulsePhase] = useState(0);
 
   // (Re)start the animation whenever the previewed ride changes.
   useEffect(() => {
@@ -292,10 +428,10 @@ const RoutePreviewLayer: React.FC<Props> = ({ ride, bounds, onTapDestination }) 
     }
     setProgress(0);
     const DURATION = 1100;
-    const start = Date.now();
+    const startTs = Date.now();
     let raf = 0;
     const tick = () => {
-      const elapsed = Date.now() - start;
+      const elapsed = Date.now() - startTs;
       const t = Math.min(1, elapsed / DURATION);
       // Cubic ease-out — feels like the line decelerates as it
       // reaches the destination, the same easing Apple Maps uses
@@ -307,6 +443,20 @@ const RoutePreviewLayer: React.FC<Props> = ({ ride, bounds, onTapDestination }) 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [ride?.id]);
+
+  // Slow living-breath on the line width once the dots have landed.
+  // 2.4s period, ~6% amplitude — visible if you watch, invisible if
+  // you don't. ~12fps is enough since the change is small and the
+  // human eye can't catch sub-pixel width oscillation any faster.
+  useEffect(() => {
+    if (!ride || progress < 0.97) return;
+    const tStart = Date.now();
+    const id = setInterval(() => {
+      const phase = ((Date.now() - tStart) / 2400) * Math.PI * 2;
+      setPulsePhase(Math.sin(phase));
+    }, 80);
+    return () => clearInterval(id);
+  }, [ride?.id, progress >= 0.97]);
 
   // Endpoint of the currently-visible segment of the dotted line.
   // When the destination is on-screen this is just the destination at
@@ -392,7 +542,13 @@ const RoutePreviewLayer: React.FC<Props> = ({ ride, bounds, onTapDestination }) 
             // gap nearly twice the line width". With line-cap round
             // the 0.4-unit dash renders as a near-circular dot.
             "line-dasharray": [0.4, 1.8],
-            "line-width": 4,
+            // Subtle living-breath on the line width — ~6%
+            // oscillation around the resting value once the dots
+            // have landed, zero during the draw-in (additive offset
+            // is 0 while pulsePhase is at its 0-init value). Keeps
+            // the line from feeling frozen without crossing into
+            // "needy" territory.
+            "line-width": 4 + pulsePhase * 0.24,
             "line-opacity": 0.95,
           }}
         />
@@ -417,6 +573,32 @@ const RoutePreviewLayer: React.FC<Props> = ({ ride, bounds, onTapDestination }) 
           />
         </MapLibreMarker>
       )}
+
+      {/* On-screen destination terminus — same arrival cue but on
+          the visible part of the map. Without this the dotted line
+          would just end mid-tile and the eye loses the destination.
+          Marker is non-interactive (pointerEvents=none on its
+          contents) because the floating card already provides the
+          "open this ride" affordance. */}
+      {!segment.clip && (
+        <MapLibreMarker
+          lngLat={segment.dest}
+          anchor="center"
+        >
+          <DestinationDot visible={progress >= 0.94} />
+        </MapLibreMarker>
+      )}
+
+      {/* Source breath — continuous halo at the pickup coord, fires
+          for the lifetime of the preview. Anchored at the actual
+          start coord so it sits under the ride's ClusterMarker pin
+          without disturbing it; the pin remains tappable above. */}
+      <MapLibreMarker
+        lngLat={segment.start}
+        anchor="center"
+      >
+        <SourceBreath />
+      </MapLibreMarker>
     </>
   );
 };
@@ -483,19 +665,74 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     marginTop: 1,
   },
-  // Down-pointing tail mirrors the ride pin tail so the chevron lands
-  // visually on the edge intersection point rather than floating
-  // above it.
-  chevronTail: {
-    width: 0,
-    height: 0,
-    marginTop: -1,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 7,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: AppColors.secondaryDarkGreen,
+  // ---------------------------------------------------------------
+  // Destination terminus (on-screen case)
+  // ---------------------------------------------------------------
+  destWrap: {
+    width: 22,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Outward-expanding lime ring — the "arrival pulse" that fires
+  // once when the line lands. Single-shot, not a continuous loop;
+  // continuous pulses on a static destination would compete with
+  // the source-pickup breath and become visual noise.
+  destRing: {
+    position: "absolute",
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: AppColors.primaryLightGreen,
+  },
+  destOuter: {
+    width: 16,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: AppColors.primaryLightGreen,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  destInner: {
+    width: 4,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: AppColors.primaryLightGreen,
+  },
+
+  // ---------------------------------------------------------------
+  // Source breath
+  // ---------------------------------------------------------------
+  sourceWrap: {
+    width: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sourceRing: {
+    position: "absolute",
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: AppColors.primaryLightGreen,
+  },
+  // A tiny forest dot at the centre of the breath keeps the breath
+  // visually anchored to a definite point even at small sizes,
+  // matching the way Find My / Maps pulse over a known location.
+  sourceCore: {
+    width: 6,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderWidth: 1.5,
+    borderColor: AppColors.primaryLightGreen,
   },
 });
 

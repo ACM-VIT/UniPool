@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Svg, { Path } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../design_systems/colors";
 import { haptic } from "./PressableScale";
@@ -115,18 +116,44 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
   const bottomOffset =
     insets.bottom + (Platform.OS === "ios" ? 96 : 86);
 
+  // Backdrop dim — a near-transparent forest wash over the map while
+  // the preview is active. Pulls the eye to the dotted line + the
+  // card without actually hiding any pins (the wash is light enough
+  // that ride pins underneath remain legible). Tap on the wash
+  // dismisses the preview, which is the canonical "close" gesture
+  // on Maps + Apple Pay sheets.
+  const backdrop = slide.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.18],
+  });
+
   return (
-    <Animated.View
-      pointerEvents="box-none"
-      style={[
-        styles.wrap,
-        {
-          bottom: bottomOffset,
-          opacity,
-          transform: [{ translateY }],
-        },
-      ]}
-    >
+    <>
+      <Animated.View
+        pointerEvents={slide ? "auto" : "none"}
+        style={[
+          styles.backdrop,
+          { opacity: backdrop },
+        ]}
+      >
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={handleDismiss}
+          accessibilityLabel="Dismiss ride preview"
+        />
+      </Animated.View>
+
+      <Animated.View
+        pointerEvents="box-none"
+        style={[
+          styles.wrap,
+          {
+            bottom: bottomOffset,
+            opacity,
+            transform: [{ translateY }],
+          },
+        ]}
+      >
       <Pressable
         onPress={handleOpen}
         android_ripple={undefined}
@@ -161,9 +188,17 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
             onPress={handleDismiss}
             style={styles.dismissBtn}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
             accessibilityLabel="Close ride preview"
           >
-            <Text style={styles.dismissGlyph}>×</Text>
+            <Svg width={12} height={12} viewBox="0 0 12 12">
+              <Path
+                d="M2 2 L 10 10 M 10 2 L 2 10"
+                stroke={AppColors.primaryLightGreen}
+                strokeWidth={2}
+                strokeLinecap="round"
+              />
+            </Svg>
           </TouchableOpacity>
         </View>
 
@@ -204,7 +239,8 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
           <Text style={styles.ctaArrow}>›</Text>
         </View>
       </Pressable>
-    </Animated.View>
+      </Animated.View>
+    </>
   );
 };
 
@@ -217,6 +253,17 @@ const shortenLoc = (s: string): string => {
 };
 
 const styles = StyleSheet.create({
+  // Soft forest wash over the map while the preview is active.
+  // Cap opacity at 0.18 so ride pins underneath remain legible.
+  backdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    zIndex: 11,
+  },
   wrap: {
     position: "absolute",
     left: 16,
@@ -306,13 +353,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  dismissGlyph: {
-    color: AppColors.primaryLightGreen,
-    fontSize: 18,
-    lineHeight: 18,
-    fontFamily: "NunitoSans_700Bold",
-    marginTop: -1,
-  },
+  // (Dismiss glyph is now a vector cross; the old text glyph style
+  // was removed because typeface-rendered × characters land at
+  // different baselines per platform and looked tilted on iOS.)
 
   metaRow: {
     flexDirection: "row",
