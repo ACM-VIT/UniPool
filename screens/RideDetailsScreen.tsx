@@ -53,6 +53,26 @@ const EyeGlyph: React.FC = () => (
   </Svg>
 );
 
+/**
+ * Speech-bubble glyph matching EyeGlyph's line-art weight. Lives
+ * next to View / Reject / Accept on a pending-requester row as the
+ * "DM this person" affordance — the only way for the host to ping
+ * a requester before accepting them, since pending passengers
+ * aren't in the ride group chat yet.
+ */
+const ChatBubbleGlyph: React.FC = () => (
+  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    <SvgPath
+      d="M4 7c0-1.6 1.4-3 3-3h10c1.6 0 3 1.4 3 3v8c0 1.6-1.4 3-3 3h-5l-4 3v-3H7c-1.6 0-3-1.4-3-3V7z"
+      stroke="#B5D750"
+      strokeWidth={2.2}
+      fill="none"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
 const { width, height } = Dimensions.get("window");
 
 const customMapStyle = [
@@ -849,6 +869,54 @@ const RideDetailsScreen: React.FC = () => {
     }
   }, [rideData?.id]); // Use rideData.id as dependency to avoid infinite loops
 
+  // Open the ride's group chat. Used by the "Open trip chat"
+  // button on both the host's Ride Management screen and the
+  // accepted-passenger Ride Details screen. Keeps the navigation
+  // shape identical to PassengerProfileSheet's onMessage handler
+  // for accepted passengers — single source of truth for the
+  // chatTitle convention ("Trip to <short-dest>").
+  const openRideChat = () => {
+    if (!rideData) return;
+    const shortDest = (
+      (rideData.end_location || "").split(",")[0] || ""
+    ).trim();
+    router.navigate(
+      appHref("ChatMessages", {
+        chatId: rideData.id || rideId || "",
+        chatTitle: shortDest ? `Trip to ${shortDest}` : "Trip",
+        isGroupChat: true,
+        hostUserId: rideData.host_user_id,
+      } as any),
+    );
+  };
+
+  // Open the host -> requester DM. Mirrors the pending-passenger
+  // branch of PassengerProfileSheet's onMessage. Used by the
+  // chat-bubble icon on a pending requester's row so the host can
+  // ping them without going through the profile sheet first.
+  const openRequesterDM = (req: any) => {
+    if (!rideData || !currentUserId) return;
+    const passengerName = req.passenger?.name || "Requester";
+    const sorted = [currentUserId, req.passenger_id].sort();
+    const dmRoomId = `dm_${sorted[0]}_${sorted[1]}`;
+    router.navigate(
+      appHref("ChatMessages", {
+        chatId: dmRoomId,
+        chatTitle: passengerName,
+        isGroupChat: false,
+        otherUserId: req.passenger_id,
+        pendingHostInquiry: true,
+        viewerIsHost: true,
+        pendingRideId: rideData.id,
+        pendingHostName: passengerName,
+        pendingRideStartLocation: rideData.start_location,
+        pendingRideEndLocation: rideData.end_location,
+        pendingRideStartTime: rideData.start_time,
+        hostPendingRequestBookingId: req.id,
+      } as any),
+    );
+  };
+
   const handleCancelRide = async () => {
     if (isActionLoading) return;
 
@@ -1505,6 +1573,24 @@ const RideDetailsScreen: React.FC = () => {
                           <EyeGlyph />
                           <Text style={styles.iconBtnLabel}>View</Text>
                         </TouchableOpacity>
+                        {/* DM the requester directly. Pending
+                            passengers aren't in the ride group chat,
+                            so this is the only way to ask them a
+                            question before deciding accept/reject —
+                            and the user (correctly) wanted it
+                            surfaced as a peer of the other row
+                            actions, not buried in the profile sheet. */}
+                        {!isHostBooking && !isCurrentUser ? (
+                          <TouchableOpacity
+                            style={styles.iconBtn}
+                            onPress={() => openRequesterDM(req)}
+                            activeOpacity={0.7}
+                            accessibilityLabel={`Direct message ${passengerName}`}
+                          >
+                            <ChatBubbleGlyph />
+                            <Text style={styles.iconBtnLabel}>DM</Text>
+                          </TouchableOpacity>
+                        ) : null}
                         <TouchableOpacity
                           style={styles.iconBtn}
                           onPress={() => {
@@ -1583,6 +1669,34 @@ const RideDetailsScreen: React.FC = () => {
         </ScrollView>
 
         <View style={styles.bottomContainer}>
+          {/* Primary chat affordance for the host. Sits above the
+              destructive slide-to-delete so it's the action they
+              reach for first — far more common than deleting a
+              ride. Forest pill, lime label — same brand vocabulary
+              as Share at the top of the screen. */}
+          <TouchableOpacity
+            onPress={openRideChat}
+            activeOpacity={0.85}
+            style={{
+              backgroundColor: AppColors.secondaryDarkGreen,
+              paddingVertical: 14,
+              borderRadius: 14,
+              alignItems: "center",
+              marginBottom: 10,
+            }}
+            accessibilityLabel="Open trip chat"
+          >
+            <Text
+              style={{
+                color: AppColors.primaryLightGreen,
+                fontFamily: "NunitoSans_800ExtraBold",
+                fontSize: 15,
+                letterSpacing: 0.2,
+              }}
+            >
+              Open trip chat
+            </Text>
+          </TouchableOpacity>
           {!rideOver ? (
             <SlideToCreate
               onSlideComplete={handleCancelRide}
@@ -1908,17 +2022,46 @@ const RideDetailsScreen: React.FC = () => {
           <View style={styles.bottomActionsContainer}>
             {!isRideOver(rideData.start_time) ? (
               <>
+                {/* Primary chat affordance for accepted passengers.
+                    Sits above the destructive slide-to-cancel — once
+                    you're in the trip, opening the chat is the
+                    common action; cancelling is rare. */}
+                {userBookingStatus === 'accepted' ? (
+                  <TouchableOpacity
+                    onPress={openRideChat}
+                    activeOpacity={0.85}
+                    style={{
+                      backgroundColor: AppColors.secondaryDarkGreen,
+                      paddingVertical: 14,
+                      borderRadius: 14,
+                      alignItems: "center",
+                      marginBottom: 10,
+                    }}
+                    accessibilityLabel="Open trip chat"
+                  >
+                    <Text
+                      style={{
+                        color: AppColors.primaryLightGreen,
+                        fontFamily: "NunitoSans_800ExtraBold",
+                        fontSize: 15,
+                        letterSpacing: 0.2,
+                      }}
+                    >
+                      Open trip chat
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
                 <SlideToCreate
                   onSlideComplete={handleCancelRide}
                   text={
-                    isActionLoading 
-                      ? "Cancelling..." 
+                    isActionLoading
+                      ? "Cancelling..."
                       : "Slide to cancel booking"
                   }
                   disabled={isActionLoading}
                   sliderIcon={require("../assets/slide.png")}
                 />
-                
+
               </>
             ) : (
               <View style={styles.rideOverBanner}>

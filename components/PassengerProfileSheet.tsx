@@ -198,9 +198,24 @@ const PassengerProfileSheet: React.FC<Props> = ({
                 <View style={styles.contactRow}>
                   <Text style={styles.contactValue}>{passenger.contact_number}</Text>
                   <View style={styles.contactActions}>
-                    <TouchableOpacity onPress={handleMessage} style={styles.contactBtn} activeOpacity={0.85}>
-                      <Text style={styles.contactBtnText}>Message</Text>
-                    </TouchableOpacity>
+                    {/* Chat button only for PENDING requesters — they
+                        aren't in the group chat yet, so a DM is the
+                        only way to reach them. For accepted
+                        passengers the group chat is the canonical
+                        surface, accessible via the "Open trip chat"
+                        button on RideDetailsScreen itself, so we
+                        skip the button here to avoid two competing
+                        message-action UIs. */}
+                    {passenger.request_status === "pending" ? (
+                      <TouchableOpacity
+                        onPress={handleMessage}
+                        style={styles.contactBtn}
+                        activeOpacity={0.85}
+                        accessibilityLabel={`Direct message ${firstName}`}
+                      >
+                        <Text style={styles.contactBtnText}>DM</Text>
+                      </TouchableOpacity>
+                    ) : null}
                     <TouchableOpacity onPress={handleCall} style={[styles.contactBtn, styles.contactBtnPrimary]} activeOpacity={0.85}>
                       <Text style={[styles.contactBtnText, styles.contactBtnTextPrimary]}>Call</Text>
                     </TouchableOpacity>
