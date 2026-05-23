@@ -128,8 +128,18 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
 
   const sendCode = async () => {
     const target = email.trim().toLowerCase();
-    if (!target || !target.includes("@")) {
-      BrandedAlert.alert("Invalid email", "Please enter a complete email address.");
+    // The institute-picker prefills `@<domain>` so the user only has
+    // to type the local part. If they tap Send before typing
+    // anything, `target` ends up `@<domain>` — passes the includes("@")
+    // check but is invalid. Explicitly require a non-empty local part.
+    // SES rejects empty-local emails with a cryptic "Missing local
+    // name" cascade we don't want surfacing to the user.
+    const atIdx = target.indexOf("@");
+    if (atIdx <= 0 || atIdx === target.length - 1) {
+      BrandedAlert.alert(
+        "Invalid email",
+        "Type the part before the @ — for example yourname@vitstudent.ac.in.",
+      );
       return;
     }
     if (picked && picked.domains.length > 0) {
@@ -186,9 +196,39 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
       haptic("success");
       onDismiss();
     } catch (err: any) {
+      // Self-healing fallback for the common "network blip after the
+      // server already processed" case. The verify-confirm endpoint
+      // is fast server-side (~50ms), but on a slow client connection
+      // the response can be lost while the row already got marked
+      // verified. Re-fetch /user/details before alerting — if the
+      // user is now verified, treat the apparent failure as success
+      // and dismiss the sheet quietly. Otherwise surface the alert.
+      const status = err?.response?.status;
+      // 4xx errors (wrong code / expired / cooldown) are real — show
+      // them immediately, don't waste a round-trip checking.
+      if (status && status >= 400 && status < 500) {
+        haptic("error");
+        BrandedAlert.alert(
+          err?.response?.data?.error?.includes("code") ? "Wrong code" : "Couldn't verify",
+          err?.response?.data?.error || "Try again in a moment.",
+        );
+        setBusy(false);
+        return;
+      }
+      try {
+        const me = await apiUtil.getUncached<{ user?: { is_email_verified?: boolean } }>("/user/details");
+        if (me?.user?.is_email_verified) {
+          if (me.user) onVerified(me.user);
+          haptic("success");
+          onDismiss();
+          return;
+        }
+      } catch {
+        // Re-check itself failed — fall through to the original alert.
+      }
       haptic("error");
       BrandedAlert.alert(
-        err?.response?.data?.error?.includes("code") ? "Wrong code" : "Couldn't verify",
+        "Couldn't verify",
         err?.response?.data?.error || "Try again in a moment.",
       );
     } finally {
