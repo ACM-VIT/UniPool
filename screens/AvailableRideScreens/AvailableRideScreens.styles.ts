@@ -234,6 +234,51 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     backgroundColor: "transparent",
+    // `relative` so the absolutely-positioned "Best match" badge overlay
+    // anchors to this wrapper's top-right corner instead of escaping
+    // into the scroll view.
+    position: "relative",
+  },
+  // "Best match" overlay pill — sits on the top-right corner of cards
+  // the server flagged via /ride/search.strict_matches (route within
+  // 500m on both ends + ±3h of requested time). pointerEvents="none"
+  // on the wrap so the pill never eats a tap meant for the card.
+  bestMatchBadgeWrap: {
+    position: "absolute",
+    top: -6,
+    right: 12,
+    zIndex: 10,
+    elevation: 6,
+  },
+  bestMatchBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "#B5D750", // lime
+    borderWidth: 1.5,
+    borderColor: "#263B33", // forest outline so the pill reads on
+    // ANY card background (forest, blush, dim — all variants of
+    // RideCard surface).
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+  },
+  bestMatchBadgeGlyph: {
+    color: "#263B33",
+    fontSize: 11,
+    fontFamily: "NunitoSans_800ExtraBold",
+    lineHeight: 13,
+  },
+  bestMatchBadgeText: {
+    color: "#263B33",
+    fontSize: 11,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
   },
   rideEnhancements: {
     // Sub-row that lives *under* the forest RideCard on the lime canvas.
