@@ -1066,11 +1066,23 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       const viewerIsHostHere =
         rideDetails?.isUserHost === true ||
         (rideDetails?.hostUserId !== undefined && rideDetails.hostUserId === userUuid);
+      // Self-marker guard: legacy rides where the host accidentally
+      // booked their own seat would post payment_markers naming the
+      // host as the passenger. Without this, the host sees Confirm
+      // received / Didn't receive buttons asking them to confirm a
+      // payment from themselves. Treat the viewer as NOT-host on
+      // those markers so the action buttons disappear and the card
+      // collapses to the read-only state.
+      const passengerIdMeta = String((msg.metadata as any)?.passenger_id || '');
+      const isSelfMarker =
+        msg.kind === 'payment_marker' &&
+        !!userUuid &&
+        passengerIdMeta === userUuid;
       return (
         <PaymentChatCard
           key={msg.id}
           message={msg}
-          viewerIsHost={viewerIsHostHere}
+          viewerIsHost={viewerIsHostHere && !isSelfMarker}
           onAcked={() => {
             // Bump the messages list so the inbound payment_ack
             // socket push lands at the bottom — we don't need to
