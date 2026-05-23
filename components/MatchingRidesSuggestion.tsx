@@ -14,6 +14,7 @@ import { useApi } from "../utils/ApiUtil";
 import { useRouter } from "expo-router";
 import { appHref } from "../navigation/routes";
 import { haptic } from "./PressableScale";
+import { displayRideLocation } from "../utils/LocationService";
 
 type Match = {
   id: string;
@@ -202,11 +203,11 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
               activeOpacity={0.85}
               style={[styles.matchRow, idx > 0 && styles.matchRowDivider]}
               onPress={() => open(m)}
-              accessibilityLabel={`Open ride from ${m.start_location} to ${m.end_location}`}
+              accessibilityLabel={`Open ride from ${displayRideLocation(m.start_location)} to ${displayRideLocation(m.end_location)}`}
             >
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.matchRoute} numberOfLines={1}>
-                  {m.start_location} → {m.end_location}
+                  {displayRideLocation(m.start_location)} → {displayRideLocation(m.end_location)}
                 </Text>
                 <Text style={styles.matchMeta} numberOfLines={1}>
                   {formatTime(m.start_time)} · ₹{m.total_price} · {seatsLabel(m)}

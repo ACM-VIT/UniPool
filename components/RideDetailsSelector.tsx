@@ -31,7 +31,8 @@ import {
   POPULAR_LOCATIONS,
   UserLocation,
   NearbyPlace,
-  getCoordinatesForLocation
+  getCoordinatesForLocation,
+  reverseGeocodeShort,
 } from "../utils/LocationService";
 
 const { width: rawWidth, height: rawHeight } = Dimensions.get("window");
@@ -362,6 +363,35 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         updatedFromCoords ?? undefined,
         updatedToCoords ?? undefined
       );
+    }
+
+    // "Current location" is a UX shorthand for "use my GPS pin", not a
+    // place name. If we persist the literal string into the ride
+    // payload it shows up on cards, trip history, and share text as
+    // "Current location" — meaningless to anyone but the picker. So
+    // when the user lands on that entry, reverse-geocode the GPS in
+    // the background and swap the from text to the resolved name
+    // ("MG Road, Bangalore"). Same request-id guard as the coords
+    // resolve below — if the user picks a different from before this
+    // completes, the swap is dropped.
+    if (isFrom && locationResult?.source === "current" && userLocation) {
+      const resolveId = coordinateResolveRequestRef.current.from;
+      void reverseGeocodeShort(userLocation).then((resolved) => {
+        if (!resolved) return;
+        if (coordinateResolveRequestRef.current.from !== resolveId) return;
+        setFromLocation(resolved);
+        const finalFromCoords = immediateCoords ?? fromCoordinates;
+        const finalToCoords = toCoordinates;
+        if (resolved && updatedTo && selectedDate) {
+          submitRideDetails(
+            resolved,
+            updatedTo,
+            selectedDate,
+            finalFromCoords ?? undefined,
+            finalToCoords ?? undefined,
+          );
+        }
+      });
     }
 
     if (immediateCoords) return;

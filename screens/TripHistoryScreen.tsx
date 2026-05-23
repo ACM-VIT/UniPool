@@ -18,6 +18,7 @@ import BrandInfo from "../components/BrandInfo";
 import ChevronBack from "../components/ChevronBack";
 import profileStyles from "./ProfileScreen/ProfileScreen.styles";
 import { useTabletContentStyle } from "../utils/responsive";
+import { displayRideLocation } from "../utils/LocationService";
 
 type Ride = {
   ride_id?: string;
@@ -173,7 +174,7 @@ const TripHistoryScreen: React.FC = () => {
                   }
                 >
                   <Text style={styles.route} numberOfLines={2}>
-                    {item.start_location} → {item.end_location}
+                    {displayRideLocation(item.start_location)} → {displayRideLocation(item.end_location)}
                   </Text>
                   <Text style={styles.meta}>
                     {formatWhen(item.start_time)} ·{" "}

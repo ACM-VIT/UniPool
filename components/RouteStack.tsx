@@ -1,12 +1,20 @@
 import React from "react";
 import { View, Text, Image, StyleSheet, TextStyle, ViewStyle } from "react-native";
 import AppColors from "../design_systems/colors";
+import { displayRideLocation } from "../utils/LocationService";
 
 const titleCaseLocation = (s: string): string =>
   s.replace(/(^|[\s,.'\-/(])([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
 
+// Every ride card, trip-card, history row, and chat-anchored route
+// preview pipes through this component, so swallowing the legacy
+// "Current location" string here is the cheapest place to fix it
+// once for all of them. displayRideLocation maps the literal string
+// to "Pickup point" before title-casing; everything else passes
+// through untouched.
 const displayLocation = (value: string | null | undefined, fallback: string) => {
-  const label = typeof value === "string" ? value.trim() : "";
+  const cleaned = displayRideLocation(value);
+  const label = cleaned.trim();
   return titleCaseLocation(label || fallback);
 };
 

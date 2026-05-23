@@ -5,6 +5,7 @@ import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "./BrandedAlert";
 import RouteStack from "./RouteStack";
+import { displayRideLocation } from "../utils/LocationService";
 
 export type TripCardStage = "upcoming" | "in_window" | "stale";
 
@@ -128,7 +129,7 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
       return;
     }
     const note = encodeURIComponent(
-      `UniPool · ${card.start_location} → ${card.end_location} · ${tripDate}`,
+      `UniPool · ${displayRideLocation(card.start_location)} → ${displayRideLocation(card.end_location)} · ${tripDate}`,
     );
     const url = `upi://pay?pa=${encodeURIComponent(card.host_upi_vpa)}&pn=${encodeURIComponent(hostFirst)}&am=${card.total_price}&tn=${note}&cu=INR`;
     try {

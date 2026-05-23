@@ -10,6 +10,7 @@ import {
   Platform,
 } from "react-native";
 import AppColors from "../design_systems/colors";
+import { displayRideLocation } from "../utils/LocationService";
 
 export type ClusteredRide = {
   id: string;
@@ -31,7 +32,12 @@ type Props = {
 };
 
 const shorten = (s: string, max = 40): string => {
-  const first = (s.split(",")[0] || "").trim();
+  // Same legacy-data defence as RoutePreviewCard.shortenLoc — if a
+  // ride was created back when picking "Current location" persisted
+  // that literal string, fall back to a neutral pickup label here
+  // rather than letting it leak onto the cluster header.
+  const safe = displayRideLocation(s);
+  const first = (safe.split(",")[0] || "").trim();
   return first.length > max ? first.slice(0, max - 1).trimEnd() + "…" : first;
 };
 

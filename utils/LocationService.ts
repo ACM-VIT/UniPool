@@ -4550,6 +4550,56 @@ export const getNearestCity = async (userLocation: UserLocation): Promise<string
   throw new Error("Unable to determine nearest city from user location")
 }
 
+/**
+ * Resolves a UserLocation into a short, human-readable place name suitable for
+ * the ride from/to fields ("MG Road, Bangalore"). Exists so the picker never
+ * persists the literal string "Current location" — that label is a UX
+ * shorthand for "use my GPS", not a real place, and surfacing it on ride
+ * cards / trip history / share text reads as a bug to viewers (whose
+ * "current location" is somewhere else entirely).
+ *
+ * Strategy: prefer street/name + city, fall back through subregion / region
+ * / district, finally null. The caller is expected to keep "Current location"
+ * as a transient placeholder until this resolves and then swap it in.
+ *
+ * Uses Expo's Location.reverseGeocodeAsync — same off-device call already
+ * used by getNearestCity above, so no new permission surface.
+ */
+export const reverseGeocodeShort = async (
+  userLocation: UserLocation,
+): Promise<string | null> => {
+  try {
+    const results = await Location.reverseGeocodeAsync({
+      latitude: userLocation.latitude,
+      longitude: userLocation.longitude,
+    })
+    if (results.length === 0) return null
+    const r = results[0]
+    // Street is most specific; `name` (POI) is the iOS fallback when
+    // street isn't populated (e.g. inside a campus / mall). District
+    // and subregion fill in for very dense / very sparse areas.
+    const primary =
+      r.street ||
+      r.name ||
+      r.district ||
+      r.subregion ||
+      r.city ||
+      null
+    // City pairs with primary to give the user enough context to tell
+    // it apart from another street with the same name in another city.
+    // If primary already equals the city, skip the comma.
+    const city = r.city || r.subregion || r.region || null
+    if (!primary && !city) return null
+    if (primary && city && primary !== city) {
+      return `${primary}, ${city}`
+    }
+    return primary || city
+  } catch (error) {
+    console.warn("reverseGeocodeShort failed", error)
+    return null
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Nearby Places Functions
 // -----------------------------------------------------------------------------
@@ -4673,6 +4723,26 @@ export const formatLocationName = (locationResult: LocationResult): string => {
     return `${parts[0].trim()}, ${parts[1].trim()}`
   }
   return locationResult.display_name
+}
+
+/**
+ * Render-time fallback for ride locations that were stored as the
+ * literal string "Current location" before reverseGeocodeShort was
+ * wired into the picker. "Current location" only means something to
+ * the person who picked it — and even for them, only at the moment
+ * of picking. Showing it on a ride card or trip history row, or in
+ * share text sent to other users, reads as a bug. Map it to a
+ * neutral "Pickup point" placeholder anywhere it would otherwise
+ * surface.
+ *
+ * Defensive null/whitespace handling so render sites can drop it in
+ * without `s ?? ""` boilerplate.
+ */
+export const displayRideLocation = (s: string | null | undefined): string => {
+  if (!s) return ""
+  const trimmed = s.trim()
+  if (trimmed.toLowerCase() === "current location") return "Pickup point"
+  return s
 }
 
 export const isLocationInIndia = (locationResult: LocationResult): boolean => {
