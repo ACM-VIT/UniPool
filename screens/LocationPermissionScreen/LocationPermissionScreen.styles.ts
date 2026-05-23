@@ -2,134 +2,124 @@ import { StyleSheet, Platform } from "react-native";
 import AppColors from "../../design_systems/colors";
 
 const styles = StyleSheet.create({
+  // Full-bleed lime canvas. Permission interstitials in best-in-class
+  // apps (Cash App, Lyft, Lime) stay in brand colour rather than
+  // bouncing to a neutral system sheet — owns the moment.
   root: {
     flex: 1,
-    // Lime brand canvas — the permissions moment stays in-brand
-    // (Cash App, Lime app, Lyft all keep their brand colour for hero
-    // permission interstitials).
     backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 28,
     paddingTop: Platform.OS === "ios" ? 56 : 36,
     paddingBottom: Platform.OS === "ios" ? 36 : 24,
-    // Centre the radar + text + CTA cluster vertically on iPad. On a
-    // phone `flex: 1` heroBlock fills the space and the rest stacks
-    // below it; on iPad the radar would otherwise eat ~1200pt of
-    // vertical canvas and push the CTAs to the very bottom edge.
-    // `justifyContent: center` re-anchors the cluster in the middle of
-    // whatever envelope we have.
-    justifyContent: "center",
-    // Everything inside is composed on the vertical axis of the radar
-    // — headline, subhead, feature rows, buttons all centred so the
-    // page reads as one composed unit rather than a left-rag list.
-    alignItems: "center",
   },
-  // Hero block — radar centerpiece. With root `justifyContent: center`
-  // the cluster centres regardless of canvas size, so we drop the
-  // `flex: 1` that previously stretched the radar block to fill the
-  // entire available height (great on phones, ugly on iPad).
-  heroBlock: {
-    alignSelf: "stretch",
+
+  // Single vertically-centred column for hero + copy + CTAs.
+  // `justifyContent: space-between` on root would push the CTAs to
+  // the absolute bottom edge; centring the whole cluster reads as
+  // intentional composition rather than top-and-bottom-anchored
+  // utility. The cluster's own internal spacing gives the rhythm.
+  center: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    gap: 28,
   },
-  // Centred copy block — everything reads on the vertical axis of the
-  // radar above. Capped width on wide phones so long lines don't
-  // stretch into airline-safety-card territory.
-  textBlock: {
-    width: "100%",
-    maxWidth: 400,
-    marginBottom: 20,
+
+  // Hero — the brand mark in a soft cream tile. The tile is a hair
+  // wider than the artwork so the lime blob in the illustration has
+  // a calming gutter against the cream rather than bleeding into the
+  // lime canvas behind it (the two limes would visually collide).
+  heroWrap: {
     alignItems: "center",
+    justifyContent: "center",
+  },
+  heroPlate: {
+    borderRadius: 32,
+    backgroundColor: AppColors.basicWhite,
+    alignItems: "center",
+    justifyContent: "center",
+    // Restrained shadow — gives the plate a sense of being a
+    // foreground card without over-styling. iOS picks up the shadow,
+    // Android the elevation; the values are tuned so both platforms
+    // land at roughly the same perceived lift.
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 28,
+    elevation: 6,
+  },
+
+  // Headline + subhead read as one tight pair. Capped width keeps
+  // the line breaks tasteful on wide phones + iPad.
+  copy: {
+    alignItems: "center",
+    maxWidth: 360,
+    paddingHorizontal: 4,
   },
   headline: {
     fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 28,
+    lineHeight: 34,
     color: AppColors.secondaryDarkGreen,
-    letterSpacing: -0.6,
-    marginBottom: 8,
+    letterSpacing: -0.7,
     textAlign: "center",
-    maxWidth: 320,
+    marginBottom: 10,
   },
   subhead: {
     fontFamily: "NunitoSans_400Regular",
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 15.5,
+    lineHeight: 23,
     color: AppColors.secondaryDarkGreen,
-    opacity: 0.78,
+    opacity: 0.72,
     textAlign: "center",
-    paddingHorizontal: 6,
-    maxWidth: 320,
+    letterSpacing: -0.1,
   },
-  // Two short "what this unlocks" lines. No pill background, no
-  // lime icon chip — those felt blocky next to the airy radar.
-  // Just a small forest glyph beside calm forest text, tightly
-  // aligned on the same baseline as the rest of the typography.
-  featureRows: {
-    marginTop: 18,
-    gap: 12,
-    alignSelf: "stretch",
-    paddingHorizontal: 6,
-  },
-  featureRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    maxWidth: 320,
-    alignSelf: "center",
-  },
-  featureText: {
-    flex: 1,
-    fontFamily: "NunitoSans_600SemiBold",
-    fontSize: 13.5,
-    lineHeight: 18,
-    color: AppColors.secondaryDarkGreen,
-    opacity: 0.85,
-    letterSpacing: -0.05,
-  },
-  // CTA block — primary + secondary stacked, centred. `width: 100%`
-  // so the primary button fills the column nicely; max-width keeps
-  // it from going edge-to-edge on tablets.
+
+  // CTA stack — full-width forest primary, low-key secondary below.
+  // Same button system as Home / SignUp / AvailableRides empty state
+  // so the action affordance is muscle-memory by the time the user
+  // lands here.
   ctaBlock: {
     width: "100%",
     maxWidth: 420,
     alignItems: "stretch",
-    gap: 4,
+    gap: 6,
   },
   primaryBtn: {
     height: 56,
     borderRadius: 16,
-    // Forest CTA on the lime canvas — same button system as Home,
-    // SignUp, Trips, AvailableRides empty state.
     backgroundColor: AppColors.secondaryDarkGreen,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: AppColors.basicBlack,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 2,
+    shadowRadius: 14,
+    elevation: 3,
   },
   primaryBtnText: {
     fontFamily: "NunitoSans_800ExtraBold",
     fontSize: 17,
     color: AppColors.primaryLightGreen,
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
   secondaryBtn: {
     height: 44,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 4,
+    marginTop: 2,
   },
   secondaryBtnText: {
     fontFamily: "NunitoSans_700Bold",
     fontSize: 14,
     color: AppColors.secondaryDarkGreen,
-    opacity: 0.65,
+    opacity: 0.6,
     letterSpacing: 0.1,
   },
+
+  // Tiny bottom spacer so the secondary CTA doesn't kiss the nav-bar
+  // line on older Android skins that under-report the bottom inset.
+  androidPad: { height: 8 },
 });
 
 export default styles;
