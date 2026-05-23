@@ -13,6 +13,7 @@ import RouteStack from '../../components/RouteStack';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
 import { useAuthGate } from '../../contexts/AuthGate';
+import { useUser } from '../../contexts/UserContext';
 import { appHref, useDecodedLocalSearchParams } from '../../navigation/routes';
 import { useTabletContentStyle } from "../../utils/responsive";
 
@@ -286,6 +287,11 @@ const AvailableRideScreenSelected: React.FC = () => {
   const routeParams = useDecodedLocalSearchParams<{ ride?: any }>();
   const { apiUtil } = useApi();
   const { requireAuth } = useAuthGate();
+  // For the edge case where someone lands on this screen with their
+  // own ride (deep link, stale cached navigation, etc.). The home-map
+  // filter already drops own rides from pins, but if we get here we
+  // want to detect it up front and skip the "Slide to request" UI.
+  const { user: viewerUser } = useUser();
   const [location, setLocation] = useState<any>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
@@ -297,8 +303,19 @@ const AvailableRideScreenSelected: React.FC = () => {
   // /ride/details when they tap a map pin (the public /rides/nearby
   // endpoint doesn't emit viewer_state). Either way we render off
   // this single field instead of deriving from isHost / bookings.
+  //
+  // Seed "host" immediately if we can already prove ownership from
+  // the route params (the nearby payload carries host_user_id and we
+  // know the signed-in user's id). Without this, the slide-to-request
+  // flashes for the few hundred ms it takes /ride/details to come
+  // back, then snaps to the "You're hosting this ride" notice.
+  const seededRide = routeParams?.ride as any;
+  const seededIsOwn =
+    !!viewerUser?.id &&
+    !!seededRide?.host_user_id &&
+    seededRide.host_user_id === viewerUser.id;
   const [viewerState, setViewerState] = useState<string | null>(
-    (routeParams?.ride as any)?.viewer_state ?? null,
+    seededRide?.viewer_state ?? (seededIsOwn ? "host" : null),
   );
   const [viewerActions, setViewerActions] = useState<{
     can_request_seat?: boolean;

@@ -26,6 +26,10 @@ export type HomeRide = {
 
 export type NearbyRideSummary = {
   id: string;
+  // Included so the home-map can hide the viewer's own rides from
+  // the pin set (an unauthenticated `/rides/nearby` can't filter
+  // server-side without bloating its cache key with auth identity).
+  host_user_id: string;
   start_location: string;
   end_location: string;
   start_latitude: number;
