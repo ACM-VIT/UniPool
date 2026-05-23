@@ -37,6 +37,9 @@ export type RootStackParamList = {
     toLocation: string;
     fromCoordinates?: { latitude: number; longitude: number };
     toCoordinates?: { latitude: number; longitude: number };
+    // ISO string from the home search date/time picker. The backend
+    // uses this for contextual ranking; `date` alone is too coarse.
+    targetTime?: string;
   };
   AvailableRidesSelectedScreen: { ride?: any } | undefined;
   DefaultAddressScreen: undefined;

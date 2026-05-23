@@ -24,6 +24,12 @@ import { displayRideLocation } from "../utils/LocationService";
  * (placeholder landing for now).
  */
 const SHARE_HOST = "https://unipool.acmvit.in";
+// Direct install target for first-time recipients. Keep this off the
+// /download SPA so link previewers and JS-blocked clients still get a
+// concrete store URL. Swap to an App Store URL or server redirect when
+// iOS distribution is public.
+const DOWNLOAD_URL =
+  "https://play.google.com/store/apps/details?id=com.carpoolitapp&hl=en_IN";
 
 type Props = {
   visible: boolean;
@@ -110,9 +116,13 @@ const ShareRideSheet: React.FC<Props> = ({
   const dateLabel = useMemo(() => formatShareDate(startTime), [startTime]);
   const timeLabel = useMemo(() => formatShareTime(startTime), [startTime]);
 
+  // Keep each URL on its own row and make the ride link the last URL
+  // in the body. iOS share targets pick previews from message URLs
+  // inconsistently, so the canonical ride URL should be the final
+  // surface they see.
   const shareMessage = useMemo(
     () =>
-      `UniPool with me from ${displayRideLocation(startLocation)} to ${displayRideLocation(endLocation)} on ${dateLabel} at ${timeLabel}: ${deeplink}`,
+      `I'm hosting a UniPool ride from ${displayRideLocation(startLocation)} to ${displayRideLocation(endLocation)} on ${dateLabel} at ${timeLabel}.\n\nNew to UniPool?\n${DOWNLOAD_URL}\n\nGrab a seat:\n${deeplink}`,
     [startLocation, endLocation, dateLabel, timeLabel, deeplink],
   );
 
@@ -120,7 +130,6 @@ const ShareRideSheet: React.FC<Props> = ({
     try {
       await Share.share({
         message: shareMessage,
-        url: Platform.OS === "ios" ? deeplink : undefined,
         title: "Join my ride on UniPool",
       });
     } catch {

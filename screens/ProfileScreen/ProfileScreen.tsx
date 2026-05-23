@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, Image, ScrollView, TouchableOpacity, Platform, StatusBar } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { View, Text, Image, ScrollView, TouchableOpacity, Platform, StatusBar, Share, Linking } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { ProfileScreenProps } from "./ProfileScreen.types";
 import BrandInfo from "../../components/BrandInfo";
@@ -57,6 +57,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   // stretching the full 1032pt canvas. Hook returns null on phones.
   const tabletContentStyle = useTabletContentStyle();
   const tabletScrollContentStyle = useTabletScrollContentStyle();
+  const screenActiveRef = useRef(true);
+
+  const showProfileError = useCallback((message: string) => {
+    if (screenActiveRef.current) {
+      BrandedAlert.alert('Error', message);
+    }
+  }, []);
 
   const profileScreenNavItems = bottomNavItems.map((item, index) => ({
     ...item,
@@ -294,6 +301,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   }, [apiUtil]);
 
   useEffect(() => {
+    return () => {
+      screenActiveRef.current = false;
+    };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      screenActiveRef.current = true;
+      return () => {
+        screenActiveRef.current = false;
+      };
+    }, []),
+  );
+
+  useEffect(() => {
     fetchUserData();
     fetchRideStats();
   }, [fetchRideStats, fetchUserData]);
@@ -395,35 +417,40 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   ];
 
   const openACMVITSite = () => {
-    import('react-native').then(({ Linking }) => {
-      Linking.openURL('https://acmvit.in');
+    Linking.openURL('https://acmvit.in').catch((error) => {
+      console.warn('[ProfileScreen] ACM-VIT link failed', error);
+      showProfileError('Unable to open the link.');
     });
   };
 
   const openHelpEmail = () => {
-    import('react-native').then(({ Linking }) => {
-      Linking.openURL('mailto:outreach.acmvit@gmail.com');
+    Linking.openURL('mailto:outreach.acmvit@gmail.com').catch((error) => {
+      console.warn('[ProfileScreen] help email failed', error);
+      showProfileError('Unable to open mail app.');
     });
   };
 
   const openShareDialog = async () => {
-    const { Share } = await import('react-native');
-    Share.share({
-      message: 'Check out UniPool by ACM-VIT: https://acmvit.in',
-      url: 'https://acmvit.in',
-      title: 'ACM-VIT',
-    });
+    try {
+      await Share.share({
+        message: 'Check out UniPool by ACM-VIT: https://acmvit.in',
+        url: 'https://acmvit.in',
+        title: 'ACM-VIT',
+      });
+    } catch (error) {
+      console.warn('[ProfileScreen] share failed', error);
+      showProfileError('Unable to open share sheet.');
+    }
   };
 
   const openRateApp = () => {
-    import('react-native').then(({ Linking, Platform }) => {
-      const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.carpoolitapp';
-      // App Store URL will use bundle ID - update with actual App ID after first submission
-      const appStoreUrl = 'https://apps.apple.com/app/unipool/id6740000000';
-      const url = Platform.OS === 'ios' ? appStoreUrl : playStoreUrl;
-      Linking.openURL(url).catch(() => {
-        BrandedAlert.alert('Error', 'Unable to open app store. Please search for UniPool manually.');
-      });
+    const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.carpoolitapp';
+    // App Store URL will use bundle ID - update with actual App ID after first submission
+    const appStoreUrl = 'https://apps.apple.com/app/unipool/id6740000000';
+    const url = Platform.OS === 'ios' ? appStoreUrl : playStoreUrl;
+    Linking.openURL(url).catch((error) => {
+      console.warn('[ProfileScreen] app store link failed', error);
+      showProfileError('Unable to open app store. Please search for UniPool manually.');
     });
   };
 

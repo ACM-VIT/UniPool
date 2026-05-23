@@ -1,6 +1,7 @@
 import { ChatMessage } from "../screens/ChatScreens/ChatScreen.types";
 import ApiUtil from "./ApiUtil";
 import baseURL from "../config/urlconfig";
+import { getAuth, getIdTokenResult } from "@react-native-firebase/auth";
 
 export type FetchMessagesResult = {
   messages: ChatMessage[];
@@ -83,14 +84,24 @@ export default class ChatService {
     }
   }
 
-  static openSocket(
+  static async openSocket(
     userId: string,
     roomId: string,
     onMessage: (evt: MessageEvent) => void,
-  ): WebSocket {
+  ): Promise<WebSocket> {
     const httpBase = baseURL.replace(/\/$/, "");
     const derivedWsBase = httpBase.replace(/^http/, "ws");
-    const wsUrl = `${process.env.EXPO_PUBLIC_WS_URL || derivedWsBase}/ws?user_id=${userId}&room_id=${roomId}`;
+    const currentUser = getAuth().currentUser;
+    if (!currentUser) {
+      throw new Error("Cannot open chat socket without a signed-in user");
+    }
+    const tokenResult = await getIdTokenResult(currentUser);
+    const params = new URLSearchParams({
+      user_id: userId,
+      room_id: roomId,
+      token: tokenResult.token,
+    });
+    const wsUrl = `${process.env.EXPO_PUBLIC_WS_URL || derivedWsBase}/ws?${params.toString()}`;
     const ws = new WebSocket(wsUrl);
     ws.onmessage = onMessage;
     ws.onerror = (e) => {

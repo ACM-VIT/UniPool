@@ -11,6 +11,7 @@ import BrandInfo from "../../components/BrandInfo";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import RideCard from "../../components/RideCard";
 import RideCardSkeleton from "../../components/RideCardSkeleton";
+import MatchInsightsShelf, { MatchSignal } from "../../components/MatchInsightsShelf";
 import AppColors from "../../design_systems/colors";
 
 import { useApi } from "../../utils/ApiUtil";
@@ -61,6 +62,7 @@ interface RideData {
   total_distance?: number;
   relevance_score?: number;
   match_reason?: string;
+  match_signals?: MatchSignal[];
 }
 
 interface ApiResponse {
@@ -157,6 +159,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const [toLocation, setToLocation] = useState("");
   const [fromCoordinates, setFromCoordinates] = useState<{ latitude: number; longitude: number } | undefined>(undefined);
   const [toCoordinates, setToCoordinates] = useState<{ latitude: number; longitude: number } | undefined>(undefined);
+  const [targetTimeIso, setTargetTimeIso] = useState("");
   
   const [filters, setFilters] = useState<SearchFilters>({
     maxPrice: '',
@@ -185,6 +188,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     let newToLocation = "";
     let newFromCoordinates: { latitude: number; longitude: number } | undefined;
     let newToCoordinates: { latitude: number; longitude: number } | undefined;
+    let newTargetTimeIso = "";
 
     if (routeParams && typeof routeParams === "object") {
       if ("fromLocation" in routeParams && typeof (routeParams as any).fromLocation === "string") {
@@ -198,6 +202,9 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       }
       if ("toCoordinates" in routeParams && (routeParams as any).toCoordinates) {
         newToCoordinates = (routeParams as any).toCoordinates;
+      }
+      if ("targetTime" in routeParams && typeof (routeParams as any).targetTime === "string") {
+        newTargetTimeIso = (routeParams as any).targetTime;
       }
       if ((routeParams as any).params) {
         const nested = (routeParams as any).params;
@@ -213,19 +220,27 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         if (nested.toCoordinates) {
           newToCoordinates = nested.toCoordinates;
         }
+        if (typeof nested.targetTime === "string") {
+          newTargetTimeIso = nested.targetTime;
+        }
       }
     }
 
-    console.log('Route params updated:', { newFromLocation, newToLocation, newFromCoordinates, newToCoordinates });
+    console.log('Route params updated:', { newFromLocation, newToLocation, newFromCoordinates, newToCoordinates, newTargetTimeIso });
     
     setFromLocation(newFromLocation);
     setToLocation(newToLocation);
     setFromCoordinates(newFromCoordinates);
     setToCoordinates(newToCoordinates);
+    setTargetTimeIso(newTargetTimeIso);
   }, [routeParams]);
 
   const buildQueryParams = () => {
     let queryParams = `start_location=${encodeURIComponent(fromLocation)}&end_location=${encodeURIComponent(toLocation)}`;
+    const targetDate =
+      targetTimeIso && !Number.isNaN(new Date(targetTimeIso).getTime())
+        ? formatDateParam(new Date(targetTimeIso))
+        : "";
     
     if (fromCoordinates) {
       queryParams += `&start_lat=${fromCoordinates.latitude}&start_lon=${fromCoordinates.longitude}`;
@@ -250,8 +265,12 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     if (filters.radius !== '10') {
       queryParams += `&radius=${filters.radius}`;
     }
-    if (filters.date) {
-      queryParams += `&date=${filters.date}`;
+    const effectiveDate = filters.date || targetDate;
+    if (effectiveDate) {
+      queryParams += `&date=${effectiveDate}`;
+    }
+    if (targetTimeIso && (!filters.date || filters.date === targetDate)) {
+      queryParams += `&target_time=${encodeURIComponent(targetTimeIso)}`;
     }
     
     return queryParams;
@@ -334,7 +353,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       setNavBarIcon(require("../../assets/wallet.png"));
       setNavBarItems(bottomNavItems);
     };
-  }, [isFocused, fromLocation, toLocation, fromCoordinates, toCoordinates]);
+  }, [isFocused, fromLocation, toLocation, fromCoordinates, toCoordinates, targetTimeIso]);
 
   useEffect(() => {
     if (!isFocused) return;
@@ -375,6 +394,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   };
 
   const clearFilters = () => {
+    setTargetTimeIso("");
     setFilters({
       maxPrice: '',
       minSeats: '',
@@ -996,6 +1016,18 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                     )
                   }
                 />
+
+                {/* Layered insight shelf — chips that explain why the ride
+                    ranked where it did (exact-time match, on-the-way,
+                    trusted host, etc.). Slots under the card with a
+                    small negative top margin so it reads as part of the
+                    same composed object, not a separate strip. */}
+                {Array.isArray(ride.match_signals) && ride.match_signals.length > 0 ? (
+                  <MatchInsightsShelf
+                    signals={ride.match_signals}
+                    isBestMatch={isBestMatch}
+                  />
+                ) : null}
 
                 {/* Sub-row beneath card: host + walking distances. Kept compact
                     so the BlaBlaCar-style card stays the visual anchor. */}

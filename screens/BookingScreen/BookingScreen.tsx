@@ -47,6 +47,14 @@ export interface RideData {
     | "available"
     | "full"
     | "past";
+  actions?: {
+    can_request_seat?: boolean;
+    can_cancel_booking?: boolean;
+    can_cancel_ride?: boolean;
+    can_accept_passengers?: boolean;
+    can_open_chat?: boolean;
+    can_rate?: boolean;
+  };
   viewer_booking_id?: string;
 }
 
@@ -86,11 +94,6 @@ const BookingScreen: React.FC = () => {
   // stops nudging them — auto-defaulting on every refetch would
   // yank the user out of the bucket they were looking at.
   const userPickedTabRef = useRef(false);
-  // Ride IDs that have unrated counterparts for the viewer, surfaced
-  // as a "Rate ↗" pill on the corresponding past-tab row. Replaces
-  // the old BrandedAlert popup on HomeScreen focus — the affordance
-  // now lives in context next to the trip the rating belongs to.
-  const [pendingRatingRideIds, setPendingRatingRideIds] = useState<Set<string>>(new Set());
   // Backend UUID for the current user — NOT the Firebase uid.
   // `host_user_id` on a ride comes from the backend's `users.id`
   // column; the Firebase uid is unrelated. Comparing the two
@@ -134,26 +137,17 @@ const BookingScreen: React.FC = () => {
           setError("Please sign in to view your trips");
           return;
         }
-        // Resolve the backend user id + the user's rides + the
-        // pending-ratings list in parallel. Pending-ratings used to
-        // be a Home-screen popup; it now drives the "Rate ↗" pill
-        // on past-trip rows so the affordance lives next to the
-        // trip you'd actually rate.
-        const [details, ridesData, ratingsResp] = await Promise.all([
+        // Resolve the backend user id + the user's rides in parallel.
+        // `/user/rides` now carries `actions.can_rate`, so each row
+        // has the full render contract without a separate
+        // pending-ratings fetch.
+        const [details, ridesData] = await Promise.all([
           apiUtil.getUncached<any>("/user/details").catch(() => null),
           apiUtil.getUncached<any>("/user/rides"),
-          apiUtil
-            .getUncached<{ rides: { ride_id: string }[] }>("/user/pending-ratings")
-            .catch(() => ({ rides: [] })),
         ]);
         const myId: string | undefined = details?.user?.id ?? details?.id;
         if (myId) setCurrentUserId(myId);
         setRides(Array.isArray(ridesData) ? ridesData : []);
-        const pendingSet = new Set<string>();
-        for (const r of ratingsResp?.rides ?? []) {
-          if (r?.ride_id) pendingSet.add(r.ride_id);
-        }
-        setPendingRatingRideIds(pendingSet);
       } catch (err: any) {
         if (err.message === "AUTHENTICATION_REDIRECT") return;
         setError(err.message || "Failed to fetch trips");
@@ -422,7 +416,7 @@ const BookingScreen: React.FC = () => {
             // consistent with the available-rides / ride-details
             // screens.
             const remaining = seatsAvailableLabel(item.total_seats || 0, item.booked_seats || 0);
-            const hasPendingRating = pendingRatingRideIds.has(rideId);
+            const hasPendingRating = item.actions?.can_rate === true;
             return (
               <View style={styles.cardSlot}>
                 <RideCard
@@ -447,7 +441,7 @@ const BookingScreen: React.FC = () => {
                     HomeScreen popup. Sits as a soft pill beneath
                     the trip card. Only renders for past trips with
                     at least one unrated counterpart (driven by
-                    /user/pending-ratings). Tapping routes into the
+                    actions.can_rate). Tapping routes into the
                     rating screen for this specific ride; the
                     BrandedAlert that used to interrupt every Home
                     focus is gone. */}

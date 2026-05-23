@@ -378,8 +378,10 @@ const CreateRide: React.FC = () => {
   //   5-7 people  → wagon (Innova / SUV)
   //   8-10        → foodvan (small van)
   //   11-19       → bus
-  //   20+         → UFO joke fallback (effectively unreachable
-  //                  now that MAX_TOTAL_SEATS caps creation at 9)
+  //   20          → UFO joke fallback. MAX_TOTAL_SEATS caps the
+  //                  stepper at 20, so the UFO is the last frame
+  //                  the host can land on if they crank it all the
+  //                  way up. Keep the band inclusive of 20.
   const getPassengerImage = (count?: number) => {
     const currentCount = count !== undefined ? count : totalSeats;
     if (currentCount <= 2) return require("../assets/motorcycle.png");
@@ -506,10 +508,11 @@ const CreateRide: React.FC = () => {
   }, []);
 
   // Stepper bounds enforced via utils/seatMath constants. MIN=2
-  // (host + 1 passenger) prevents a useless 1-seat ride. MAX=9
-  // covers up to an Innova Crysta with host + 8 passengers — more
-  // than that is almost certainly a typo, and the backend's
-  // helpers.MaxTotalSeats agrees.
+  // (host + 1 passenger) prevents a useless 1-seat ride. MAX=20
+  // covers everything from a hatchback up to a full-size Tempo
+  // Traveller / minibus (driver + ~19 passengers); 20 also lands
+  // the host on the UFO Easter-egg art. The backend's
+  // helpers.MaxTotalSeats mirrors this.
   const increaseSeats = () => {
     if (totalSeats < MAX_TOTAL_SEATS) {
       const newCount = totalSeats + 1;

@@ -661,7 +661,9 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     // and DM rooms — the helper branches on the chatId shape.
     if (chatId) ChatService.markRideRead(apiUtil, chatId);
 
-    const ws = ChatService.openSocket(userId, chatId, e => {
+    let socketClosed = false;
+    let activeSocket: WebSocket | null = null;
+    ChatService.openSocket(userId, chatId, e => {
       (e.data as string).trim().split('\n').filter(Boolean).forEach(line => {
         try {
           const d = JSON.parse(line);
@@ -706,14 +708,27 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           }
         } catch {}
       });
-    });
-    wsRef.current = ws;
+    })
+      .then((ws) => {
+        if (socketClosed) {
+          ws.close();
+          return;
+        }
+        activeSocket = ws;
+        wsRef.current = ws;
+      })
+      .catch((err) => {
+        console.warn("[Chat] socket open failed", err);
+      });
     return () => {
+      socketClosed = true;
       typingTimeoutRef.current && clearTimeout(typingTimeoutRef.current);
       typingDebounceRef.current && clearTimeout(typingDebounceRef.current);
-      isTyping && ws.readyState===WebSocket.OPEN && sendTypingIndicator(false);
+      const ws = activeSocket ?? wsRef.current;
+      isTyping && ws?.readyState===WebSocket.OPEN && sendTypingIndicator(false);
       Object.values(typingUsersRef.current).forEach(u=>u.timeout&&clearTimeout(u.timeout));
-      ws.close();
+      ws?.close();
+      if (wsRef.current === ws) wsRef.current = null;
     };
   }, [
     chatParams.chatRoom?.id,
