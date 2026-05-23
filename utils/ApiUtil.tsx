@@ -21,6 +21,7 @@ type JSON = {
 type RequestOptions = {
   bypassCache?: boolean;
   allowStaleOnFailure?: boolean;
+  showGlobalError?: boolean;
 };
 
 export default class ApiUtil {
@@ -153,9 +154,16 @@ export default class ApiUtil {
   ): Promise<T> {
     const userId = firebaseUser?.uid ?? this.getCurrentUserId();
     const cachePolicy = method === "GET" ? cachePolicyForEndpoint(endpoint) : null;
+    // `getUncached` means "bypass stored cache", not "fan out duplicate
+    // identical requests". Coalescing in-flight GETs removes the common
+    // focus/mount double-fetch when moving between screens.
+    const requestKey =
+      method === "GET"
+        ? makeApiCacheKey(endpoint, userId, headers)
+        : null;
     const cacheKey =
       cachePolicy?.enabled
-        ? makeApiCacheKey(endpoint, userId, headers)
+        ? requestKey
         : null;
     const canReadCache = Boolean(cacheKey && cachePolicy?.enabled && !requestOptions.bypassCache);
     const canWriteCache = Boolean(cacheKey && cachePolicy?.enabled);
@@ -199,10 +207,25 @@ export default class ApiUtil {
       }
     }
 
+    if (requestKey) {
+      const existing = getInflight<T>(requestKey);
+      if (existing) {
+        try {
+          return await existing;
+        } catch (error) {
+          const stale = cacheKey ? getStaleCache<T>(cacheKey) : undefined;
+          if (allowStaleOnFailure && cacheKey && this.shouldUseStaleFallback(error) && stale !== undefined) {
+            return stale;
+          }
+          throw error;
+        }
+      }
+    }
+
     try {
       const networkRequest = this.makeRequest<T>(method, endpoint, body, headers, timeout, firebaseUser);
-      if (canReadCache && cacheKey) {
-        setInflight(cacheKey, networkRequest);
+      if (requestKey) {
+        setInflight(requestKey, networkRequest);
       }
       const response = await networkRequest;
       if (canWriteCache && cacheKey && cachePolicy) {
@@ -250,7 +273,14 @@ export default class ApiUtil {
       // context (returnTo, etc.); ApiUtil just rethrows so they can
       // route appropriately.
       
-      if (this.showError && retryAction && this.isAppInitialized &&
+      // GET failures usually belong to the screen that requested data.
+      // Let those render their local empty/error state instead of
+      // opening the global sheet after the user has navigated away.
+      const shouldShowGlobalError =
+        requestOptions.showGlobalError === true ||
+        (requestOptions.showGlobalError !== false && method !== "GET");
+
+      if (this.showError && retryAction && this.isAppInitialized && shouldShowGlobalError &&
           error?.response?.status !== 401 && 
           error?.response?.status !== 403 &&
           error?.response?.status !== 404 &&
