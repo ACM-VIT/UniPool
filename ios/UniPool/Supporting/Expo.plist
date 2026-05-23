@@ -10,11 +10,9 @@
     <true/>
     <key>EXUpdatesLaunchWaitMs</key>
     <integer>0</integer>
-    <key>EXUpdatesURL</key>
-    <string>https://unidev.acmvit.in/api/manifest</string>
     <key>EXUpdatesRuntimeVersion</key>
     <string>2.0.7</string>
-    <key>EXUpdatesHasEmbeddedUpdate</key>
-    <true/>
+    <key>EXUpdatesURL</key>
+    <string>https://unidev.acmvit.in/api/manifest</string>
   </dict>
 </plist>
