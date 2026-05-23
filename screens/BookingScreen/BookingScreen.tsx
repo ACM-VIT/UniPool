@@ -453,21 +453,25 @@ const BookingScreen: React.FC = () => {
                     activeOpacity={0.85}
                     accessibilityLabel="Rate this trip"
                     style={{
-                      marginTop: 6,
+                      marginTop: 10,
+                      marginLeft: 4,
                       alignSelf: "flex-start",
-                      backgroundColor: "rgba(181,215,80,0.30)",
+                      backgroundColor: AppColors.primaryLightGreen,
+                      borderWidth: 1.5,
+                      borderColor: AppColors.secondaryDarkGreen,
                       paddingHorizontal: 14,
                       paddingVertical: 8,
                       borderRadius: 999,
                       flexDirection: "row",
                       alignItems: "center",
-                      gap: 6,
+                      gap: 8,
                     }}
                   >
+                    <Text style={{ fontSize: 13, lineHeight: 14 }}>★</Text>
                     <Text
                       style={{
                         fontFamily: "NunitoSans_800ExtraBold",
-                        fontSize: 12,
+                        fontSize: 12.5,
                         color: AppColors.secondaryDarkGreen,
                         letterSpacing: 0.2,
                       }}
@@ -479,7 +483,8 @@ const BookingScreen: React.FC = () => {
                         fontFamily: "NunitoSans_800ExtraBold",
                         fontSize: 12,
                         color: AppColors.secondaryDarkGreen,
-                        opacity: 0.7,
+                        opacity: 0.55,
+                        marginLeft: -2,
                       }}
                     >
                       ↗

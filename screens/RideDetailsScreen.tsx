@@ -1670,10 +1670,10 @@ const RideDetailsScreen: React.FC = () => {
 
         <View style={styles.bottomContainer}>
           {/* Primary chat affordance for the host. Sits above the
-              destructive slide-to-delete so it's the action they
-              reach for first — far more common than deleting a
-              ride. Forest pill, lime label — same brand vocabulary
-              as Share at the top of the screen. */}
+              destructive slide-to-delete — opening the chat is the
+              common action, deleting is rare. Forest pill, lime
+              label, lime chat glyph — same brand vocabulary as the
+              Share pill in the header. */}
           <TouchableOpacity
             onPress={openRideChat}
             activeOpacity={0.85}
@@ -1682,10 +1682,14 @@ const RideDetailsScreen: React.FC = () => {
               paddingVertical: 14,
               borderRadius: 14,
               alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "row",
+              gap: 10,
               marginBottom: 10,
             }}
             accessibilityLabel="Open trip chat"
           >
+            <ChatBubbleGlyph />
             <Text
               style={{
                 color: AppColors.primaryLightGreen,
@@ -2035,10 +2039,14 @@ const RideDetailsScreen: React.FC = () => {
                       paddingVertical: 14,
                       borderRadius: 14,
                       alignItems: "center",
+                      justifyContent: "center",
+                      flexDirection: "row",
+                      gap: 10,
                       marginBottom: 10,
                     }}
                     accessibilityLabel="Open trip chat"
                   >
+                    <ChatBubbleGlyph />
                     <Text
                       style={{
                         color: AppColors.primaryLightGreen,
@@ -2451,7 +2459,11 @@ const styles = StyleSheet.create({
   rowActionsCluster: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    // Tightened from 14 to 10 so the pending row's 4 buttons
+    // (View / DM / Reject / Accept) don't crowd the name on
+    // narrow phones. Accepted-row's 2 buttons sit fine at this
+    // spacing too.
+    gap: 10,
   },
   iconBtn: {
     alignItems: "center",
