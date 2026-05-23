@@ -4007,7 +4007,14 @@ const dedupeAndRankLocations = (
     if (!location?.display_name || !location?.lat || !location?.lon) return
     const score = location.score ?? matchScore(location, query, userLocation)
     if (score <= 0) return
-    const key = `${normalizeSearch(location.name || location.display_name.split(",")[0])}|${Number(location.lat).toFixed(5)}|${Number(location.lon).toFixed(5)}`
+    // Current-location rows collapse to a single key so we never end
+    // up with two of them, no matter what the backend sends or how
+    // lat/lon precision drifts. The first one in wins (the client
+    // injects its own canonical entry at the head of the list).
+    const key =
+      location.source === "current"
+        ? "current"
+        : `${normalizeSearch(location.name || location.display_name.split(",")[0])}|${Number(location.lat).toFixed(5)}|${Number(location.lon).toFixed(5)}`
     const next = { ...location, score }
     const existing = byKey.get(key)
     if (!existing || (existing.score ?? 0) < score) byKey.set(key, next)
@@ -4053,9 +4060,19 @@ const searchBackendLocations = async (
     q: query,
     limit: String(limit),
   })
-  if (options.includeCurrentLocation === false) {
-    params.set("include_current", "false")
-  }
+  // Always tell the backend to skip its own "Current location" entry.
+  // The client injects a canonical one via `makeCurrentLocationResult`
+  // (with the exact GPS coordinates and the literal "Current location"
+  // label). If the backend ALSO appends one, two issues compound:
+  //   1. Dedupe-by-name fails when the backend's Nominatim reverse-
+  //      geocode succeeds and renames the entry to the place itself
+  //      ("Katpadi", "VIT Vellore", etc.).
+  //   2. Lat/lon precision drift between the two sources defeats the
+  //      lat/lon-based dedupe key.
+  // The result was two "Current location"-ish rows at the top of the
+  // selector. Forcing include_current=false makes the client the
+  // single source of truth for that entry.
+  params.set("include_current", "false")
   const effectiveLocation = getEffectiveLocation(userLocation)
   if (effectiveLocation) {
     params.set("lat", effectiveLocation.latitude.toFixed(4))
