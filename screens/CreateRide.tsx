@@ -668,7 +668,10 @@ const CreateRide: React.FC = () => {
           </View>
         </TouchableOpacity>
 
-        <Text style={styles.label}>Seats you're offering</Text>
+        <Text style={styles.label}>
+          Seats you're offering{" "}
+          <Text style={styles.labelHint}>(not including you)</Text>
+        </Text>
         <View style={styles.stepperCard}>
           <TouchableOpacity
             onPress={decreasePassengers}
@@ -1070,6 +1073,17 @@ const styles = StyleSheet.create({
     opacity: 0.75,
     fontFamily: "NunitoSans_700Bold",
     letterSpacing: -0.1,
+  },
+  // Inline parenthetical hint sitting inside a label — same colour
+  // but lighter weight and a touch smaller so it reads as a gloss on
+  // the label, not part of the headline. Used to clarify that
+  // `total_seats` is the passenger count (host not counted) so a
+  // first-time host doesn't post a 3-seat ride expecting 2 friends
+  // + themselves to fit.
+  labelHint: {
+    fontFamily: "NunitoSans_600SemiBold",
+    fontSize: 12.5,
+    opacity: 0.75,
   },
   // Forest dark stepper card on lime canvas — matches the rest of the
   // surface system (lime sheet, forest content cards, lime accents).
