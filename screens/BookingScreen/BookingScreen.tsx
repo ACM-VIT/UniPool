@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTabletContentStyle } from "../../utils/responsive";
+import { seatsAvailableLabel } from "../../utils/seatMath";
 import styles from "./BookingScreen.styles";
 import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
@@ -413,7 +414,14 @@ const BookingScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const rideId = item.ride_id || item.id || "";
-            const remaining = `${item.booked_seats}/${item.total_seats}`;
+            // RideCard renders this string as "X seats available".
+            // The pre-migration code passed `booked/total` which read
+            // as "X booked", contradicting the label. Route through
+            // utils/seatMath so the format matches the label
+            // ("available out of passenger capacity") and stays
+            // consistent with the available-rides / ride-details
+            // screens.
+            const remaining = seatsAvailableLabel(item.total_seats || 0, item.booked_seats || 0);
             const hasPendingRating = pendingRatingRideIds.has(rideId);
             return (
               <View style={styles.cardSlot}>

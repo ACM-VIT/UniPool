@@ -20,6 +20,7 @@ import bottomNavItems from "../../data/BottomNavigationItems";
 import styles from "./AvailableRideScreens.styles";
 import BrandedAlert from "../../components/BrandedAlert";
 import { appHref, useDecodedLocalSearchParams } from "../../navigation/routes";
+import { seatsAvailableLabel } from "../../utils/seatMath";
 import { useTabletContentStyle } from "../../utils/responsive";
 
 interface AvailableRideScreenProps {
@@ -979,7 +980,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                   })}
                   price={ride.total_price}
                   isSelected={selectedRideId === ride.id}
-                  seatsAvailable={`${ride.total_seats - ride.booked_seats}/${ride.total_seats}`}
+                  seatsAvailable={seatsAvailableLabel(ride.total_seats, ride.booked_seats)}
                   onSelect={handleRideSelection}
                   pricePerPerson={false}
                   matchReason={ride.match_reason}

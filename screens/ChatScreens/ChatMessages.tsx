@@ -23,6 +23,7 @@ import PaymentChatCard from '../../components/PaymentChatCard';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
 import { useTabletContentStyle } from '../../utils/responsive';
+import { passengerSeatsLeft } from '../../utils/seatMath';
 import ChatService from '../../utils/ChatService';
 import BrandedAlert from "../../components/BrandedAlert";
 import ChevronBack from "../../components/ChevronBack";
@@ -526,7 +527,14 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         price: `₹${r.total_price}`,
         driverName: r.host.name,
         totalSeats: r.total_seats,
-        availableSeats: r.total_seats - (r.booked_seats + 1),
+        // utils/seatMath canonicalises the "passenger seats still
+        // available" math. Pre-migration this line carried an inline
+        // `+ 1` to discount the host's seat (since total_seats was
+        // passenger-only and a separate seat needed to be reserved
+        // for the host); post-migration the host's seat is already
+        // baked into total_seats, so the helper returns the right
+        // count directly.
+        availableSeats: passengerSeatsLeft(r.total_seats, r.booked_seats),
         hostUserId: r.host_user_id,
         isUserHost: r.is_user_host,
       });

@@ -15,6 +15,7 @@ import { useApi } from '../../utils/ApiUtil';
 import { useAuthGate } from '../../contexts/AuthGate';
 import { useUser } from '../../contexts/UserContext';
 import { appHref, useDecodedLocalSearchParams } from '../../navigation/routes';
+import { seatsAvailableLabel } from '../../utils/seatMath';
 import { useTabletContentStyle } from "../../utils/responsive";
 
 const customMapStyle = [
@@ -398,9 +399,12 @@ const AvailableRideScreenSelected: React.FC = () => {
     }
   };
 
+  // Routes through utils/seatMath so the format stays consistent
+  // with every other screen that surfaces seat availability — and
+  // so the `total_seats - 1` (host discount) is applied in exactly
+  // one place.
   const getSeatsText = (totalSeats: number, bookedSeats: number): string => {
-    const availableSeats = totalSeats - bookedSeats;
-    return `${availableSeats}/${totalSeats} seat available`;
+    return `${seatsAvailableLabel(totalSeats, bookedSeats)} seats available`;
   };
 
   const getPriceText = (price: number): string => {
