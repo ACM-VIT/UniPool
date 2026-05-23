@@ -104,7 +104,13 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
       router.replace(appHref("RideDetailsScreen", {
         rideId,
         expectedViewerState: "pending_passenger",
-      }));
+        // The previous screen in the stack is the search-results
+        // form the user submitted to request this ride. Tapping
+        // back from RideDetailsScreen there would dump them on
+        // that form — confusing. Setting this swaps the chevron
+        // for a Home glyph that lands on HomeScreen via replace.
+        backToHome: true,
+      } as any));
     } else {
       router.replace(appHref("BookingScreen"));
     }

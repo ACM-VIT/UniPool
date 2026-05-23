@@ -14,6 +14,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
 import ChevronBack from '../components/ChevronBack/ChevronBack';
+import HomeBack from '../components/HomeBack';
 import SlideToCreate from '../components/SlideToCreate/SlideToCreate';
 import BrandInfo from '../components/BrandInfo/BrandInfo';
 import LoadingComponent from "../components/LoadingComponent";
@@ -327,7 +328,7 @@ const CommonLocationCoordinates = [
   { location: "Agra", latitude: 27.1767, longitude: 78.0081 },
 ];
 
-const correctCoordinatesForLocation = (locationName: string, currentLat?: number, currentLon?: number): { latitude: number; longitude: number } | null => {
+const correctCoordinatesForLocation = (locationName?: string | null, currentLat?: number, currentLon?: number): { latitude: number; longitude: number } | null => {
   if (!currentLat || !currentLon) return null;
   
   const isInIndiaBounds = currentLat >= 6 && currentLat <= 37 && currentLon >= 68 && currentLon <= 97;
@@ -335,14 +336,19 @@ const correctCoordinatesForLocation = (locationName: string, currentLat?: number
   if (isInIndiaBounds) {
     return { latitude: currentLat, longitude: currentLon };
   }
+
+  const normalizedLocationName = locationName?.trim();
+  if (!normalizedLocationName) {
+    return { latitude: currentLat, longitude: currentLon };
+  }
   
   const commonLocation = CommonLocationCoordinates.find(
-    loc => loc.location.toLowerCase().includes(locationName.toLowerCase()) ||
-           locationName.toLowerCase().includes(loc.location.toLowerCase())
+    loc => loc.location.toLowerCase().includes(normalizedLocationName.toLowerCase()) ||
+           normalizedLocationName.toLowerCase().includes(loc.location.toLowerCase())
   );
   
   if (commonLocation) {
-    console.log(`Correcting coordinates for "${locationName}" from (${currentLat}, ${currentLon}) to (${commonLocation.latitude}, ${commonLocation.longitude})`);
+    console.log(`Correcting coordinates for "${normalizedLocationName}" from (${currentLat}, ${currentLon}) to (${commonLocation.latitude}, ${commonLocation.longitude})`);
     return {
       latitude: commonLocation.latitude,
       longitude: commonLocation.longitude
@@ -435,8 +441,21 @@ const RideDetailsScreen: React.FC = () => {
   const routeParams = useDecodedLocalSearchParams<{
     rideId?: string;
     expectedViewerState?: ViewerState;
+    // True when this screen was opened from a flow that has no
+    // meaningful "back" target — ride creation / ride request
+    // success interstitials. The previous screen in the stack is
+    // the form the user just submitted, so falling back to it on
+    // chevron-tap is confusing. When set, the chevron is swapped
+    // for a Home glyph and tapping it lands on HomeScreen via
+    // router.replace (clearing the form from the stack along the
+    // way). See navigation/routes.ts for the param shape.
+    backToHome?: boolean | string;
   }>();
   const { rideId } = routeParams;
+  // `backToHome` arrives as a string via URL params; normalise to
+  // a real boolean so the conditional is unambiguous.
+  const backToHome =
+    routeParams.backToHome === true || routeParams.backToHome === "true";
   const { apiUtil } = useApi();
   
   // State management
@@ -1246,12 +1265,16 @@ const RideDetailsScreen: React.FC = () => {
         </View>
 
         <View style={styles.navigationRow}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ChevronBack />
-          </TouchableOpacity>
+          {backToHome ? (
+            <HomeBack />
+          ) : (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <ChevronBack />
+            </TouchableOpacity>
+          )}
           <Text style={styles.headerTitle}>Ride Management</Text>
           {/* Share pill — opens the QR + native share sheet. Anchored
               top-right of the management header so it reads as a
@@ -1739,12 +1762,16 @@ const RideDetailsScreen: React.FC = () => {
 
       <View style={styles.navigationRow}>
         <View style={styles.navigationLeft}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ChevronBack />
-          </TouchableOpacity>
+          {backToHome ? (
+            <HomeBack />
+          ) : (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <ChevronBack />
+            </TouchableOpacity>
+          )}
         </View>
         <Text style={styles.headerTitle}>Booking Details</Text>
         {/* Share pill — visible to passengers too, not just hosts.
