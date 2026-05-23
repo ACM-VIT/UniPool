@@ -2,64 +2,26 @@ import React from "react";
 import { View, Text, Image, StyleSheet, TextStyle, ViewStyle } from "react-native";
 import AppColors from "../design_systems/colors";
 
-/**
- * Cap the first letter of every word, leaving already-capitalised
- * letters alone. The geocoder sometimes returns secondary segments
- * lowercased ("VIT University, vellore", "Kempegowda Airport,
- * bangalore"), and this fixes the casing at the display layer
- * without touching "VIT", "ACM", or other intentionally-uppercase
- * tokens already in the string. Word boundary is start-of-string
- * or any of [whitespace , . ' - / (], which is broad enough to
- * handle place names with punctuation like "St. Peter's" or "Port-
- * au-Prince" without mangling.
- */
 const titleCaseLocation = (s: string): string =>
   s.replace(/(^|[\s,.'\-/(])([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
 
-/**
- * Canonical start → end route block used wherever the app shows
- * a from / to pair: trip cards, chat list rows, post-trip cards,
- * the ride-details hero, pending-DM headers, etc. Replaces the
- * mishmash of one-off implementations (outlined/filled twin dots,
- * horizontal pip-pip-pip connectors, lone arrow icons) that were
- * drifting independently across the codebase.
- *
- * Visual idiom (matches the polished RideDetailsScreen card):
- *   • Start: small filled circle in `accentColor`
- *   • Connector: vertical dashed line — three small pills in
- *     `accentColor` at 55% opacity, stacked
- *   • End:    navigation arrow glyph (assets/navigation-2.png)
- *             tinted in `accentColor`
- *
- * Two visual variants ship out of the box via `tone`:
- *   • "onForest" → lime icons + white text (use on dark / forest
- *     surfaces like the ride card)
- *   • "onLime"   → forest icons + forest text (use on the lime
- *     canvas or any cream / white surface)
- *
- * Override either color individually with `accentColor` /
- * `textColor` if you need something custom (e.g. coral on a
- * pending-request peach card).
- */
+const displayLocation = (value: string | null | undefined, fallback: string) => {
+  const label = typeof value === "string" ? value.trim() : "";
+  return titleCaseLocation(label || fallback);
+};
+
+
 export type RouteStackProps = {
-  start: string;
-  end: string;
-  /** Pre-baked color pair. Defaults to onForest. */
+  start?: string | null;
+  end?: string | null;
   tone?: "onForest" | "onLime";
-  /** Override the icon + connector hue (otherwise derived from tone). */
   accentColor?: string;
-  /** Override the location text colour (otherwise derived from tone). */
   textColor?: string;
-  /** Cap each row at this many lines. Default 1. */
   numberOfLines?: number;
-  /** Tighten the connector for compact rows (chat list, etc). */
   compact?: boolean;
-  /** Slot extra content next to the start row (e.g. a chip). */
   startAccessory?: React.ReactNode;
-  /** Slot extra content next to the end row (e.g. an ETA chip). */
   endAccessory?: React.ReactNode;
   style?: ViewStyle;
-  /** Override the location text style entirely (e.g. smaller font on chat cards). */
   textStyle?: TextStyle;
 };
 
@@ -81,9 +43,6 @@ const RouteStack: React.FC<RouteStackProps> = ({
   const resolvedText =
     textColor ?? (tone === "onLime" ? AppColors.secondaryDarkGreen : AppColors.basicWhite);
 
-  // Connector pills — small rounded rectangles stacked vertically
-  // for a clean dashed look at any density (RN's native dashed
-  // border + Polyline pattern aren't great inside View hierarchies).
   const dashCount = compact ? 2 : 3;
 
   return (
@@ -98,7 +57,7 @@ const RouteStack: React.FC<RouteStackProps> = ({
           numberOfLines={numberOfLines}
           ellipsizeMode="tail"
         >
-          {titleCaseLocation(start)}
+          {displayLocation(start, "Pickup not set")}
         </Text>
         {startAccessory ? <View style={styles.accessory}>{startAccessory}</View> : null}
       </View>
@@ -127,7 +86,7 @@ const RouteStack: React.FC<RouteStackProps> = ({
           numberOfLines={numberOfLines}
           ellipsizeMode="tail"
         >
-          {titleCaseLocation(end)}
+          {displayLocation(end, "Destination not set")}
         </Text>
         {endAccessory ? <View style={styles.accessory}>{endAccessory}</View> : null}
       </View>

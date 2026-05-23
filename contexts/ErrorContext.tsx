@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useRef, useState } from 'react';
 import { StyleSheet, Animated, Easing, View } from 'react-native';
 import { router } from "expo-router";
 import ErrorComponent from '../components/ErrorComponent';
@@ -34,6 +34,7 @@ export const ErrorProvider: React.FC<ErrorProviderProps> = ({ children }) => {
     hasError: false,
   });
   const [slideAnim] = useState(new Animated.Value(1000));
+  const lastShownErrorRef = useRef<{ key: string; shownAt: number } | null>(null);
 
   const handleApiError = (error: any, retryAction?: () => void) => {
     console.error('API Error handled:', error);
@@ -47,6 +48,24 @@ export const ErrorProvider: React.FC<ErrorProviderProps> = ({ children }) => {
     if (error.status === 404) {
       showHomeButton = true;
     }
+
+    const status = error.status ?? error.response?.status ?? "";
+    const backendMessage =
+      error.response?.data?.message ??
+      error.response?.data?.error ??
+      error.message ??
+      "";
+    const errorKey = `${status}:${backendMessage}`;
+    const now = Date.now();
+    const lastShown = lastShownErrorRef.current;
+    if (
+      lastShown &&
+      lastShown.key === errorKey &&
+      now - lastShown.shownAt < 6000
+    ) {
+      return;
+    }
+    lastShownErrorRef.current = { key: errorKey, shownAt: now };
 
     setErrorState({
       hasError: true,
