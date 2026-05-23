@@ -19,22 +19,45 @@ import AppColors from "../design_systems/colors";
  * Visually, it slots BENEATH the RideCard with a small negative top
  * margin so the card's bottom shadow falls onto its surface — the
  * effect is a stacked tray: the card on top, the shelf peeking out
- * below. The shelf itself is a cream-tinted bar (matches the global
- * card-surface token) with the same rounded radius as the card so
- * the two read as one composed object, not separate tiles.
+ * below.
  *
- * Chips are colour-coded by their backend tone (`primary` / `route`
- * / `social` etc.) and ordered by the server's priority — the
- * frontend never re-sorts. We render up to {@link VISIBLE_LIMIT}
- * chips in the compact row; the API can emit more for future
- * expanded views.
+ * Restraint is the design — most signals duplicate information that
+ * is ALREADY visible on the card (the distance row already says
+ * "1.2km from pickup", the time slot already shows "Tomorrow",
+ * etc.). Showing chips for those just clutters the list. So the
+ * shelf renders only signals from {@link USEFUL_SIGNAL_KINDS} —
+ * ones that add information the surrounding card cannot — and caps
+ * at {@link VISIBLE_LIMIT} pills per card. When no signal qualifies
+ * the shelf returns null entirely; many cards will not have one,
+ * and the visual rhythm benefits from the variance.
+ *
+ * Each chip is a single line: bold label + a quiet middot + faint
+ * detail inline. No multi-line pills, no detail sub-row — pills
+ * should fit the height of the row beneath them.
  *
  * Entry animation: each chip fades + lifts in on a 60ms stagger from
- * the left. Plays once on first render of each card so the shelf
- * feels alive on initial load without re-animating during list
- * scroll (the cards are virtualised — animation is scoped to the
- * View's mount lifetime).
+ * the left. Plays once per card mount.
  */
+
+// Allow-list of signals the shelf actually surfaces. Everything else
+// (near_pickup / multiple_seats / today / great_price / etc.) is
+// suppressed because the same datum is already visible on the card
+// or on the host/distance subrow underneath. Keeps the shelf
+// reserved for signals that justify ranking, not facts.
+const USEFUL_SIGNAL_KINDS = new Set<string>([
+  "exact_time",
+  "close_time",
+  "selected_date",
+  "repeat_route",
+  "on_the_way",
+  "exact_destination",
+  "exact_pickup",
+  "top_host",
+  "trusted_host",
+  "just_listed",
+  "leaving_soon",
+  "last_seat",
+]);
 
 export type MatchSignalKind =
   | "exact_time"
@@ -92,19 +115,26 @@ interface MatchInsightsShelfProps {
   isBestMatch?: boolean;
 }
 
-const VISIBLE_LIMIT = 4;
+const VISIBLE_LIMIT = 2;
 
 const MatchInsightsShelf: React.FC<MatchInsightsShelfProps> = ({
   signals,
   isBestMatch,
 }) => {
-  // Truncate to the visible limit on the compact row. The remainder
-  // is held in reserve for a future "+N more" expansion — the API
-  // already sends them, no extra request needed.
-  const visible = useMemo(
-    () => (Array.isArray(signals) ? signals.slice(0, VISIBLE_LIMIT) : []),
-    [signals],
-  );
+  // Filter to the allow-list, then cap. The backend already sorts by
+  // priority high-first, so we never re-sort — the first two useful
+  // signals win.
+  const visible = useMemo(() => {
+    if (!Array.isArray(signals) || signals.length === 0) return [];
+    const filtered: MatchSignal[] = [];
+    for (const s of signals) {
+      if (!s || typeof s.kind !== "string") continue;
+      if (!USEFUL_SIGNAL_KINDS.has(s.kind)) continue;
+      filtered.push(s);
+      if (filtered.length === VISIBLE_LIMIT) break;
+    }
+    return filtered;
+  }, [signals]);
 
   // One Animated.Value per chip, allocated lazily so we don't pay for
   // animation state on cards that never render a shelf (no signals).
@@ -162,19 +192,18 @@ const MatchInsightsShelf: React.FC<MatchInsightsShelfProps> = ({
                 { opacity, transform: [{ translateX }] },
               ]}
             >
-              <View style={[styles.iconWell, variant.iconWell]}>
-                <SignalIcon kind={signal.kind as MatchSignalKind} color={variant.iconColor} />
-              </View>
-              <View style={styles.chipText}>
-                <Text style={[styles.chipLabel, variant.chipLabel]} numberOfLines={1}>
-                  {signal.label}
-                </Text>
+              <SignalIcon kind={signal.kind as MatchSignalKind} color={variant.iconColor} />
+              <Text
+                style={[styles.chipLabel, variant.chipLabel]}
+                numberOfLines={1}
+              >
+                {signal.label}
                 {signal.detail ? (
-                  <Text style={[styles.chipDetail, variant.chipDetail]} numberOfLines={1}>
-                    {signal.detail}
+                  <Text style={[styles.chipDetail, variant.chipDetail]}>
+                    {"  ·  " + signal.detail}
                   </Text>
                 ) : null}
-              </View>
+              </Text>
             </Animated.View>
           );
         })}
@@ -189,16 +218,16 @@ export default MatchInsightsShelf;
 
 interface ChipVariant {
   chip: ViewStyle;
-  iconWell: ViewStyle;
   iconColor: string;
   chipLabel: TextStyle;
   chipDetail: TextStyle;
 }
 
 function resolveVariant(tone: string, force: boolean | undefined): ChipVariant {
-  // The "best match" override paints the first chip in the brand lime
-  // regardless of its native tone — keeps the visual rhythm of the
-  // best-match pill consistent down through the shelf.
+  // "Best match" cards paint their first chip in the bordered lime
+  // variant so the shelf's leading pill echoes the overlay pill
+  // sitting on the card's top-right corner. Everything else maps to
+  // the calmest variant that still carries its meaning.
   if (force) return variants.primaryAccent;
   switch (tone) {
     case "primary":
@@ -207,12 +236,9 @@ function resolveVariant(tone: string, force: boolean | undefined): ChipVariant {
       return variants.social;
     case "fresh":
       return variants.fresh;
-    case "route":
-      return variants.route;
-    case "spatial":
-    case "time":
-    case "capacity":
-    case "value":
+    // route / spatial / time / capacity / value all fall through to
+    // the muted cream chip — these tones existed in the API but
+    // visually we don't want five different pill colours per card.
     default:
       return variants.subtle;
   }
@@ -224,48 +250,37 @@ const CREAM = AppColors.cardSurface;
 const ORANGE = AppColors.accentOrange;
 
 const FOREST_18 = "rgba(38,59,51,0.18)";
-const FOREST_24 = "rgba(38,59,51,0.24)";
 const FOREST_70 = "rgba(38,59,51,0.70)";
 
+// Visual palette per tone. Restraint over branding: only the
+// strongest signal (primary / social / fresh) carries a filled
+// pill; everything else falls through to the muted cream variant
+// so the shelf never out-shouts the card it sits under. Deliberate
+// loss of expressiveness in exchange for a calmer list.
 const variants: Record<string, ChipVariant> = {
   primary: {
     chip: { backgroundColor: LIME },
-    iconWell: { backgroundColor: "rgba(38,59,51,0.10)" },
     iconColor: FOREST,
     chipLabel: { color: FOREST },
     chipDetail: { color: FOREST_70 },
   },
   primaryAccent: {
-    chip: { backgroundColor: LIME, borderWidth: 1.5, borderColor: FOREST },
-    iconWell: { backgroundColor: "rgba(38,59,51,0.12)" },
+    chip: { backgroundColor: LIME, borderWidth: 1.2, borderColor: FOREST },
     iconColor: FOREST,
     chipLabel: { color: FOREST },
     chipDetail: { color: FOREST_70 },
   },
   social: {
     chip: { backgroundColor: FOREST },
-    iconWell: { backgroundColor: "rgba(181,215,80,0.18)" },
     iconColor: LIME,
     chipLabel: { color: LIME },
-    chipDetail: { color: "rgba(255,253,244,0.78)" },
+    chipDetail: { color: "rgba(255,253,244,0.72)" },
   },
   fresh: {
     chip: { backgroundColor: ORANGE },
-    iconWell: { backgroundColor: "rgba(255,255,255,0.20)" },
     iconColor: "#FFFFFF",
     chipLabel: { color: "#FFFFFF" },
-    chipDetail: { color: "rgba(255,255,255,0.85)" },
-  },
-  route: {
-    chip: {
-      backgroundColor: CREAM,
-      borderWidth: 1,
-      borderColor: FOREST_24,
-    },
-    iconWell: { backgroundColor: "rgba(38,59,51,0.06)" },
-    iconColor: FOREST,
-    chipLabel: { color: FOREST },
-    chipDetail: { color: FOREST_70 },
+    chipDetail: { color: "rgba(255,255,255,0.80)" },
   },
   subtle: {
     chip: {
@@ -273,7 +288,6 @@ const variants: Record<string, ChipVariant> = {
       borderWidth: 1,
       borderColor: FOREST_18,
     },
-    iconWell: { backgroundColor: "rgba(38,59,51,0.05)" },
     iconColor: FOREST,
     chipLabel: { color: FOREST },
     chipDetail: { color: FOREST_70 },
@@ -292,7 +306,7 @@ const SignalIcon: React.FC<{ kind: MatchSignalKind | string; color: string }> = 
 }) => {
   const Icon = iconByKind[kind] ?? StarIcon;
   return (
-    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+    <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
       <Icon color={color} />
     </Svg>
   );
@@ -525,59 +539,45 @@ const iconByKind: Record<string, React.FC<IconProps>> = {
 const styles = StyleSheet.create({
   shelfWrap: {
     // Slot UP under the card so the card's bottom shadow falls onto
-    // the shelf, then push our chips out below — visually reads as a
-    // tray the card sits on. The negative top margin is what creates
-    // the "layered" effect the design brief asked for.
-    marginTop: -12,
-    paddingTop: 14,
-    paddingBottom: 4,
+    // the shelf surface; just enough vertical room below for one
+    // slim row of pills. Deliberately compact — the shelf is a
+    // ranking-justification aside, not a content section.
+    marginTop: -10,
+    paddingTop: 12,
+    paddingBottom: 2,
   },
   shelfRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     paddingHorizontal: 4,
     paddingRight: 16,
   },
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 6,
-    paddingLeft: 6,
-    paddingRight: 12,
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
     borderRadius: 999,
-    minHeight: 30,
-    // Soft shadow so the chips read as raised tokens against the
-    // lime canvas without competing with the card's own drop shadow.
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  iconWell: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-  },
-  chipText: {
-    flexDirection: "column",
-    justifyContent: "center",
+    minHeight: 24,
+    // No shadow — the shelf is a quiet supporting layer, not raised
+    // chrome competing with the card. Tone variants carry all the
+    // visual weight via fill / border.
   },
   chipLabel: {
     fontFamily: "NunitoSans_700Bold",
-    fontSize: 12,
+    fontSize: 11,
     lineHeight: 14,
-    letterSpacing: 0.1,
+    letterSpacing: 0.15,
   },
   chipDetail: {
     fontFamily: "NunitoSans_600SemiBold",
-    fontSize: 10,
-    lineHeight: 12,
-    marginTop: 1,
-    letterSpacing: 0.1,
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.15,
+    // Detail text uses the same line-height so it sits on the same
+    // baseline as the label; the opacity differentiation comes from
+    // each variant's chipDetail color override.
   },
 });
