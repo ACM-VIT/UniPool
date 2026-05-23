@@ -1266,7 +1266,7 @@ const RideDetailsScreen: React.FC = () => {
 
         <View style={styles.navigationRow}>
           {backToHome ? (
-            <HomeBack />
+            <HomeBack style={styles.backButton} />
           ) : (
             <TouchableOpacity
               style={styles.backButton}
@@ -1763,7 +1763,7 @@ const RideDetailsScreen: React.FC = () => {
       <View style={styles.navigationRow}>
         <View style={styles.navigationLeft}>
           {backToHome ? (
-            <HomeBack />
+            <HomeBack style={styles.backButton} />
           ) : (
             <TouchableOpacity
               style={styles.backButton}
