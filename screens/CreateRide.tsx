@@ -9,6 +9,7 @@ import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
 import { useUser } from "../contexts/UserContext";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
+import MatchingRidesSuggestion from "../components/MatchingRidesSuggestion";
 import BrandedAlert from "../components/BrandedAlert";
 import SheetShell, { sheetUi } from "../components/SheetShell";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
@@ -602,6 +603,19 @@ const CreateRide: React.FC = () => {
           (route, fare summary, seats, vehicle, slider) without
           scrolling. */}
       <View style={styles.mainContent}>
+        {/* "Already going there?" suggestion. Renders nothing
+            unless GET /ride/matching-create returns ≥1 strict-radius
+            hit for the route + time the user has filled in so far.
+            Drives the dup-detection UX: tap a match to join it
+            instead of fragmenting the supply with a duplicate post.
+            See components/MatchingRidesSuggestion.tsx for the
+            debounce + animation + dismiss-per-mount semantics. */}
+        <MatchingRidesSuggestion
+          fromCoords={fromCoordinates}
+          toCoords={toCoordinates}
+          date={rideDateTime}
+        />
+
         {/* ← Your built‑in selector handles both date & time */}
         <View style={styles.section}>
           <RideDetailsSelector
