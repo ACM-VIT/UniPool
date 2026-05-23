@@ -15,6 +15,12 @@ import { haptic } from "../components/PressableScale";
 import SheetShell, { sheetUi } from "../components/SheetShell";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
 import { useTabletContentStyle } from "../utils/responsive";
+import {
+  MAX_TOTAL_SEATS,
+  MIN_TOTAL_SEATS,
+  passengerCapacity,
+  perSeatFare,
+} from "../utils/seatMath";
 
 const { width, height } = Dimensions.get("window");
 
@@ -115,7 +121,12 @@ const CreateRide: React.FC = () => {
       console.log("[CreateRide] No user location available yet");
     }
   }, [userLocation]);
-  const [passengerCount, setPassengerCount] = useState<number>(3);
+  // total_seats now COUNTS THE HOST. A 4-seat carpool = host + 3
+  // passengers; 5-seat = host + 4 passengers; etc. See
+  // utils/seatMath.ts for the canonical contract. Default 4 because
+  // most rides are sedan-sized — a single host + three passenger
+  // friends is the common case.
+  const [totalSeats, setTotalSeats] = useState<number>(4);
   const [fromLocation, setFromLocation] = useState<string>(routeParams.fromLocation ?? "");
   const [toLocation, setToLocation] = useState<string>(routeParams.toLocation ?? "");
   const [fromCoordinates, setFromCoordinates] = useState<{ latitude: number; longitude: number } | null>(routeParams.fromCoordinates ?? null);
@@ -147,7 +158,11 @@ const CreateRide: React.FC = () => {
   const [isEditingTotal, setIsEditingTotal] = useState<boolean>(false);
   const [customTotal, setCustomTotal] = useState<string>("");
   const totalInputRef = useRef<TextInput>(null);
-  const [seatFares, setSeatFares] = useState<number[]>([100, 100, 100]);
+  // Seat fares: one entry per SEAT IN THE CAR (host included).
+  // Length always stays in sync with totalSeats via the effect
+  // below; default 4 matches the totalSeats default of 4 (host + 3
+  // passengers). seatFares[0] is the host's own contribution row.
+  const [seatFares, setSeatFares] = useState<number[]>([100, 100, 100, 100]);
   const [editingSeatIndex, setEditingSeatIndex] = useState<number | null>(null);
   const [seatFareDraft, setSeatFareDraft] = useState<string>("");
   const seatFareInputRef = useRef<TextInput>(null);
@@ -188,41 +203,52 @@ const CreateRide: React.FC = () => {
   // from the end.
   useEffect(() => {
     setSeatFares((prev) => {
-      if (prev.length === passengerCount) return prev;
-      if (prev.length < passengerCount) {
+      if (prev.length === totalSeats) return prev;
+      if (prev.length < totalSeats) {
         const avg = prev.length
           ? Math.round(prev.reduce((a, b) => a + b, 0) / prev.length)
           : costPerPerson;
         return [
           ...prev,
-          ...Array.from({ length: passengerCount - prev.length }, () => avg),
+          ...Array.from({ length: totalSeats - prev.length }, () => avg),
         ];
       }
-      return prev.slice(0, passengerCount);
+      return prev.slice(0, totalSeats);
     });
-  }, [passengerCount, costPerPerson]);
+  }, [totalSeats, costPerPerson]);
 
-  // Effective per-seat price submitted to /ride/create. Backend stores
-  // a single number; for "custom" we use the average so search /
-  // matching stays meaningful even if individual seats vary.
+  // Effective per-PERSON price submitted to /ride/create. Under the
+  // new contract (utils/seatMath) every person in the car — host
+  // included — pays an equal fair share, so total_fare / total_seats
+  // is the canonical per-person amount. Stored as `total_price` on
+  // the booking; the backend treats it as the per-passenger price,
+  // which equals the per-person price since the split is even.
+  //
+  // For "custom" mode (unequal split) we average across every seat
+  // including the host so the listing surfaces a sane "typical
+  // share" — the individual breakdown is the host's record-keeping,
+  // not something we serialise.
+  //
+  // ₹25 floor matches the +/- stepper's increment so the host can
+  // never accidentally post a free ride.
   const effectivePerSeat = useMemo(() => {
     if (splitMode === "total") {
-      return Math.max(25, Math.round(totalFare / Math.max(1, passengerCount)));
+      return Math.max(25, perSeatFare(totalFare, totalSeats));
     }
     if (splitMode === "custom") {
       const sum = seatFares.reduce((a, b) => a + b, 0);
-      return Math.max(25, Math.round(sum / Math.max(1, passengerCount)));
+      return Math.max(25, perSeatFare(sum, totalSeats));
     }
     return costPerPerson;
-  }, [splitMode, costPerPerson, totalFare, seatFares, passengerCount]);
+  }, [splitMode, costPerPerson, totalFare, seatFares, totalSeats]);
 
   // Total trip cost displayed under each mode. Single source of truth
   // so the "Total" preview stays consistent across modes.
   const displayTotal = useMemo(() => {
     if (splitMode === "total") return totalFare;
     if (splitMode === "custom") return seatFares.reduce((a, b) => a + b, 0);
-    return costPerPerson * passengerCount;
-  }, [splitMode, costPerPerson, totalFare, seatFares, passengerCount]);
+    return costPerPerson * totalSeats;
+  }, [splitMode, costPerPerson, totalFare, seatFares, totalSeats]);
 
   // Pre-flight blocker — surfaces as an inline note above the slider
   // so users know WHAT they need to fix before the slide will do
@@ -297,7 +323,7 @@ const CreateRide: React.FC = () => {
         start_location: fromLocation,
         end_location: toLocation,
         start_time: rideDateTime.toISOString(),
-        total_seats: passengerCount,
+        total_seats: totalSeats,
         booked_seats: 0,
         // Always send the *per-seat* effective price, regardless of
         // which split mode the host used. For "total" and "custom"
@@ -343,10 +369,20 @@ const CreateRide: React.FC = () => {
     }
   };
 
-  // Vehicle image chooser
+  // Vehicle image chooser — `count` is the total seat count
+  // INCLUDING the host. Bands shifted up by one from the pre-
+  // migration version which counted passengers only:
+  //
+  //   2 people    → motorcycle (host + pillion)
+  //   3-4 people  → taxi / racer (sedan-ish)
+  //   5-7 people  → wagon (Innova / SUV)
+  //   8-10        → foodvan (small van)
+  //   11-19       → bus
+  //   20+         → UFO joke fallback (effectively unreachable
+  //                  now that MAX_TOTAL_SEATS caps creation at 9)
   const getPassengerImage = (count?: number) => {
-    const currentCount = count !== undefined ? count : passengerCount;
-    if (currentCount < 3) return require("../assets/motorcycle.png");
+    const currentCount = count !== undefined ? count : totalSeats;
+    if (currentCount <= 2) return require("../assets/motorcycle.png");
     if (currentCount === 3) return require("../assets/Taxi.png");
     if (currentCount === 4) return require("../assets/racer.png");
     if (currentCount < 8) return require("../assets/wagon.png");
@@ -464,21 +500,28 @@ const CreateRide: React.FC = () => {
   };
 
   useEffect(() => {
-    setCurrentVehicleImage(getPassengerImage(3));
+    // Initial vehicle illustration matches the default totalSeats=4
+    // (host + 3 passengers → sedan).
+    setCurrentVehicleImage(getPassengerImage(4));
   }, []);
 
-  const increasePassengers = () => {
-    if (passengerCount < 20) {
-      const newCount = passengerCount + 1;
-      setPassengerCount(newCount);
+  // Stepper bounds enforced via utils/seatMath constants. MIN=2
+  // (host + 1 passenger) prevents a useless 1-seat ride. MAX=9
+  // covers up to an Innova Crysta with host + 8 passengers — more
+  // than that is almost certainly a typo, and the backend's
+  // helpers.MaxTotalSeats agrees.
+  const increaseSeats = () => {
+    if (totalSeats < MAX_TOTAL_SEATS) {
+      const newCount = totalSeats + 1;
+      setTotalSeats(newCount);
       animateVehicleChange(newCount);
     }
   };
 
-  const decreasePassengers = () => {
-    if (passengerCount > 1) {
-      const newCount = passengerCount - 1;
-      setPassengerCount(newCount);
+  const decreaseSeats = () => {
+    if (totalSeats > MIN_TOTAL_SEATS) {
+      const newCount = totalSeats - 1;
+      setTotalSeats(newCount);
       animateVehicleChange(newCount);
     }
   };
@@ -506,12 +549,12 @@ const CreateRide: React.FC = () => {
   // Total-mode stepper handlers. Step of 25 matches the per-seat
   // stepper rhythm; clamp range mirrors the backend's per-seat
   // validation scaled by max seats (25 × 20).
-  const totalMin = 25 * Math.max(1, passengerCount);
-  const totalMax = 10000 * Math.max(1, passengerCount);
+  const totalMin = 25 * Math.max(1, totalSeats);
+  const totalMax = 10000 * Math.max(1, totalSeats);
   const increaseTotal = () =>
-    setTotalFare((c) => Math.min(totalMax, c + 25 * Math.max(1, passengerCount)));
+    setTotalFare((c) => Math.min(totalMax, c + 25 * Math.max(1, totalSeats)));
   const decreaseTotal = () =>
-    setTotalFare((c) => Math.max(totalMin, c - 25 * Math.max(1, passengerCount)));
+    setTotalFare((c) => Math.max(totalMin, c - 25 * Math.max(1, totalSeats)));
 
   // Tap-to-edit for the Total amount. Same pattern as Per seat: snap
   // the draft from the current value, raise the keyboard via autoFocus,
@@ -568,9 +611,9 @@ const CreateRide: React.FC = () => {
   const switchSplitMode = (next: "per_seat" | "total" | "custom") => {
     if (next === splitMode) return;
     if (next === "total") {
-      setTotalFare(costPerPerson * passengerCount);
+      setTotalFare(costPerPerson * totalSeats);
     } else if (next === "custom") {
-      setSeatFares(Array.from({ length: passengerCount }, () => costPerPerson));
+      setSeatFares(Array.from({ length: totalSeats }, () => costPerPerson));
     } else if (next === "per_seat") {
       setCostPerPerson(effectivePerSeat);
     }
@@ -659,35 +702,35 @@ const CreateRide: React.FC = () => {
           <View style={styles.fareSummaryFooter}>
             <Text style={styles.fareSummaryFooterText}>
               {splitMode === "per_seat"
-                ? `Per-seat fare · ${passengerCount} seat${passengerCount === 1 ? "" : "s"}`
+                ? `Per-seat fare · ${totalSeats} seat${totalSeats === 1 ? "" : "s"}`
                 : splitMode === "total"
-                ? `Split equally · ${passengerCount} seat${passengerCount === 1 ? "" : "s"}`
-                : `Unequal split · ${passengerCount} seat${passengerCount === 1 ? "" : "s"}`}
+                ? `Split equally · ${totalSeats} seat${totalSeats === 1 ? "" : "s"}`
+                : `Unequal split · ${totalSeats} seat${totalSeats === 1 ? "" : "s"}`}
             </Text>
             <Text style={styles.fareSummaryEditHint}>Tap to edit</Text>
           </View>
         </TouchableOpacity>
 
         <Text style={styles.label}>
-          Seats you're offering{" "}
-          <Text style={styles.labelHint}>(not including you)</Text>
+          Total seats{" "}
+          <Text style={styles.labelHint}>(including you)</Text>
         </Text>
         <View style={styles.stepperCard}>
           <TouchableOpacity
-            onPress={decreasePassengers}
+            onPress={decreaseSeats}
             style={styles.stepperBtn}
             activeOpacity={0.7}
           >
             <Text style={styles.stepperBtnText}>−</Text>
           </TouchableOpacity>
           <View style={styles.stepperValueWrap}>
-            <Text style={styles.stepperValue}>{passengerCount}</Text>
+            <Text style={styles.stepperValue}>{totalSeats}</Text>
             <Text style={styles.stepperUnit}>
-              {passengerCount === 1 ? "seat" : "seats"}
+              {totalSeats === 1 ? "seat" : "seats"}
             </Text>
           </View>
           <TouchableOpacity
-            onPress={increasePassengers}
+            onPress={increaseSeats}
             style={styles.stepperBtn}
             activeOpacity={0.7}
           >
@@ -883,8 +926,8 @@ const CreateRide: React.FC = () => {
               </TouchableOpacity>
             </View>
             <Text style={styles.fieldHint}>
-              What each rider pays you · ₹{displayTotal} total for {passengerCount}{" "}
-              seat{passengerCount === 1 ? "" : "s"}.
+              What each rider pays you · ₹{displayTotal} total for {totalSeats}{" "}
+              seat{totalSeats === 1 ? "" : "s"}.
             </Text>
           </>
         )}
@@ -935,8 +978,8 @@ const CreateRide: React.FC = () => {
               </TouchableOpacity>
             </View>
             <Text style={styles.fieldHint}>
-              Split equally across {passengerCount}{" "}
-              seat{passengerCount === 1 ? "" : "s"} · ₹{effectivePerSeat} each.
+              Split equally across {totalSeats}{" "}
+              seat{totalSeats === 1 ? "" : "s"} · ₹{effectivePerSeat} each.
             </Text>
           </>
         )}
@@ -954,8 +997,14 @@ const CreateRide: React.FC = () => {
                   return (
                     <View key={idx} style={styles.customSeatRow}>
                       <View style={styles.customSeatLabelWrap}>
+                        {/* First seat is the host (the driver). The
+                            row is labelled "You" so the host
+                            transparently sees their own contribution
+                            instead of paying nothing while everyone
+                            else covers the trip — see utils/seatMath
+                            for the contract. */}
                         <Text style={styles.customSeatNumber}>
-                          Seat {idx + 1}
+                          {idx === 0 ? "You" : `Seat ${idx}`}
                         </Text>
                       </View>
                       <TouchableOpacity
