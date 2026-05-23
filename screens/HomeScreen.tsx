@@ -37,6 +37,10 @@ import BrandInfo from "../components/BrandInfo";
 import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/PressableScale";
 import RideClusterSheet, { ClusteredRide } from "../components/RideClusterSheet";
+import RoutePreviewLayer, {
+  type RoutePreviewBounds,
+  type RoutePreviewRide,
+} from "../components/RoutePreviewLayer";
 import { getAppState } from "../utils/AppStateService";
 import type { AppStateResponse, NearbyRideSummary } from "../utils/AppStateService";
 
@@ -309,6 +313,33 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     pickup: string;
     rides: ClusteredRide[];
   } | null>(null);
+
+  // Route preview overlay state — populated when the user taps a
+  // single-ride pin (or a row inside the cluster sheet) and we want
+  // to animate the dotted line from pickup → destination right on
+  // the map before they commit to opening the ride. `null` while no
+  // preview is active. Lives in HomeScreen so the floating "View
+  // ride" card can be an absolute overlay outside the MapLibre tree
+  // while the line + chevron live INSIDE the tree.
+  const [previewRide, setPreviewRide] = useState<
+    | (RoutePreviewRide & {
+        host_user_name?: string;
+        start_location: string;
+        start_time?: string;
+        total_price?: number;
+        // Full ride payload so "View ride" can hand the existing
+        // navigation flow the shape it already expects.
+        raw: any;
+      })
+    | null
+  >(null);
+
+  // Live viewport bounds reported by MapLibre on every onRegionDidChange.
+  // The preview layer reads this to know whether the destination falls
+  // outside the visible map (off-screen chevron) or inside (line ends
+  // at the destination naturally). Updated lazily — null until the
+  // user has moved the camera at least once after first paint.
+  const [mapBounds, setMapBounds] = useState<RoutePreviewBounds>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
@@ -1096,15 +1127,65 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                       rides: c.rides as ClusteredRide[],
                     });
                   } else {
-                    // Single ride → straight to its selected screen,
-                    // skipping the unnecessary sheet step.
-                    router.navigate(appHref("AvailableRidesSelectedScreen", {
-                      ride: c.cheapest,
-                    } as any));
+                    // Single ride → open the in-map preview: the
+                    // dotted line draws to the destination (or to a
+                    // viewport-edge chevron if the destination is
+                    // far off-screen), and a floating card surfaces
+                    // the ride details with a "View ride" CTA. The
+                    // old behaviour (instant navigate) skipped this
+                    // animation step entirely; bringing it back via
+                    // the card preserves the path forward without
+                    // making the map feel inert on tap.
+                    const r = c.cheapest as any;
+                    if (
+                      typeof r.start_latitude === "number" &&
+                      typeof r.start_longitude === "number" &&
+                      typeof r.end_latitude === "number" &&
+                      typeof r.end_longitude === "number"
+                    ) {
+                      haptic("selection");
+                      setPreviewRide({
+                        id: r.id ?? c.key,
+                        start_latitude: r.start_latitude,
+                        start_longitude: r.start_longitude,
+                        end_latitude: r.end_latitude,
+                        end_longitude: r.end_longitude,
+                        end_location: r.end_location,
+                        start_location: r.start_location,
+                        host_user_name: r.host_user_name,
+                        start_time: r.start_time,
+                        total_price: r.total_price,
+                        raw: r,
+                      });
+                    } else {
+                      // Geo data missing — fall back to the original
+                      // straight-to-detail flow rather than no-op.
+                      router.navigate(appHref("AvailableRidesSelectedScreen", {
+                        ride: c.cheapest,
+                      } as any));
+                    }
                   }
                 }}
               />
             ))}
+
+            {/* Route preview overlay — the animated dotted line +
+                off-screen destination chevron. Lives as a child of
+                the Map so the line scales with zoom and the chevron
+                stays pinned to a real lng/lat at the viewport edge.
+                See components/RoutePreviewLayer.tsx for the geometry
+                + animation. */}
+            {previewRide && (
+              <RoutePreviewLayer
+                ride={previewRide}
+                bounds={mapBounds}
+                onTapDestination={() => {
+                  router.navigate(appHref("AvailableRidesSelectedScreen", {
+                    ride: previewRide.raw,
+                  } as any));
+                }}
+              />
+            )}
 
             {/* From / To pins — react-native-maps' Marker had a
                 native `image` prop that took an asset directly.
@@ -1347,24 +1428,21 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                     exactly as before (no behaviour change for the
                     common case). */}
               {hasActiveTripCard ? (
+                // Same visual treatment as the "Rides around you"
+                // tile a few rows up — forest pill, lime label,
+                // single line. Keeps the home stack looking like one
+                // composed set of CTAs instead of three different
+                // button shapes.
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={() => {
                     haptic("light");
                     setSearchSheetOpen(true);
                   }}
-                  style={styles.collapsedSearchPill}
-                  accessibilityLabel="Open search"
+                  style={styles.nearbyTile}
+                  accessibilityLabel="Search rides"
                 >
-                  <Text style={styles.collapsedSearchPillKicker}>
-                    Plan a ride
-                  </Text>
-                  <View style={styles.collapsedSearchPillRow}>
-                    <Text style={styles.collapsedSearchPillTitle}>
-                      Where'd you like to go?
-                    </Text>
-                    <Text style={styles.collapsedSearchPillChevron}>›</Text>
-                  </View>
+                  <Text style={styles.nearbyTileText}>Search rides</Text>
                 </TouchableOpacity>
               ) : (
                 <>
@@ -1754,54 +1832,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: responsiveWidth(2.5),
     paddingVertical: responsiveHeight(1),
-  },
-  // Collapsed pill rendered in place of the full RideDetailsSelector
-  // when the active trip card is up. Tapping it opens the search
-  // sheet (SheetShell at the bottom of the screen) where the full
-  // selector lives.
-  collapsedSearchPill: {
-    width: "100%",
-    maxWidth: 400,
-    alignSelf: "center",
-    backgroundColor: AppColors.secondaryDarkGreen,
-    borderRadius: normalize(16),
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    marginTop: responsiveHeight(1),
-    elevation: 4,
-    shadowColor: AppColors.basicBlack,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-  },
-  collapsedSearchPillKicker: {
-    fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 10.5,
-    letterSpacing: 1.0,
-    color: AppColors.primaryLightGreen,
-    opacity: 0.6,
-    textTransform: "uppercase",
-  },
-  collapsedSearchPillRow: {
-    marginTop: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  collapsedSearchPillTitle: {
-    flex: 1,
-    fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: normalize(16),
-    color: AppColors.primaryLightGreen,
-    letterSpacing: -0.2,
-  },
-  collapsedSearchPillChevron: {
-    fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 26,
-    color: AppColors.primaryLightGreen,
-    opacity: 0.75,
-    marginLeft: 10,
-    lineHeight: 26,
   },
   // SheetShell content: tight title above the selector so the modal
   // has a clear handle, then RideDetailsSelector fills its natural
