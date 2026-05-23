@@ -12,6 +12,7 @@ import {
 import QRCode from "react-native-qrcode-svg";
 import AppColors from "../design_systems/colors";
 import RouteStack from "./RouteStack";
+import { displayRideLocation } from "../utils/LocationService";
 
 /**
  * Universal-link host the deeplinks point to. Real app-link / universal-
@@ -111,7 +112,7 @@ const ShareRideSheet: React.FC<Props> = ({
 
   const shareMessage = useMemo(
     () =>
-      `UniPool with me from ${startLocation} to ${endLocation} on ${dateLabel} at ${timeLabel}: ${deeplink}`,
+      `UniPool with me from ${displayRideLocation(startLocation)} to ${displayRideLocation(endLocation)} on ${dateLabel} at ${timeLabel}: ${deeplink}`,
     [startLocation, endLocation, dateLabel, timeLabel, deeplink],
   );
 

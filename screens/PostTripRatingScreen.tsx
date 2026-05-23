@@ -22,6 +22,7 @@ import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/PressableScale";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
 import { useTabletContentStyle } from "../utils/responsive";
+import { displayRideLocation } from "../utils/LocationService";
 
 type RatingTarget = {
   user_id: string;
@@ -228,7 +229,7 @@ const PostTripRatingScreen: React.FC = () => {
 
           <Text style={styles.heading}>How was the ride?</Text>
           <Text style={styles.routeLine} numberOfLines={2}>
-            {eligibility.start_location} to {eligibility.end_location}
+            {displayRideLocation(eligibility.start_location)} to {displayRideLocation(eligibility.end_location)}
           </Text>
 
           {eligibility.targets.map((target) => (

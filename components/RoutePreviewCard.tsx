@@ -13,6 +13,7 @@ import Svg, { Path } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../design_systems/colors";
 import { haptic } from "./PressableScale";
+import { displayRideLocation } from "../utils/LocationService";
 
 type PreviewRide = {
   start_location: string;
@@ -247,8 +248,13 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
 // "Bangalore, KA" → "Bangalore", "VIT Vellore Main Gate" left as-is
 // up to ~26 chars then ellipsis. Symmetric to the pin label
 // shortening on the map so card + pin read with the same rhythm.
+// Routes through displayRideLocation first so legacy rides stored
+// with the literal "Current location" string (created before the
+// picker reverse-geocoded GPS picks) get the neutral fallback
+// instead of leaking that UX shorthand onto a card.
 const shortenLoc = (s: string): string => {
-  const first = (s.split(",")[0] || "").trim();
+  const safe = displayRideLocation(s);
+  const first = (safe.split(",")[0] || "").trim();
   return first.length > 26 ? first.slice(0, 25).trimEnd() + "…" : first;
 };
 

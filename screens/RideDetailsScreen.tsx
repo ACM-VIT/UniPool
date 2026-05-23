@@ -25,6 +25,7 @@ import PassengerProfileSheet, { PassengerProfile } from "../components/Passenger
 import RouteStack from "../components/RouteStack";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
 import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/responsive";
+import { displayRideLocation } from "../utils/LocationService";
 
 /**
  * Small lime "open profile" eye icon. Stroke-only so it sits in the
@@ -1195,7 +1196,7 @@ const RideDetailsScreen: React.FC = () => {
   const handleShare = async () => {
     if (!rideData) return;
     const deepLink = `https://unipool.acmvit.in/ride/${rideData.id || rideId}`;
-  const message = `Check out this ride from ${rideData.start_location} to ${rideData.end_location} on ${formatDate(rideData.start_time)} at ${formatTimeDisplay(rideData.start_time)}!\n\nJoin via: ${deepLink}`;
+  const message = `Check out this ride from ${displayRideLocation(rideData.start_location)} to ${displayRideLocation(rideData.end_location)} on ${formatDate(rideData.start_time)} at ${formatTimeDisplay(rideData.start_time)}!\n\nJoin via: ${deepLink}`;
     try {
       await Share.share({
         message,
@@ -1933,7 +1934,7 @@ const RideDetailsScreen: React.FC = () => {
                   router.navigate(appHref("ChatMessages", {
                     chatId: dmRoomId,
                     chatTitle: hostName || "Host",
-                    chatSubtitle: `${rideData?.start_location} → ${rideData?.end_location}`,
+                    chatSubtitle: `${displayRideLocation(rideData?.start_location)} → ${displayRideLocation(rideData?.end_location)}`,
                     isGroupChat: false,
                     otherUserId: hostUserId,
                     pendingHostInquiry: true,
@@ -2097,7 +2098,7 @@ const RideDetailsScreen: React.FC = () => {
                   <View style={styles.mapPlaceholder}>
                     <Image source={require('../assets/location-pin.png')} style={styles.mapPlaceholderIcon} />
                     <Text style={styles.mapPlaceholderTitle}>Route Map</Text>
-                    <Text style={styles.loadingText}>{rideData.start_location} → {rideData.end_location}</Text>
+                    <Text style={styles.loadingText}>{displayRideLocation(rideData.start_location)} → {displayRideLocation(rideData.end_location)}</Text>
                     <Text style={styles.mapPlaceholderSubtext}>Map coordinates not available</Text>
                   </View>
                 )}
