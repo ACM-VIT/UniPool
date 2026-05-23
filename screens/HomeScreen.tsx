@@ -393,6 +393,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   // Nearby ride summaries used to plot pins on the map.
   type NearbyRide = NearbyRideSummary;
   const [nearbyRides, setNearbyRides] = useState<NearbyRide[]>([]);
+  // Pan-driven nearby refresh — tracks the last centre we queried
+  // /rides/nearby for so the effect below can skip redundant fetches
+  // (e.g. when the user-puck tracker nudges the camera by a few
+  // metres of GPS drift). Monotonically incremented `seq` lets a
+  // late-arriving response know it was superseded by a newer fetch
+  // and bail without overwriting fresher state.
+  const lastNearbyCentreRef = useRef<{ lat: number; lng: number } | null>(null);
+  const nearbyFetchSeqRef = useRef(0);
+  const nearbyFetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [appState, setAppState] = useState<AppStateResponse | null>(null);
   const [appStateResolved, setAppStateResolved] = useState(false);
   // Map cover fade — opaque lime over the MapView until tiles are
@@ -776,6 +785,92 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ------------------------------------------------------------------
+  // Pan-driven nearby refresh
+  // ------------------------------------------------------------------
+  // When the user pans/zooms the map, refetch /rides/nearby with the
+  // map's current centre as the anchor and the bounds' half-diagonal
+  // as the radius. Replaces the initial /app/state-seeded pin set so
+  // the map always shows rides for whatever area is in view rather
+  // than only the rides near the user's GPS location.
+  //
+  // Guards:
+  //   1. Debounce — wait 500ms after the camera settles before
+  //      firing. Without this every onRegionDidChange (including the
+  //      initial paint, fitBounds animation completion, and user-
+  //      location tracking nudges) would slam the backend.
+  //   2. Centre-displacement gate — skip if the new centre is within
+  //      ~500m of the last successfully-fetched centre. Stops the
+  //      user-puck's continuous GPS drift from looping the fetch.
+  //   3. Seq versioning — late responses from a superseded fetch
+  //      check their own seq number against the current head before
+  //      writing to nearbyRides. Without this a slow first fetch
+  //      could overwrite a fresh second fetch's results when it
+  //      finally arrived.
+  //   4. Skipped entirely while the user is route-previewing a
+  //      specific ride (previewRide != null) since the map is
+  //      effectively locked to that interaction; new pins arriving
+  //      mid-preview would be visual noise.
+  useEffect(() => {
+    if (!mapBounds) return;
+    if (previewRide) return;
+    const [west, south, east, north] = mapBounds;
+    const centreLat = (north + south) / 2;
+    const centreLng = (east + west) / 2;
+
+    // Skip if we already fetched within ~500m of this centre. 0.005
+    // degrees ≈ 555m at the equator, tighter at higher latitudes —
+    // the half-degree-window is intentionally coarse so panning
+    // across a campus or a city block doesn't trigger a fetch.
+    const last = lastNearbyCentreRef.current;
+    if (last) {
+      const dLat = Math.abs(centreLat - last.lat);
+      const dLng = Math.abs(centreLng - last.lng);
+      if (dLat < 0.005 && dLng < 0.005) return;
+    }
+
+    // Derive a radius from the visible map extent. The bounds'
+    // larger span (converted to km at ~111km/degree) approximates
+    // the diagonal corner-to-centre distance; halving it gives a
+    // radius that's just big enough to fill the visible map without
+    // overflowing into far-off territory the user can't see. Capped
+    // at 50km because /rides/nearby normalises larger values down
+    // to that ceiling server-side anyway.
+    const latSpan = north - south;
+    const lngSpan = east - west;
+    const radiusKm = Math.max(latSpan, lngSpan) * 111 * 0.6;
+    const radiusM = Math.min(50000, Math.max(1500, Math.round(radiusKm * 1000)));
+
+    if (nearbyFetchTimerRef.current) {
+      clearTimeout(nearbyFetchTimerRef.current);
+    }
+    nearbyFetchTimerRef.current = setTimeout(async () => {
+      const seq = ++nearbyFetchSeqRef.current;
+      try {
+        const resp = await apiUtil.getUncached<{ rides: NearbyRideSummary[] }>(
+          `/rides/nearby?lat=${centreLat.toFixed(6)}&lng=${centreLng.toFixed(6)}&radius=${radiusM}&limit=50`,
+        );
+        // Discard if a newer fetch has been kicked off in the
+        // meantime — prevents stale results from overwriting fresher
+        // ones if the network reorders responses.
+        if (seq !== nearbyFetchSeqRef.current) return;
+        setNearbyRides(resp?.rides ?? []);
+        lastNearbyCentreRef.current = { lat: centreLat, lng: centreLng };
+      } catch (e) {
+        // Silent — the pre-existing pin set stays on the map. Worst
+        // case the user sees stale-but-relevant pins until the next
+        // pan succeeds; way better than blanking the map on a
+        // transient network blip.
+      }
+    }, 500);
+    return () => {
+      if (nearbyFetchTimerRef.current) {
+        clearTimeout(nearbyFetchTimerRef.current);
+        nearbyFetchTimerRef.current = null;
+      }
+    };
+  }, [mapBounds, apiUtil, previewRide]);
 
   const loadHomeState = useCallback(async (isCancelled: () => boolean = () => false) => {
     try {
