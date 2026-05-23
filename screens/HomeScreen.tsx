@@ -30,6 +30,7 @@ import AppColors from "../design_systems/colors";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import PreviousTripsSection from "../components/PreviousTripsSection";
 import ActiveTripCard from "../components/ActiveTripCard";
+import SheetShell from "../components/SheetShell";
 import { MAIN_NAV_BAR_TOP_OFFSET } from "../components/MainNavBar";
 import bottomNavItems from "../data/BottomNavigationItems";
 import BrandInfo from "../components/BrandInfo";
@@ -335,6 +336,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   // the upcoming-trips carousel — when the active card is up, it's
   // the user's headline trip and the carousel below it is just noise.
   const [hasActiveTripCard, setHasActiveTripCard] = useState(false);
+  // When the trip card is showing, the home sheet gets dense and the
+  // From / To / Date selector pushes everything else below the fold.
+  // We collapse the inline selector to a single "Where'd you like to
+  // go?" pill in that case; tapping it opens this sheet where the
+  // full RideDetailsSelector lives. Submit closes the sheet and
+  // fires the same handleRideSubmit path the inline form does.
+  const [searchSheetOpen, setSearchSheetOpen] = useState(false);
   const [rideDetails, setRideDetails] = useState<{ 
     from: string; 
     to: string; 
@@ -1327,17 +1335,52 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 </Text>
               </TouchableOpacity>
 
-              <View style={styles.createRideText}>
-                <Text style={styles.sectionTitle}>Where'd you like to go?</Text>
-              </View>
+              {/* Two layouts for the search panel:
+                  - When the ActiveTripCard is up, the home sheet is
+                    already dense (pay card + create-ride CTA). Drop
+                    the inline From / To / Date and replace it with
+                    a single tap-to-expand pill that opens the
+                    SheetShell modal further down. Keeps the home
+                    surface scannable without taking away the
+                    search affordance.
+                  - Otherwise render the inline section + selector
+                    exactly as before (no behaviour change for the
+                    common case). */}
+              {hasActiveTripCard ? (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    haptic("light");
+                    setSearchSheetOpen(true);
+                  }}
+                  style={styles.collapsedSearchPill}
+                  accessibilityLabel="Open search"
+                >
+                  <Text style={styles.collapsedSearchPillKicker}>
+                    Plan a ride
+                  </Text>
+                  <View style={styles.collapsedSearchPillRow}>
+                    <Text style={styles.collapsedSearchPillTitle}>
+                      Where'd you like to go?
+                    </Text>
+                    <Text style={styles.collapsedSearchPillChevron}>›</Text>
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <View style={styles.createRideText}>
+                    <Text style={styles.sectionTitle}>Where'd you like to go?</Text>
+                  </View>
 
-              <RideDetailsSelector
-                onSubmit={handleRideSubmit}
-                onLocationSelectionChange={handleLocationSelectionChange}
-                onCoordsChange={handleCoordsChange}
-                userLocation={location ?? undefined}
-                clearTrigger={clearRideTrigger}
-              />
+                  <RideDetailsSelector
+                    onSubmit={handleRideSubmit}
+                    onLocationSelectionChange={handleLocationSelectionChange}
+                    onCoordsChange={handleCoordsChange}
+                    userLocation={location ?? undefined}
+                    clearTrigger={clearRideTrigger}
+                  />
+                </>
+              )}
             </View>
           </ScrollView>
         </View>
@@ -1358,6 +1401,33 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           } as any));
         }}
       />
+
+      {/* Search sheet — only used when the home surface has
+          collapsed the inline RideDetailsSelector behind the
+          "Where'd you like to go?" pill. The selector inside opens
+          its own from / to / date sub-sheets above this one (RN
+          Modal stacking handles the z-order). Submit closes the
+          sheet so the search results screen takes focus. */}
+      <SheetShell
+        visible={searchSheetOpen}
+        onDismiss={() => setSearchSheetOpen(false)}
+        surfaceColor={AppColors.primaryLightGreen}
+      >
+        <Text style={styles.searchSheetTitle}>Where'd you like to go?</Text>
+        <RideDetailsSelector
+          onSubmit={(details) => {
+            // Close FIRST so the search-results navigation doesn't
+            // happen with the sheet still up — looks like a
+            // stutter on the search screen mount otherwise.
+            setSearchSheetOpen(false);
+            handleRideSubmit(details);
+          }}
+          onLocationSelectionChange={handleLocationSelectionChange}
+          onCoordsChange={handleCoordsChange}
+          userLocation={location ?? undefined}
+          clearTrigger={clearRideTrigger}
+        />
+      </SheetShell>
     </SafeAreaView>
   );
 };
@@ -1684,6 +1754,67 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: responsiveWidth(2.5),
     paddingVertical: responsiveHeight(1),
+  },
+  // Collapsed pill rendered in place of the full RideDetailsSelector
+  // when the active trip card is up. Tapping it opens the search
+  // sheet (SheetShell at the bottom of the screen) where the full
+  // selector lives.
+  collapsedSearchPill: {
+    width: "100%",
+    maxWidth: 400,
+    alignSelf: "center",
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: normalize(16),
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    marginTop: responsiveHeight(1),
+    elevation: 4,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+  },
+  collapsedSearchPillKicker: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 10.5,
+    letterSpacing: 1.0,
+    color: AppColors.primaryLightGreen,
+    opacity: 0.6,
+    textTransform: "uppercase",
+  },
+  collapsedSearchPillRow: {
+    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  collapsedSearchPillTitle: {
+    flex: 1,
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: normalize(16),
+    color: AppColors.primaryLightGreen,
+    letterSpacing: -0.2,
+  },
+  collapsedSearchPillChevron: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 26,
+    color: AppColors.primaryLightGreen,
+    opacity: 0.75,
+    marginLeft: 10,
+    lineHeight: 26,
+  },
+  // SheetShell content: tight title above the selector so the modal
+  // has a clear handle, then RideDetailsSelector fills its natural
+  // height beneath. Matches the inline section's sectionTitle
+  // typography so the collapse/expand swap doesn't feel like a
+  // different surface.
+  searchSheetTitle: {
+    fontSize: normalize(20),
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: -0.4,
+    marginBottom: 14,
+    marginTop: 4,
   },
   brandText: {
     fontSize: normalize(32),
