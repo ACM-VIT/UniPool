@@ -28,10 +28,12 @@
 export const MIN_TOTAL_SEATS = 2;
 
 /** Sanity cap on total_seats. Matches the backend's MaxTotalSeats.
- *  Picked at 9 to accommodate a Tata Winger / Innova Crysta hosting
- *  driver + 8 passengers. Bigger cars are rare enough that we'd
- *  rather catch a typo than allow them. */
-export const MAX_TOTAL_SEATS = 9;
+ *  Set at 20 so the stepper covers everything from a hatchback up to
+ *  a full-size Tempo Traveller / minibus (driver + ~19 passengers).
+ *  20 is also the threshold at which CreateRide swaps the vehicle
+ *  art over to the UFO Easter-egg fallback, so it's the largest
+ *  count that still maps to a real-vehicle image. */
+export const MAX_TOTAL_SEATS = 20;
 
 /**
  * Returns how many passenger seats a ride has, given total_seats.

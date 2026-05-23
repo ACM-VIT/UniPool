@@ -45,6 +45,7 @@ import RoutePreviewLayer, {
 import RoutePreviewCard from "../components/RoutePreviewCard";
 import { getAppState } from "../utils/AppStateService";
 import type { AppStateResponse, NearbyRideSummary } from "../utils/AppStateService";
+import { isRideUpcomingAt } from "../utils/rideTime";
 
 const { width: rawScreenWidth, height: rawScreenHeight } = Dimensions.get("window");
 
@@ -221,12 +222,52 @@ const shortenDestination = (s: string) => {
   return first.length > 16 ? first.slice(0, 15).trimEnd() + "…" : first;
 };
 
-type NearbyClusterShape = {
+type NearbyCluster = {
   key: string;
   latitude: number;
   longitude: number;
-  rides: Array<{ end_location: string; total_price: number }>;
-  cheapest: { end_location: string; total_price: number };
+  rides: NearbyRideSummary[];
+  cheapest: NearbyRideSummary;
+  cheapestPrice: number;
+};
+
+const areNearbyClustersEqual = (
+  previous: NearbyCluster[],
+  next: NearbyCluster[],
+): boolean => {
+  if (previous.length !== next.length) return false;
+
+  for (let i = 0; i < previous.length; i += 1) {
+    const a = previous[i];
+    const b = next[i];
+    if (
+      a.key !== b.key ||
+      a.latitude !== b.latitude ||
+      a.longitude !== b.longitude ||
+      a.cheapest.id !== b.cheapest.id ||
+      a.cheapestPrice !== b.cheapestPrice ||
+      a.rides.length !== b.rides.length
+    ) {
+      return false;
+    }
+
+    for (let j = 0; j < a.rides.length; j += 1) {
+      const ar = a.rides[j];
+      const br = b.rides[j];
+      if (
+        ar.id !== br.id ||
+        ar.start_time !== br.start_time ||
+        ar.end_location !== br.end_location ||
+        ar.total_price !== br.total_price ||
+        ar.total_seats !== br.total_seats ||
+        ar.booked_seats !== br.booked_seats
+      ) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 };
 
 /**
@@ -248,20 +289,21 @@ type NearbyClusterShape = {
  * confusion when the campus inevitably has 50 rides leaving from
  * the same gate.
  */
-const ClusterMarker: React.FC<{
-  cluster: NearbyClusterShape;
-  onPress: () => void;
-}> = ({ cluster, onPress }) => {
+const ClusterMarker = React.memo<{
+  cluster: NearbyCluster;
+  onPress: (cluster: NearbyCluster) => void;
+}>(({ cluster, onPress }) => {
   const count = cluster.rides.length;
   const isMulti = count > 1;
   const label = isMulti
     ? `${count} rides`
     : shortenDestination(cluster.cheapest.end_location);
+  const handlePress = useCallback(() => onPress(cluster), [cluster, onPress]);
 
   return (
     <MapLibreMarker
       lngLat={[cluster.longitude, cluster.latitude]}
-      onPress={onPress}
+      onPress={handlePress}
       // Anchor the chip's bottom (the lime dot) at the geo coordinate,
       // same as the old `{x:0.5, y:1}` Marker anchor.
       anchor="bottom"
@@ -275,7 +317,7 @@ const ClusterMarker: React.FC<{
       </View>
     </MapLibreMarker>
   );
-};
+});
 
 interface HomeScreenProps {
   setNavBarVariant: (variant: 0 | 1 | 2) => void;
@@ -416,19 +458,31 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   // instead of stacking on top of each other. The pin's onPress
   // routes to the cheapest ride in that cluster — fine as a first
   // pass; later we can show a sheet listing all rides in the cluster.
-  const clusteredNearbyRides = React.useMemo(() => {
-    const byKey = new Map<
-      string,
-      {
-        key: string;
-        latitude: number;
-        longitude: number;
-        rides: NearbyRide[];
-        cheapest: NearbyRide;
-        cheapestPrice: number;
+  // Re-tick every 30s so the "upcoming-only" filter below drops
+  // rides as their start_time crosses now() without waiting for the
+  // user to pan/refresh. 30s granularity is way finer than the
+  // human eye cares about for a "this ride just departed" cue, and
+  // cheap — only this memo re-runs.
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isFocused) return undefined;
+
+    const tick = () => {
+      if (AppState.currentState === "active") {
+        setNowTick(Date.now());
       }
-    >();
+    };
+
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, [isFocused]);
+
+  const previousNearbyClustersRef = useRef<NearbyCluster[]>([]);
+  const clusteredNearbyRides = React.useMemo<NearbyCluster[]>(() => {
+    const byKey = new Map<string, NearbyCluster>();
     const viewerUserId = viewerUser?.id ?? null;
+    const nowMs = nowTick;
     for (const r of nearbyRides) {
       // Hide the viewer's own rides from the map. They can't request
       // a seat on their own ride, so a pin that leads to an unactionable
@@ -436,6 +490,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       // self-exclusion that /ride/search does server-side; we have to
       // do it client-side here because /rides/nearby is anonymous.
       if (viewerUserId && r.host_user_id === viewerUserId) continue;
+      // Drop rides whose scheduled start_time has elapsed. Backend
+      // filters at query time, but Home can hold the last /app/state
+      // or /rides/nearby response across focus changes, and the pan
+      // dedupe intentionally keeps the current pin set during tiny
+      // map movements. Re-checking against live time keeps pins from
+      // pointing at rides that have already left.
+      if (!isRideUpcomingAt(r.start_time, nowMs)) continue;
       // 3 decimal places ≈ 110 m precision. Previously we used 4
       // decimals (~11 m), but in practice host-typed start coords for
       // the same campus / depot would drift by 20-50 m and end up as
@@ -463,8 +524,86 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         }
       }
     }
-    return Array.from(byKey.values());
-  }, [nearbyRides, viewerUser?.id]);
+    const nextClusters = Array.from(byKey.values());
+    if (areNearbyClustersEqual(previousNearbyClustersRef.current, nextClusters)) {
+      return previousNearbyClustersRef.current;
+    }
+    previousNearbyClustersRef.current = nextClusters;
+    return nextClusters;
+  }, [nearbyRides, viewerUser?.id, nowTick]);
+
+  const clusterSheetRides = React.useMemo(
+    () =>
+      clusterSheet
+        ? clusterSheet.rides.filter((r) => isRideUpcomingAt(r.start_time, nowTick))
+        : [],
+    [clusterSheet, nowTick],
+  );
+
+  useEffect(() => {
+    if (clusterSheet && clusterSheetRides.length === 0) {
+      setClusterSheet(null);
+    }
+  }, [clusterSheet, clusterSheetRides.length]);
+
+  const previewNearbyRide = useCallback(
+    (ride: NearbyRideSummary) => {
+      if (!isRideUpcomingAt(ride.start_time, Date.now())) return;
+
+      if (
+        typeof ride.start_latitude === "number" &&
+        typeof ride.start_longitude === "number" &&
+        typeof ride.end_latitude === "number" &&
+        typeof ride.end_longitude === "number"
+      ) {
+        const hostUserName = (ride as { host_user_name?: string }).host_user_name;
+        haptic("selection");
+        setPreviewRide({
+          id: ride.id,
+          start_latitude: ride.start_latitude,
+          start_longitude: ride.start_longitude,
+          end_latitude: ride.end_latitude,
+          end_longitude: ride.end_longitude,
+          end_location: ride.end_location,
+          start_location: ride.start_location,
+          host_user_name: hostUserName,
+          start_time: ride.start_time,
+          total_price: ride.total_price,
+          raw: ride,
+        });
+        return;
+      }
+
+      router.navigate(appHref("AvailableRidesSelectedScreen", {
+        ride,
+      } as any));
+    },
+    [router],
+  );
+
+  const handleNearbyClusterPress = useCallback(
+    (cluster: NearbyCluster) => {
+      const nowMs = Date.now();
+      const activeRides = cluster.rides.filter((r) =>
+        isRideUpcomingAt(r.start_time, nowMs),
+      );
+      if (activeRides.length === 0) return;
+
+      if (activeRides.length > 1) {
+        const cheapest = activeRides.reduce((best, r) =>
+          r.total_price < best.total_price ? r : best,
+        );
+        setClusterSheet({
+          pickup: cheapest.start_location,
+          rides: activeRides,
+        });
+        return;
+      }
+
+      previewNearbyRide(activeRides[0]);
+    },
+    [previewNearbyRide],
+  );
 
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
   const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
@@ -780,7 +919,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     // forever, leaving the map empty and `/app/state` queried without
     // coords (so nearby pins never load).
     const sub = AppState.addEventListener("change", (next) => {
-      if (next === "active") requestLocationPermission();
+      if (next === "active") {
+        setNowTick(Date.now());
+        requestLocationPermission();
+      }
     });
     return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1042,6 +1184,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           toLocation: rideDetails.to,
           fromCoordinates: rideDetails.fromCoordinates,
           toCoordinates: rideDetails.toCoordinates,
+          targetTime: rideDetails.date?.toISOString(),
         };
         // Browsing rides is free; booking inside RideDetails will gate the user.
         router.navigate(appHref("AvailableRidesScreen", params));
@@ -1248,53 +1391,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               <ClusterMarker
                 key={c.key}
                 cluster={c}
-                onPress={() => {
-                  if (c.rides.length > 1) {
-                    // Multi-ride cluster → open the picker sheet.
-                    setClusterSheet({
-                      pickup: c.cheapest.start_location,
-                      rides: c.rides as ClusteredRide[],
-                    });
-                  } else {
-                    // Single ride → open the in-map preview: the
-                    // dotted line draws to the destination (or to a
-                    // viewport-edge chevron if the destination is
-                    // far off-screen), and a floating card surfaces
-                    // the ride details with a "View ride" CTA. The
-                    // old behaviour (instant navigate) skipped this
-                    // animation step entirely; bringing it back via
-                    // the card preserves the path forward without
-                    // making the map feel inert on tap.
-                    const r = c.cheapest as any;
-                    if (
-                      typeof r.start_latitude === "number" &&
-                      typeof r.start_longitude === "number" &&
-                      typeof r.end_latitude === "number" &&
-                      typeof r.end_longitude === "number"
-                    ) {
-                      haptic("selection");
-                      setPreviewRide({
-                        id: r.id ?? c.key,
-                        start_latitude: r.start_latitude,
-                        start_longitude: r.start_longitude,
-                        end_latitude: r.end_latitude,
-                        end_longitude: r.end_longitude,
-                        end_location: r.end_location,
-                        start_location: r.start_location,
-                        host_user_name: r.host_user_name,
-                        start_time: r.start_time,
-                        total_price: r.total_price,
-                        raw: r,
-                      });
-                    } else {
-                      // Geo data missing — fall back to the original
-                      // straight-to-detail flow rather than no-op.
-                      router.navigate(appHref("AvailableRidesSelectedScreen", {
-                        ride: c.cheapest,
-                      } as any));
-                    }
-                  }
-                }}
+                onPress={handleNearbyClusterPress}
               />
             ))}
 
@@ -1597,9 +1694,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           pin. Sits above the map + bottom sheet via the Modal's own
           z-index. Picking a row routes to that specific ride. */}
       <RideClusterSheet
-        visible={clusterSheet !== null}
+        visible={clusterSheet !== null && clusterSheetRides.length > 0}
         pickup={clusterSheet?.pickup || ""}
-        rides={clusterSheet?.rides || []}
+        rides={clusterSheetRides}
         onClose={() => setClusterSheet(null)}
         onPickRide={(r: any) => {
           // Same preview-then-card flow as a single-pin tap so the
@@ -1608,6 +1705,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           // reason (older seed data, bad coords) fall back to the
           // original instant-navigate path.
           setClusterSheet(null);
+          if (!isRideUpcomingAt(r?.start_time, Date.now())) return;
           if (
             typeof r?.start_latitude === "number" &&
             typeof r?.start_longitude === "number" &&

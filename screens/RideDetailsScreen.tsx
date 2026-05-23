@@ -476,6 +476,7 @@ const RideDetailsScreen: React.FC = () => {
     can_cancel_ride?: boolean;
     can_accept_passengers?: boolean;
     can_open_chat?: boolean;
+    can_rate?: boolean;
   }>({});
 
   const [isHost, setIsHost] = useState(false);
@@ -1199,17 +1200,15 @@ const RideDetailsScreen: React.FC = () => {
   const handleShare = async () => {
     if (!rideData) return;
     const deepLink = `https://unipool.acmvit.in/ride/${rideData.id || rideId}`;
-    // Public landing page that platform-routes to the App Store / Play
-    // Store. Bundled into every share so a recipient without UniPool
-    // installed has a route forward instead of bouncing off the
-    // deeplink. Kept symmetric with ShareRideSheet.shareMessage so
-    // both share surfaces read the same in a recipient's inbox.
-    const downloadUrl = "https://unipool.acmvit.in/download";
-    const message = `I'm on a UniPool ride from ${displayRideLocation(rideData.start_location)} to ${displayRideLocation(rideData.end_location)} on ${formatDate(rideData.start_time)} at ${formatTimeDisplay(rideData.start_time)}. Hop in: ${deepLink}\n\nNew to UniPool? Download it: ${downloadUrl}`;
+    // Direct store URL for first-time recipients. Kept symmetric with
+    // ShareRideSheet.shareMessage so both share surfaces read the same
+    // in a recipient's inbox.
+    const downloadUrl =
+      "https://play.google.com/store/apps/details?id=com.carpoolitapp&hl=en_IN";
+    const message = `I'm on a UniPool ride from ${displayRideLocation(rideData.start_location)} to ${displayRideLocation(rideData.end_location)} on ${formatDate(rideData.start_time)} at ${formatTimeDisplay(rideData.start_time)}.\n\nNew to UniPool?\n${downloadUrl}\n\nHop in:\n${deepLink}`;
     try {
       await Share.share({
         message,
-        url: deepLink,
         title: 'Join my ride on UniPool!'
       });
     } catch (error) {

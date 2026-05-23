@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar";
 import { appHref } from "../../navigation/routes";
 import { useApi } from "../../utils/ApiUtil";
 import { useTabletContentStyle, useTabletScrollContentStyle } from "../../utils/responsive";
+import { isRideUpcomingAt } from "../../utils/rideTime";
 
 const { width, height } = Dimensions.get("window");
 const isSmallDevice = width < 350;
@@ -111,6 +112,7 @@ const NearbyRidesScreen: React.FC = () => {
   // generic `error` strictly for fetch failures so the two surfaces
   // don't share copy ("We hit a snag" doesn't fit a permission gate).
   const [needsLocation, setNeedsLocation] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const load = useCallback(async (forceNetwork = false) => {
     setError(null);
@@ -135,7 +137,9 @@ const NearbyRidesScreen: React.FC = () => {
       const json = forceNetwork
         ? await apiUtil.getUncached<{ rides?: NearbyRide[] }>(endpoint)
         : await apiUtil.get<{ rides?: NearbyRide[] }>(endpoint);
-      const list: NearbyRide[] = Array.isArray(json?.rides) ? json.rides : [];
+      const nowMs = Date.now();
+      const list: NearbyRide[] = (Array.isArray(json?.rides) ? json.rides : [])
+        .filter((r) => isRideUpcomingAt(r.start_time, nowMs));
       // Sort by distance from the user, then by start_time within ties.
       list.sort((a, b) => {
         const da = haversineKm(c.latitude, c.longitude, a.start_latitude, a.start_longitude);
@@ -158,6 +162,8 @@ const NearbyRidesScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      setNowTick(Date.now());
+      const tick = setInterval(() => setNowTick(Date.now()), 30_000);
       (async () => {
         setLoading(true);
         await load();
@@ -165,8 +171,14 @@ const NearbyRidesScreen: React.FC = () => {
       })();
       return () => {
         active = false;
+        clearInterval(tick);
       };
     }, [load]),
+  );
+
+  const visibleRides = useMemo(
+    () => rides.filter((r) => isRideUpcomingAt(r.start_time, nowTick)),
+    [rides, nowTick],
   );
 
   const onRefresh = async () => {
@@ -176,6 +188,13 @@ const NearbyRidesScreen: React.FC = () => {
   };
 
   const openRide = (ride: NearbyRide) => {
+    const nowMs = Date.now();
+    if (!isRideUpcomingAt(ride.start_time, nowMs)) {
+      setRides((current) =>
+        current.filter((r) => isRideUpcomingAt(r.start_time, nowMs)),
+      );
+      return;
+    }
     router.navigate(appHref("AvailableRidesSelectedScreen", { ride } as any));
   };
 
@@ -226,8 +245,8 @@ const NearbyRidesScreen: React.FC = () => {
     );
   };
 
-  const headerCount = !loading && rides.length > 0
-    ? `${rides.length} carpool${rides.length === 1 ? "" : "s"} within 10 km`
+  const headerCount = !loading && visibleRides.length > 0
+    ? `${visibleRides.length} carpool${visibleRides.length === 1 ? "" : "s"} within 10 km`
     : null;
 
   return (
@@ -274,7 +293,7 @@ const NearbyRidesScreen: React.FC = () => {
           ctaLabel="Try again"
           onPressCta={onRefresh}
         />
-      ) : rides.length === 0 ? (
+      ) : visibleRides.length === 0 ? (
         <EmptyState
           // Caption-less variant — the full no-rides.png has "Uh Oh!
           // No Rides Available" baked into the artwork, which doubled
@@ -294,7 +313,7 @@ const NearbyRidesScreen: React.FC = () => {
         />
       ) : (
         <FlatList
-          data={rides}
+          data={visibleRides}
           keyExtractor={(it) => it.id}
           renderItem={renderRide}
           contentContainerStyle={[styles.listContent, tabletScrollContentStyle]}

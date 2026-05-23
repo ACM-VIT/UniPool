@@ -36,18 +36,16 @@ type Ride = {
     | "available"
     | "full"
     | "past";
-};
-
-type PendingRating = {
-  ride_id: string;
-  pending_count: number;
+  actions?: {
+    can_rate?: boolean;
+  };
 };
 
 /**
  * Trip history — a calmly-presented log of past rides under Profile.
  * Filters `/user/rides` to viewer_state == past and sorts most-
  * recent first. Each row carries a "Rate now" CTA when there's an
- * unrated counterpart for that trip (driven by /user/pending-ratings).
+ * unrated counterpart for that trip (driven by actions.can_rate).
  *
  * Intentional cuts:
  *   - No fancy month grouping yet (KISS until usage signals demand)
@@ -62,7 +60,6 @@ const TripHistoryScreen: React.FC = () => {
   const { apiUtil } = useApi();
 
   const [rides, setRides] = useState<Ride[]>([]);
-  const [pending, setPending] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,19 +68,9 @@ const TripHistoryScreen: React.FC = () => {
     if (!isRefresh) setLoading(true);
     setError(null);
     try {
-      const [ridesResp, pendingResp] = await Promise.all([
-        apiUtil.getUncached<Ride[]>("/user/rides?scope=past"),
-        apiUtil
-          .getUncached<{ rides: PendingRating[] }>("/user/pending-ratings")
-          .catch(() => ({ rides: [] })),
-      ]);
+      const ridesResp = await apiUtil.getUncached<Ride[]>("/user/rides?scope=past");
       const list = Array.isArray(ridesResp) ? ridesResp : [];
       setRides(list);
-      const map: Record<string, number> = {};
-      for (const p of pendingResp?.rides || []) {
-        map[p.ride_id] = p.pending_count;
-      }
-      setPending(map);
     } catch (err: any) {
       if (err?.message === "AUTHENTICATION_REDIRECT") return;
       setError(err?.response?.data?.message || "Couldn't load trip history.");
@@ -163,7 +150,7 @@ const TripHistoryScreen: React.FC = () => {
           ]}
           renderItem={({ item }) => {
             const id = item.ride_id || item.id || "";
-            const needsRating = (pending[id] || 0) > 0;
+            const needsRating = item.actions?.can_rate === true;
             return (
               <View style={styles.row}>
                 <TouchableOpacity

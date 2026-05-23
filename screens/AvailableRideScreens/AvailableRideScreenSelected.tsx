@@ -248,6 +248,8 @@ interface RideRequestResponse {
   id?: string;
   booking_id?: string;
   message?: string;
+  error?: string;
+  code?: string;
   status?: string;
 }
 
@@ -324,6 +326,7 @@ const AvailableRideScreenSelected: React.FC = () => {
     can_cancel_ride?: boolean;
     can_accept_passengers?: boolean;
     can_open_chat?: boolean;
+    can_rate?: boolean;
   }>((routeParams?.ride as any)?.actions ?? {});
   // Verification + same-campus + name signals — populated by the
   // /ride/details fetch. Drives the host checkmark, "Same campus"
@@ -671,12 +674,25 @@ const AvailableRideScreenSelected: React.FC = () => {
       
       let errorMessage = 'Failed to request ride. Please try again.';
       
-      if (error?.response?.status === 400) {
-        errorMessage = error?.response?.data?.message || 'Invalid request. Please check ride availability.';
+      const responseData = error?.response?.data || {};
+      const status = error?.response?.status;
+      const code = responseData?.code;
+      const serverMessage = responseData?.message || responseData?.error;
+
+      if (status === 400) {
+        errorMessage = serverMessage || 'Invalid request. Please check ride availability.';
       } else if (error?.response?.status === 401) {
         errorMessage = 'Please log in to request a ride.';
-      } else if (error?.response?.status === 409) {
-        errorMessage = 'You have already requested this ride or the ride is full.';
+      } else if (status === 409) {
+        if (code === "already_booked") {
+          errorMessage = "You've already requested this ride.";
+        } else if (code === "ride_full") {
+          errorMessage = "This ride is full.";
+        } else if (code === "ride_started") {
+          errorMessage = "This ride has already started.";
+        } else {
+          errorMessage = serverMessage || 'You have already requested this ride or the ride is full.';
+        }
       } else if (error?.message) {
         errorMessage = error.message;
       }
