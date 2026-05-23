@@ -3,6 +3,15 @@ import AppColors from "../../design_systems/colors";
 
 const { width, height } = Dimensions.get("window");
 
+// Light width-relative scale for typography. Tuned to a 390pt iPhone
+// 14 baseline: 1.0× on common phone widths, capped at 1.18× so iPads
+// and BlueStacks-large emulators (which used to render the form's
+// 14pt field labels as whispers) get a modest bump without
+// inflating into tablet-news territory. Floored at 1.0 so smaller
+// phones (older SE-class devices) aren't shrunk.
+const fontScale = Math.min(Math.max(width / 390, 1.0), 1.18);
+const fs = (size: number) => Math.round(size * fontScale);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -50,24 +59,28 @@ const styles = StyleSheet.create({
   headline: {
     flex: 1,
     fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 30,
-    lineHeight: 36,
+    fontSize: fs(30),
+    lineHeight: fs(36),
     letterSpacing: -0.6,
     color: AppColors.secondaryDarkGreen,
   },
   subhead: {
     fontFamily: "NunitoSans_400Regular",
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: fs(17),
+    lineHeight: fs(23),
     color: AppColors.secondaryDarkGreen,
-    opacity: 0.65,
+    opacity: 0.7,
   },
   fieldLabel: {
     fontFamily: "NunitoSans_700Bold",
-    fontSize: 14,
+    fontSize: fs(15),
     letterSpacing: -0.1,
     color: AppColors.secondaryDarkGreen,
-    opacity: 0.75,
+    // Slightly higher than the previous 0.75 so labels read as
+    // proper labels instead of muted captions. Together with the
+    // size bump this lifts the form's visual confidence on the
+    // wider canvases (BlueStacks Air, iPads).
+    opacity: 0.85,
     marginBottom: 8,
     marginTop: 18,
   },
@@ -98,7 +111,7 @@ const styles = StyleSheet.create({
   },
   prefix: {
     fontFamily: "NunitoSans_700Bold",
-    fontSize: 16,
+    fontSize: fs(16),
     color: AppColors.primaryLightGreen,
     opacity: 0.65,
     marginRight: 8,
@@ -114,11 +127,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   countryFlag: {
-    fontSize: 22,
+    fontSize: fs(22),
   },
   countryDial: {
     fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 16,
+    fontSize: fs(16),
     color: AppColors.primaryLightGreen,
     letterSpacing: 0.2,
   },
@@ -131,14 +144,14 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontFamily: "NunitoSans_600SemiBold",
-    fontSize: 16,
+    fontSize: fs(17),
     color: AppColors.basicWhite,
     paddingVertical: 0,
   },
   helper: {
     marginTop: 6,
     fontFamily: "NunitoSans_600SemiBold",
-    fontSize: 12,
+    fontSize: fs(13),
     color: AppColors.secondaryDarkGreen,
     opacity: 0.6,
   },
@@ -166,7 +179,7 @@ const styles = StyleSheet.create({
   },
   genderChipText: {
     fontFamily: "NunitoSans_700Bold",
-    fontSize: 15,
+    fontSize: fs(15),
     color: AppColors.primaryLightGreen,
     opacity: 0.85,
   },
@@ -202,7 +215,7 @@ const styles = StyleSheet.create({
   verifyBtnText: {
     flex: 1,
     fontFamily: "NunitoSans_700Bold",
-    fontSize: 15,
+    fontSize: fs(15),
     color: AppColors.primaryLightGreen,
     letterSpacing: -0.1,
   },
@@ -236,17 +249,17 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: {
     fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 17,
+    fontSize: fs(17),
     color: AppColors.primaryLightGreen,
     letterSpacing: 0.2,
   },
   privacyNote: {
     marginTop: 12,
     fontFamily: "NunitoSans_400Regular",
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: fs(13),
+    lineHeight: fs(18),
     color: AppColors.secondaryDarkGreen,
-    opacity: 0.5,
+    opacity: 0.55,
     textAlign: "center",
   },
 });
