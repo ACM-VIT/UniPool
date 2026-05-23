@@ -207,7 +207,13 @@ const PostTripRatingScreen: React.FC = () => {
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: Math.max(insets.top, 12) + 8 },
+            // iOS modal presentation already gives the sheet a top
+            // inset (the rounded-corner gap above the content), so
+            // adding the full safe-area inset on top of that was
+            // doubling the padding and parking the close button +
+            // heading way too far down. Just a small fixed cushion
+            // on top of whatever inset the system already provided.
+            { paddingTop: insets.top + 4 },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -222,7 +228,7 @@ const PostTripRatingScreen: React.FC = () => {
 
           <Text style={styles.heading}>How was the ride?</Text>
           <Text style={styles.routeLine} numberOfLines={2}>
-            {eligibility.start_location} → {eligibility.end_location}
+            {eligibility.start_location} to {eligibility.end_location}
           </Text>
 
           {eligibility.targets.map((target) => (
@@ -382,7 +388,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(38,59,51,0.08)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    // 16pt below the close put the heading way down the sheet on
+    // a modal presentation where the top inset is already generous.
+    // 6pt keeps the X-to-title gap tight without the title hugging
+    // the button.
+    marginBottom: 6,
   },
   heading: {
     fontFamily: "NunitoSans_800ExtraBold",
