@@ -46,3 +46,10 @@ google-services.json
 GoogleService-Info.plist
 
 my-upload-key.keystore
+
+# Android signing keystore — NEVER commit
+*.keystore
+*.jks
+android/app/my-upload-key.keystore
+
+.env.ota
