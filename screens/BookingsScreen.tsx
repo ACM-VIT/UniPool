@@ -298,8 +298,13 @@ const BookingsScreen: React.FC = () => {
     return (
       <View style={{ alignItems: "center", paddingTop: 32, paddingHorizontal: 24 }}>
         <Image
-          source={require("../assets/no-rides.png")}
-          style={{ width: 160, height: 180, marginBottom: 16 }}
+          // Caption-less variant. no-rides.png has "Uh Oh! No Rides
+          // Available" burned into the artwork which collides with
+          // the cfg.title + cfg.body the surrounding code prints
+          // directly underneath. Same swap we made on the Rides
+          // around you / Trips empty states.
+          source={require("../assets/no-rides-emoji.png")}
+          style={{ width: 140, height: 140, marginBottom: 16 }}
           resizeMode="contain"
         />
         <Text
