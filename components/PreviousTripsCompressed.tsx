@@ -165,20 +165,22 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chatBtn: {
-    // Ghost lime chip: lower visual weight than the solid price pill
-    // so the price stays the headline. Same 28-ish height keeps both
-    // chips baseline-aligned. Circular footprint (height = width)
-    // because the icon doesn't need a label inside.
+    // Bare icon — the circular ghost-lime container felt redundant
+    // next to the solid price pill (two chip shapes side by side
+    // muddied the hierarchy). Keep the 28pt footprint so the tap
+    // target is reliable and the icon stays baseline-aligned with
+    // the pill, but drop the background.
     width: 28,
     height: 28,
-    borderRadius: 999,
-    backgroundColor: "rgba(181,215,80,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
   chatIcon: {
-    width: 15,
-    height: 15,
+    // Bumped up a touch now that there's no background ring carrying
+    // weight around it; otherwise the bare icon read as too small
+    // next to the price pill.
+    width: 18,
+    height: 18,
     tintColor: AppColors.primaryLightGreen,
   },
   pricePill: {
