@@ -2108,11 +2108,13 @@ const RideDetailsScreen: React.FC = () => {
           <View style={styles.bottomActionsContainer}>
             {!isRideOver(rideData.start_time) ? (
               <>
-                {/* Primary chat affordance for accepted passengers.
-                    Sits above the destructive slide-to-cancel — once
-                    you're in the trip, opening the chat is the
-                    common action; cancelling is rare. */}
-                {userBookingStatus === 'accepted' ? (
+                {/* Primary chat affordance. Gated on the server's
+                    `can_open_chat` capability instead of a local
+                    `userBookingStatus === 'accepted'` check so the
+                    truth lives in one place (see
+                    routes/rides/viewerState.go) — the same flag is
+                    false for pending/rejected/available viewers. */}
+                {viewerActions.can_open_chat ? (
                   <TouchableOpacity
                     onPress={openRideChat}
                     activeOpacity={0.85}
@@ -2141,21 +2143,17 @@ const RideDetailsScreen: React.FC = () => {
                     </Text>
                   </TouchableOpacity>
                 ) : null}
-                {/* Three states share this surface (the non-host
-                    branch of RideDetailsScreen):
-                      - none      → arrived via a share-link with no
-                                    existing booking. Slider becomes
-                                    "Slide to request booking" and
-                                    routes through the request flow.
-                      - accepted  → "Slide to cancel booking" + the
-                                    cancel handler.
-                      - pending / rejected → handled by the fallback
-                                    branch above; never reach here.
-                    The slide-icon swap (green track for request,
-                    grey for cancel) matches the destructive vs.
-                    constructive treatment used elsewhere in the
-                    app. */}
-                {userBookingStatus === "none" ? (
+                {/* Slider is driven by the server's `viewer_actions`
+                    booleans, not by client-side state derivation.
+                    The capability set is mutually exclusive at the
+                    source (see ResolveViewerState in the backend):
+                      can_request_seat   → viewer is `available`
+                      can_cancel_booking → confirmed/pending passenger
+                    If neither is set (host, full ride for a non-
+                    booker, past ride, etc.) the slider doesn't
+                    render — the relevant info card upstream covers
+                    those cases. */}
+                {viewerActions.can_request_seat ? (
                   <SlideToCreate
                     onSlideComplete={handleRequestRide}
                     text={
@@ -2170,7 +2168,7 @@ const RideDetailsScreen: React.FC = () => {
                     sliderButtonColor={AppColors.primaryLightGreen}
                     textColor={AppColors.primaryLightGreen}
                   />
-                ) : (
+                ) : viewerActions.can_cancel_booking ? (
                   <SlideToCreate
                     onSlideComplete={handleCancelRide}
                     text={
@@ -2181,7 +2179,7 @@ const RideDetailsScreen: React.FC = () => {
                     disabled={isActionLoading}
                     sliderIcon={require("../assets/slide.png")}
                   />
-                )}
+                ) : null}
 
               </>
             ) : (
