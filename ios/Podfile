@@ -127,6 +127,36 @@ target 'UniPool' do
       end
     end
 
+    # RN 0.85 prebuilt scripts assume a missing marker means Debug is already installed.
+    # If a Release slice is left behind without the marker, Debug linking misses RN symbols.
+    rn_prebuilt_marker_paths = {
+      'React-Core-prebuilt' => 'React-Core-prebuilt/.last_build_configuration',
+      'ReactNativeDependencies' => 'ReactNativeDependencies/.last_build_configuration',
+    }
+
+    installer.pods_project.targets.each do |target|
+      next unless rn_prebuilt_marker_paths.key?(target.name)
+
+      target.shell_script_build_phases.each do |phase|
+        next unless phase.name&.include?('Replace React Native')
+        next if phase.shell_script.include?('LAST_RN_PREBUILT_CONFIG_FILE')
+
+        marker_path = rn_prebuilt_marker_paths[target.name]
+        marker_guard = <<~SH
+          LAST_RN_PREBUILT_CONFIG_FILE="$PODS_ROOT/#{marker_path}"
+          if [ "$CONFIG" = "Debug" ] && [ ! -f "$LAST_RN_PREBUILT_CONFIG_FILE" ]; then
+            mkdir -p "$(dirname "$LAST_RN_PREBUILT_CONFIG_FILE")"
+            echo "Release" > "$LAST_RN_PREBUILT_CONFIG_FILE"
+          fi
+        SH
+
+        phase.shell_script = phase.shell_script.sub(
+          "\n      \"$NODE_BINARY\"",
+          "\n#{marker_guard}\n      \"$NODE_BINARY\""
+        )
+      end
+    end
+
     # This is necessary for Xcode 14, because it signs resource bundles by default
     # when building for devices.
     installer.target_installation_results.pod_target_installation_results
@@ -138,4 +168,22 @@ target 'UniPool' do
       end
     end
   end
+end
+
+post_integrate do |_installer|
+  project_path = File.join(__dir__, 'UniPool.xcodeproj')
+  project = Xcodeproj::Project.open(project_path)
+  changed = false
+
+  project.native_targets.each do |target|
+    target.shell_script_build_phases.each do |phase|
+      next unless phase.name == '[CP-User] [RNFB] Core Configuration'
+      next if phase.always_out_of_date == '1'
+
+      phase.always_out_of_date = '1'
+      changed = true
+    end
+  end
+
+  project.save if changed
 end
