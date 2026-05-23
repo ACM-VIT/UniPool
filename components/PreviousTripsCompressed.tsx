@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Image,
 } from "react-native";
 import AppColors from "../design_systems/colors";
 import RouteStack from "./RouteStack";
@@ -22,11 +23,18 @@ interface RideDetails {
 interface PreviousTripsCompressedProps {
   trip: RideDetails;
   onPress?: () => void;
+  // When provided, a small lime "open chat" chip appears in the
+  // footer next to the price. Tapping it fires `onOpenChat` and the
+  // outer card press is consumed by React Native's responder system
+  // so the user doesn't also navigate to ride details. Omit the prop
+  // to render the card without a chat shortcut.
+  onOpenChat?: () => void;
 }
 
 const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
   trip,
   onPress,
+  onOpenChat,
 }) => {
   // Locations often contain commas (e.g. "Assam, India") which break the
   // old "FROM to TO" sentence-style format into mush. Render as a two-row
@@ -52,8 +60,26 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
 
       <View style={styles.footer}>
         <Text style={styles.dateText}>{dateLabel}</Text>
-        <View style={styles.pricePill}>
-          <Text style={styles.priceText}>₹{trip.total_price}</Text>
+        <View style={styles.footerRight}>
+          {onOpenChat ? (
+            <TouchableOpacity
+              style={styles.chatBtn}
+              onPress={onOpenChat}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Open chat for this trip"
+            >
+              <Image
+                source={require("../assets/message-icon.png")}
+                style={styles.chatIcon}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          ) : null}
+          <View style={styles.pricePill}>
+            <Text style={styles.priceText}>₹{trip.total_price}</Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -129,6 +155,31 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_600SemiBold",
     textTransform: "uppercase",
     opacity: 0.75,
+  },
+  footerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    // Chat chip sits to the LEFT of the price so the price stays the
+    // rightmost anchor — preserves the same visual rhythm as cards
+    // that don't have a chat shortcut.
+    gap: 8,
+  },
+  chatBtn: {
+    // Ghost lime chip: lower visual weight than the solid price pill
+    // so the price stays the headline. Same 28-ish height keeps both
+    // chips baseline-aligned. Circular footprint (height = width)
+    // because the icon doesn't need a label inside.
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    backgroundColor: "rgba(181,215,80,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chatIcon: {
+    width: 15,
+    height: 15,
+    tintColor: AppColors.primaryLightGreen,
   },
   pricePill: {
     backgroundColor: AppColors.primaryLightGreen,
