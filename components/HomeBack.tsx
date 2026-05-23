@@ -1,5 +1,5 @@
 import React from "react";
-import { TouchableOpacity, Image, StyleSheet } from "react-native";
+import { TouchableOpacity, Image, StyleSheet, ViewStyle, StyleProp } from "react-native";
 import { useRouter } from "expo-router";
 import { appHref } from "../navigation/routes";
 
@@ -8,6 +8,11 @@ type Props = {
    *  the stack-trip the user came from (RideCreated / RideRequested
    *  → RideDetails) doesn't linger behind the home screen. */
   onPress?: () => void;
+  /** Mirrors ChevronBack's `style` prop so the call site can pass
+   *  the same wrapper styles (e.g. styles.backButton's marginRight)
+   *  the chevron uses, keeping the icon vertically + horizontally
+   *  aligned in the header row regardless of which glyph is shown. */
+  style?: StyleProp<ViewStyle>;
 };
 
 /**
@@ -21,7 +26,7 @@ type Props = {
  * ChevronBack so they're visually interchangeable in the
  * navigationRow.
  */
-const HomeBack: React.FC<Props> = ({ onPress }) => {
+const HomeBack: React.FC<Props> = ({ onPress, style }) => {
   const router = useRouter();
 
   const handlePress = () => {
@@ -37,7 +42,7 @@ const HomeBack: React.FC<Props> = ({ onPress }) => {
 
   return (
     <TouchableOpacity
-      style={styles.container}
+      style={[styles.container, style]}
       onPress={handlePress}
       hitSlop={{ top: 10, left: 10, bottom: 10, right: 10 }}
       accessibilityRole="button"
@@ -61,8 +66,13 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   icon: {
-    width: 24,
-    height: 24,
+    // 22×22 instead of ChevronBack's 24×24 — the home glyph has a
+    // chunkier filled-shape silhouette than the chevron's thin
+    // arrow, so visually it reads as heavier at the same pixel
+    // dimensions. Pulling it down 2pt brings the optical weight
+    // back in line with the title typography.
+    width: 22,
+    height: 22,
     // home-icon.png is a black silhouette by default — tint to the
     // forest brand so it sits at the same visual weight as the
     // ChevronBack arrow it's replacing.
