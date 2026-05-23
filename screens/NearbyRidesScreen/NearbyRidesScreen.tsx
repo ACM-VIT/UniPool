@@ -276,7 +276,12 @@ const NearbyRidesScreen: React.FC = () => {
         />
       ) : rides.length === 0 ? (
         <EmptyState
-          image={require("../../assets/no-rides.png")}
+          // Caption-less variant — the full no-rides.png has "Uh Oh!
+          // No Rides Available" baked into the artwork, which doubled
+          // up with the EmptyState's own title + body. The
+          // -emoji.png crop is the canonical empty-state asset across
+          // TripsListScreen, PassengerInfo, etc.
+          image={require("../../assets/no-rides-emoji.png")}
           title="No carpools near you"
           body="Be the first to post one going your way — your co-riders will roll in."
           ctaLabel="Post a ride"
