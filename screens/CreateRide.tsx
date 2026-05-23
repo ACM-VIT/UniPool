@@ -139,6 +139,12 @@ const CreateRide: React.FC = () => {
   //                still knows what to collect from each rider.
   const [splitMode, setSplitMode] = useState<"per_seat" | "total" | "custom">("per_seat");
   const [totalFare, setTotalFare] = useState<number>(300);
+  // Total-mode tap-to-edit state, mirroring per-seat's costPerPerson
+  // pair. Without these, the central ₹ amount in Total mode was a
+  // dead pill — host could only nudge via the +/− buttons.
+  const [isEditingTotal, setIsEditingTotal] = useState<boolean>(false);
+  const [customTotal, setCustomTotal] = useState<string>("");
+  const totalInputRef = useRef<TextInput>(null);
   const [seatFares, setSeatFares] = useState<number[]>([100, 100, 100]);
   const [editingSeatIndex, setEditingSeatIndex] = useState<number | null>(null);
   const [seatFareDraft, setSeatFareDraft] = useState<string>("");
@@ -505,6 +511,26 @@ const CreateRide: React.FC = () => {
   const decreaseTotal = () =>
     setTotalFare((c) => Math.max(totalMin, c - 25 * Math.max(1, passengerCount)));
 
+  // Tap-to-edit for the Total amount. Same pattern as Per seat: snap
+  // the draft from the current value, raise the keyboard via autoFocus,
+  // and commit on blur / submit. Clamping is bracketed by the same
+  // range the steppers obey so typing 5 falls back to the minimum
+  // rather than silently becoming a noop.
+  const handleTotalPress = () => {
+    setCustomTotal(totalFare.toString());
+    setIsEditingTotal(true);
+    setTimeout(() => totalInputRef.current?.focus(), 100);
+  };
+  const handleTotalChange = (text: string) =>
+    /^\d*$/.test(text) && setCustomTotal(text);
+  const handleTotalSubmit = () => {
+    let v = parseInt(customTotal, 10);
+    if (isNaN(v)) v = totalFare;
+    v = Math.min(totalMax, Math.max(totalMin, v));
+    setTotalFare(v);
+    setIsEditingTotal(false);
+  };
+
   // Custom-mode per-seat editing. Tapping a row opens an inline
   // numeric input (one at a time) so the host can punch in an exact
   // amount without juggling steppers for every seat.
@@ -844,17 +870,40 @@ const CreateRide: React.FC = () => {
               <TouchableOpacity
                 onPress={decreaseTotal}
                 style={styles.stepperBtn}
+                disabled={isEditingTotal}
                 activeOpacity={0.7}
               >
                 <Text style={styles.stepperBtnText}>−</Text>
               </TouchableOpacity>
-              <View style={styles.stepperValueWrap}>
+              <TouchableOpacity
+                style={styles.stepperValueWrap}
+                onPress={handleTotalPress}
+                activeOpacity={0.7}
+                disabled={isEditingTotal}
+              >
                 <Text style={styles.stepperCurrency}>₹</Text>
-                <Text style={styles.stepperValue}>{totalFare}</Text>
-              </View>
+                {isEditingTotal ? (
+                  <TextInput
+                    ref={totalInputRef}
+                    style={styles.stepperValueInput}
+                    value={customTotal}
+                    onChangeText={handleTotalChange}
+                    onBlur={handleTotalSubmit}
+                    onSubmitEditing={handleTotalSubmit}
+                    keyboardType="numeric"
+                    maxLength={6}
+                    selectTextOnFocus
+                    returnKeyType="done"
+                    autoFocus
+                  />
+                ) : (
+                  <Text style={styles.stepperValue}>{totalFare}</Text>
+                )}
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={increaseTotal}
                 style={styles.stepperBtn}
+                disabled={isEditingTotal}
                 activeOpacity={0.7}
               >
                 <Text style={styles.stepperBtnText}>+</Text>
