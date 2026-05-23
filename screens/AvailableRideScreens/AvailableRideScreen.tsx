@@ -64,6 +64,12 @@ interface RideData {
 
 interface ApiResponse {
   rides: RideData[];
+  /** Server-flagged strict matches — rides whose start AND end are
+   *  within 500m of the requested route and within ±3h of the
+   *  requested time. Always present (empty array when no coords
+   *  or no hits). Used here to flag a "Best match" badge on
+   *  overlapping rows in the regular `rides` list. */
+  strict_matches?: { id: string; start_distance_m: number; end_distance_m: number }[];
   meta: {
     total_found: number;
     used_radius_km: number;
@@ -131,6 +137,12 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   // to revert because we'd have already written through to `filters`.
   const [tempPickerDate, setTempPickerDate] = useState<Date | null>(null);
   const [searchMeta, setSearchMeta] = useState<ApiResponse['meta'] | null>(null);
+  // Set of ride IDs the server flagged as strict matches (start and
+  // end both within 500m of the requested route AND within ±3h of
+  // the requested time). Drives the "Best match" badge on
+  // overlapping cards. Cleared on every search so stale flags from
+  // a prior query don't bleed into new results.
+  const [strictMatchIds, setStrictMatchIds] = useState<Set<string>>(new Set());
   // Viewer's gender — used to gate the same-gender pink affinity tint
   // on host cards. Sourced from the shared `UserContext` so the
   // /user/details fetch on cold boot happens ONCE for the whole app
@@ -269,10 +281,16 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         if (response && response.rides) {
           setRides(response.rides);
           setSearchMeta(response.meta);
+          const ids = new Set<string>();
+          for (const m of response.strict_matches ?? []) {
+            if (m?.id) ids.add(m.id);
+          }
+          setStrictMatchIds(ids);
         } else {
           // Fallback for old API format
           setRides(Array.isArray(response) ? response : []);
           setSearchMeta(null);
+          setStrictMatchIds(new Set());
         }
       })
       .catch((err: any) => {
@@ -288,6 +306,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         console.error("API error:", err);
         setRides([]);
         setSearchMeta(null);
+        setStrictMatchIds(new Set());
         if (!isAuthRedirect) {
           BrandedAlert.alert("Error", "Failed to fetch rides. Please try again.");
         }
@@ -919,8 +938,24 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
           ) : (
             rides
               .filter((ride: RideData) => ride.total_seats > (ride.booked_seats + 1)) // Filter out full rides (accounting for ride creator)
-              .map((ride: RideData) => (
+              .map((ride: RideData) => {
+                // Server flagged this ride as a strict match (both
+                // endpoints within 500m of the requested route AND
+                // start_time within ±3h). Surface a small "Best
+                // match" pill on the card so users see the most
+                // relevant rows without having to compare distances
+                // themselves.
+                const isBestMatch = strictMatchIds.has(ride.id);
+                return (
               <View key={ride.id} style={styles.rideCardWrapper}>
+                {isBestMatch ? (
+                  <View style={styles.bestMatchBadgeWrap} pointerEvents="none">
+                    <View style={styles.bestMatchBadge}>
+                      <Text style={styles.bestMatchBadgeGlyph}>★</Text>
+                      <Text style={styles.bestMatchBadgeText}>Best match</Text>
+                    </View>
+                  </View>
+                ) : null}
                 <RideCard
                   id={ride.id}
                   origin={ride.start_location}
@@ -988,7 +1023,8 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                   </View>
                 </View>
               </View>
-            ))
+                );
+              })
           )}
         </View>
       </ScrollView>
