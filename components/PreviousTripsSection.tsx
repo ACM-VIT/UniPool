@@ -269,6 +269,27 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
                                     trip={trip}
                                     // @ts-ignore: rideId is expected by RideDetailsScreen navigation
                                     onPress={() => router.navigate(appHref("RideDetailsScreen", { rideId: trip.ride_id }))}
+                                    onOpenChat={() => {
+                                        // Match the canonical "open this ride's group chat"
+                                        // shape used by BookingsScreen + TripInfo: the chatId
+                                        // is the ride id, title is "Trip to <destination>"
+                                        // (first comma-separated part so "Vellore, India"
+                                        // shows as just "Vellore"). isGroupChat=true so the
+                                        // chat header renders the trip-info pane.
+                                        const shortDest = (trip.end_location || "")
+                                            .split(",")[0]
+                                            .trim();
+                                        const title = shortDest
+                                            ? `Trip to ${shortDest}`
+                                            : "Ride chat";
+                                        router.navigate(
+                                            appHref("ChatMessages", {
+                                                chatId: String(trip.ride_id),
+                                                chatTitle: title,
+                                                isGroupChat: true,
+                                            })
+                                        );
+                                    }}
                                 />
                             </View>
                         ))}
