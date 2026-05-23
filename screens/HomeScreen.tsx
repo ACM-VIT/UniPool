@@ -1326,6 +1326,24 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 onPress={() => {
                   // Posting a ride requires an authenticated student.
                   if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) return;
+                  // If the user has already filled From / To / Date in the
+                  // search section below, carry that into Create Ride. The
+                  // common case for someone tapping Create Ride after
+                  // typing a route is "no one's offering my trip, I'll
+                  // post it myself" — making them re-type the same
+                  // endpoints would be silly.
+                  if (rideDetails && (rideDetails.from || rideDetails.to)) {
+                    router.navigate(
+                      appHref("CreateRide", {
+                        fromLocation: rideDetails.from || undefined,
+                        toLocation: rideDetails.to || undefined,
+                        fromCoordinates: rideDetails.fromCoordinates,
+                        toCoordinates: rideDetails.toCoordinates,
+                        date: rideDetails.date?.toISOString(),
+                      })
+                    );
+                    return;
+                  }
                   router.navigate(appHref("CreateRide"));
                 }}
               >

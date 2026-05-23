@@ -22,7 +22,16 @@ export type RootStackParamList = {
   BookingsScreen: undefined;
   PersonalInformationScreen: undefined;
   PassengersHistoryScreen: undefined;
-  CreateRide: undefined;
+  CreateRide:
+    | {
+        fromLocation?: string;
+        toLocation?: string;
+        fromCoordinates?: { latitude: number; longitude: number };
+        toCoordinates?: { latitude: number; longitude: number };
+        // ISO string. CreateRide parses it back into a Date.
+        date?: string;
+      }
+    | undefined;
   AvailableRidesScreen: { 
     fromLocation: string; 
     toLocation: string;
