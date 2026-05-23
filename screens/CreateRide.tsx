@@ -11,6 +11,7 @@ import { useUser } from "../contexts/UserContext";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import MatchingRidesSuggestion from "../components/MatchingRidesSuggestion";
 import BrandedAlert from "../components/BrandedAlert";
+import { haptic } from "../components/PressableScale";
 import SheetShell, { sheetUi } from "../components/SheetShell";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
 import { useTabletContentStyle } from "../utils/responsive";
@@ -776,7 +777,14 @@ const CreateRide: React.FC = () => {
         <SlideToCreate
           onSlideComplete={() => {
             if (blockingReason) {
+              // Shake stays for the visceral "no" cue, but follow
+              // it with a BrandedAlert so the user actually knows
+              // WHY the slider rejected. The shake alone was opaque
+              // — people would slide three times before realising
+              // they hadn't picked a destination.
               shakeSlider();
+              haptic("error");
+              BrandedAlert.alert("Can't post yet", blockingReason);
               return;
             }
             handleCreateRide();
