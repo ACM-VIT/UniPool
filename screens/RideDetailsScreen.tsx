@@ -936,6 +936,59 @@ const RideDetailsScreen: React.FC = () => {
     );
   };
 
+  // Request a seat from the deep-link / share-link entry point.
+  // RideDetailsScreen is the landing target for shared ride URLs;
+  // when a viewer arrives without an existing booking, the bottom
+  // slider should let them ask to join, not cancel a booking that
+  // doesn't exist. Mirrors AvailableRideScreenSelected's
+  // handleRequestRide — same POST, same optimistic flip, same hop
+  // to the RideRequestedScreen interstitial.
+  const handleRequestRide = async () => {
+    if (isActionLoading || !rideData) return;
+    setIsActionLoading(true);
+    try {
+      const resp: any = await apiUtil.post("/bookings/request", {
+        ride_id: rideData.id || rideId,
+        request_status: "pending",
+      });
+      const bookingId = resp?.id || resp?.booking_id || null;
+      // Flip local state so the next render lands on the "Waiting
+      // on the host" fallback UI without a refetch round-trip.
+      setViewerState("pending_passenger");
+      setUserBookingStatus("pending");
+      router.replace(
+        appHref("RideRequestedScreen", {
+          rideId: rideData.id || rideId,
+          bookingId,
+          rideDetails: {
+            from: rideData.start_location,
+            to: rideData.end_location,
+            time: rideData.start_time,
+            price: rideData.total_price,
+            driver: rideData.host_user_name,
+          },
+          hostUserId: rideData.host_user_id,
+          hostUserName: rideData.host_user_name,
+        } as any),
+      );
+    } catch (err: any) {
+      let msg = "Couldn't request the ride. Try again?";
+      if (err?.response?.status === 409 || err?.response?.status === 400) {
+        msg =
+          err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          "You may have already requested this ride or it's full.";
+      } else if (err?.response?.status === 403) {
+        msg =
+          err?.response?.data?.error ||
+          "This ride isn't available to request.";
+      }
+      BrandedAlert.alert("Couldn't request", msg);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   const handleCancelRide = async () => {
     if (isActionLoading) return;
 
@@ -2088,16 +2141,47 @@ const RideDetailsScreen: React.FC = () => {
                     </Text>
                   </TouchableOpacity>
                 ) : null}
-                <SlideToCreate
-                  onSlideComplete={handleCancelRide}
-                  text={
-                    isActionLoading
-                      ? "Cancelling..."
-                      : "Slide to cancel booking"
-                  }
-                  disabled={isActionLoading}
-                  sliderIcon={require("../assets/slide.png")}
-                />
+                {/* Three states share this surface (the non-host
+                    branch of RideDetailsScreen):
+                      - none      → arrived via a share-link with no
+                                    existing booking. Slider becomes
+                                    "Slide to request booking" and
+                                    routes through the request flow.
+                      - accepted  → "Slide to cancel booking" + the
+                                    cancel handler.
+                      - pending / rejected → handled by the fallback
+                                    branch above; never reach here.
+                    The slide-icon swap (green track for request,
+                    grey for cancel) matches the destructive vs.
+                    constructive treatment used elsewhere in the
+                    app. */}
+                {userBookingStatus === "none" ? (
+                  <SlideToCreate
+                    onSlideComplete={handleRequestRide}
+                    text={
+                      isActionLoading
+                        ? "Requesting..."
+                        : "Slide to request booking"
+                    }
+                    disabled={isActionLoading}
+                    sliderIcon={require("../assets/slide.png")}
+                    backgroundColor={AppColors.secondaryDarkGreen}
+                    borderColor={AppColors.secondaryDarkGreen}
+                    sliderButtonColor={AppColors.primaryLightGreen}
+                    textColor={AppColors.primaryLightGreen}
+                  />
+                ) : (
+                  <SlideToCreate
+                    onSlideComplete={handleCancelRide}
+                    text={
+                      isActionLoading
+                        ? "Cancelling..."
+                        : "Slide to cancel booking"
+                    }
+                    disabled={isActionLoading}
+                    sliderIcon={require("../assets/slide.png")}
+                  />
+                )}
 
               </>
             ) : (
