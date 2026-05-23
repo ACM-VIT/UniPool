@@ -1,12 +1,13 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
-import AppColors from "../design_systems/colors";
 
 /**
- * Loading placeholder for the "Your trips" carousel. Shaped exactly
- * like `PreviousTripsCompressed` so the layout doesn't shift when real
- * data lands. The slow pulse on the lime accents tells the user that
- * content is on its way without burning a spinner.
+ * Minimal placeholder for the home "Your trips" carousel. Previous
+ * version painted a full forest card with fake route dots, dashed
+ * connector, date chip and price pill — heavy for a transient loading
+ * frame. This is just two faint pulsing lines on the lime canvas, in
+ * the same horizontal rhythm as the real card so the layout doesn't
+ * jump much when content arrives.
  */
 const PreviousTripsSkeleton: React.FC = () => {
   const pulse = useRef(new Animated.Value(0.55)).current;
@@ -33,119 +34,29 @@ const PreviousTripsSkeleton: React.FC = () => {
   }, [pulse]);
 
   return (
-    <View>
-      <View style={styles.card}>
-        <View style={styles.routeBlock}>
-          <View style={styles.routeRow}>
-            <Animated.View style={[styles.dotOutline, { opacity: pulse }]} />
-            <Animated.View style={[styles.routeLineWide, { opacity: pulse }]} />
-          </View>
-          <Animated.View style={[styles.routeConnector, { opacity: pulse }]} />
-          <View style={styles.routeRow}>
-            <Animated.View style={[styles.dotFilled, { opacity: pulse }]} />
-            <Animated.View style={[styles.routeLineMedium, { opacity: pulse }]} />
-          </View>
-        </View>
-        <View style={styles.footer}>
-          <Animated.View style={[styles.dateChip, { opacity: pulse }]} />
-          <Animated.View style={[styles.pricePill, { opacity: pulse }]} />
-        </View>
-      </View>
-      <View style={styles.dots}>
-        <View style={styles.dot} />
-      </View>
+    <View style={styles.wrap}>
+      <Animated.View style={[styles.barLong, { opacity: pulse }]} />
+      <Animated.View style={[styles.barShort, { opacity: pulse }]} />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    width: "100%",
-    backgroundColor: AppColors.secondaryDarkGreen,
-    borderRadius: 18,
-    paddingHorizontal: 18,
+  wrap: {
     paddingVertical: 16,
-    shadowColor: AppColors.basicBlack,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    elevation: 2,
+    gap: 12,
   },
-  routeBlock: {
-    marginBottom: 12,
-  },
-  routeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  dotOutline: {
-    width: 11,
-    height: 11,
+  barLong: {
+    width: "62%",
+    height: 12,
     borderRadius: 6,
-    borderWidth: 2,
-    borderColor: AppColors.primaryLightGreen,
-    marginRight: 12,
+    backgroundColor: "rgba(38,59,51,0.10)",
   },
-  dotFilled: {
-    width: 11,
-    height: 11,
+  barShort: {
+    width: "36%",
+    height: 12,
     borderRadius: 6,
-    backgroundColor: AppColors.primaryLightGreen,
-    marginRight: 12,
-  },
-  routeConnector: {
-    width: 2,
-    height: 14,
-    backgroundColor: "rgba(181,215,80,0.45)",
-    marginLeft: 5,
-    marginVertical: 2,
-  },
-  routeLineWide: {
-    flex: 1,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "rgba(181,215,80,0.22)",
-    marginRight: 24,
-  },
-  routeLineMedium: {
-    flex: 1,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "rgba(181,215,80,0.18)",
-    marginRight: 60,
-  },
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(181,215,80,0.18)",
-    paddingTop: 10,
-  },
-  dateChip: {
-    width: 96,
-    height: 13,
-    borderRadius: 6,
-    backgroundColor: "rgba(181,215,80,0.30)",
-  },
-  pricePill: {
-    width: 52,
-    height: 22,
-    borderRadius: 999,
-    backgroundColor: "rgba(181,215,80,0.30)",
-  },
-  dots: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 4,
-    backgroundColor: "rgba(38,59,51,0.30)",
-    marginHorizontal: 3,
+    backgroundColor: "rgba(38,59,51,0.08)",
   },
 });
 

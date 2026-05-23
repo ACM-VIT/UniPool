@@ -20,6 +20,7 @@ import bottomNavItems from "../../data/BottomNavigationItems";
 import styles from "./AvailableRideScreens.styles";
 import BrandedAlert from "../../components/BrandedAlert";
 import { appHref, useDecodedLocalSearchParams } from "../../navigation/routes";
+import { useTabletContentStyle } from "../../utils/responsive";
 
 interface AvailableRideScreenProps {
   setNavBarVariant: (variant: 0 | 1 | 2) => void;
@@ -101,6 +102,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   setNavBarItems,
 }) => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const routeParams = useDecodedLocalSearchParams();
   const [isFocused, setIsFocused] = useState(true);
   const { apiUtil } = useApi();
@@ -768,7 +770,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, tabletContentStyle]}>
       {/* `BrandInfo` already handles its own safe-area padding
           internally (Platform-aware, uses `useSafeAreaInsets`), so
           DON'T add another `paddingTop` on this absolute wrapper or

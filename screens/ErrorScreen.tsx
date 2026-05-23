@@ -11,18 +11,20 @@ import {
 import { useRouter } from "expo-router";
 import AppColors from "../design_systems/colors";
 import { appHref } from "../navigation/routes";
+import { useTabletContentStyle } from "../utils/responsive";
 
 const win = Dimensions.get("window");
 
 const ErrorScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const goBack = () => {
     if (router.canGoBack()) router.back();
     else router.replace(appHref("HomeScreen"));
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, tabletContentStyle]}>
       <View style={styles.heroPanel}>
         <Image
           style={styles.imageStyle}

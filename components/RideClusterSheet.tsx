@@ -233,6 +233,9 @@ const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
     justifyContent: "flex-end",
+    // Centre the inner sheet on iPad so the cluster picker is a
+    // phone-shape card instead of a 1000pt-wide pill.
+    alignItems: "center",
   },
   // Dim layer above the sheet. Only the empty space above the sheet
   // is tappable-to-close — the sheet sits below it as a sibling.
@@ -245,6 +248,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.45)",
   },
   sheet: {
+    width: "100%",
+    maxWidth: 540,
     backgroundColor: AppColors.primaryLightGreen,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
+import { useTabletContentStyle } from "../../utils/responsive";
 import LoadingComponent from "../../components/LoadingComponent";
 import EmptyState from "../../components/EmptyState";
 import RouteStack from "../../components/RouteStack";
@@ -167,6 +168,10 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
   const [viewerUserId, setViewerUserId] = useState<string | null>(null);
   const { apiUtil } = useApi();
   const insets = useSafeAreaInsets();
+  // iPad-only: phone-shape centred column so the chat list cards
+  // don't stretch the full 1032pt canvas. Hook returns null on
+  // phones — mobile layout untouched.
+  const tabletContentStyle = useTabletContentStyle();
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
@@ -393,6 +398,11 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
     <View style={styles.container}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
 
+      {/* Centred phone-shape column on iPad so the Chats list reads
+          at a digestible width instead of stretching the lime canvas.
+          On phone `tabletContentStyle` is null so this is just
+          `flex: 1`. */}
+      <View style={[{ flex: 1 }, tabletContentStyle]}>
       {/* Header — bold title with an optional unread count chip on
           the right (Linear / Things inbox idiom). No subtitle —
           headers do their job by being clear, not by talking. */}
@@ -469,6 +479,7 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
           }
         />
       )}
+      </View>
     </View>
   );
 };

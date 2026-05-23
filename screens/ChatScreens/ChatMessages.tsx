@@ -21,6 +21,7 @@ import { chatMessagesStyles } from './ChatScreen.styles';
 import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
+import { useTabletContentStyle } from '../../utils/responsive';
 import ChatService from '../../utils/ChatService';
 import BrandedAlert from "../../components/BrandedAlert";
 import ChevronBack from "../../components/ChevronBack";
@@ -163,6 +164,11 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
 }) => {
   const router = useRouter();
   const { apiUtil } = useApi();
+  // iPad-only: phone-shape centred column so the header, messages,
+  // quick-reply chips, and message input stack at readable widths
+  // instead of stretching across 1032pt of lime canvas. Hook returns
+  // null on phones so the mobile chat is untouched.
+  const tabletContentStyle = useTabletContentStyle();
 
   const [newMessage, setNewMessage] = useState('');
   const [userUuid, setUserUuid] = useState<string | null>(null);
@@ -253,27 +259,16 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     return ids.find((id) => id !== userUuid);
   }, [chatParams.chatId, chatParams.chatRoom?.id, userUuid]);
   const viewerIsHost = !!chatParams.viewerIsHost;
-  // No subtitle for pending DMs — route/date live in the empty-state
-  // card below. Group chats keep their original subtitle.
-  // `pendingHostName` is misnamed historically — it's actually the
-  // OTHER party's display name. For a host viewing a requester's DM,
-  // that's the requester (e.g. "Priya"); for a passenger viewing
-  // their host's DM, that's the host (e.g. "Yash"). Branching on
-  // `viewerIsHost` below picks the right copy.
+
   const otherFirstName =
     (chatParams.pendingHostName || '').trim().split(/\s+/)[0] ||
     (viewerIsHost ? 'them' : 'the host');
 
-  // Host-side accept/reject state. Disabled mid-flight to prevent
-  // double-taps; success drops them out of the DM (the booking is
-  // no longer pending so this thread no longer fits the surface).
   const [bookingActionLoading, setBookingActionLoading] = useState<
     'accept' | 'reject' | null
   >(null);
   const bookingIdForActions = chatParams.hostPendingRequestBookingId;
 
-  // Drives the ShareRideSheet rendered for the host-empty-state card.
-  // Lives at the screen root so its Modal portals above the FlatList.
   const [hostShareOpen, setHostShareOpen] = useState(false);
 
   const processBackendMessage = (backendMsg: any, currentUserId: string): ChatMessage => {
@@ -1440,7 +1435,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const chatRows = useMemo(() => buildRows(messages), [messages]);
 
   return (
-    <View style={[chatMessagesStyles.container, { flex: 1 }]}>
+    <View style={[chatMessagesStyles.container, { flex: 1 }, tabletContentStyle]}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
 
       {/* iMessage-style centered chat header. Back chevron and menu

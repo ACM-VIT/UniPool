@@ -10,6 +10,7 @@ import AppColors from '../design_systems/colors';
 import EmptyState from '../components/EmptyState';
 import SmileyGlyph from '../components/SmileyGlyph';
 import { appHref } from "../navigation/routes";
+import { useTabletContentStyle } from "../utils/responsive";
 
 interface Passenger {
   id: string;
@@ -19,6 +20,7 @@ interface Passenger {
 
 const PassengersHistoryScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const { apiUtil } = useApi();
   const [passengers, setPassengers] = useState<Passenger[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -55,7 +57,7 @@ const PassengersHistoryScreen: React.FC = () => {
   );
   if (error) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, tabletContentStyle]}>
         <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
         <View style={styles.headerRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>

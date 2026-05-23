@@ -18,9 +18,11 @@ import { useApi } from '../../utils/ApiUtil';
 import RideService from '../../utils/RideService';
 import styles from '../ProfileScreen/ProfileScreen.styles';
 import { appHref } from "../../navigation/routes";
+import { useTabletContentStyle } from "../../utils/responsive";
 
 const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVariant">> = ({ setNavBarVariant }) => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const [passengers, setPassengers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>('');
@@ -121,7 +123,7 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
   );
 
   return (
-    <View style={passengerInfoStyles.container}>
+    <View style={[passengerInfoStyles.container, tabletContentStyle]}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
       <View style={styles.brandInfoHeaderRow}>
         <BrandInfo />

@@ -18,6 +18,7 @@ import AppColors from '../design_systems/colors';
 import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/PressableScale";
 import SheetShell from "../components/SheetShell";
+import { useTabletContentStyle } from "../utils/responsive";
 
 interface User {
   name: string;
@@ -49,6 +50,7 @@ interface UserResponse {
  */
 const PersonalInformationScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const { apiUtil } = useApi();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -94,7 +96,7 @@ const PersonalInformationScreen: React.FC = () => {
   );
 
   if (error) return (
-    <View style={styles.container}>
+    <View style={[styles.container, tabletContentStyle]}>
       {header('Personal Information')}
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>{error}</Text>

@@ -13,9 +13,12 @@ import { useRouter } from "expo-router";
 import BrandInfo from '../components/BrandInfo';
 import ChevronBack from '../components/ChevronBack';
 import AppColors from '../design_systems/colors';
+import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/responsive";
 
 const TermsOfServiceScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
+  const tabletScrollContentStyle = useTabletScrollContentStyle();
 
   const openExternalLink = (url: string) => {
     Linking.openURL(url);
@@ -36,7 +39,7 @@ const TermsOfServiceScreen: React.FC = () => {
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={[styles.contentContainer, tabletScrollContentStyle]}>
         <Text style={styles.lastUpdated}>Last Updated: December 1, 2025</Text>
 
         <Text style={styles.sectionTitle}>1. Acceptance of Terms</Text>

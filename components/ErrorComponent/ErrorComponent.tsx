@@ -23,7 +23,15 @@ export interface ErrorComponentProps {
   customAnimation?: any;
 }
 
-const { width, height } = Dimensions.get("window");
+const { width: rawWidth, height: rawHeight } = Dimensions.get("window");
+// Tablet branch only: phones keep their real window dimensions so the
+// `width * 0.NN` / `height * 0.NN` sizing math scales naturally across
+// iPhone SE → 16 Pro Max. On tablets we substitute an iPhone 14/15
+// reference (390 × 844) so the error sheet's title, illustration, and
+// CTA don't inflate ~2.6× on a 1032pt iPad.
+const isTablet = rawWidth >= 768;
+const width = isTablet ? 390 : rawWidth;
+const height = isTablet ? 844 : rawHeight;
 
 const ErrorComponent: React.FC<ErrorComponentProps> = ({
   title = "Uh Oh!",
@@ -163,9 +171,19 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0, left: 0, right: 0, bottom: 0,
     justifyContent: "flex-end",
+    // Centre the inner card on iPad so the sheet is phone-shape and
+    // not stretched across 1032pt of canvas. On phone this is a
+    // no-op because the card's maxWidth (440pt) is wider than the
+    // window. The dim backdrop still spans the full screen.
+    alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   content: {
+    // Phone-shape envelope. iPad gets a 440pt card centred against
+    // the backdrop; iPhones stay full-width since their window is
+    // ≤430pt.
+    width: "100%",
+    maxWidth: 440,
     // Lime brand sheet — the error sheet sits in the same surface
     // family as Auth, SignUp, LocationPermission. Forest content
     // (title/message/CTA) reads strongly on lime.

@@ -14,6 +14,7 @@ import styles, { SLIDE_WIDTH, HERO_SIZE } from "./OnboardingScreen.styles";
 import AppColors from "../../design_systems/colors";
 import { appHref } from "../../navigation/routes";
 import { shouldShowPermissionsPrompt } from "../../utils/permissionsPrompt";
+import { useTabletContentStyle } from "../../utils/responsive";
 import {
   RouteHero,
   FairPriceHero,
@@ -61,6 +62,7 @@ const SLIDES: Slide[] = [
 
 const OnboardingScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   // `Animated.ScrollView` is required for `Animated.event` with
   // `useNativeDriver: true` to work under Fabric. A plain
   // `<ScrollView>` receives the `AnimatedEvent` instance as

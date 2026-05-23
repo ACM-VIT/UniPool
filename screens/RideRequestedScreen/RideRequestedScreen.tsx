@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import styles from "./RideRequestedScreen.styles";
 import { appHref } from "../../navigation/routes";
 import { useUser } from "../../contexts/UserContext";
+import { useTabletContentStyle } from "../../utils/responsive";
 
 // Confirmation interstitial. Lands with a spring scale + fade-in,
 // holds briefly so the user registers the moment, then morphs into a
@@ -29,6 +30,7 @@ type RouteParams = {
 
 const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }> = (props) => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const params = useLocalSearchParams<RouteParams>();
   // Viewer's UUID from the shared `UserContext`. Used to derive the
   // dm_<sortedUUIDs> DM room id for the "Message host" CTA. Sourced
@@ -128,7 +130,7 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, tabletContentStyle]}>
       <Animated.Image
         source={require("../../assets/request.png")}
         style={[styles.create, { opacity, transform: [{ scale }] }]}

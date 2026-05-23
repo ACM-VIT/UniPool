@@ -86,6 +86,23 @@ export default class ApiUtil {
     return this.makeRequestWithErrorHandling<T>("POST", endpoint, body, headers, timeout, retryAction);
   }
 
+  /**
+   * Fire-and-forget POST that never surfaces the global error sheet.
+   *
+   * Some endpoints are UX niceties — `/chat/<id>/read`,
+   * `/dm/<id>/read`, presence pings, optimistic flag updates — and
+   * a 4xx/5xx for any of them should NOT take over the screen with
+   * "Uh Oh!". The regular `post` always attaches a retryAction
+   * which makes the global ErrorContext fire its sheet; this variant
+   * omits the retryAction so the error still throws (and the
+   * caller can swallow it locally) but the UI stays quiet.
+   *
+   * Use only for calls whose failure has no user-visible effect.
+   */
+  async postSilent<T, B>(endpoint: string, body: B, headers?: HeadersInit, timeout?: number): Promise<T> {
+    return this.makeRequestWithErrorHandling<T>("POST", endpoint, body, headers, timeout);
+  }
+
   async put<T, B>(endpoint: string, body: B, headers?: HeadersInit, timeout?: number): Promise<T> {
     const retryAction = () => this.put<T, B>(endpoint, body, headers, timeout);
     return this.makeRequestWithErrorHandling<T>("PUT", endpoint, body, headers, timeout, retryAction);

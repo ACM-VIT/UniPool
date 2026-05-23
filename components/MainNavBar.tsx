@@ -21,7 +21,17 @@ import { useAuthGate } from "../contexts/AuthGate";
 // Tabs that require a signed-in user. Guests tapping these get the auth sheet.
 const GUEST_GATED_ROUTES = new Set(["trips", "chat", "profile"]);
 
-const { width, height } = Dimensions.get("window");
+const { width: rawWidth, height: rawHeight } = Dimensions.get("window");
+// Tablet branch only: phones keep their real window dimensions so the
+// `width * 0.05` / `height * 0.035` icon math scales naturally between
+// iPhone SE and iPhone 16 Pro Max. On tablets we substitute a fixed
+// mid-iPhone reference (390 × 844, iPhone 14/15 standard) so the same
+// math doesn't inflate every glyph by 2.6×. The cap-at-540 approach
+// I used before was a bug: it was wider than every iPhone, so even
+// after clamping, iPad icons rendered ~25% larger than iPhone ones.
+const isTablet = rawWidth >= 768;
+const width = isTablet ? 390 : rawWidth;
+const height = isTablet ? 844 : rawHeight;
 
 // --- Floating-nav-bar geometry --------------------------------------
 // The bottom nav floats above the screen edge with a fixed bottom inset,
@@ -294,6 +304,11 @@ const MainNavBar: React.FC<MainNavBarProps> = ({
 const styles = StyleSheet.create({
   bottomNavContainer: {
     width: "95%",
+    // Cap the four-tab bar at a phone-width pill on tablets so the
+    // tab labels and icons cluster the way they were designed to.
+    // Without this each tab takes 25% of a 1024+pt iPad and the bar
+    // reads as four icons drifting in a vast horizontal void.
+    maxWidth: 540,
     // Height pulled from the same constants other screens use to align
     // decoration to the navbar, so they can't drift apart.
     height: MAIN_NAV_BAR_HEIGHT,
@@ -324,6 +339,9 @@ const styles = StyleSheet.create({
   },
   singleBarContainer: {
     width: "95%",
+    // Same iPad cap as bottomNavContainer above so the Search Rides
+    // pill / variant-2 text bar stay phone-shape on tablet.
+    maxWidth: 540,
     height: MAIN_NAV_BAR_HEIGHT,
     flexDirection: "row",
     justifyContent: "center",
@@ -364,8 +382,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  // Close X sits on the right edge as a small chip that's still
-  // comfortable to land on with a thumb.
   singleBarCloseBtn: {
     position: "absolute",
     right: 14,

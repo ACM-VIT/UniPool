@@ -22,10 +22,12 @@ import BrandedAlert from "../../components/BrandedAlert";
 import ChevronBack from "../../components/ChevronBack";
 import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import type { AppRouteTarget } from "../../navigation/routes";
+import { useTabletContentStyle } from "../../utils/responsive";
 
 const AuthScreen: React.FC = () => {
   const { apiUtil } = useApi();
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const routeParams = useDecodedLocalSearchParams<{ returnTo?: AppRouteTarget }>();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const insets = useSafeAreaInsets();
@@ -147,7 +149,7 @@ const AuthScreen: React.FC = () => {
   const canGoBack = router.canGoBack();
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) + 4 }]}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) + 4 }, tabletContentStyle]}>
       <StatusBar barStyle="dark-content" backgroundColor={AppColors.primaryLightGreen} />
       <View style={styles.topRow}>
         {canGoBack ? (

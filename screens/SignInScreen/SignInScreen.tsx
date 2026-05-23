@@ -11,9 +11,11 @@ import styles from "./SignInScreen.styles";
 import GoogleAuthButton from "../../components/GoogleAuthBox";
 import BrandedAlert from "../../components/BrandedAlert";
 import { appHref } from "../../navigation/routes";
+import { useTabletContentStyle } from "../../utils/responsive";
 
 const SignInScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const handleGoogleSignIn = async () => {
     try {
       console.log("Starting Google Sign-In");
@@ -44,7 +46,7 @@ const SignInScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, tabletContentStyle]}>
       <Image source={require("../../assets/UFO.png")} style={styles.create} />
 
       <View style={styles.textContainer}>

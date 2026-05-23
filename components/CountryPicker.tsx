@@ -18,7 +18,20 @@ import AppColors from "../design_systems/colors";
 import { COUNTRIES, Country, flagFor } from "../data/countries";
 import { haptic } from "./PressableScale";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const IS_TABLET = SCREEN_WIDTH >= 768;
+// Sheet height: 78% of the canvas on phone reads as "tall search
+// sheet". On a 1376pt iPad that math gives 1073pt which dominates the
+// screen — capping at 620pt keeps the sheet feeling like a focused
+// modal instead of a fullscreen takeover.
+const SHEET_HEIGHT = IS_TABLET
+  ? Math.min(620, SCREEN_HEIGHT * 0.78)
+  : SCREEN_HEIGHT * 0.78;
+// translateY needs to start far enough below the docked position
+// that the spring-in still reads as a slide-up. On phones SCREEN_HEIGHT
+// is the historical value; on iPad the sheet is shorter so we use
+// the sheet height + a comfortable margin instead.
+const SHEET_OFFSCREEN = IS_TABLET ? SHEET_HEIGHT + 80 : SCREEN_HEIGHT;
 
 type Props = {
   visible: boolean;
@@ -36,7 +49,7 @@ type Props = {
  */
 const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDismiss }) => {
   const [query, setQuery] = useState("");
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const translateY = useRef(new Animated.Value(SHEET_OFFSCREEN)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -67,7 +80,7 @@ const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDis
           useNativeDriver: true,
         }),
         Animated.timing(translateY, {
-          toValue: SCREEN_HEIGHT,
+          toValue: SHEET_OFFSCREEN,
           duration: 220,
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
@@ -79,9 +92,12 @@ const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDis
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return COUNTRIES;
+    const dialQuery = q.replace(/[^\d]/g, "");
     // Allow searching by name OR by raw dial code ("44" matches UK).
     return COUNTRIES.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.dial.startsWith(q.replace(/[^\d]/g, "")),
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (dialQuery.length > 0 && c.dial.startsWith(dialQuery)),
     );
   }, [query]);
 
@@ -111,19 +127,26 @@ const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDis
         // this country-picker sheet doesn't stay hidden behind the
         // keyboard. `adjustResize` on the manifest doesn't reach
         // into transparent statusBarTranslucent Modals.
+        //
+        // `alignItems: 'center'` is a no-op on phones (where the
+        // inner sheet's `maxWidth: 540` is wider than the window),
+        // and on iPad it centres the phone-shape sheet horizontally
+        // instead of letting it stretch across the 1032pt canvas.
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ ...fill, justifyContent: "flex-end" }}
+        style={{ ...fill, justifyContent: "flex-end", alignItems: "center" }}
         pointerEvents="box-none"
       >
         <Animated.View
           style={{
+            width: "100%",
+            maxWidth: 540,
             backgroundColor: AppColors.basicWhite,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
             paddingHorizontal: 22,
             paddingTop: 14,
             paddingBottom: Platform.OS === "ios" ? 36 : 24,
-            height: SCREEN_HEIGHT * 0.78,
+            height: SHEET_HEIGHT,
             transform: [{ translateY }],
             shadowColor: AppColors.basicBlack,
             shadowOffset: { width: 0, height: -8 },

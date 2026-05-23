@@ -34,7 +34,15 @@ import {
   getCoordinatesForLocation
 } from "../utils/LocationService";
 
-const { width, height } = Dimensions.get("window");
+const { width: rawWidth, height: rawHeight } = Dimensions.get("window");
+// Tablet branch only: phones keep their real window dimensions so
+// every `width * 0.NN` / `height * 0.NN` size below scales naturally
+// across iPhone SE → 16 Pro Max. On tablets we substitute a fixed
+// iPhone 14/15 reference (390 × 844) so the From/To card icons,
+// padding, and chip sizes don't inflate ~2.6× on the iPad canvas.
+const isTablet = rawWidth >= 768;
+const width = isTablet ? 390 : rawWidth;
+const height = isTablet ? 844 : rawHeight;
 
 const isSmallDevice = width < 350;
 const isMediumDevice = width >= 350 && width < 400;
@@ -1178,9 +1186,16 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     justifyContent: "flex-end",
+    // Centre the inner sheet on iPad so it docks as a phone-shape
+    // card under the dim backdrop instead of stretching the full
+    // 1032pt canvas. On phone this is a no-op because the inner
+    // sheet's `maxWidth: 540` is wider than the window.
+    alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContent: {
+    width: "100%",
+    maxWidth: 540,
     backgroundColor: AppColors.secondaryDarkGreen,
     borderTopLeftRadius: wp(3),
     borderTopRightRadius: wp(3),
@@ -1353,9 +1368,14 @@ const styles = StyleSheet.create({
   dateTimeModalContainer: {
     flex: 1,
     justifyContent: "flex-end",
+    // Centre the date/time picker card on iPad — same pattern as
+    // the location-search sheet above.
+    alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   dateTimeModalContent: {
+    width: "100%",
+    maxWidth: 540,
     backgroundColor: AppColors.secondaryDarkGreen,
     borderTopLeftRadius: wp(5),
     borderTopRightRadius: wp(5),

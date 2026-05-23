@@ -164,13 +164,21 @@ const SheetShell: React.FC<Props> = ({
           // measure this KAV after it shrinks and cap the bottom sheet to
           // that measured space, so oversized content cannot push the
           // title/handle above the visible modal area.
+          //
+          // `alignItems: 'center'` centres the inner sheet card under
+          // its `maxWidth: 540`, so on iPad the sheet reads as a
+          // phone-shape surface instead of spanning the entire
+          // tablet canvas. On phones the maxWidth is wider than the
+          // window so this is a no-op for the existing layout.
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1, justifyContent: "flex-end" }}
+          style={{ flex: 1, justifyContent: "flex-end", alignItems: "center" }}
           pointerEvents="box-none"
           onLayout={handleModalLayout}
         >
           <Animated.View
             style={{
+              width: "100%",
+              maxWidth: 540,
               backgroundColor: surfaceColor ?? AppColors.basicWhite,
               borderTopLeftRadius: 28,
               borderTopRightRadius: 28,

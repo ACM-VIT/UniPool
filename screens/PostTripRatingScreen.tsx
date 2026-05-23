@@ -21,6 +21,7 @@ import AppColors from "../design_systems/colors";
 import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/PressableScale";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
+import { useTabletContentStyle } from "../utils/responsive";
 
 type RatingTarget = {
   user_id: string;
@@ -58,6 +59,7 @@ type Draft = {
  */
 const PostTripRatingScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const insets = useSafeAreaInsets();
   const { apiUtil } = useApi();
   const params = useDecodedLocalSearchParams<{ rideId?: string }>();
@@ -193,7 +195,7 @@ const PostTripRatingScreen: React.FC = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, tabletContentStyle]}>
       <KeyboardAvoidingView
         // `behavior="height"` on Android so the comment TextInput at
         // the bottom of this screen rises with the keyboard. The

@@ -2,7 +2,18 @@ import { StyleSheet, Dimensions } from "react-native";
 import AppColors from "../../design_systems/colors";
 import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar";
 
-const window = Dimensions.get("window");
+const rawWindow = Dimensions.get("window");
+// Tablet branch only: phones keep the natural canvas width so the
+// 0.62/0.44 ratios tune to each iPhone. On tablets the airplane was
+// scaling to ~640pt and floating in the bottom-right corner instead
+// of sitting on the navbar rail. Clamping to the iPhone reference
+// (390pt) keeps the illustration phone-sized so its wheels still land
+// on the centred navbar pill.
+const isTablet = rawWindow.width >= 768;
+const window = {
+  width: isTablet ? 390 : rawWindow.width,
+  height: isTablet ? 844 : rawWindow.height,
+};
 
 // Sizing for the decorative airplane. The PNG (347×370) has a chunk of
 // transparent padding under its wheels — without compensation the
@@ -147,7 +158,19 @@ const styles = StyleSheet.create({
   airplaneWrap: {
     position: "absolute",
     bottom: MAIN_NAV_BAR_TOP_OFFSET,
-    right: -window.width * 0.06,
+    // On phone: pull the airplane 6% past the right edge so the
+    // nose pokes off-screen and the wheels land on the right
+    // portion of the (full-width) navbar.
+    //
+    // On iPad: the navbar is a 540pt pill centred against a 1032+ pt
+    // canvas, so the same negative offset would dump the airplane in
+    // the bottom-right corner of the screen, well clear of the
+    // navbar. We instead anchor the airplane's right edge a few
+    // points past the navbar's right edge so the wheels still rest
+    // on the rail, mirroring the phone composition.
+    right: isTablet
+      ? (rawWindow.width - 540) / 2 - 23
+      : -window.width * 0.06,
     width: AIRPLANE_WIDTH,
     height: AIRPLANE_HEIGHT - AIRPLANE_BOTTOM_CROP,
     overflow: "hidden",
