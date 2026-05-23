@@ -41,6 +41,7 @@ import RoutePreviewLayer, {
   type RoutePreviewBounds,
   type RoutePreviewRide,
 } from "../components/RoutePreviewLayer";
+import RoutePreviewCard from "../components/RoutePreviewCard";
 import { getAppState } from "../utils/AppStateService";
 import type { AppStateResponse, NearbyRideSummary } from "../utils/AppStateService";
 
@@ -1036,6 +1037,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 easing: Easing.out(Easing.quad),
                 useNativeDriver: true,
               }).start();
+              // Snapshot the initial bounds the moment the map paints
+              // so the route-preview layer can clip an off-screen
+              // destination chevron even if the user taps a pin
+              // before panning the camera.
+              void mapRef.current
+                ?.getBounds()
+                .then((b) => setMapBounds(b as RoutePreviewBounds))
+                .catch(() => {});
+            }}
+            // Track viewport bounds for the route-preview chevron.
+            // `onRegionDidChange` fires after the camera settles
+            // (pan, zoom, fitBounds animation end) — exactly when we
+            // want to re-clip the off-screen destination. Mid-gesture
+            // events would thrash the GeoJSON.
+            onRegionDidChange={(e: any) => {
+              const next = e?.nativeEvent?.bounds as RoutePreviewBounds | undefined;
+              if (next && Array.isArray(next) && next.length === 4) {
+                setMapBounds(next);
+              }
             }}
           >
             {/* Camera — drives both the initial framing (fallback /
@@ -1472,13 +1492,61 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         pickup={clusterSheet?.pickup || ""}
         rides={clusterSheet?.rides || []}
         onClose={() => setClusterSheet(null)}
-        onPickRide={(r) => {
+        onPickRide={(r: any) => {
+          // Same preview-then-card flow as a single-pin tap so the
+          // user gets the route animation even when they pick a ride
+          // out of the cluster picker. If geo is missing for some
+          // reason (older seed data, bad coords) fall back to the
+          // original instant-navigate path.
           setClusterSheet(null);
-          router.navigate(appHref("AvailableRidesSelectedScreen", {
-            ride: r,
-          } as any));
+          if (
+            typeof r?.start_latitude === "number" &&
+            typeof r?.start_longitude === "number" &&
+            typeof r?.end_latitude === "number" &&
+            typeof r?.end_longitude === "number"
+          ) {
+            haptic("selection");
+            setPreviewRide({
+              id: r.id ?? `${r.start_latitude}-${r.start_longitude}`,
+              start_latitude: r.start_latitude,
+              start_longitude: r.start_longitude,
+              end_latitude: r.end_latitude,
+              end_longitude: r.end_longitude,
+              end_location: r.end_location,
+              start_location: r.start_location,
+              host_user_name: r.host_user_name,
+              start_time: r.start_time,
+              total_price: r.total_price,
+              raw: r,
+            });
+          } else {
+            router.navigate(appHref("AvailableRidesSelectedScreen", {
+              ride: r,
+            } as any));
+          }
         }}
       />
+
+      {/* Route preview card — floating peek above the bottom sheet
+          while the dotted line animates across the map. Closes via
+          the X chip or by tapping the View ride CTA (which routes
+          into the existing AvailableRidesSelectedScreen). Lives
+          outside the MapLibre tree as an absolute overlay so the
+          card's drop shadow and rounded corners aren't constrained
+          by the map's clip rect. */}
+      {previewRide && (
+        <RoutePreviewCard
+          ride={previewRide}
+          onDismiss={() => setPreviewRide(null)}
+          onOpen={() => {
+            const r = previewRide.raw;
+            setPreviewRide(null);
+            router.navigate(appHref("AvailableRidesSelectedScreen", {
+              ride: r,
+            } as any));
+          }}
+        />
+      )}
 
       {/* Search sheet — only used when the home surface has
           collapsed the inline RideDetailsSelector behind the
