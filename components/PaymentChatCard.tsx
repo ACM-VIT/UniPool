@@ -1,5 +1,13 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Animated,
+  Easing,
+} from "react-native";
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "./BrandedAlert";
@@ -21,19 +29,19 @@ type Props = {
  * kinds of system messages:
  *
  *   payment_marker  posted by the passenger when they mark a trip
- *                   paid. Shows amount + passenger name. The host
- *                   sees Confirm received / Didn't receive buttons
- *                   inline; everyone else sees the card without
- *                   actions.
+ *                   paid. Shows amount as the hero number + passenger
+ *                   name. The host sees Confirm received / Didn't
+ *                   receive buttons inline; everyone else sees the
+ *                   card without actions.
  *
  *   payment_ack     posted by the host after they ack. A compact
- *                   line with a checkmark (received) or warning
- *                   (missing) — no buttons; the lifecycle is closed
- *                   at this point.
+ *                   pill with a coloured glyph circle (forest tick
+ *                   for received, coral exclamation for missing).
+ *                   No buttons; lifecycle is closed.
  *
- * Lives outside the message-bubble row so a payment card spans the
- * chat full-width like the Apple-Pay-in-iMessage treatment, instead
- * of being constrained to the left/right bubble lane.
+ * Lives outside the message-bubble row so the card spans full-width
+ * like the Apple-Pay-in-iMessage treatment, instead of being squeezed
+ * into the left/right bubble lane.
  */
 const PaymentChatCard: React.FC<Props> = ({ message, viewerIsHost, onAcked }) => {
   const { apiUtil } = useApi();
@@ -60,7 +68,7 @@ const PaymentChatCard: React.FC<Props> = ({ message, viewerIsHost, onAcked }) =>
   );
 };
 
-// --- payment_marker ---
+// --- payment_marker -------------------------------------------------
 
 const PaymentMarkerCard: React.FC<{
   amount: number;
@@ -71,10 +79,41 @@ const PaymentMarkerCard: React.FC<{
   onAcked?: () => void;
 }> = ({ amount, passengerName, bookingID, viewerIsHost, apiUtil, onAcked }) => {
   // `pendingAck` keeps optimistic UI honest. Once the host taps a
-  // button we hide both, switch to a small busy spinner, and then
-  // let the inbound payment_ack message render the result. The
-  // socket usually delivers it before the HTTP response returns.
+  // button we hide both buttons and show a busy spinner; the
+  // inbound payment_ack socket push lands shortly after and the
+  // marker stays as-is while the ack pill renders below it.
   const [pendingAck, setPendingAck] = useState<"received" | "missing" | null>(null);
+
+  // Soft fade + scale-in so the card lands like a notification card
+  // instead of popping into existence. Tiny spring (250ms) — the
+  // chat list scrolls past these constantly and a long animation
+  // would feel laggy.
+  const opacity = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(0.96)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(scale, {
+        toValue: 1,
+        duration: 240,
+        easing: Easing.out(Easing.back(1.1)),
+        useNativeDriver: true,
+      }),
+    ]).start();
+    // Host-side: gentle haptic when a new payment marker lands so
+    // they notice the new action needed even if their eyes were
+    // somewhere else. Passenger side stays silent — they just sent
+    // it, they know.
+    if (viewerIsHost) {
+      haptic("light");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const ack = async (kind: "received" | "missing") => {
     if (!bookingID || pendingAck) return;
@@ -97,69 +136,104 @@ const PaymentMarkerCard: React.FC<{
   };
 
   return (
-    <View style={styles.cardWrap}>
+    <Animated.View style={[styles.cardWrap, { opacity, transform: [{ scale }] }]}>
       <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardEmoji}>💸</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardKicker}>Payment marked</Text>
-            <Text style={styles.cardTitle}>
-              {passengerName} marked ₹{amount} as paid
-            </Text>
-          </View>
+        {/* Hero amount, like an Apple Pay card. The kicker label
+            sits above so the eye reads "payment, ₹250" in one
+            glance instead of having to parse a sentence. */}
+        <Text style={styles.cardKicker}>Payment marked</Text>
+        <View style={styles.amountRow}>
+          <Text style={styles.amountCurrency}>₹</Text>
+          <Text style={styles.amountValue}>{amount}</Text>
         </View>
+        <Text style={styles.cardSub}>
+          {passengerName} says they've paid
+        </Text>
+
+        <View style={styles.divider} />
 
         {viewerIsHost ? (
-          <View style={styles.actionsRow}>
-            {pendingAck ? (
-              <View style={styles.actionsBusy}>
-                <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} />
-                <Text style={styles.actionsBusyText}>Recording…</Text>
-              </View>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.actionBtnSecondary]}
-                  activeOpacity={0.85}
-                  onPress={() => ack("missing")}
-                  accessibilityLabel="Didn't receive payment"
-                >
-                  <Text style={[styles.actionBtnText, styles.actionBtnTextSecondary]}>
-                    Didn't receive
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.actionBtnPrimary]}
-                  activeOpacity={0.85}
-                  onPress={() => ack("received")}
-                  accessibilityLabel="Confirm payment received"
-                >
-                  <Text style={[styles.actionBtnText, styles.actionBtnTextPrimary]}>
-                    Confirm received
-                  </Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
+          pendingAck ? (
+            <View style={styles.actionsBusy}>
+              <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} />
+              <Text style={styles.actionsBusyText}>
+                {pendingAck === "received" ? "Confirming…" : "Flagging…"}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.actionsRow}>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnSecondary]}
+                activeOpacity={0.85}
+                onPress={() => ack("missing")}
+                accessibilityLabel="Didn't receive payment"
+              >
+                <Text style={[styles.actionBtnText, styles.actionBtnTextSecondary]}>
+                  Didn't receive
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnPrimary]}
+                activeOpacity={0.85}
+                onPress={() => ack("received")}
+                accessibilityLabel="Confirm payment received"
+              >
+                <Text style={[styles.actionBtnText, styles.actionBtnTextPrimary]}>
+                  Confirm received
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )
         ) : (
-          // Non-host viewer (the passenger themselves, or another
-          // accepted rider). Just shows the marker without action
-          // buttons — the host owns the ack.
-          <Text style={styles.cardFootnote}>Waiting for host to confirm…</Text>
+          // Non-host viewer — passenger themselves or another
+          // accepted rider. Just an awaiting-ack note; the host
+          // owns the action.
+          <Text style={styles.waitingFootnote}>Waiting for host to confirm…</Text>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
-// --- payment_ack ---
+// --- payment_ack ----------------------------------------------------
 
 const PaymentAckLine: React.FC<{ ack: string; text: string }> = ({ ack, text }) => {
   const received = ack === "received";
+
+  // Same gentle entrance as the marker card — keeps the chat feeling
+  // alive when state changes arrive.
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(6)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 200,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+    haptic(received ? "success" : "warning");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <View style={styles.ackWrap}>
+    <Animated.View style={[styles.ackWrap, { opacity, transform: [{ translateY }] }]}>
       <View style={[styles.ackPill, received ? styles.ackPillSuccess : styles.ackPillWarning]}>
-        <Text style={styles.ackGlyph}>{received ? "✓" : "!"}</Text>
+        <View
+          style={[
+            styles.ackGlyphCircle,
+            received ? styles.ackGlyphCircleSuccess : styles.ackGlyphCircleWarning,
+          ]}
+        >
+          <Text style={styles.ackGlyphText}>{received ? "✓" : "!"}</Text>
+        </View>
         <Text
           style={[styles.ackText, received ? styles.ackTextSuccess : styles.ackTextWarning]}
           numberOfLines={2}
@@ -167,75 +241,97 @@ const PaymentAckLine: React.FC<{ ack: string; text: string }> = ({ ack, text }) 
           {text}
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   cardWrap: {
     width: "100%",
-    paddingHorizontal: 8,
-    marginVertical: 6,
+    paddingHorizontal: 12,
+    marginVertical: 8,
     alignItems: "center",
   },
   card: {
     width: "100%",
-    maxWidth: 360,
+    maxWidth: 340,
     backgroundColor: AppColors.basicWhite,
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    // Soft elevation matching the chat-list cards so the payment
-    // card feels like a first-class chat surface, not an overlay.
+    borderRadius: 22,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    // Soft elevation — the card should sit *above* the chat lane
+    // without screaming for attention. Two-stop shadow gives it the
+    // Apple-Pay rounded-tile feel without going neumorphic.
     shadowColor: AppColors.basicBlack,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 14,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: "rgba(38,59,51,0.10)",
-  },
-  cardHeader: {
-    flexDirection: "row",
+    borderColor: "rgba(38,59,51,0.08)",
     alignItems: "center",
-    gap: 12,
-  },
-  cardEmoji: {
-    fontSize: 28,
-    lineHeight: 32,
   },
   cardKicker: {
-    fontFamily: "NunitoSans_700Bold",
-    fontSize: 11,
-    letterSpacing: 0.4,
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 10.5,
+    letterSpacing: 1.0,
     color: AppColors.secondaryDarkGreen,
     opacity: 0.55,
     textTransform: "uppercase",
   },
-  cardTitle: {
-    marginTop: 2,
-    fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 15,
-    color: AppColors.secondaryDarkGreen,
-    letterSpacing: -0.2,
+  amountRow: {
+    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "center",
   },
-  cardFootnote: {
-    marginTop: 10,
+  amountCurrency: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 22,
+    color: AppColors.secondaryDarkGreen,
+    marginTop: 8,
+    marginRight: 2,
+    opacity: 0.85,
+  },
+  amountValue: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 42,
+    color: AppColors.secondaryDarkGreen,
+    letterSpacing: -1.2,
+    lineHeight: 46,
+  },
+  cardSub: {
+    marginTop: 2,
     fontFamily: "NunitoSans_600SemiBold",
+    fontSize: 13,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.65,
+    textAlign: "center",
+  },
+  divider: {
+    width: "100%",
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(38,59,51,0.12)",
+    marginTop: 14,
+    marginBottom: 12,
+  },
+  waitingFootnote: {
+    fontFamily: "NunitoSans_700Bold",
     fontSize: 12,
     color: AppColors.secondaryDarkGreen,
     opacity: 0.55,
     textAlign: "center",
+    letterSpacing: 0.1,
   },
   actionsRow: {
     flexDirection: "row",
-    marginTop: 12,
-    gap: 8,
+    gap: 10,
+    alignSelf: "stretch",
   },
   actionBtn: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingVertical: 11,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -244,7 +340,7 @@ const styles = StyleSheet.create({
   },
   actionBtnSecondary: {
     backgroundColor: "transparent",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "rgba(38,59,51,0.20)",
   },
   actionBtnText: {
@@ -260,56 +356,69 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   actionsBusy: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
-    gap: 8,
+    paddingVertical: 11,
+    gap: 10,
+    alignSelf: "stretch",
   },
   actionsBusyText: {
     fontFamily: "NunitoSans_700Bold",
     fontSize: 13,
     color: AppColors.secondaryDarkGreen,
     opacity: 0.7,
+    letterSpacing: -0.1,
   },
+
+  // payment_ack
   ackWrap: {
     width: "100%",
     alignItems: "center",
     paddingHorizontal: 16,
-    marginVertical: 4,
+    marginVertical: 6,
   },
   ackPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
+    gap: 10,
+    paddingLeft: 8,
+    paddingRight: 14,
     paddingVertical: 8,
     borderRadius: 999,
     maxWidth: 320,
   },
   ackPillSuccess: {
-    backgroundColor: "rgba(181,215,80,0.30)",
+    backgroundColor: "rgba(181,215,80,0.28)",
   },
   ackPillWarning: {
-    backgroundColor: "rgba(255,107,91,0.18)",
+    backgroundColor: "rgba(210,68,50,0.14)",
   },
-  ackGlyph: {
+  ackGlyphCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ackGlyphCircleSuccess: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+  },
+  ackGlyphCircleWarning: {
+    backgroundColor: "#D24432",
+  },
+  ackGlyphText: {
     fontFamily: "NunitoSans_800ExtraBold",
     fontSize: 13,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    textAlign: "center",
-    lineHeight: 18,
     color: AppColors.basicWhite,
-    overflow: "hidden",
+    lineHeight: 16,
+    textAlign: "center",
   },
   ackText: {
     flex: 1,
     fontFamily: "NunitoSans_700Bold",
     fontSize: 12.5,
-    letterSpacing: -0.1,
+    letterSpacing: -0.05,
   },
   ackTextSuccess: {
     color: AppColors.secondaryDarkGreen,
@@ -318,16 +427,5 @@ const styles = StyleSheet.create({
     color: "#A8281A",
   },
 });
-
-// Glyph styling tweak: success uses forest BG, warning uses coral BG.
-// Inlined via inline style on the glyph so we don't fan out two
-// near-identical style objects.
-const _glyphPolish = StyleSheet.create({
-  glyphSuccess: { backgroundColor: AppColors.secondaryDarkGreen },
-  glyphWarning: { backgroundColor: "#D24432" },
-});
-// Apply via runtime composition rather than another conditional in
-// the JSX so the render stays compact.
-(PaymentAckLine as any).styles = _glyphPolish;
 
 export default PaymentChatCard;
