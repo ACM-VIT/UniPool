@@ -113,6 +113,18 @@ interface RideDetailsSelectorProps {
    * date from the wheel, the internal state takes over.
    */
   initialDate?: Date;
+  /**
+   * When true, the selector stops auto-submitting whenever
+   * from + to + date all happen to be filled. Instead it renders
+   * its own "Search rides" footer button — the user has to explicitly
+   * tap it, giving them a beat to also tweak the date if they want.
+   * Date stays optional (the default `now + 1h` value is still
+   * submitted if untouched). Used by the home-screen search sheet
+   * where auto-submit would yank the user out of the sheet the
+   * moment they picked a destination, before they had a chance to
+   * change the date.
+   */
+  manualSubmit?: boolean;
 }
 
 export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
@@ -125,6 +137,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   userLocation,
   clearTrigger,
   initialDate,
+  manualSubmit = false,
 }) => {
   const { apiUtil } = require('../utils/ApiUtil').useApi();
   const [defaultStartAddress, setDefaultStartAddress] = useState<string>("");
@@ -211,12 +224,20 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const searchAbortRef = useRef<AbortController | null>(null);
 
   const submitRideDetails = (from: string, to: string, date: Date, fromCoords?: LocationCoordinates, toCoords?: LocationCoordinates) => {
+    // In manualSubmit mode the consumer wants a tap-to-go flow —
+    // never auto-fire just because all three fields happen to be
+    // filled. The footer "Search rides" button (rendered at the
+    // bottom of this component) is the only path that calls
+    // onSubmit in that mode.
+    if (manualSubmit) {
+      return;
+    }
     // Only submit if all three fields are filled
     if (!from || !to || !date) {
       console.log('Not submitting - missing required fields:', { from: !!from, to: !!to, date: !!date });
       return;
     }
-    
+
     // Use the provided date directly, no fallback to avoid state issues
     console.log('submitRideDetails called with date:', date);
     console.log('Current selectedDate state:', selectedDate);
@@ -816,6 +837,41 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         </TouchableOpacity>
       </View>
 
+      {/* Manual-submit footer button. Only renders in manualSubmit
+          mode (the home-screen search sheet). Disabled until both
+          From and To are filled — date is optional and falls back
+          to the "now + 1h" default the selector seeds at mount, so
+          the user can tap straight through if they don't care
+          about a specific time. Calls onSubmit directly, bypassing
+          the auto-submit guard above. */}
+      {manualSubmit ? (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          disabled={!fromLocation || !toLocation}
+          onPress={() => {
+            const finalDate = selectedDate || getInitialDate();
+            onSubmit({
+              from: fromLocation,
+              to: toLocation,
+              date: finalDate,
+              fromCoordinates: fromCoordinates ?? undefined,
+              toCoordinates: toCoordinates ?? undefined,
+            });
+          }}
+          style={[
+            styles.manualSubmitBtn,
+            (!fromLocation || !toLocation) && styles.manualSubmitBtnDisabled,
+          ]}
+          accessibilityLabel="Search rides"
+        >
+          <Text style={styles.manualSubmitBtnText}>
+            {!fromLocation || !toLocation
+              ? "Pick a from and to"
+              : "Search rides"}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+
       <Modal
         visible={showFromDropdown || showToDropdown}
         transparent
@@ -1045,6 +1101,37 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 };
 
 const styles = StyleSheet.create({
+  // Manual-submit footer — sits beneath the forest selector card
+  // in manualSubmit mode. Lime CTA against the lime sheet canvas
+  // would disappear, so it borrows the white treatment from
+  // HomeScreen.createRideButton. Disabled state stays the same
+  // shape but drops opacity + uses a flatter label so the screen
+  // reads "fill the two fields, then tap me".
+  manualSubmitBtn: {
+    marginTop: 14,
+    backgroundColor: AppColors.basicWhite,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(38,59,51,0.10)",
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  manualSubmitBtnDisabled: {
+    opacity: 0.55,
+  },
+  manualSubmitBtnText: {
+    color: AppColors.secondaryDarkGreen,
+    fontSize: 15.5,
+    fontFamily: "NunitoSans_800ExtraBold",
+    letterSpacing: 0.3,
+  },
   container: {
     width: "100%",
     borderRadius: 18,
