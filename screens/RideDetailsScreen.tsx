@@ -23,6 +23,7 @@ import ShareRideSheet from "../components/ShareRideSheet";
 import PassengerProfileSheet, { PassengerProfile } from "../components/PassengerProfileSheet";
 import RouteStack from "../components/RouteStack";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
+import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/responsive";
 
 /**
  * Small lime "open profile" eye icon. Stroke-only so it sits in the
@@ -409,6 +410,8 @@ type ViewerState =
 
 const RideDetailsScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
+  const tabletScrollContentStyle = useTabletScrollContentStyle();
   const routeParams = useDecodedLocalSearchParams<{
     rideId?: string;
     expectedViewerState?: ViewerState;
@@ -1297,7 +1300,7 @@ const RideDetailsScreen: React.FC = () => {
           }}
         />
 
-        <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scrollContainer} contentContainerStyle={[styles.scrollContent, tabletScrollContentStyle]}>
           <View style={styles.rideCardContainer}>
             <RideCard
               id={rideData.id || rideId || ""}

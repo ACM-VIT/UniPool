@@ -23,6 +23,7 @@ import RouteStack from "../../components/RouteStack";
 import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar";
 import { appHref } from "../../navigation/routes";
 import { useApi } from "../../utils/ApiUtil";
+import { useTabletContentStyle, useTabletScrollContentStyle } from "../../utils/responsive";
 
 const { width, height } = Dimensions.get("window");
 const isSmallDevice = width < 350;
@@ -96,6 +97,8 @@ const haversineKm = (
  */
 const NearbyRidesScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
+  const tabletScrollContentStyle = useTabletScrollContentStyle();
   const { requireAuth } = useAuthGate();
   const { apiUtil } = useApi();
   const insets = useSafeAreaInsets();
@@ -289,7 +292,7 @@ const NearbyRidesScreen: React.FC = () => {
           data={rides}
           keyExtractor={(it) => it.id}
           renderItem={renderRide}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, tabletScrollContentStyle]}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
           showsVerticalScrollIndicator={false}
           refreshControl={

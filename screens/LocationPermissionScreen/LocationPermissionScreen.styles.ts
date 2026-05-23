@@ -11,15 +11,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingTop: Platform.OS === "ios" ? 56 : 36,
     paddingBottom: Platform.OS === "ios" ? 36 : 24,
+    // Centre the radar + text + CTA cluster vertically on iPad. On a
+    // phone `flex: 1` heroBlock fills the space and the rest stacks
+    // below it; on iPad the radar would otherwise eat ~1200pt of
+    // vertical canvas and push the CTAs to the very bottom edge.
+    // `justifyContent: center` re-anchors the cluster in the middle of
+    // whatever envelope we have.
+    justifyContent: "center",
     // Everything inside is composed on the vertical axis of the radar
     // — headline, subhead, feature rows, buttons all centred so the
     // page reads as one composed unit rather than a left-rag list.
     alignItems: "center",
   },
-  // Hero block — radar centerpiece. Flex:1 lets it grow on tall phones
-  // and shrink on small ones without overflowing the copy.
+  // Hero block — radar centerpiece. With root `justifyContent: center`
+  // the cluster centres regardless of canvas size, so we drop the
+  // `flex: 1` that previously stretched the radar block to fill the
+  // entire available height (great on phones, ugly on iPad).
   heroBlock: {
-    flex: 1,
     alignSelf: "stretch",
     alignItems: "center",
     justifyContent: "center",

@@ -17,6 +17,7 @@ import EmptyState from "../components/EmptyState";
 import BrandInfo from "../components/BrandInfo";
 import ChevronBack from "../components/ChevronBack";
 import profileStyles from "./ProfileScreen/ProfileScreen.styles";
+import { useTabletContentStyle } from "../utils/responsive";
 
 type Ride = {
   ride_id?: string;
@@ -55,6 +56,7 @@ type PendingRating = {
  */
 const TripHistoryScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const insets = useSafeAreaInsets();
   const { apiUtil } = useApi();
 
@@ -121,7 +123,7 @@ const TripHistoryScreen: React.FC = () => {
   }, [rides]);
 
   return (
-    <View style={profileStyles.container}>
+    <View style={[profileStyles.container, tabletContentStyle]}>
       <View style={profileStyles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={profileStyles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>

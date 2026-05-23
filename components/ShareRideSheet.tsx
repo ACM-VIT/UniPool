@@ -210,8 +210,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "flex-end",
+    // Centre the inner sheet under its maxWidth on iPad. On phones
+    // the scrim width is already ≤540 so this is a no-op.
+    alignItems: "center",
   },
   sheet: {
+    width: "100%",
+    // Phone-shape cap so the share ticket reads as a focused card
+    // on iPad instead of a 1000pt-wide pill.
+    maxWidth: 540,
     backgroundColor: AppColors.primaryLightGreen,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,

@@ -63,10 +63,18 @@ export default class ChatService {
       // pick the matching backend endpoint so unread badges clear for
       // both chat types. Pending-request DMs need this so the host's
       // pending section count drops the moment they open the thread.
+      //
+      // Uses `postSilent` so a backend hiccup on `/read` doesn't
+      // hijack the screen with the global "Uh Oh!" error sheet. The
+      // local try/catch already swallows the failure visibly through
+      // a warn log; the user just keeps using the chat with a stale
+      // unread badge until the next open. That's the right trade —
+      // a noisy modal over a UX-nicety endpoint is worse than a
+      // delayed badge update.
       if (chatId.startsWith("dm_")) {
-        await apiUtil.post(`/dm/${chatId}/read`, {});
+        await apiUtil.postSilent(`/dm/${chatId}/read`, {});
       } else {
-        await apiUtil.post(`/chat/${chatId}/read`, {});
+        await apiUtil.postSilent(`/chat/${chatId}/read`, {});
       }
     } catch (err) {
       // Mark-read is a UX nicety; failing silently is correct so we

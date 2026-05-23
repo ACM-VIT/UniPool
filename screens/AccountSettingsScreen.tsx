@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { useApi } from '../utils/ApiUtil';
 import BrandedAlert from "../components/BrandedAlert";
 import { appHref } from "../navigation/routes";
+import { useTabletContentStyle } from "../utils/responsive";
 
 // Brand coral the rest of the app already uses for destructive
 // states (Leave ride, declined badge). Avoids dropping a raw red
@@ -15,6 +16,7 @@ const DESTRUCTIVE = '#FF6B5B';
 
 const AccountSettingsScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const { apiUtil } = useApi();
   const [loading, setLoading] = useState(false);
 
@@ -65,7 +67,7 @@ const AccountSettingsScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, tabletContentStyle]}>
       <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>

@@ -8,11 +8,14 @@ import BrandInfo from "../components/BrandInfo";
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "../components/BrandedAlert";
+import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/responsive";
 
 const { width, height } = Dimensions.get("window");
 
 const DefaultAddressScreen: React.FC = () => {
   const [defaultAddress, setDefaultAddress] = useState<string>("");
+  const tabletContentStyle = useTabletContentStyle();
+  const tabletScrollContentStyle = useTabletScrollContentStyle();
   const [loading, setLoading] = useState(false);
   const api = useApi();
   const apiUtil = api.apiUtil;
@@ -152,7 +155,7 @@ const DefaultAddressScreen: React.FC = () => {
       <ScrollView 
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, tabletScrollContentStyle]}
       >
         <View style={styles.cardWrapper}>
           {/* No card title / description — the page header already

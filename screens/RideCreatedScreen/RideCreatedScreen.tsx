@@ -3,9 +3,11 @@ import { View, Image } from "react-native";
 import { useRouter } from "expo-router";
 import styles from "./RideCreatedScreen.styles";
 import { appHref, useDecodedLocalSearchParams } from "../../navigation/routes";
+import { useTabletContentStyle } from "../../utils/responsive";
 
 const RideCreatedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }> = (props) => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const params = useDecodedLocalSearchParams<{ rideId?: string }>();
 
   useEffect(() => {
@@ -31,7 +33,7 @@ const RideCreatedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }>
   }, [props.setNavBarVariant, router, params?.rideId]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, tabletContentStyle]}>
       <Image source={require("../../assets/create.png")} style={styles.create} resizeMode="contain" />
     </View>
   );

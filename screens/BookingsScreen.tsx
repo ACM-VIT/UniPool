@@ -20,6 +20,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useAuthGate } from "../contexts/AuthGate";
 import LoadingComponent from "../components/LoadingComponent";
 import { appHref } from "../navigation/routes";
+import { useTabletContentStyle } from "../utils/responsive";
 
 interface RawRide {
   id?: string;
@@ -74,6 +75,7 @@ type Tab = "upcoming" | "hosting" | "past";
 
 const BookingsScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const { requireAuth } = useAuthGate();
   const { apiUtil } = useApi();
   const [trips, setTrips] = useState<TripItem[]>([]);
@@ -403,7 +405,7 @@ const BookingsScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, tabletContentStyle]}>
         <View style={styles.brandInfoHeaderRow}>
           <BrandInfo />
         </View>

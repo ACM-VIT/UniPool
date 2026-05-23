@@ -17,6 +17,7 @@ import Svg, { Path } from "react-native-svg";
 import { getAuth, signOut } from "@react-native-firebase/auth";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { useApi } from "../../utils/ApiUtil";
+import { useTabletContentStyle } from "../../utils/responsive";
 import styles from "./SignUpScreen.styles";
 import AppColors from "../../design_systems/colors";
 import BrandedAlert from "../../components/BrandedAlert";
@@ -64,6 +65,10 @@ const SignUpScreen: React.FC = () => {
   const [verifyOpen, setVerifyOpen] = useState(false);
 
   const insets = useSafeAreaInsets();
+  // iPad-only: phone-shape centred column for the form so inputs and
+  // CTAs don't stretch across the 1032pt canvas. Hook returns null on
+  // phones, so the existing mobile layout is unchanged.
+  const tabletContentStyle = useTabletContentStyle();
 
   // Block hardware back — they need to either complete or log out.
   React.useEffect(() => {
@@ -187,19 +192,43 @@ const SignUpScreen: React.FC = () => {
     }
   };
 
+  const isTablet = tabletContentStyle !== null;
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={AppColors.primaryLightGreen} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
+        // On iPad the ScrollView is no longer asked to flex-grow to
+        // fill the canvas — instead we vertically centre the
+        // ScrollView + ctaWrap pair so the whole "One last thing"
+        // composition sits in the middle of the screen as one
+        // coherent block, rather than the headline pinned to the
+        // top and the CTA pinned to the bottom with 800pt of empty
+        // lime between them.
+        style={[
+          { flex: 1 },
+          isTablet && { justifyContent: "center" },
+        ]}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
         <ScrollView
-          style={{ flex: 1 }}
+          // Explicit `flex: 0` + `flexShrink: 0` on iPad so the
+          // ScrollView shrinks to its content size instead of stretching
+          // to fill the KAV. Combined with `justifyContent: center` on
+          // the parent KAV, the form + CTA pair sits in the vertical
+          // middle of the iPad canvas. On phone we keep the original
+          // flex:1 stretching so content scrolls if it overflows.
+          style={isTablet ? { flexGrow: 0, flexShrink: 0 } : { flex: 1 }}
           contentContainerStyle={[
             styles.scrollContent,
             { paddingTop: Math.max(insets.top, 12) + 4 },
+            // On iPad centre the form in a phone-shape column instead
+            // of stretching every input to the full 1032pt canvas.
+            tabletContentStyle,
+            // Suppress flex-grow:1 on the contentContainer so the
+            // form takes its natural size on iPad.
+            isTablet && { flexGrow: 0, paddingTop: 0 },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -349,7 +378,18 @@ const SignUpScreen: React.FC = () => {
           <View style={{ height: 24 }} />
         </ScrollView>
 
-        <View style={styles.ctaWrap}>
+        <View
+          style={[
+            styles.ctaWrap,
+            tabletContentStyle,
+            // No extra bottom padding when the whole block is
+            // vertically centred — otherwise the "We never share"
+            // hint pushes the centred composition off-axis.
+            isTablet && { paddingBottom: 12 },
+          ]}
+        >
+          {/* Inner content rendered below. Closing this comment to
+              keep the JSX child structure intact. */}
           <TouchableOpacity
             style={[styles.primaryBtn, (!isValid || loading) && styles.primaryBtnDisabled]}
             onPress={handleComplete}

@@ -207,29 +207,44 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
         <Pressable style={StyleSheetFill} onPress={onDismiss} disabled={isSigningIn} />
       </Animated.View>
 
-      {/* Bottom sheet card — taller surface with hero brand pill, value
-          props, then OAuth buttons. Aims for ~56% screen height so the
-          content has room to breathe instead of feeling cramped. */}
-      <Animated.View
+      {/* Centring wrapper — absolutely positioned full-width strip at
+          the bottom that lets the inner Animated.View take its natural
+          flow width and centre horizontally. Without this, the sheet
+          uses `left:0 / right:0` which forces full-width stretch on
+          iPad. With it, the inner card honours its own `maxWidth: 540`
+          so the sheet reads as a phone-sized surface on tablets and
+          stays full-bleed on phones. */}
+      <View
+        pointerEvents="box-none"
         style={{
           position: "absolute",
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: AppColors.basicWhite,
-          borderTopLeftRadius: 28,
-          borderTopRightRadius: 28,
-          paddingHorizontal: 24,
-          paddingTop: 14,
-          paddingBottom: Platform.OS === "ios" ? 40 : 28,
-          transform: [{ translateY }],
-          shadowColor: AppColors.basicBlack,
-          shadowOffset: { width: 0, height: -8 },
-          shadowOpacity: 0.22,
-          shadowRadius: 28,
-          elevation: 18,
+          alignItems: "center",
         }}
       >
+        <Animated.View
+          style={{
+            width: "100%",
+            // Phone-shape cap. Below the breakpoint this is a no-op
+            // because parent width is already ≤540. Above it the
+            // sheet centres in the wider iPad canvas.
+            maxWidth: 540,
+            backgroundColor: AppColors.basicWhite,
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+            paddingHorizontal: 24,
+            paddingTop: 14,
+            paddingBottom: Platform.OS === "ios" ? 40 : 28,
+            transform: [{ translateY }],
+            shadowColor: AppColors.basicBlack,
+            shadowOffset: { width: 0, height: -8 },
+            shadowOpacity: 0.22,
+            shadowRadius: 28,
+            elevation: 18,
+          }}
+        >
         {/* Grab handle */}
         <View style={{ alignSelf: "center", width: 44, height: 5, borderRadius: 3, backgroundColor: "rgba(38,59,51,0.18)", marginBottom: 18 }} />
 
@@ -321,6 +336,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
         </Text>
         </View>
       </Animated.View>
+      </View>
     </Modal>
   );
 };

@@ -8,6 +8,7 @@ import { useApi } from "../utils/ApiUtil";
 import { useRouter } from "expo-router";
 import BrandedAlert from "../components/BrandedAlert";
 import profileStyles from "./ProfileScreen/ProfileScreen.styles";
+import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/responsive";
 
 const { width, height } = Dimensions.get("window");
 
@@ -53,6 +54,8 @@ const DEFAULT_STATE: PrefsState = {
 
 const NotificationsScreen: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
+  const tabletScrollContentStyle = useTabletScrollContentStyle();
   const { apiUtil } = useApi();
   const [prefs, setPrefs] = useState<PrefsState>(DEFAULT_STATE);
   const [loading, setLoading] = useState(true);
@@ -117,7 +120,7 @@ const NotificationsScreen: React.FC = () => {
         <ScrollView
           style={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, tabletScrollContentStyle]}
         >
           {Object.entries(sections).map(([sectionTitle, items]) => (
             <View style={styles.section} key={sectionTitle}>

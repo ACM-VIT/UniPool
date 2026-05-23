@@ -14,6 +14,7 @@ import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
 import { useAuthGate } from '../../contexts/AuthGate';
 import { appHref, useDecodedLocalSearchParams } from '../../navigation/routes';
+import { useTabletContentStyle } from "../../utils/responsive";
 
 const customMapStyle = [
   {
@@ -281,6 +282,7 @@ type RootStackParamList = {
 
 const AvailableRideScreenSelected: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const routeParams = useDecodedLocalSearchParams<{ ride?: any }>();
   const { apiUtil } = useApi();
   const { requireAuth } = useAuthGate();
@@ -339,11 +341,6 @@ const AvailableRideScreenSelected: React.FC = () => {
     });
   }
 
-  // Defensive minimum-shape if rideData is somehow missing. NO fake
-  // host fallback ("Yash Raj Singh" used to live here) — if the
-  // backend hasn't returned a host name yet we'd rather hide the
-  // hosted-by row than print a misleading placeholder. Coordinates +
-  // route bits stay so the map doesn't crash on an empty render.
   const ride = rideData || {
     id: '1',
     start_location: 'VIT Vellore',
@@ -670,7 +667,7 @@ const AvailableRideScreenSelected: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, tabletContentStyle]}>
       <View style={styles.header}>
         <BrandInfo />
       </View>
@@ -730,12 +727,6 @@ const AvailableRideScreenSelected: React.FC = () => {
                 <Text style={styles.priceText}>{getPriceText(ride.total_price)}</Text>
               </View>
             </View>
-            
-            {/* Host row — prefer the name from route params (passed
-                in by search-result entry points) but fall back to the
-                /ride/details fetch (cluster-sheet entry points don't
-                carry it). No "Yash Raj Singh" placeholder; row is
-                hidden entirely if neither source has a name yet. */}
             {(() => {
               const displayHostName = ride.host_user_name || hostUserNameFetched;
               if (!displayHostName) return null;

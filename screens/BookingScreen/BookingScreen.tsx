@@ -7,8 +7,10 @@ import {
   Image,
   StatusBar,
   RefreshControl,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTabletContentStyle } from "../../utils/responsive";
 import styles from "./BookingScreen.styles";
 import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
@@ -88,6 +90,23 @@ const BookingScreen: React.FC = () => {
   const router = useRouter();
   const { requireAuth } = useAuthGate();
   const insets = useSafeAreaInsets();
+  // iPad-only: phone-shape centred column so the empty state and
+  // tab pills sit in a digestible width instead of floating in
+  // 1032pt of lime canvas. Hook returns null on phones — mobile
+  // layout is untouched.
+  const tabletContentStyle = useTabletContentStyle();
+  // Live window dimensions for orientation-aware airplane
+  // positioning. The static styles in BookingScreen.styles.ts
+  // capture Dimensions.get() once at module load (always portrait
+  // on iPad), so a landscape rotation leaves the airplane stranded
+  // in the bottom-right corner instead of resting on the centred
+  // navbar's right edge. Computing the right offset live here
+  // restores the on-rail alignment in any orientation.
+  const liveWindow = useWindowDimensions();
+  const airplaneRightOffset =
+    liveWindow.width >= 768
+      ? (liveWindow.width - 540) / 2 - 23
+      : undefined;
 
   const fetchAll = useCallback(async ({ refresh = false }: { refresh?: boolean } = {}) => {
       // Only show the full-screen loading state on the first fetch.
@@ -263,7 +282,13 @@ const BookingScreen: React.FC = () => {
           friendly empty-state cue. The list scrolls naturally to
           show the rest. */}
       {tabRides.length <= 2 ? (
-        <View style={styles.airplaneWrap} pointerEvents="none">
+        <View
+          style={[
+            styles.airplaneWrap,
+            airplaneRightOffset !== undefined && { right: airplaneRightOffset },
+          ]}
+          pointerEvents="none"
+        >
           <Image
             source={require("../../assets/airplane.png")}
             style={styles.airplaneImage}
@@ -272,6 +297,13 @@ const BookingScreen: React.FC = () => {
         </View>
       ) : null}
 
+      {/* Centred content column. The outer `container` keeps the
+          full-width lime brand canvas (so the airplane has room to
+          rest on the navbar rail), while everything user-facing
+          inside this wrapper sits in a phone-shape column centred
+          horizontally on iPad. On phone `tabletContentStyle` is
+          null so this is just `flex: 1`. */}
+      <View style={[{ flex: 1 }, tabletContentStyle]}>
       {/* Header — title only. Mobbin pattern across Uber, Bolt,
           inDrive: bold title, no help copy, tabs do the explaining. */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 4 }]}>
@@ -368,6 +400,7 @@ const BookingScreen: React.FC = () => {
           }}
         />
       )}
+      </View>
     </View>
   );
 };

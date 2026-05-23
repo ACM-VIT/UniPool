@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, Image, TouchableOpacity, SafeAreaView, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView, InteractionManager, AppState } from "react-native";
+import { View, Text, Image, TouchableOpacity, SafeAreaView, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView, InteractionManager, AppState, useWindowDimensions } from "react-native";
+import { TABLET_BREAKPOINT } from "../utils/responsive";
 import navigationImg from "../assets/navigation.png";
 import locationPinImg from "../assets/location-pin-2.png";
 // MapLibre replaces react-native-maps. We control tiles via a style
@@ -38,12 +39,23 @@ import RideClusterSheet, { ClusteredRide } from "../components/RideClusterSheet"
 import { getAppState } from "../utils/AppStateService";
 import type { AppStateResponse, NearbyRideSummary } from "../utils/AppStateService";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const { width: rawScreenWidth, height: rawScreenHeight } = Dimensions.get("window");
+
+// Tablet branch only: phones keep their real window dimensions so
+// `normalize` and `responsiveWidth`/`responsiveHeight` scale naturally
+// across the iPhone family. On tablets we substitute a fixed iPhone
+// 14/15 reference (390×844) so the same helpers compute phone-tuned
+// values instead of inflating every font and padding ~2.75x to fill
+// a 1032pt canvas. Absolute-positioned containers like the map can
+// still read the real iPad dimensions via `rawScreenWidth`/Height.
+const isTabletScreen = rawScreenWidth >= 768;
+const screenWidth = isTabletScreen ? 390 : rawScreenWidth;
+const screenHeight = isTabletScreen ? 844 : rawScreenHeight;
 
 const normalize = (size: number) => {
   const scale = screenWidth / 375;
   const newSize = size * scale;
-  
+
   if (Platform.OS === 'ios') {
     return Math.round(PixelRatio.roundToNearestPixel(newSize));
   } else {
@@ -272,6 +284,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   setNavBarItems,
 }) => {
   const router = useRouter();
+  // Live window dimensions so iPad rotation reflows the layout
+  // without a remount. The module-level `screenWidth`/`screenHeight`
+  // constants stay where they are because the phone-only math
+  // upstream of this component depends on them being snapshot at
+  // module load time; this hook only feeds the iPad branch below.
+  const { width: liveWidth } = useWindowDimensions();
+  const isTablet = liveWidth >= TABLET_BREAKPOINT;
   const [isFocused, setIsFocused] = useState(true);
   const { apiUtil, revalidate } = useApi();
   const { requireAuth, isGuest } = useAuthGate();
@@ -1200,25 +1219,49 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       <Animated.View
         style={[
           styles.bottomSheet,
-          {
-            height: BOTTOM_SHEET_MAX_HEIGHT,
-            transform: [{ translateY: sheetTranslateY }],
-          },
+          isTablet
+            ? // iPad: floating left-side panel. Apple Maps idiom — the
+              // map breathes full-bleed and the controls park in a
+              // ~420pt-wide sidebar that's pinned to the left edge
+              // with the navbar still floating at screen bottom-
+              // centre. Drag-to-expand and translateY animation are
+              // skipped because the panel is always at its natural
+              // size on a tablet; there's no off-screen "collapsed"
+              // state to spring out of.
+              styles.bottomSheetTablet
+            : {
+                height: BOTTOM_SHEET_MAX_HEIGHT,
+                transform: [{ translateY: sheetTranslateY }],
+              },
         ]}
       >
-        <View
-          collapsable={false}
-          hitSlop={{ top: 8, bottom: 18, left: 0, right: 0 }}
-          style={styles.dragHandleHitArea}
-          {...panResponder.panHandlers}
-        >
-          <View style={styles.dragHandle} />
-        </View>
+        {/* Drag handle is phone-only. On tablet the panel is always
+            at its natural size, so the handle would just be a
+            misleading affordance. */}
+        {!isTablet && (
+          <View
+            collapsable={false}
+            hitSlop={{ top: 8, bottom: 18, left: 0, right: 0 }}
+            style={styles.dragHandleHitArea}
+            {...panResponder.panHandlers}
+          >
+            <View style={styles.dragHandle} />
+          </View>
+        )}
 
         <View style={styles.bottomSheetContent}>
           <ScrollView
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollableContent}
+            contentContainerStyle={[
+              styles.scrollableContent,
+              // On iPad the panel is a content-sized floating card
+              // (no clearance needed for the floating navbar, which
+              // sits below the panel rather than overlapping it). Trim
+              // the breathing-room padding so the panel shrinks to its
+              // actual content instead of carrying ~100pt of empty
+              // lime under the From/To card.
+              isTablet && { paddingBottom: 16 },
+            ]}
             showsVerticalScrollIndicator={false}
             bounces={false}
             onContentSizeChange={onScrollContentSizeChange}
@@ -1459,6 +1502,37 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 18,
     elevation: 8,
+  },
+  // iPad-only: turn the bottom sheet into a left-side floating panel.
+  // - No `bottom` constraint, so the panel's height grows with its
+  //   content instead of stretching the full screen and leaving a sea
+  //   of empty lime under the controls. `maxHeight` keeps it under
+  //   control if the user signs in and the trip carousel fills up.
+  // - 480pt wide so the From/To card, "Post a ride" pill, and trip
+  //   chips have room to breathe (the 420pt version felt cramped).
+  // - All four corners rounded; the panel reads as a discrete floating
+  //   card over the map instead of a sheet pinned to a screen edge.
+  // - Deep shadow because the panel floats over a vivid map and needs
+  //   a clear surface separation.
+  bottomSheetTablet: {
+    left: 24,
+    right: undefined,
+    top: 72,
+    bottom: undefined,
+    // Match the iPhone 14/15 width we use as the design reference
+    // above. Going wider (480) makes the From/To card and Post-a-ride
+    // pill stretch into wide pills full of dead air; matching the
+    // phone width keeps every internal layout reading at the
+    // proportions it was tuned for.
+    width: 390,
+    maxHeight: 900,
+    borderRadius: 28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.24,
+    shadowRadius: 28,
+    elevation: 14,
   },
   // Wrapper around the visible drag-handle pill — a generous full-
   // width touch target above the ScrollView so the sheet's

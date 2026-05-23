@@ -1,7 +1,16 @@
 import { StyleSheet, Dimensions } from "react-native";
 import AppColors from "../../design_systems/colors";
 
-const { width, height } = Dimensions.get("window");
+const { width: rawWidth, height: rawHeight } = Dimensions.get("window");
+// Tablet branch only: phones keep the natural window dimensions so all
+// the `width * 0.NN` / `height * 0.NN` math tunes per device. On
+// tablets we substitute an iPhone 14/15 reference (390 × 844) so the
+// profile avatar, stat cards, and menu items don't inflate on a 1032pt
+// iPad. The screen already lives inside `useTabletContentStyle`'s
+// 540pt centred column, so phone-proportioned sizing matches.
+const isTablet = rawWidth >= 768;
+const width = isTablet ? 390 : rawWidth;
+const height = isTablet ? 844 : rawHeight;
 
 const styles = StyleSheet.create({
   container: {

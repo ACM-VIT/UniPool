@@ -47,7 +47,7 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>10</string>
+    <string>12</string>
     <!-- App Store Connect requires every binary to declare its
          encryption posture. UniPool only uses TLS (Firebase Auth,
          REST API, HTTPS) which is exempt from the US BIS export

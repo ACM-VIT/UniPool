@@ -7,6 +7,7 @@ import styles from "./ProfileScreen.styles";
 import AppColors from "../../design_systems/colors";
 import LoadingComponent from "../../components/LoadingComponent";
 import { useApi } from "../../utils/ApiUtil";
+import { useTabletContentStyle, useTabletScrollContentStyle } from "../../utils/responsive";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
 import BrandedAlert from "../../components/BrandedAlert";
@@ -51,6 +52,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     completedTrips: number;
   }>({ totalDistance: 0, co2Saved: 0, completedTrips: 0 });
   const { apiUtil } = useApi();
+  // iPad-only: phone-shape centred column so the stat cards and
+  // account/help/about sections sit in a readable width instead of
+  // stretching the full 1032pt canvas. Hook returns null on phones.
+  const tabletContentStyle = useTabletContentStyle();
+  const tabletScrollContentStyle = useTabletScrollContentStyle();
 
   const profileScreenNavItems = bottomNavItems.map((item, index) => ({
     ...item,
@@ -610,14 +616,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
         <BrandInfo />
       </View>
       
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, tabletContentStyle]}>
         <Text style={styles.headerTitle}>Profile</Text>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, tabletScrollContentStyle]}
       >
         <View style={styles.profileSection}>
           <View style={styles.profileImageContainer}>

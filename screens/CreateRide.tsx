@@ -12,6 +12,7 @@ import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import BrandedAlert from "../components/BrandedAlert";
 import SheetShell, { sheetUi } from "../components/SheetShell";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
+import { useTabletContentStyle } from "../utils/responsive";
 
 const { width, height } = Dimensions.get("window");
 
@@ -31,6 +32,7 @@ interface CreateRideResponse {
 
 const CreateRide: React.FC = () => {
   const router = useRouter();
+  const tabletContentStyle = useTabletContentStyle();
   const { apiUtil } = useApi();
   const { requireAuth } = useAuthGate();
 
@@ -554,7 +556,7 @@ const CreateRide: React.FC = () => {
     // Ride" title on Android). `edges={["top", "left", "right"]}`
     // skips the bottom inset — the slider already sits inside the
     // home-indicator zone with its own padding.
-    <SafeAreaView style={styles.container} edges={["top", "left", "right", "bottom"]}>
+    <SafeAreaView style={[styles.container, tabletContentStyle]} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.headerRowWithTitle}>
         <TouchableOpacity
           style={styles.backButton}
