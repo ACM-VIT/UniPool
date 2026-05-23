@@ -293,10 +293,10 @@ const styles = StyleSheet.create({
     sectionTitle: {
         // Matches the HomeScreen sectionTitle — same Bold weight and
         // 0.95 opacity so "Your trips" reads at the same volume as
-        // "Where'd you like to go?" above it. The previous 0.7 dim
+        // "Where'd you like to go?" below it. The previous 0.7 dim
         // was too faint on the lime canvas.
         paddingHorizontal: "2.5%",
-        fontSize: 14,
+        fontSize: 16,
         color: AppColors.secondaryDarkGreen,
         fontFamily: "NunitoSans_700Bold",
         letterSpacing: -0.05,

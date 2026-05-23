@@ -1317,10 +1317,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             )}
 
             <View style={styles.section}>
-              <View style={styles.createRideText}>
-                <Text style={styles.sectionTitle}>Where'd you like to go?</Text>
-              </View>
-
+              {/* Create Ride above; the "Where'd you like to go?" label
+                  below now reads as the heading for the search
+                  selector it sits right against, instead of doubling
+                  as a section label for the white CTA. */}
               <TouchableOpacity
                 style={styles.createRideButton}
                 onPress={() => {
@@ -1351,6 +1351,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                   {isGuest ? "Post a ride" : "Create Ride"}
                 </Text>
               </TouchableOpacity>
+
+              <View style={styles.createRideText}>
+                <Text style={styles.sectionTitle}>Where'd you like to go?</Text>
+              </View>
 
               <RideDetailsSelector
                 onSubmit={handleRideSubmit}
@@ -1653,7 +1657,9 @@ const styles = StyleSheet.create({
     // of the previous 0.7-opacity SemiBold whisper — too faint on
     // the lime canvas; users couldn't see it. Bold @ 0.95 reads
     // as a confident label without competing with the CTA below.
-    fontSize: normalize(14),
+    // Kept in sync with PreviousTripsSection.sectionTitle so "Your
+    // trips" and "Where'd you like to go?" sit at the same volume.
+    fontSize: normalize(16),
     color: AppColors.secondaryDarkGreen,
     fontFamily: "NunitoSans_700Bold",
     textAlign: "left",
