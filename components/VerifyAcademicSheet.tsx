@@ -154,7 +154,13 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
     }
     setBusy(true);
     try {
-      await apiUtil.post<{ status: string; expires_in: number }, { email: string }>(
+      // `postSilent` so a network blip or 5xx during /verify/start
+      // doesn't slam the global "Uh Oh!" sheet on top of this
+      // bottom-sheet flow. The local catch below already surfaces a
+      // contextual BrandedAlert ("Couldn't send the code"); two
+      // overlapping error UIs make it look like the app is broken
+      // even though the user's path forward is obvious.
+      await apiUtil.postSilent<{ status: string; expires_in: number }, { email: string }>(
         "/user/verify/start",
         { email: target },
       );
@@ -188,7 +194,12 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
     }
     setBusy(true);
     try {
-      const resp = await apiUtil.post<{ status: string; user?: any }, { email: string; code: string }>(
+      // Silent for the same reason as /verify/start — keeps the global
+      // error sheet from popping under this one when the verify path
+      // hiccups. The catch below has its own contextual recovery
+      // (re-checks /user/details to detect "succeeded but response
+      // dropped" before alerting).
+      const resp = await apiUtil.postSilent<{ status: string; user?: any }, { email: string; code: string }>(
         "/user/verify/confirm",
         { email: target, code: digits },
       );

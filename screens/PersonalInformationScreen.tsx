@@ -496,7 +496,10 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
     }
     setBusy(true);
     try {
-      await apiUtil.post<{ status: string; expires_in: number }, { email: string }>(
+      // `postSilent` so a network blip or 5xx during /verify/start
+      // doesn't slam the global "Uh Oh!" sheet on top of this flow.
+      // The local catch already surfaces a contextual BrandedAlert.
+      await apiUtil.postSilent<{ status: string; expires_in: number }, { email: string }>(
         '/user/verify/start',
         { email: target },
       );
@@ -530,7 +533,8 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
     }
     setBusy(true);
     try {
-      const resp = await apiUtil.post<{ status: string; user?: User }, { email: string; code: string }>(
+      // Silent for the same reason as /verify/start.
+      const resp = await apiUtil.postSilent<{ status: string; user?: User }, { email: string; code: string }>(
         '/user/verify/confirm',
         { email: target, code: digits },
       );
