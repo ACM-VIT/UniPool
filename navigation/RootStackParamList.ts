@@ -70,6 +70,12 @@ export type RootStackParamList = {
     ride?: any;
     rideId?: string;
     expectedViewerState?: "pending_passenger" | "confirmed_passenger" | "rejected_passenger" | "host";
+    /** Swaps the back chevron for a Home glyph and routes to
+     *  HomeScreen via router.replace on press. Set by flows that
+     *  arrive here from a form the user already submitted (ride
+     *  create / ride request interstitials) so back doesn't dump
+     *  them on that form. */
+    backToHome?: boolean;
   };
   NearbyRidesScreen: undefined;
   PrivacyPolicyScreen: undefined;

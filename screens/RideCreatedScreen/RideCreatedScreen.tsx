@@ -24,6 +24,13 @@ const RideCreatedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }>
         router.replace(appHref("RideDetailsScreen", {
           rideId: params.rideId,
           expectedViewerState: "host",
+          // The host arrived here by submitting the create-ride
+          // form — there's nothing meaningful to "go back" to.
+          // RideDetailsScreen swaps the chevron for a Home glyph
+          // when this is set, and routes to HomeScreen via
+          // router.replace so the form doesn't linger in the
+          // back stack.
+          backToHome: true,
         } as any) as any);
       } else {
         router.replace(appHref("BookingScreen"));
