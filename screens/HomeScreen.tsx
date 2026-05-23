@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
+import { useUser } from "../contexts/UserContext";
 import { appHref } from "../navigation/routes";
 import AppColors from "../design_systems/colors";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
@@ -300,6 +301,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [isFocused, setIsFocused] = useState(true);
   const { apiUtil, revalidate } = useApi();
   const { requireAuth, isGuest } = useAuthGate();
+  // Used to filter the viewer's own rides out of the nearby-pins
+  // set. The /rides/nearby endpoint is public (no auth identity), so
+  // ownership has to be reconciled on the client — without this the
+  // viewer can tap their own ride pin and end up on a
+  // "Slide to request ride" screen that semantically can't work.
+  const { user: viewerUser } = useUser();
   const mapRef = useRef<MapRef>(null);
   // MapLibre splits ref surfaces: the Map ref exposes geometry
   // queries (project/unproject/getCenter); the Camera ref drives
@@ -412,7 +419,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         cheapestPrice: number;
       }
     >();
+    const viewerUserId = viewerUser?.id ?? null;
     for (const r of nearbyRides) {
+      // Hide the viewer's own rides from the map. They can't request
+      // a seat on their own ride, so a pin that leads to an unactionable
+      // "Slide to request" screen is just a trap. Mirrors the
+      // self-exclusion that /ride/search does server-side; we have to
+      // do it client-side here because /rides/nearby is anonymous.
+      if (viewerUserId && r.host_user_id === viewerUserId) continue;
       // 3 decimal places ≈ 110 m precision. Previously we used 4
       // decimals (~11 m), but in practice host-typed start coords for
       // the same campus / depot would drift by 20-50 m and end up as
@@ -441,7 +455,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       }
     }
     return Array.from(byKey.values());
-  }, [nearbyRides]);
+  }, [nearbyRides, viewerUser?.id]);
 
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
   const [toCoords, setToCoords] = useState<LocationCoords | null>(null);
@@ -1561,6 +1575,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       >
         <Text style={styles.searchSheetTitle}>Where'd you like to go?</Text>
         <RideDetailsSelector
+          // manualSubmit suppresses the selector's auto-fire-on-
+          // both-locations-set behaviour so picking a destination
+          // doesn't yank the user out of the sheet before they
+          // had a chance to also tweak the date. The footer
+          // Search-rides button is the only path that fires
+          // onSubmit in this mode; date stays optional and falls
+          // back to the selector's "now + 1h" default.
+          manualSubmit
           onSubmit={(details) => {
             // Close FIRST so the search-results navigation doesn't
             // happen with the sheet still up — looks like a
