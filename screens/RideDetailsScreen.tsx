@@ -1692,38 +1692,40 @@ const RideDetailsScreen: React.FC = () => {
         </ScrollView>
 
         <View style={styles.bottomContainer}>
-          {/* Primary chat affordance for the host. Sits above the
-              destructive slide-to-delete — opening the chat is the
-              common action, deleting is rare. Forest pill, lime
-              label, lime chat glyph — same brand vocabulary as the
-              Share pill in the header. */}
-          <TouchableOpacity
-            onPress={openRideChat}
-            activeOpacity={0.85}
-            style={{
-              backgroundColor: AppColors.secondaryDarkGreen,
-              paddingVertical: 14,
-              borderRadius: 14,
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "row",
-              gap: 10,
-              marginBottom: 10,
-            }}
-            accessibilityLabel="Open trip chat"
-          >
-            <ChatBubbleGlyph />
-            <Text
+          {/* Primary chat affordance for the host. Hidden while the
+              ride has no accepted passengers — the group chat would
+              be a room of one and "Open trip chat" reads like a
+              dead-end action that opens an empty thread. Returns
+              the moment a request is accepted. */}
+          {requests.some((r) => r.request_status === "accepted") ? (
+            <TouchableOpacity
+              onPress={openRideChat}
+              activeOpacity={0.85}
               style={{
-                color: AppColors.primaryLightGreen,
-                fontFamily: "NunitoSans_800ExtraBold",
-                fontSize: 15,
-                letterSpacing: 0.2,
+                backgroundColor: AppColors.secondaryDarkGreen,
+                paddingVertical: 14,
+                borderRadius: 14,
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 10,
+                marginBottom: 10,
               }}
+              accessibilityLabel="Open trip chat"
             >
-              Open trip chat
-            </Text>
-          </TouchableOpacity>
+              <ChatBubbleGlyph />
+              <Text
+                style={{
+                  color: AppColors.primaryLightGreen,
+                  fontFamily: "NunitoSans_800ExtraBold",
+                  fontSize: 15,
+                  letterSpacing: 0.2,
+                }}
+              >
+                Open trip chat
+              </Text>
+            </TouchableOpacity>
+          ) : null}
           {!rideOver ? (
             <SlideToCreate
               onSlideComplete={handleCancelRide}
