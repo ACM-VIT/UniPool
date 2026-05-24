@@ -10,15 +10,37 @@ import { LocationProvider } from "../contexts/location-context";
 import { UserProvider } from "../contexts/UserContext";
 import { ApiProvider } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
+import { isNotificationForActiveChat } from "../utils/activeChatRegistry";
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    // Suppress the banner / sound when the incoming push targets the
+    // chat the user is already looking at — the message already
+    // animated into their open conversation, a system banner on top
+    // is duplicative noise. The backend filters these out via
+    // WebSocket presence too; this is the belt-and-suspenders for
+    // the race where the FCM lands faster than the socket join (or
+    // a stale notification was queued before the user opened the
+    // chat). The push is still recorded in the OS list so the user
+    // can scroll back through their notification history.
+    const data = (notification.request.content.data ?? {}) as Record<string, unknown>;
+    if (isNotificationForActiveChat(data)) {
+      return {
+        shouldShowAlert: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: false,
+        shouldShowList: false,
+      };
+    }
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    };
+  },
 });
 
 // Global Dynamic Type cap. Apple's Accessibility reviewer (and the
