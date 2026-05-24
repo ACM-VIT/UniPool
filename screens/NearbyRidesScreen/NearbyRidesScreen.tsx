@@ -24,6 +24,7 @@ import SmileyGlyph from "../../components/SmileyGlyph";
 import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar";
 import { appHref } from "../../navigation/routes";
 import { useApi } from "../../utils/ApiUtil";
+import { useUser } from "../../contexts/UserContext";
 import { useTabletContentStyle, useTabletScrollContentStyle } from "../../utils/responsive";
 import { isRideUpcomingAt } from "../../utils/rideTime";
 
@@ -39,6 +40,13 @@ const clockIcon = require("../../assets/clock.png");
 
 type NearbyRide = {
   id: string;
+  // host_user_id powers the viewer-self filter — without it we'd
+  // surface the viewer's own rides as nearby suggestions, which
+  // they can't book anyway (server-side gate). The backend already
+  // skips them when we pass `exclude_host_user_id`; this is the
+  // belt-and-suspenders client check that runs even on stale
+  // responses.
+  host_user_id?: string;
   start_location: string;
   end_location: string;
   start_latitude: number;
@@ -103,6 +111,8 @@ const NearbyRidesScreen: React.FC = () => {
   const tabletScrollContentStyle = useTabletScrollContentStyle();
   const { requireAuth } = useAuthGate();
   const { apiUtil } = useApi();
+  const { user: viewerUser } = useUser();
+  const viewerUserId = viewerUser?.id ?? "";
   const insets = useSafeAreaInsets();
   const [rides, setRides] = useState<NearbyRide[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,13 +144,21 @@ const NearbyRidesScreen: React.FC = () => {
       });
       setCoords({ latitude: c.latitude, longitude: c.longitude });
 
-      const endpoint = `/rides/nearby?lat=${c.latitude.toFixed(4)}&lng=${c.longitude.toFixed(4)}&radius=10000&limit=60`;
+      // Pass the viewer's user id so the backend drops the viewer's
+      // own rides server-side — the surrounding client filter at
+      // visibleRides below is the belt-and-suspenders for races and
+      // stale-cache responses.
+      const excludeParam = viewerUserId
+        ? `&exclude_host_user_id=${encodeURIComponent(viewerUserId)}`
+        : "";
+      const endpoint = `/rides/nearby?lat=${c.latitude.toFixed(4)}&lng=${c.longitude.toFixed(4)}&radius=10000&limit=60${excludeParam}`;
       const json = forceNetwork
         ? await apiUtil.getUncached<{ rides?: NearbyRide[] }>(endpoint)
         : await apiUtil.get<{ rides?: NearbyRide[] }>(endpoint);
       const nowMs = Date.now();
       const list: NearbyRide[] = (Array.isArray(json?.rides) ? json.rides : [])
-        .filter((r) => isRideUpcomingAt(r.start_time, nowMs));
+        .filter((r) => isRideUpcomingAt(r.start_time, nowMs))
+        .filter((r) => !viewerUserId || r.host_user_id !== viewerUserId);
       // Sort by distance from the user, then by start_time within ties.
       list.sort((a, b) => {
         const da = haversineKm(c.latitude, c.longitude, a.start_latitude, a.start_longitude);
@@ -154,7 +172,7 @@ const NearbyRidesScreen: React.FC = () => {
       setError("Couldn't load rides. Pull down to try again.");
       setRides([]);
     }
-  }, [apiUtil]);
+  }, [apiUtil, viewerUserId]);
 
   // Reload on every focus so coming back from LocationPermissionScreen
   // (after the user granted permission) actually refreshes the list
@@ -178,8 +196,15 @@ const NearbyRidesScreen: React.FC = () => {
   );
 
   const visibleRides = useMemo(
-    () => rides.filter((r) => isRideUpcomingAt(r.start_time, nowTick)),
-    [rides, nowTick],
+    () =>
+      rides
+        .filter((r) => isRideUpcomingAt(r.start_time, nowTick))
+        // Belt-and-suspenders: also drop viewer-hosted rides here so
+        // that a cached response from before the user logged in (or
+        // an /rides/nearby that landed pre-context) never leaks the
+        // viewer's own pins into the list.
+        .filter((r) => !viewerUserId || r.host_user_id !== viewerUserId),
+    [rides, nowTick, viewerUserId],
   );
 
   const onRefresh = async () => {
