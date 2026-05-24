@@ -834,7 +834,16 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           onPress={() => handleLocationSelectorOpen(false)}
         >
           <View style={styles.inputContent}>
-            <View style={styles.routeDotFilled} />
+            {/* Navigation glyph for the destination — same iconography
+                RouteStack uses on every ride card / trip card / chat
+                trip header. The filled lime dot we used here before
+                was the only "to" indicator in the app that didn't
+                match. */}
+            <Image
+              source={require("../assets/navigation-2.png")}
+              style={styles.routeArrow}
+              resizeMode="contain"
+            />
             <Text
               style={toLocation ? styles.selectedText : styles.label}
               numberOfLines={1}
@@ -1239,6 +1248,17 @@ const styles = StyleSheet.create({
     borderRadius: hp(1),
     backgroundColor: AppColors.primaryLightGreen,
     marginRight: wp(3),
+  },
+  // Slightly larger than the origin dot because the arrow glyph
+  // reads visually smaller than a filled circle at the same box
+  // size — bumping by ~25% keeps the optical weight balanced
+  // across the two rows. Same lime tint, same right margin so the
+  // text baseline stays aligned with the origin row.
+  routeArrow: {
+    width: hp(2.5),
+    height: hp(2.5),
+    tintColor: AppColors.primaryLightGreen,
+    marginRight: wp(2.5),
   },
   label: {
     marginLeft: wp(2),
