@@ -7,8 +7,10 @@ import {
   StatusBar,
   Platform,
   useWindowDimensions,
+  ActivityIndicator,
 } from "react-native";
 import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import styles from "./LocationPermissionScreen.styles";
 import AppColors from "../../design_systems/colors";
@@ -63,6 +65,12 @@ const LocationPermissionScreen: React.FC = () => {
   const { apiUtil } = useApi();
   const { refreshLocation } = useLocationInfo();
   const [checkingPermissions, setCheckingPermissions] = useState(true);
+  // True from the first Allow tap until the chain finishes navigating.
+  // Without this the button stays tappable while the native prompts +
+  // FCM round-trip are in flight, and users spam-tap thinking
+  // nothing happened — each tap then queues another handleAllow()
+  // and the screen feels broken.
+  const [busy, setBusy] = useState(false);
 
   // Live window dims so the hero sizes correctly on rotation + iPad
   // multitasking. Static `Dimensions.get` once at module load froze
@@ -113,6 +121,14 @@ const LocationPermissionScreen: React.FC = () => {
   const goHome = markSeenAndLeave;
 
   const handleAllow = async () => {
+    // Re-entrancy guard. Without this, tapping the button a second
+    // time while the chain below is still in flight kicks off a
+    // parallel chain — each one shows the native prompt again
+    // (already granted, no-ops fast) and races into navigation.
+    // The user perceives this as "I have to spam the button" because
+    // there's no visual signal the first tap did anything.
+    if (busy) return;
+    setBusy(true);
     try {
       await Location.requestForegroundPermissionsAsync();
     } catch (e) {
@@ -128,12 +144,45 @@ const LocationPermissionScreen: React.FC = () => {
     void refreshLocation().catch((e) =>
       console.warn("refreshLocation after grant failed", e),
     );
+
+    // Notification setup is split in two so navigation isn't held
+    // hostage by the FCM token fetch + backend POST that
+    // ensurePushNotificationsRegistered does after the prompt:
+    //
+    //   1. AWAIT the native prompt + Android channel setup. This
+    //      MUST finish before we navigate — otherwise the OS
+    //      notification-permission sheet pops up on top of the
+    //      HomeScreen, which reads as a glitch.
+    //
+    //   2. FIRE-AND-FORGET the token retrieval + /users/me/token
+    //      POST. These can take 2-5s on a slow network with zero
+    //      visible progress, which is exactly what made users
+    //      spam-tap the button. The token still gets registered;
+    //      it just happens after navigation.
     try {
-      await ensurePushNotificationsRegistered(apiUtil as any);
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("default", {
+          name: "default",
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: "#FF231F7C",
+        });
+      }
+      const { status: existing } = await Notifications.getPermissionsAsync();
+      if (existing !== "granted") {
+        await Notifications.requestPermissionsAsync();
+      }
     } catch (e) {
       console.warn("Notification prompt failed", e);
     }
+    void ensurePushNotificationsRegistered(apiUtil as any).catch((e) =>
+      console.warn("Background push registration failed", e),
+    );
+
     await markSeenAndLeave();
+    // No setBusy(false) — we've navigated away. If the navigation
+    // somehow fails, leaving busy=true is a better failure mode
+    // than re-enabling the button into a half-broken state.
   };
 
   if (checkingPermissions) {
@@ -186,18 +235,29 @@ const LocationPermissionScreen: React.FC = () => {
 
         <View style={styles.ctaBlock}>
           <TouchableOpacity
-            style={styles.primaryBtn}
+            style={[styles.primaryBtn, busy && { opacity: 0.7 }]}
             activeOpacity={0.88}
             onPress={handleAllow}
+            disabled={busy}
             accessibilityRole="button"
             accessibilityLabel="Allow location and notification access"
+            accessibilityState={{ busy, disabled: busy }}
           >
-            <Text style={styles.primaryBtnText}>Allow access</Text>
+            {busy ? (
+              <ActivityIndicator
+                size="small"
+                color={AppColors.primaryLightGreen}
+                accessibilityLabel="Requesting permissions"
+              />
+            ) : (
+              <Text style={styles.primaryBtnText}>Allow access</Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.secondaryBtn}
+            style={[styles.secondaryBtn, busy && { opacity: 0.4 }]}
             activeOpacity={0.7}
             onPress={goHome}
+            disabled={busy}
             accessibilityRole="button"
             accessibilityLabel="Skip permissions for now"
             hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}

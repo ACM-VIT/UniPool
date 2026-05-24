@@ -20,6 +20,7 @@ import ChevronBack from "../../components/ChevronBack";
 import LoadingComponent from "../../components/LoadingComponent";
 import EmptyState from "../../components/EmptyState";
 import RouteStack from "../../components/RouteStack";
+import SmileyGlyph from "../../components/SmileyGlyph";
 import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar";
 import { appHref } from "../../navigation/routes";
 import { useApi } from "../../utils/ApiUtil";
@@ -272,8 +273,14 @@ const NearbyRidesScreen: React.FC = () => {
         // LocationPermissionScreen (with the radar + reasoning) and
         // brings them back here after they decide. Same flow we use
         // on first launch.
+        //
+        // SVG glyph instead of the happy-emoji.png raster — that
+        // asset is 38×37 native and rendered at 160px here, which
+        // pixelated hard. SmileyGlyph is the canonical crisp
+        // replacement already used by EmptyState surfaces elsewhere
+        // for the same reason.
         <EmptyState
-          image={require("../../assets/happy-emoji.png")}
+          glyph={<SmileyGlyph />}
           title="Allow location"
           body="So we can show carpools heading your way on the map."
           ctaLabel="Allow location"

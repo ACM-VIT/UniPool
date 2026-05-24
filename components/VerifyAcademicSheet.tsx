@@ -126,6 +126,30 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
     setStep("email");
   };
 
+  // The TextInput is pre-seeded with `@<domain>` so the user only has
+  // to type the local part. On iOS / Android, the QuickType /
+  // keyboard-suggestion bar will sometimes offer the user's full email
+  // (e.g. `john@vitstudent.ac.in`) and insert it at the cursor —
+  // which collides with the pre-seeded domain and produces a
+  // double-suffix like `john@vitstudent.ac.in@vitstudent.ac.in`.
+  // We collapse any "more than one @" into the first complete
+  // `local@domain` pair on every keystroke so the field self-heals
+  // mid-type instead of waiting until Send to fail validation.
+  // Trailing/leading whitespace is also trimmed since the
+  // autocomplete suggestion often comes with a trailing space.
+  const sanitizeEmail = (raw: string): string => {
+    if (!raw) return "";
+    const collapsed = raw.replace(/\s+/g, "");
+    const at = collapsed.indexOf("@");
+    if (at < 0) return collapsed;
+    const local = collapsed.slice(0, at);
+    // Everything after the first @ — strip any further @s and
+    // whatever followed them. Preserves the first domain the user
+    // (or autocomplete) intended.
+    const rest = collapsed.slice(at + 1).replace(/@.*$/, "");
+    return rest ? `${local}@${rest}` : `${local}@`;
+  };
+
   const sendCode = async () => {
     const target = email.trim().toLowerCase();
     // The institute-picker prefills `@<domain>` so the user only has
@@ -318,11 +342,17 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
           <View style={sheetUi.inputWrap}>
             <TextInput
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(raw) => setEmail(sanitizeEmail(raw))}
               placeholder={picked?.domains?.[0] ? `you@${picked.domains[0]}` : "you@university.edu"}
               placeholderTextColor={AppColors.inkMuted}
               autoCapitalize="none"
               autoCorrect={false}
+              // Tell the keyboard this is an email field so QuickType
+              // suggests addresses (still gets collapsed by
+              // sanitizeEmail if the suggestion would have collided
+              // with the prefilled domain).
+              textContentType="emailAddress"
+              autoComplete="email"
               keyboardType="email-address"
               style={sheetUi.input}
               maxLength={120}
