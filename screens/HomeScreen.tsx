@@ -1070,6 +1070,45 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   // payload), so a user can rate when they choose to instead of
   // being prompted out of whatever they were doing on Home.
 
+  // When a ride preview opens (user tapped a pin or picked one from
+  // the cluster sheet), pull the camera so the entire pickup → drop
+  // route sits inside the top portion of the visible map — above the
+  // RoutePreviewCard that's about to slide up from the bottom and
+  // cover ~40% of the screen. Without this, tapping a pin near the
+  // bottom of the viewport would hide the very point the user just
+  // tapped, plus the destination chevron, plus the dotted line — the
+  // preview surface had nowhere to actually preview.
+  //
+  // Keyed on previewRide?.id so the camera doesn't re-fit on every
+  // unrelated render (each setState in this component would otherwise
+  // re-run the fit and animate the map even when the user was trying
+  // to pan it themselves).
+  useEffect(() => {
+    if (!previewRide) return;
+    const camera = cameraRef.current;
+    if (!camera) return;
+    const bounds = coordsToBounds([
+      { latitude: previewRide.start_latitude, longitude: previewRide.start_longitude },
+      { latitude: previewRide.end_latitude, longitude: previewRide.end_longitude },
+    ]);
+    camera.fitBounds(bounds, {
+      padding: {
+        // Generous top — the route should land in the upper third
+        // of the visible area, not jammed against the status bar.
+        top: screenHeight * 0.18,
+        // Bottom pad has to clear the RoutePreviewCard's full
+        // footprint: its bottom offset (insets.bottom + ~90) plus
+        // its own ~240pt content height. ~42% of screen is a
+        // conservative cover that works on iPhone SE through
+        // 16 Pro Max without an insets read in this scope.
+        bottom: screenHeight * 0.42,
+        left: screenWidth * 0.14,
+        right: screenWidth * 0.14,
+      },
+      duration: MAP_CAMERA_ANIMATION_MS,
+    });
+  }, [previewRide?.id]);
+
   const runMapCameraUpdate = useCallback((from: LocationCoords | null, to: LocationCoords | null) => {
     const camera = cameraRef.current;
     if (!camera) return;
