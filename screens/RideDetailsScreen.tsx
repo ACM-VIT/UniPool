@@ -1123,13 +1123,39 @@ const RideDetailsScreen: React.FC = () => {
                 console.error("Error cancelling booking:", error);
                 BrandedAlert.alert("Couldn't cancel", error.message || "Try again in a moment.");
               } finally {
-                setIsActionLoading(false); 
+                setIsActionLoading(false);
               }
             }
           }
         ]
       );
     }
+  };
+
+  // Distinguishes network blips from real backend errors when a
+  // booking action (accept / reject / remove) fails. The host's
+  // mobile network drops a packet way more often than the backend
+  // returns a real 4xx — flagging the network case as such (with
+  // "try again") avoids the false "Couldn't accept" panic the
+  // user reported, where the real failure was just a TCP timeout.
+  const describeBookingActionError = (err: any, what: string): string => {
+    const msg = String(err?.message ?? "");
+    const status = err?.response?.status;
+    // Fetch / RN errors that scream "no response from server":
+    // - "Network request failed" (RN's default fetch error)
+    // - "timeout", "aborted", "ECONN" — common transport-level
+    //   failures across iOS / Android
+    // - Empty status with non-empty message — the request didn't
+    //   land
+    if (
+      !status &&
+      /network|timeout|abort|ECONN|fetch failed/i.test(msg)
+    ) {
+      return `Connection hiccup — couldn't reach the server. Try again in a moment.`;
+    }
+    const serverMsg = err?.response?.data?.error || err?.response?.data?.message;
+    if (serverMsg) return String(serverMsg);
+    return msg || `Couldn't ${what}. Try again.`;
   };
 
   // Optimistic accept. The previous flow awaited two round-trips
@@ -1167,9 +1193,14 @@ const RideDetailsScreen: React.FC = () => {
     // Fire-and-forget. Wrapped in an IIFE so the outer handler stays
     // synchronous and the slider / profile sheet that called us can
     // dismiss immediately, before the API even leaves the device.
+    //
+    // putSilent — the global "Uh Oh!" sheet would compete with the
+    // local bookingError message and (on flaky mobile networks)
+    // pop up every time a packet drops. The optimistic UI here is
+    // the user-visible surface; we own the failure message inline.
     (async () => {
       try {
-        await apiUtil.put(`/bookings/accept/${bookingId}`, {});
+        await apiUtil.putSilent(`/bookings/accept/${bookingId}`, {});
         // Best-effort reconciliation in the background. If the server
         // truth diverges from our optimistic guess (e.g. another host
         // device accepted a different request in the same window),
@@ -1192,7 +1223,19 @@ const RideDetailsScreen: React.FC = () => {
         setRideData(prev =>
           prev ? { ...prev, booked_seats: prevBookedSeats } : null,
         );
-        setBookingError(error?.message || "Couldn't accept the request. Try again.");
+        // Distinguish "request never made it" from "backend said no"
+        // so the user sees an actionable message instead of a
+        // generic "Couldn't accept". Network failures are the
+        // common case on mobile + the one most likely to succeed
+        // on a retry.
+        const msg = describeBookingActionError(error, "accept the request");
+        setBookingError(msg);
+        // Force a fresh ride-details fetch so the local state
+        // re-syncs with server truth — covers the case where the
+        // PUT actually succeeded but the response failed to land
+        // (passenger sees themselves as accepted on the next open
+        // even though our optimistic flip was rolled back).
+        setRefreshTick(tick => tick + 1);
       }
     })();
   };
@@ -1234,7 +1277,7 @@ const RideDetailsScreen: React.FC = () => {
 
     (async () => {
       try {
-        await apiUtil.put(`/bookings/reject/${bookingId}`, {});
+        await apiUtil.putSilent(`/bookings/reject/${bookingId}`, {});
         setRefreshTick(tick => tick + 1);
       } catch (error: any) {
         const empty =
@@ -1246,7 +1289,8 @@ const RideDetailsScreen: React.FC = () => {
         }
         console.error("Reject failed, rolling back optimistic update:", error);
         setRequests(prevRequests);
-        setBookingError(error?.message || "Couldn't reject the request. Try again.");
+        setBookingError(describeBookingActionError(error, "reject the request"));
+        setRefreshTick(tick => tick + 1);
       }
     })();
   };
@@ -1273,7 +1317,7 @@ const RideDetailsScreen: React.FC = () => {
 
     (async () => {
       try {
-        await apiUtil.delete(`/booking/delete/${bookingId}`);
+        await apiUtil.deleteSilent(`/booking/delete/${bookingId}`);
         setRefreshTick(tick => tick + 1);
       } catch (error: any) {
         const empty =
@@ -1290,7 +1334,8 @@ const RideDetailsScreen: React.FC = () => {
             prev ? { ...prev, booked_seats: prevBookedSeats } : null,
           );
         }
-        setBookingError(error?.message || "Couldn't remove the passenger. Try again.");
+        setBookingError(describeBookingActionError(error, "remove the passenger"));
+        setRefreshTick(tick => tick + 1);
       }
     })();
   };

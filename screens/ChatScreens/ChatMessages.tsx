@@ -14,6 +14,7 @@ import {
   ScrollView,
   Animated,
   Easing,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from "expo-router";
@@ -636,21 +637,25 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
 
     // Initial page (most recent ~50 messages). Older pages are loaded
     // on demand via loadOlderMessages() when the user scrolls to top.
+    //
+    // On failure: KEEP whatever messages are already in state instead
+    // of wiping them. The previous DM branch did `setMessages([])` on
+    // error — that meant a single transient fetch failure (network
+    // blip, auth token mid-refresh) would empty out a DM and the
+    // user would think their messages vanished. With this change, a
+    // failed fetch leaves the visible message list alone; the next
+    // successful fetch (focus refetch, foreground refetch) reconciles.
     setIsLoadingInitial(true);
     ChatService.fetchMessages(apiUtil, chatId, { limit: 50 })
       .then((res) => {
-        if (!userUuid) {
-          setMessages([]);
-          return;
-        }
+        if (!userUuid) return;
         const processed = res.messages.map((msg: any) => processBackendMessage(msg, userUuid));
         shouldScrollToEndRef.current = true;
         setMessages(processed);
         setHasMoreMessages(res.hasMore);
       })
       .catch((err) => {
-        if (!isGroup) setMessages([]);
-        else console.error('[Chat] fetchMessages err', err);
+        console.warn('[Chat] initial fetchMessages err (keeping existing list)', err);
       })
       .finally(() => {
         setIsLoadingInitial(false);
@@ -770,6 +775,11 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         }
       }
 
+      // Focus refetch — keeps the visible list in sync with anything
+      // that landed in the DB while the user was off-screen (a
+      // counterpart's message broadcast while the WS was closed
+      // between navigations). On failure we keep the existing list
+      // exactly as before; never set [] from an error branch.
       ChatService.fetchMessages(apiUtil, chatId, { limit: 50 })
         .then((res) => {
           if (cancelled) return;
@@ -778,13 +788,38 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           setHasMoreMessages(res.hasMore);
         })
         .catch((err) => {
-          if (isGroup) console.error("[Chat] focus fetchMessages err", err);
+          console.warn("[Chat] focus fetchMessages err (keeping existing list)", err);
         });
 
       ChatService.markRideRead(apiUtil, chatId);
 
+      // Foreground-resume refetch. When the user backgrounds the app
+      // mid-chat, the WS closes; messages persisted while away aren't
+      // pushed to this screen until something forces a fetch. AppState
+      // active transition is that something. Without this, you'd see
+      // the user's reported "I opened the chat and my older messages
+      // weren't there" pattern — the screen kept stale state since the
+      // WS broadcast that delivered them was missed during background.
+      const appStateSub = AppState.addEventListener("change", (state) => {
+        if (state !== "active" || cancelled) return;
+        ChatService.fetchMessages(apiUtil, chatId, { limit: 50 })
+          .then((res) => {
+            if (cancelled || !userUuid) return;
+            const processed = res.messages.map((msg: any) =>
+              processBackendMessage(msg, userUuid),
+            );
+            setMessages(processed);
+            setHasMoreMessages(res.hasMore);
+          })
+          .catch(() => {
+            // Same posture as above — silently keep existing list
+            // if the foreground-refetch can't reach the server.
+          });
+      });
+
       return () => {
         cancelled = true;
+        appStateSub.remove();
       };
     }, [
       apiUtil,
