@@ -23,6 +23,13 @@ export type RoutePreviewRide = {
   end_latitude: number;
   end_longitude: number;
   end_location: string;
+  // Optional summary fields. The tooltip stacked above the pickup
+  // pin renders these inline so the user can size up a ride
+  // without opening anything. Earlier this info lived in a big
+  // bottom card that covered ~40% of the map; the tooltip is the
+  // map-native replacement.
+  start_time?: string;
+  total_price?: number;
 };
 
 /** Bounds as [west, south, east, north], the shape MapLibre returns
@@ -396,6 +403,105 @@ const DestinationDot: React.FC<{ visible: boolean }> = ({ visible }) => {
   );
 };
 
+/**
+ * Tooltip pill that sits ABOVE the pickup pin, anchored via the
+ * pickup MapLibre Marker so its screen position tracks the pickup
+ * coord through pans and zooms. Replaces the bottom-anchored
+ * RoutePreviewCard, which covered ~40% of the map and made the route
+ * preview feel cluttered.
+ *
+ * Contents are intentionally minimal: destination, departure time,
+ * fare, and a "tap to view" cue. Tapping the pill fires onOpen, the
+ * same path the old card's "View ride" button did. The downward
+ * notch + the SourceBreath stacked underneath complete the visual
+ * connection to the pin.
+ */
+const RidePreviewTooltip: React.FC<{
+  destination: string;
+  startTime?: string;
+  totalPrice?: number;
+  onPress?: () => void;
+}> = ({ destination, startTime, totalPrice, onPress }) => {
+  const reveal = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(reveal, {
+      toValue: 1,
+      duration: 220,
+      easing: Easing.out(Easing.back(1.6)),
+      useNativeDriver: true,
+    }).start();
+  }, [reveal]);
+
+  const opacity = reveal;
+  const scale = reveal.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
+  const translateY = reveal.interpolate({ inputRange: [0, 1], outputRange: [6, 0] });
+
+  const timeLabel = useMemo(() => {
+    if (!startTime) return null;
+    const d = new Date(startTime);
+    if (isNaN(d.getTime())) return null;
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }, [startTime]);
+
+  const shortDest = useMemo(() => {
+    const first = (destination.split(",")[0] || "").trim();
+    return first.length > 22 ? first.slice(0, 21).trimEnd() + "…" : first;
+  }, [destination]);
+
+  const meta: string[] = [];
+  if (timeLabel) meta.push(timeLabel);
+  if (totalPrice != null) meta.push(`₹${totalPrice}`);
+
+  return (
+    <Animated.View
+      style={[
+        styles.tooltipWrap,
+        { opacity, transform: [{ scale }, { translateY }] },
+      ]}
+    >
+      <Animated.View
+        style={styles.tooltipPill}
+        // Animated to pick up the wrap's transforms cleanly even
+        // though the inner has no animated props itself.
+      >
+        <View style={styles.tooltipRow}>
+          {/* The same lime/forest dotted-line idiom used on every
+              other ride card surface. Compact horizontal version
+              for the tooltip footprint. */}
+          <View style={styles.tooltipRouteIndicator}>
+            <View style={styles.tooltipStartDot} />
+            <View style={styles.tooltipConnector} />
+            <View style={styles.tooltipEndDot} />
+          </View>
+          <Text
+            style={styles.tooltipDestText}
+            numberOfLines={1}
+          >
+            {shortDest}
+          </Text>
+        </View>
+        {meta.length > 0 ? (
+          <Text style={styles.tooltipMeta} numberOfLines={1}>
+            {meta.join("  ·  ")}
+          </Text>
+        ) : null}
+        <View style={styles.tooltipCtaRow}>
+          <Text style={styles.tooltipCta} onPress={onPress}>
+            Tap to view  ›
+          </Text>
+        </View>
+      </Animated.View>
+      {/* Downward notch that visually fuses the pill to the pin
+          underneath. Square rotated 45° because RN doesn't render
+          CSS triangle hacks the way the web does. */}
+      <View style={styles.tooltipNotch} />
+    </Animated.View>
+  );
+};
+
 // --- main layer -----------------------------------------------------
 
 /**
@@ -589,15 +695,27 @@ const RoutePreviewLayer: React.FC<Props> = ({ ride, bounds, onTapDestination }) 
         </MapLibreMarker>
       )}
 
-      {/* Source breath — continuous halo at the pickup coord, fires
-          for the lifetime of the preview. Anchored at the actual
-          start coord so it sits under the ride's ClusterMarker pin
-          without disturbing it; the pin remains tappable above. */}
+      {/* Pickup composite: tooltip pill above, downward notch, then
+          the SourceBreath ring at the pin coord. Stacked inside one
+          Marker with anchor="bottom" so the BOTTOM of the stack
+          (the breath's centre) lands on the pickup lng/lat, and the
+          pill floats cleanly above the pin instead of obscuring it.
+          Tap anywhere in the pill opens the ride — same path the
+          old bottom card's "View ride" used. */}
       <MapLibreMarker
         lngLat={segment.start}
-        anchor="center"
+        anchor="bottom"
+        onPress={onTapDestination}
       >
-        <SourceBreath />
+        <View style={styles.pickupStack}>
+          <RidePreviewTooltip
+            destination={ride.end_location}
+            startTime={ride.start_time}
+            totalPrice={ride.total_price}
+            onPress={onTapDestination}
+          />
+          <SourceBreath />
+        </View>
       </MapLibreMarker>
     </>
   );
@@ -715,6 +833,108 @@ const styles = StyleSheet.create({
     height: 18,
     alignItems: "center",
     justifyContent: "center",
+  },
+  // ---------------------------------------------------------------
+  // Pickup tooltip + stack
+  // ---------------------------------------------------------------
+  pickupStack: {
+    alignItems: "center",
+  },
+  tooltipWrap: {
+    alignItems: "center",
+    // Lift the pill a touch off the breath so the notch sits in
+    // open space, not crammed against the ring.
+    marginBottom: 4,
+  },
+  tooltipPill: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minWidth: 180,
+    maxWidth: 260,
+    borderWidth: 1.5,
+    borderColor: AppColors.primaryLightGreen,
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  tooltipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  tooltipRouteIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  tooltipStartDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: AppColors.primaryLightGreen,
+  },
+  tooltipConnector: {
+    width: 10,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: AppColors.primaryLightGreen,
+    opacity: 0.6,
+  },
+  tooltipEndDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: AppColors.primaryLightGreen,
+    backgroundColor: "transparent",
+  },
+  tooltipDestText: {
+    color: AppColors.primaryLightGreen,
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 14,
+    letterSpacing: -0.2,
+    flexShrink: 1,
+  },
+  tooltipMeta: {
+    color: AppColors.primaryLightGreen,
+    fontFamily: "NunitoSans_700Bold",
+    fontSize: 12,
+    letterSpacing: 0.1,
+    opacity: 0.85,
+    marginTop: 4,
+  },
+  tooltipCtaRow: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(181,215,80,0.22)",
+    alignItems: "center",
+  },
+  tooltipCta: {
+    color: AppColors.primaryLightGreen,
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 11.5,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  // Square rotated 45° = downward-pointing notch. RN doesn't have
+  // border-triangle hacks so a rotated square with one corner
+  // showing is the cleanest way.
+  tooltipNotch: {
+    width: 10,
+    height: 10,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRightWidth: 1.5,
+    borderBottomWidth: 1.5,
+    borderColor: AppColors.primaryLightGreen,
+    transform: [{ rotate: "45deg" }],
+    // Pull the notch up into the pill so the pill border + notch
+    // border read as one continuous outline at the seam.
+    marginTop: -6,
   },
   sourceRing: {
     position: "absolute",

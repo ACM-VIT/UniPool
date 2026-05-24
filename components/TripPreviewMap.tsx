@@ -43,11 +43,6 @@ type Props = {
 // when we switch tile providers, we change it in one place.
 const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
-// `latitudeDelta` (visible degrees) → MapLibre zoom level. Halves
-// per zoom step. Empirically aligned with the HomeScreen translator.
-const deltaToZoom = (latitudeDelta: number) =>
-  Math.max(1, Math.min(20, Math.log2(360 / Math.max(latitudeDelta, 0.0001))));
-
 // Build the GeoJSON line feature MapLibre's LineLayer wants. We can't
 // pass an inline `coordinates` array like react-native-maps' Polyline.
 const buildLineString = (
@@ -62,21 +57,47 @@ const buildLineString = (
 });
 
 const TripPreviewMap: React.FC<Props> = ({ start, end, routePoints, style }) => {
-  // Frame the map at the midpoint of A and B, with a ~30% horizontal
-  // padding via the × 1.6 multiplier. The 0.04 floor stops a 1 km
-  // hop from rendering as a pinhole. Mirrors the math the old
-  // react-native-maps `initialRegion` was doing on both screens.
-  const center: [number, number] = useMemo(
-    () => [
-      (start.longitude + end.longitude) / 2,
-      (start.latitude + end.latitude) / 2,
-    ],
-    [start.longitude, end.longitude, start.latitude, end.latitude],
-  );
-  const zoom = useMemo(() => {
-    const latSpan = Math.max(Math.abs(end.latitude - start.latitude) * 1.6, 0.04);
-    return deltaToZoom(latSpan);
-  }, [start.latitude, end.latitude]);
+  // Frame the route via `bounds` instead of a single center+zoom so
+  // MapLibre handles aspect-ratio padding for us. The earlier
+  // center+zoom impl computed zoom off latitudinal span only, which
+  // silently clipped mostly-east-west routes (e.g. Vellore →
+  // Bangalore: lat delta ~0.005°, lon delta ~1.57° — the lat-only
+  // zoom landed straight on the pickup and shoved the destination
+  // pin off the right edge of the container). Even after switching
+  // to max(lat, lon), a tall-narrow or short-wide container would
+  // park a pin flush against the bottom edge of the map view, which
+  // visually butted up against whatever sat below the map (the
+  // RideDetails card, the booking sheet) and read as "the pin is
+  // on the card."
+  //
+  // `bounds` with explicit pixel padding fixes both: MapLibre
+  // computes the right zoom for the container's actual dimensions
+  // and leaves at least PADDING px of map tile between each pin and
+  // every edge.
+  // LngLatBounds in MapLibre RN v11 is a flat tuple
+  // [west, south, east, north] — not the {ne, sw} object shape the
+  // older react-native-maps API used. Padding is a sibling field on
+  // CameraOptions and applies in screen-space pixels, so the pins
+  // get a real cushion against every container edge regardless of
+  // map aspect ratio.
+  const initialViewState = useMemo(() => {
+    const minLat = Math.min(start.latitude, end.latitude);
+    const maxLat = Math.max(start.latitude, end.latitude);
+    const minLng = Math.min(start.longitude, end.longitude);
+    const maxLng = Math.max(start.longitude, end.longitude);
+    return {
+      bounds: [minLng, minLat, maxLng, maxLat] as [number, number, number, number],
+      // Top a touch tighter than bottom — the start dot's halo is
+      // smaller than the end pin's tear-drop, which would otherwise
+      // look top-heavy in symmetric padding.
+      padding: {
+        top: 36,
+        bottom: 56,
+        left: 40,
+        right: 40,
+      },
+    };
+  }, [start.latitude, end.latitude, start.longitude, end.longitude]);
 
   const lineData = useMemo(
     () => buildLineString(routePoints && routePoints.length > 1 ? routePoints : [start, end]),
@@ -106,7 +127,12 @@ const TripPreviewMap: React.FC<Props> = ({ start, end, routePoints, style }) => 
         accessibilityLabel="Trip route preview"
         accessibilityHint="Static map showing the pickup and drop-off points for this trip."
       >
-        <Camera initialViewState={{ center, zoom }} />
+        {/* initialViewState anchors the framing on first mount and
+            then steps out — the preview is static (wrapper pins
+            pointerEvents="none"), so we don't need a `bounds`
+            controlled-mode prop fighting the same memo on every
+            re-render. */}
+        <Camera initialViewState={initialViewState} />
 
         {/* Start — small black dot in a white halo. Reads cleanly
             against any tile colour the map style happens to produce. */}

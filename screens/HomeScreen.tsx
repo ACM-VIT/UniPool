@@ -42,7 +42,11 @@ import RoutePreviewLayer, {
   type RoutePreviewBounds,
   type RoutePreviewRide,
 } from "../components/RoutePreviewLayer";
-import RoutePreviewCard from "../components/RoutePreviewCard";
+// RoutePreviewCard import removed — the bottom-anchored peek card
+// was replaced by a tooltip stacked above the pickup pin inside
+// RoutePreviewLayer. Kept the component file in the repo so a
+// future surface that still wants a bottom-card variant (e.g. a
+// cluster sheet variant) can import it without re-implementing.
 import { getAppState } from "../utils/AppStateService";
 import type { AppStateResponse, NearbyRideSummary } from "../utils/AppStateService";
 import { isRideUpcomingAt } from "../utils/rideTime";
@@ -1082,18 +1086,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   // being prompted out of whatever they were doing on Home.
 
   // When a ride preview opens (user tapped a pin or picked one from
-  // the cluster sheet), pull the camera so the entire pickup → drop
-  // route sits inside the top portion of the visible map — above the
-  // RoutePreviewCard that's about to slide up from the bottom and
-  // cover ~40% of the screen. Without this, tapping a pin near the
-  // bottom of the viewport would hide the very point the user just
-  // tapped, plus the destination chevron, plus the dotted line — the
-  // preview surface had nowhere to actually preview.
+  // the cluster sheet), pull the camera so the pickup pin sits in
+  // the lower-middle of the visible map. The pickup is the anchor
+  // for the new tooltip pill, which floats UP from the pin — so we
+  // need vertical clearance ABOVE the pickup, not below it. The
+  // destination (or its off-screen chevron) ends up further up in
+  // the route's direction.
+  //
+  // Padding profile: tight bottom (just the nav bar / safe area),
+  // generous top (room for the tooltip pill ~110pt + a buffer).
+  // Earlier version padded ~42% bottom to clear a bottom-anchored
+  // RoutePreviewCard that no longer exists; that left the route
+  // jammed against the top edge for no reason.
   //
   // Keyed on previewRide?.id so the camera doesn't re-fit on every
-  // unrelated render (each setState in this component would otherwise
-  // re-run the fit and animate the map even when the user was trying
-  // to pan it themselves).
+  // unrelated render (each setState would otherwise re-run the fit
+  // and fight a user trying to pan the map themselves).
   useEffect(() => {
     if (!previewRide) return;
     const camera = cameraRef.current;
@@ -1104,15 +1112,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     ]);
     camera.fitBounds(bounds, {
       padding: {
-        // Generous top — the route should land in the upper third
-        // of the visible area, not jammed against the status bar.
-        top: screenHeight * 0.18,
-        // Bottom pad has to clear the RoutePreviewCard's full
-        // footprint: its bottom offset (insets.bottom + ~90) plus
-        // its own ~240pt content height. ~42% of screen is a
-        // conservative cover that works on iPhone SE through
-        // 16 Pro Max without an insets read in this scope.
-        bottom: screenHeight * 0.42,
+        // Top pad covers the status bar + leaves room for the
+        // tooltip pill that sits above the pickup pin.
+        top: screenHeight * 0.16,
+        // Bottom is just the nav bar + a small breathing buffer
+        // now that there's no peek card to clear.
+        bottom: screenHeight * 0.16,
         left: screenWidth * 0.14,
         right: screenWidth * 0.14,
       },
@@ -1784,26 +1789,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         }}
       />
 
-      {/* Route preview card — floating peek above the bottom sheet
-          while the dotted line animates across the map. Closes via
-          the X chip or by tapping the View ride CTA (which routes
-          into the existing AvailableRidesSelectedScreen). Lives
-          outside the MapLibre tree as an absolute overlay so the
-          card's drop shadow and rounded corners aren't constrained
-          by the map's clip rect. */}
-      {previewRide && (
-        <RoutePreviewCard
-          ride={previewRide}
-          onDismiss={() => setPreviewRide(null)}
-          onOpen={() => {
-            const r = previewRide.raw;
-            setPreviewRide(null);
-            router.navigate(appHref("AvailableRidesSelectedScreen", {
-              ride: r,
-            } as any));
-          }}
-        />
-      )}
+      {/* Route preview card used to render here as a bottom-anchored
+          peek covering ~40% of the map. It was replaced by a
+          tooltip stacked above the pickup pin inside
+          RoutePreviewLayer — keeps the route summary visually
+          attached to the pin the user just tapped and frees the
+          bottom half of the screen so the destination pin / dotted
+          line don't sit at the seam where the card began. The
+          tooltip is the tap target now; the same `setPreviewRide`
+          dismiss path fires on the map's onPress below. */}
 
       {/* Search sheet — only used when the home surface has
           collapsed the inline RideDetailsSelector behind the
