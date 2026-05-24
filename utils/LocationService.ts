@@ -2573,8 +2573,8 @@ export const POPULAR_LOCATIONS_WITH_COORDS = {
   },
   "vellore": {
     "VIT University": {
-      "lat": 12.9697279,
-      "lon": 79.1606943
+      "lat": 12.9692,
+      "lon": 79.1559
     },
     "Katpadi Junction": {
       "lat": 12.9721529,
@@ -4259,10 +4259,8 @@ export const getCityCoordinates = (cityName: string): { lat: number; lon: number
     gurgaon:     { lat: 28.459496, lon: 77.026638 },
     gurugram:    { lat: 28.459496, lon: 77.026638 },
 
-    // Educational hubs
     vellore:     { lat: 12.916500, lon: 79.132500 },
-    "vit vellore":   { lat: 12.916500, lon: 79.132500 },
-    "vit university":{ lat: 12.916500, lon: 79.132500 },
+    "vit vellore":   { lat: 12.9692, lon: 79.1559},
     manipal:     { lat: 13.340556, lon: 74.741667 },
     pilani:      { lat: 28.358333, lon: 75.586667 },
     "bits pilani":   { lat: 28.358333, lon: 75.586667 },
