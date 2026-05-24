@@ -26,6 +26,7 @@ import { useApi } from '../../utils/ApiUtil';
 import { useTabletContentStyle } from '../../utils/responsive';
 import { passengerSeatsLeft } from '../../utils/seatMath';
 import ChatService from '../../utils/ChatService';
+import { setActiveChat, clearActiveChat } from '../../utils/activeChatRegistry';
 import BrandedAlert from "../../components/BrandedAlert";
 import ChevronBack from "../../components/ChevronBack";
 import RouteStack from "../../components/RouteStack";
@@ -47,6 +48,7 @@ const QUICK_REPLIES = [
   "Where are you?",
   "Thanks!",
 ];
+const PROFILE_RETRY_DELAY_MS = 30_000;
 
 interface Participant {
   id: string;
@@ -55,6 +57,8 @@ interface Participant {
   isOnline?: boolean;
   role?: 'admin' | 'member';
 }
+
+type UserProfile = { name: string; avatar?: string };
 
 interface RideDetails {
   id: string;
@@ -176,7 +180,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const [newMessage, setNewMessage] = useState('');
   const [userUuid, setUserUuid] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [userProfiles, setUserProfiles] = useState<{ [k: string]: { name: string; avatar?: string } }>({});
+  const [userProfiles, setUserProfiles] = useState<Record<string, UserProfile>>({});
   const [showSettings, setShowSettings] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(() => new Set());
@@ -219,6 +223,8 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const shouldScrollToEndRef = useRef(false);
   const seenStatusIdsRef = useRef<Set<string>>(new Set());
   const typingUsersRef = useRef<{ [k: string]: { name: string; timeout: NodeJS.Timeout } }>({});
+  const userProfilesRef = useRef<Record<string, UserProfile>>({});
+  const profileRetryBlockedUntilRef = useRef<Record<string, number>>({});
 
   type ChatRouteParams = {
     chatId?: string;
@@ -339,6 +345,48 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     );
   }, [userUuid]);
 
+  const setUserProfile = useCallback((uid: string, profile: UserProfile) => {
+    setUserProfiles(prev => {
+      const existing = prev[uid];
+      if (existing?.name === profile.name && existing?.avatar === profile.avatar) {
+        return prev;
+      }
+
+      const next = { ...prev, [uid]: profile };
+      userProfilesRef.current = next;
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    userProfilesRef.current = userProfiles;
+  }, [userProfiles]);
+
+  const fetchUserProfile = useCallback(async (uid: string): Promise<UserProfile> => {
+    const cached = userProfilesRef.current[uid];
+    if (cached?.name && cached.name !== "Unknown") return cached;
+
+    const retryBlockedUntil = profileRetryBlockedUntilRef.current[uid] ?? 0;
+    if (cached?.name === "Unknown" && Date.now() < retryBlockedUntil) {
+      return cached;
+    }
+
+    try {
+      const res = await apiUtil.get<{ user: { name: string; avatar?: string; profile_picture_url?: string } }>(`/user/${uid}`);
+      const prof = {
+        name: res.user.name || 'Unknown',
+        avatar: res.user.profile_picture_url || res.user.avatar,
+      };
+      delete profileRetryBlockedUntilRef.current[uid];
+      setUserProfile(uid, prof);
+      return prof;
+    } catch {
+      const fallback = { name: 'Unknown', avatar: undefined };
+      profileRetryBlockedUntilRef.current[uid] = Date.now() + PROFILE_RETRY_DELAY_MS;
+      setUserProfile(uid, fallback);
+      return fallback;
+    }
+  }, [apiUtil, setUserProfile]);
 
   useEffect(() => {
     setNavBarVariant?.(0);
@@ -346,10 +394,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       .get<{ user: { id: string; name: string } }>('/user/details')
       .then(resp => {
         setUserUuid(resp.user.id);
-        setUserProfiles(prev => ({
-          ...prev,
-          [resp.user.id]: { name: resp.user.name || 'You', avatar: undefined },
-        }));
+        setUserProfile(resp.user.id, { name: resp.user.name || 'You', avatar: undefined });
       })
       .catch((e: any) => {
         if (e?.message === "AUTHENTICATION_REDIRECT") {
@@ -365,7 +410,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         
         console.warn('[Chat] fetch user failed', e);
       });
-  }, [apiUtil, setNavBarVariant]);
+  }, [apiUtil, setNavBarVariant, setUserProfile]);
 
   useEffect(() => {
     if (!userUuid) return;
@@ -375,23 +420,6 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   useEffect(() => {
     applyOnlinePresence(onlineUserIds);
   }, [applyOnlinePresence, onlineUserIds]);
-
-  const fetchUserProfile = async (uid: string) => {
-    if (userProfiles[uid]?.name && userProfiles[uid].name !== "Unknown") return userProfiles[uid];
-    try {
-      const res = await apiUtil.get<{ user: { name: string; avatar?: string; profile_picture_url?: string } }>(`/user/${uid}`);
-      const prof = {
-        name: res.user.name || 'Unknown',
-        avatar: res.user.profile_picture_url || res.user.avatar,
-      };
-      setUserProfiles(prev => ({ ...prev, [uid]: prof }));
-      return prof;
-    } catch {
-      const fallback = { name: 'Unknown', avatar: undefined };
-      setUserProfiles(prev => ({ ...prev, [uid]: fallback }));
-      return fallback;
-    }
-  };
 
   const sendMessageStatus = (mid: string, status: 'delivered' | 'seen') => {
     if (wsRef.current?.readyState === WebSocket.OPEN && userUuid) {
@@ -596,7 +624,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         totalSeats: 4,
         availableSeats: 1,
       });
-      setParticipants([{ id: userUuid||'', name: userProfiles[userUuid||'']?.name||'You', role: 'member', isOnline: true }]);
+      setParticipants([{ id: userUuid||'', name: userProfilesRef.current[userUuid||'']?.name||'You', role: 'member', isOnline: true }]);
     }
   };
 
@@ -617,7 +645,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       if (otherUserId) {
         fetchUserProfile(otherUserId).then(p =>
           setParticipants([
-            { id: userUuid, name: userProfiles[userUuid]?.name||'You', role:'member', isOnline:true },
+            { id: userUuid, name: userProfilesRef.current[userUuid]?.name||'You', role:'member', isOnline:true },
             {
               id: otherUserId,
               name:p.name,
@@ -629,7 +657,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       } else {
         const fallbackName = chatParams.chatTitle?.replace('Chat with ','')||'Other User';
         setParticipants([
-          { id:userUuid, name:userProfiles[userUuid]?.name||'You', role:'member', isOnline:true },
+          { id:userUuid, name:userProfilesRef.current[userUuid]?.name||'You', role:'member', isOnline:true },
           { id:'unknown', name:fallbackName, role:'member', isOnline:false },
         ]);
       }
@@ -660,11 +688,6 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       .finally(() => {
         setIsLoadingInitial(false);
       });
-
-    // Tell the backend the user has seen everything up to now. Resets
-    // the unread badge on the chat list. Works for both ride chats
-    // and DM rooms — the helper branches on the chatId shape.
-    if (chatId) ChatService.markRideRead(apiUtil, chatId);
 
     let socketClosed = false;
     let activeSocket: WebSocket | null = null;
@@ -736,11 +759,13 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       if (wsRef.current === ws) wsRef.current = null;
     };
   }, [
+    apiUtil,
     chatParams.chatRoom?.id,
     chatParams.chatId,
     chatParams.isGroupChat,
     chatParams.otherUserId,
     chatParams.userId,
+    fetchUserProfile,
     otherUserIdFromDMRoom,
     userUuid,
   ]);
@@ -753,6 +778,16 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       const isGroup = chatParams.isGroupChat !== false;
       if (!chatId) return undefined;
 
+      // Mark this chat as the currently-focused conversation so the
+      // root expo-notifications handler suppresses incoming push
+      // banners for messages that already animate into this screen.
+      // Tied to focus (not mount) so navigating away — even while the
+      // screen is still kept alive in the back stack — clears the
+      // registry. Server-side suppression via WebSocket presence is
+      // the primary defense; this is the belt-and-suspenders for the
+      // race where the FCM lands faster than the socket join.
+      setActiveChat(chatId);
+
       let cancelled = false;
 
       if (isGroup) {
@@ -763,7 +798,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           fetchUserProfile(otherUserId).then((profile) => {
             if (cancelled) return;
             setParticipants([
-              { id: userUuid, name: userProfiles[userUuid]?.name || "You", role: "member", isOnline: true },
+              { id: userUuid, name: userProfilesRef.current[userUuid]?.name || "You", role: "member", isOnline: true },
               {
                 id: otherUserId,
                 name: profile.name,
@@ -791,7 +826,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           console.warn("[Chat] focus fetchMessages err (keeping existing list)", err);
         });
 
-      ChatService.markRideRead(apiUtil, chatId);
+      void ChatService.markRideRead(apiUtil, chatId);
 
       // Foreground-resume refetch. When the user backgrounds the app
       // mid-chat, the WS closes; messages persisted while away aren't
@@ -820,6 +855,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       return () => {
         cancelled = true;
         appStateSub.remove();
+        clearActiveChat();
       };
     }, [
       apiUtil,
@@ -827,8 +863,8 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       chatParams.chatId,
       chatParams.isGroupChat,
       chatParams.otherUserId,
+      fetchUserProfile,
       otherUserIdFromDMRoom,
-      userProfiles,
       userUuid,
     ]),
   );
