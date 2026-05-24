@@ -28,12 +28,18 @@ const BrandInfo: React.FC<BrandInfoProps> = ({ style }) => {
       Platform.OS === 'ios' && {
         paddingTop: Math.max(insets.top, 20),
       },
-      // Android: the wordmark was sitting ~flush with the notification
-      // bar because SafeAreaView only respects top inset on iOS. Push
-      // it down by the actual status-bar inset so the header has air
-      // to breathe. iOS path above untouched.
+      // Android: this app sets the StatusBar non-translucent (lime
+      // canvas, dark icons) in app/_layout.tsx, so the system already
+      // draws the bar above our content area and useSafeAreaInsets
+      // returns top=0. The old formula here added max(insets.top, 16)
+      // + 6 — i.e. an unconditional 22pt cushion below the status
+      // bar — which read as a chunky empty gap above the wordmark.
+      // Now we honour the inset when it's real (translucent or
+      // notch-affected Android variants) and otherwise sit close to
+      // the top with a 4pt breathing margin from the bar's bottom
+      // edge. iOS path above is unchanged.
       Platform.OS === 'android' && {
-        paddingTop: Math.max(insets.top, 16) + 6,
+        paddingTop: Math.max(insets.top, 4),
       },
       !hasResolvedLocation && styles.containerSolo,
       style,
