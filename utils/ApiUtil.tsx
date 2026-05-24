@@ -109,9 +109,31 @@ export default class ApiUtil {
     return this.makeRequestWithErrorHandling<T>("PUT", endpoint, body, headers, timeout, retryAction);
   }
 
+  /**
+   * Quiet PUT — same posture as `postSilent`: throws on failure so
+   * the caller can swallow it locally, but doesn't attach a
+   * retryAction so the global "Uh Oh!" sheet stays out of the way.
+   * Use for state-mutating calls (booking accept/reject/remove,
+   * cooldown stamps, etc) that have a local optimistic UI which
+   * already handles the error visibly.
+   */
+  async putSilent<T, B>(endpoint: string, body: B, headers?: HeadersInit, timeout?: number): Promise<T> {
+    return this.makeRequestWithErrorHandling<T>("PUT", endpoint, body, headers, timeout);
+  }
+
   async patch<T, B>(endpoint: string, body: B, headers?: HeadersInit, timeout?: number): Promise<T> {
     const retryAction = () => this.patch<T, B>(endpoint, body, headers, timeout);
     return this.makeRequestWithErrorHandling<T>("PATCH", endpoint, body, headers, timeout, retryAction);
+  }
+
+  /**
+   * Quiet DELETE — same posture as putSilent / postSilent. Booking
+   * cancel + passenger remove already handle the error inline via
+   * the optimistic UI rollback; the global retry sheet on top of
+   * that reads as a redundant nag on flaky mobile networks.
+   */
+  async deleteSilent<T>(endpoint: string, headers?: HeadersInit, timeout?: number): Promise<T> {
+    return this.makeRequestWithErrorHandling<T>("DELETE", endpoint, undefined, headers, timeout);
   }
 
   async delete<T>(endpoint: string, headers?: HeadersInit, timeout?: number): Promise<T> {

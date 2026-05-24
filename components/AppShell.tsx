@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, Platform } from "react-native";
+import { View, StyleSheet, Platform, AppState } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { Stack } from "expo-router/stack";
 import { RootStackParamList } from "../navigation/RootStackParamList";
@@ -572,24 +572,54 @@ const AppShell = () => {
   }, []);
 
   useEffect(() => {
+    // Token registration runs on three events:
+    //   1. Effect mount (cold start)
+    //   2. App returning to foreground (AppState.change → "active")
+    //   3. Auth state resolving + user is signed in
+    //
+    // Three signals because real users hit one of these but not
+    // always all three — a host who signed in on AuthScreen, never
+    // went through LocationPermissionScreen, and brought the app
+    // to foreground from background would previously have had NO
+    // token registered (the old code only registered when
+    // initialRoute === "HomeScreen" at mount). That gap is exactly
+    // the "host has no FCM token" log line we kept seeing in prod —
+    // the host could not get DM / booking pings until they happened
+    // to hit one of the niche paths that posted the token.
+    //
+    // Idempotent: posting the same token repeatedly is a no-op on
+    // the backend (the token column just gets re-set to the same
+    // string). Cheap to spam.
     const setupNotifications = async () => {
       const token = await registerForPushNotificationsAsync();
-      if (token) {
-        setPushToken(token);
-        console.log("Push token obtained, sending to backend...");
-        
-        if (authStateResolved && initialRoute === "HomeScreen") {
-          try {
-            await apiUtil.post("/users/me/token", { token });
-            console.log("Push token successfully sent to backend.");
-          } catch (error) {
-            console.error("Failed to send push token to backend:", error);
-          }
-        }
+      if (!token) return;
+      setPushToken(token);
+      if (!authStateResolved) {
+        // Auth not ready yet — bail. The deps array will re-fire
+        // this effect once authStateResolved flips, by which point
+        // apiUtil has a bearer token to attach.
+        return;
+      }
+      try {
+        await apiUtil.post("/users/me/token", { token });
+        console.log("Push token posted to backend.");
+      } catch (error) {
+        console.error("Failed to send push token to backend:", error);
       }
     };
 
     setupNotifications();
+
+    // Foreground-resume listener. Fires every time the user brings
+    // UniPool back to the foreground from background — captures the
+    // case where the OS rotated the FCM token while the app was
+    // suspended (Apple does this periodically, especially after
+    // OS updates).
+    const appStateSub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void setupNotifications();
+      }
+    });
 
     if (!Device.isDevice) {
       return;
@@ -621,8 +651,9 @@ const AppShell = () => {
     return () => {
       notificationListener.remove();
       responseListener.remove();
+      appStateSub.remove();
     };
-  }, [apiUtil, authStateResolved, initialRoute]);
+  }, [apiUtil, authStateResolved]);
 
   useEffect(() => {
     if (fontsLoaded && !loading && initialRoute && authStateResolved) {
