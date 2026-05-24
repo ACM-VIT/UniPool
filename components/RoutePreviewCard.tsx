@@ -6,10 +6,8 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
-import Svg, { Path } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../design_systems/colors";
 import { haptic } from "./PressableScale";
@@ -30,17 +28,21 @@ type Props = {
 };
 
 /**
- * Floating peek card that surfaces while the route-preview dotted
- * line is animating across the map. Slides up from above the bottom
- * nav, snaps in with a soft ease-out, and exits in reverse on
- * dismiss. Carries the minimum info needed to commit ("yes, this is
- * the ride I want to open") — destination, departure time, price,
- * host first name — and a single primary CTA. The dotted line on the
- * map does the heavy lifting; the card is just the action surface.
+ * Compact bottom sheet that surfaces when the user taps a ride pin
+ * on the home map. Shows just enough info to decide whether to open
+ * the ride (destination, when, fare) plus a single primary CTA.
  *
- * Visual language matches the existing ride cards (forest plate,
- * lime accent text, rounded corners, modest drop shadow) so the
- * peek feels like a familiar surface rather than a new component.
+ * Earlier versions ran dense — three meta cells, a dismiss X, a host
+ * row, a thick lime CTA pill — and ate ~40% of the map. This rewrite
+ * trims to the load-bearing elements only: a drag indicator, the
+ * route block, a single-line meta row, and the View ride button.
+ * Backdrop tap still dismisses; the drag-indicator visually invites
+ * the same gesture without a literal swipe handler (kept simple
+ * because the backdrop already covers the gesture surface).
+ *
+ * Visual idiom matches the existing ride card surfaces (forest
+ * plate, lime accent typography, large radius) so the sheet reads as
+ * a familiar UniPool surface rather than an out-of-place modal.
  */
 const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
   const insets = useSafeAreaInsets();
@@ -49,11 +51,11 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
   useEffect(() => {
     Animated.timing(slide, {
       toValue: 1,
-      duration: 320,
-      // Slight overshoot via Easing.out(back) gives the card a sense
-      // of arriving rather than ramping in linearly. Subtle — back
-      // factor 1.4 keeps it from looking bouncy/cartoonish.
-      easing: Easing.out(Easing.back(1.4)),
+      duration: 280,
+      // Slight overshoot so the sheet arrives instead of ramping in
+      // linearly — same easing the booking sheet + payment sheet
+      // already use elsewhere in the app.
+      easing: Easing.out(Easing.back(1.2)),
       useNativeDriver: true,
     }).start();
   }, [slide]);
@@ -62,7 +64,7 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
     haptic("light");
     Animated.timing(slide, {
       toValue: 0,
-      duration: 200,
+      duration: 180,
       easing: Easing.in(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -74,7 +76,7 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
     haptic("medium");
     Animated.timing(slide, {
       toValue: 0,
-      duration: 220,
+      duration: 200,
       easing: Easing.in(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {
@@ -84,58 +86,49 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
 
   const translateY = slide.interpolate({
     inputRange: [0, 1],
-    outputRange: [80, 0],
+    outputRange: [60, 0],
   });
   const opacity = slide;
+  // Backdrop is intentionally subtle — the map below stays legible,
+  // and the focus is the sheet itself, not a heavy modal scrim.
+  const backdrop = slide.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.16],
+  });
 
-  // Short comma-stripped labels for both endpoints. Long names
-  // ("Bangalore Kempegowda International Airport") would push the
-  // card off the screen; the truncation matches the ride-pin labels
-  // so the visual rhythm is consistent.
-  const shortEnd = useMemo(() => shortenLoc(ride.end_location), [ride.end_location]);
-  const shortStart = useMemo(() => shortenLoc(ride.start_location), [ride.start_location]);
+  // Comma-stripped, ellipsized labels — full-length place names
+  // ("Bangalore Kempegowda International Airport") would wrap the
+  // route block and push the sheet height up.
+  const shortStart = useMemo(() => shorten(ride.start_location), [ride.start_location]);
+  const shortEnd = useMemo(() => shorten(ride.end_location), [ride.end_location]);
 
+  // "Thu, 4 Jun · 17:00" — short weekday + date + 24h time, all in
+  // one row. Suppressed entirely if there's no parseable start time
+  // so cluster summaries with partial data still render clean.
   const timeLabel = useMemo(() => {
     if (!ride.start_time) return "";
     const d = new Date(ride.start_time);
     if (isNaN(d.getTime())) return "";
-    const day = d.toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short" });
+    const day = d.toLocaleDateString(undefined, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
     const hh = String(d.getHours()).padStart(2, "0");
     const mm = String(d.getMinutes()).padStart(2, "0");
     return `${day} · ${hh}:${mm}`;
   }, [ride.start_time]);
 
-  const hostFirstName = useMemo(() => {
-    if (!ride.host_user_name) return "";
-    return (ride.host_user_name.split(/\s+/)[0] || "").trim();
-  }, [ride.host_user_name]);
-
-  // Card sits above the main nav bar's top edge. On phones the nav
-  // pill lives roughly 84pt above the bottom safe-area inset; this
-  // card stacks ~12pt above that. On iPad the nav floats lower so
-  // the same offset works.
-  const bottomOffset =
-    insets.bottom + (Platform.OS === "ios" ? 96 : 86);
-
-  // Backdrop dim — a near-transparent forest wash over the map while
-  // the preview is active. Pulls the eye to the dotted line + the
-  // card without actually hiding any pins (the wash is light enough
-  // that ride pins underneath remain legible). Tap on the wash
-  // dismisses the preview, which is the canonical "close" gesture
-  // on Maps + Apple Pay sheets.
-  const backdrop = slide.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 0.18],
-  });
+  // Card sits just above the main nav bar. 96pt on iOS / 86pt on
+  // Android matches the nav bar's top edge across phones; iPad
+  // floats the nav at the same offset so this works there too.
+  const bottomOffset = insets.bottom + (Platform.OS === "ios" ? 96 : 86);
 
   return (
     <>
       <Animated.View
-        pointerEvents={slide ? "auto" : "none"}
-        style={[
-          styles.backdrop,
-          { opacity: backdrop },
-        ]}
+        pointerEvents="auto"
+        style={[styles.backdrop, { opacity: backdrop }]}
       >
         <Pressable
           style={StyleSheet.absoluteFill}
@@ -155,117 +148,76 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
           },
         ]}
       >
-      <Pressable
-        onPress={handleOpen}
-        android_ripple={undefined}
-        style={({ pressed }) => [
-          styles.card,
-          pressed && { opacity: 0.92 },
-        ]}
-      >
-        {/* Route row — dotted forest connector between start and end
-            mirrors the on-map dotted line so the card and the map
-            read as one composition. */}
-        <View style={styles.routeRow}>
-          <View style={styles.routeStack}>
-            <View style={styles.dotFilled} />
-            <View style={styles.routeConnector}>
-              <View style={styles.routeDash} />
-              <View style={styles.routeDash} />
-              <View style={styles.routeDash} />
+        <View style={styles.card}>
+          {/* Drag indicator — implies dismiss-by-swipe even though
+              the actual dismiss path is the backdrop tap. Apple's
+              standard sheet idiom; the visual cue alone is enough. */}
+          <View style={styles.handle} />
+
+          {/* Route block. Filled dot for pickup, ring dot for drop,
+              short connector between. Single-glyph pin language
+              shared with every other ride card surface in the app. */}
+          <View style={styles.route}>
+            <View style={styles.pinCol}>
+              <View style={styles.pinFilled} />
+              <View style={styles.pinConnector} />
+              <View style={styles.pinOutline} />
             </View>
-            <View style={styles.dotOutline} />
+            <View style={styles.routeText}>
+              <Text style={styles.startLabel} numberOfLines={1}>
+                {shortStart}
+              </Text>
+              <Text style={styles.endLabel} numberOfLines={1}>
+                {shortEnd}
+              </Text>
+            </View>
           </View>
-          <View style={styles.routeText}>
-            <Text style={styles.endpointLabel} numberOfLines={1}>
-              {shortStart}
-            </Text>
-            <View style={{ height: 6 }} />
-            <Text style={[styles.endpointLabel, styles.endpointDest]} numberOfLines={1}>
-              {shortEnd}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={handleDismiss}
-            style={styles.dismissBtn}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+
+          {/* Meta row — date+time on the left, price on the right.
+              Hairline above so the row reads as a separate band of
+              info from the route block, but the divider is thin
+              enough to keep the sheet feeling unified. Suppresses
+              entirely if neither value is set. */}
+          {(timeLabel || ride.total_price != null) ? (
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLeft} numberOfLines={1}>
+                {timeLabel || ""}
+              </Text>
+              {ride.total_price != null ? (
+                <Text style={styles.metaRight}>₹{ride.total_price}</Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          <Pressable
+            onPress={handleOpen}
+            style={({ pressed }) => [
+              styles.cta,
+              pressed && { opacity: 0.9 },
+            ]}
             accessibilityRole="button"
-            accessibilityLabel="Close ride preview"
+            accessibilityLabel={`View ride to ${shortEnd}`}
           >
-            <Svg width={12} height={12} viewBox="0 0 12 12">
-              <Path
-                d="M2 2 L 10 10 M 10 2 L 2 10"
-                stroke={AppColors.primaryLightGreen}
-                strokeWidth={2}
-                strokeLinecap="round"
-              />
-            </Svg>
-          </TouchableOpacity>
+            <Text style={styles.ctaText}>View ride</Text>
+          </Pressable>
         </View>
-
-        {/* Meta row — host + time + price. Each cell renders only if
-            its value exists so the card stays compact on partial
-            data (cluster summaries can omit time/price). */}
-        {(hostFirstName || timeLabel || ride.total_price != null) && (
-          <View style={styles.metaRow}>
-            {hostFirstName ? (
-              <View style={styles.metaCell}>
-                <Text style={styles.metaLabel}>Host</Text>
-                <Text style={styles.metaValue} numberOfLines={1}>
-                  {hostFirstName}
-                </Text>
-              </View>
-            ) : null}
-            {timeLabel ? (
-              <View style={styles.metaCell}>
-                <Text style={styles.metaLabel}>Departs</Text>
-                <Text style={styles.metaValue} numberOfLines={1}>
-                  {timeLabel}
-                </Text>
-              </View>
-            ) : null}
-            {ride.total_price != null ? (
-              <View style={[styles.metaCell, styles.metaCellRight]}>
-                <Text style={styles.metaLabel}>Per seat</Text>
-                <Text style={[styles.metaValue, styles.metaPrice]}>
-                  ₹{ride.total_price}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-        )}
-
-        <View style={styles.ctaRow}>
-          <Text style={styles.ctaText}>View ride</Text>
-          <Text style={styles.ctaArrow}>›</Text>
-        </View>
-      </Pressable>
       </Animated.View>
     </>
   );
 };
 
-// "Bangalore, KA" → "Bangalore", "VIT Vellore Main Gate" left as-is
-// up to ~26 chars then ellipsis. Symmetric to the pin label
-// shortening on the map so card + pin read with the same rhythm.
-// Routes through displayRideLocation first so legacy rides stored
-// with the literal "Current location" string (created before the
-// picker reverse-geocoded GPS picks) get the neutral fallback
-// instead of leaking that UX shorthand onto a card.
-const shortenLoc = (s: string): string => {
+const shorten = (s: string): string => {
   const safe = displayRideLocation(s);
   const first = (safe.split(",")[0] || "").trim();
-  return first.length > 26 ? first.slice(0, 25).trimEnd() + "…" : first;
+  return first.length > 28 ? first.slice(0, 27).trimEnd() + "…" : first;
 };
 
 const styles = StyleSheet.create({
-  // Soft forest wash over the map while the preview is active.
-  // Cap opacity at 0.18 so ride pins underneath remain legible.
   backdrop: {
     position: "absolute",
-    top: 0,
     left: 0,
     right: 0,
+    top: 0,
     bottom: 0,
     backgroundColor: AppColors.secondaryDarkGreen,
     zIndex: 11,
@@ -274,9 +226,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 16,
     right: 16,
-    // Cap the card width on iPad so it doesn't span the full canvas.
-    // alignSelf: "center" + maxWidth keeps the card centred and
-    // narrow on tablets while filling the available width on phones.
     alignSelf: "center",
     maxWidth: 420,
     width: undefined,
@@ -284,10 +233,10 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: AppColors.secondaryDarkGreen,
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 12,
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 14,
     shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.28,
@@ -295,25 +244,49 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
 
-  routeRow: {
+  // ---------------------------------------------------------------
+  // Drag indicator
+  // ---------------------------------------------------------------
+  handle: {
+    alignSelf: "center",
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: AppColors.primaryLightGreen,
+    opacity: 0.32,
+    marginBottom: 12,
+  },
+
+  // ---------------------------------------------------------------
+  // Route block
+  // ---------------------------------------------------------------
+  route: {
     flexDirection: "row",
     alignItems: "stretch",
     gap: 12,
+    paddingHorizontal: 2,
   },
-  // Vertical pin + dotted connector + outline pin, mirrors the
-  // dotted line on the map.
-  routeStack: {
-    width: 16,
+  pinCol: {
+    width: 12,
     alignItems: "center",
-    paddingVertical: 2,
+    paddingTop: 4,
+    paddingBottom: 4,
   },
-  dotFilled: {
+  pinFilled: {
     width: 10,
     height: 10,
     borderRadius: 999,
     backgroundColor: AppColors.primaryLightGreen,
   },
-  dotOutline: {
+  pinConnector: {
+    flex: 1,
+    width: 2,
+    backgroundColor: AppColors.primaryLightGreen,
+    opacity: 0.35,
+    marginVertical: 2,
+    borderRadius: 1,
+  },
+  pinOutline: {
     width: 10,
     height: 10,
     borderRadius: 999,
@@ -321,106 +294,70 @@ const styles = StyleSheet.create({
     borderColor: AppColors.primaryLightGreen,
     backgroundColor: "transparent",
   },
-  routeConnector: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 3,
-  },
-  routeDash: {
-    width: 2,
-    height: 3,
-    borderRadius: 1,
-    backgroundColor: AppColors.primaryLightGreen,
-    opacity: 0.7,
-  },
   routeText: {
     flex: 1,
     justifyContent: "space-between",
-    paddingVertical: 2,
+    paddingVertical: 1,
+    gap: 8,
   },
-  endpointLabel: {
+  startLabel: {
     color: AppColors.primaryLightGreen,
     fontFamily: "NunitoSans_700Bold",
-    fontSize: 14,
+    fontSize: 13.5,
     letterSpacing: -0.1,
-    opacity: 0.85,
+    opacity: 0.7,
   },
-  endpointDest: {
+  endLabel: {
+    color: AppColors.primaryLightGreen,
     fontFamily: "NunitoSans_800ExtraBold",
-    opacity: 1,
-    fontSize: 15,
+    fontSize: 17,
+    letterSpacing: -0.3,
   },
-  dismissBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 999,
-    backgroundColor: "rgba(181,215,80,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  // (Dismiss glyph is now a vector cross; the old text glyph style
-  // was removed because typeface-rendered × characters land at
-  // different baselines per platform and looked tilted on iOS.)
 
+  // ---------------------------------------------------------------
+  // Meta row (time + price)
+  // ---------------------------------------------------------------
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 12,
+    justifyContent: "space-between",
+    marginTop: 14,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(181,215,80,0.18)",
-    gap: 18,
+    borderTopColor: "rgba(181,215,80,0.16)",
   },
-  metaCell: {
-    flexDirection: "column",
-  },
-  metaCellRight: {
-    marginLeft: "auto",
-  },
-  metaLabel: {
-    color: AppColors.primaryLightGreen,
-    opacity: 0.55,
-    fontFamily: "NunitoSans_700Bold",
-    fontSize: 10,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-  },
-  metaValue: {
+  metaLeft: {
     color: AppColors.primaryLightGreen,
     fontFamily: "NunitoSans_700Bold",
-    fontSize: 13,
+    fontSize: 13.5,
     letterSpacing: -0.1,
-    marginTop: 2,
+    opacity: 0.85,
+    flexShrink: 1,
   },
-  metaPrice: {
+  metaRight: {
+    color: AppColors.primaryLightGreen,
     fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 14,
+    fontSize: 16,
+    letterSpacing: -0.2,
+    marginLeft: 12,
   },
 
-  ctaRow: {
-    flexDirection: "row",
+  // ---------------------------------------------------------------
+  // CTA
+  // ---------------------------------------------------------------
+  cta: {
+    marginTop: 14,
+    backgroundColor: AppColors.primaryLightGreen,
+    borderRadius: 14,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 12,
-    paddingVertical: 11,
-    borderRadius: 14,
-    backgroundColor: AppColors.primaryLightGreen,
-    gap: 2,
   },
   ctaText: {
     color: AppColors.secondaryDarkGreen,
     fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 15,
+    fontSize: 15.5,
     letterSpacing: 0.2,
-  },
-  ctaArrow: {
-    color: AppColors.secondaryDarkGreen,
-    fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 19,
-    lineHeight: 19,
-    marginLeft: 4,
-    marginTop: -1,
   },
 });
 
