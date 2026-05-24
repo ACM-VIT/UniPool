@@ -1082,37 +1082,64 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   // being prompted out of whatever they were doing on Home.
 
   // When a ride preview opens (user tapped a pin or picked one from
-  // the cluster sheet), pull the camera so both endpoints land in
-  // the visible map area ABOVE the RoutePreviewCard that's about
-  // to slide up from the bottom (~190pt + the nav bar offset). The
-  // route should breathe — neither pin kissed against the card
-  // edge, neither against the status bar — so we pad about a third
-  // of the screen at the bottom to clear the sheet entirely.
+  // the cluster sheet), two things happen in concert:
   //
-  // Keyed on previewRide?.id so the camera doesn't re-fit on every
-  // unrelated render (each setState would otherwise re-run the fit
-  // and fight a user trying to pan the map themselves).
+  //   1. Collapse the main home sheet to its min height so the
+  //      preview modal lands on a calm background instead of
+  //      stacking on top of a sheet full of search-panel UI.
+  //      Restored to its previous rest height when the preview
+  //      closes.
+  //
+  //   2. Animate the camera so both pickup + drop land in the
+  //      visible band above the SheetShell preview sheet (~40%
+  //      from the bottom). The route should breathe — neither
+  //      pin kissed against the card edge nor jammed against the
+  //      status bar.
+  //
+  // Keyed on previewRide?.id so the effect doesn't re-fire on
+  // every unrelated render. The cleanup restores the home sheet
+  // to whatever its natural rest height was before the preview
+  // opened, preserving any user drag state.
   useEffect(() => {
     if (!previewRide) return;
+
+    // Snapshot the current sheet offset BEFORE collapsing, so the
+    // cleanup can restore exactly what the user had (which might
+    // be a manually-dragged position, not just naturalRest).
+    const previousOffset = sheetOffset.current;
+    Animated.spring(sheetTranslateY, {
+      toValue: getCollapsedSheetOffset(),
+      useNativeDriver: true,
+      bounciness: 3,
+    }).start();
+
     const camera = cameraRef.current;
-    if (!camera) return;
-    const bounds = coordsToBounds([
-      { latitude: previewRide.start_latitude, longitude: previewRide.start_longitude },
-      { latitude: previewRide.end_latitude, longitude: previewRide.end_longitude },
-    ]);
-    camera.fitBounds(bounds, {
-      padding: {
-        top: screenHeight * 0.14,
-        // Card height (~190pt) + nav offset (~90pt) + breathing
-        // buffer. ~36% of typical phone height keeps the route
-        // sitting in the upper visible band with a clear gap
-        // between the destination pin and the card's top edge.
-        bottom: screenHeight * 0.36,
-        left: screenWidth * 0.14,
-        right: screenWidth * 0.14,
-      },
-      duration: MAP_CAMERA_ANIMATION_MS,
-    });
+    if (camera) {
+      const bounds = coordsToBounds([
+        { latitude: previewRide.start_latitude, longitude: previewRide.start_longitude },
+        { latitude: previewRide.end_latitude, longitude: previewRide.end_longitude },
+      ]);
+      camera.fitBounds(bounds, {
+        padding: {
+          top: screenHeight * 0.14,
+          bottom: screenHeight * 0.4,
+          left: screenWidth * 0.14,
+          right: screenWidth * 0.14,
+        },
+        duration: MAP_CAMERA_ANIMATION_MS,
+      });
+    }
+
+    return () => {
+      // Restore the home sheet to where it was before the preview
+      // opened. If the user had dragged it manually, that drag
+      // position is preserved.
+      Animated.spring(sheetTranslateY, {
+        toValue: previousOffset,
+        useNativeDriver: true,
+        bounciness: 3,
+      }).start();
+    };
   }, [previewRide?.id]);
 
   const runMapCameraUpdate = useCallback((from: LocationCoords | null, to: LocationCoords | null) => {
@@ -1779,23 +1806,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         }}
       />
 
-      {/* Route preview sheet — compact bottom-anchored card with a
-          drag indicator + clean route block + single-line meta +
-          one View ride CTA. Tap the card or the CTA to open the
-          ride; tap the backdrop wash to dismiss. */}
-      {previewRide && (
-        <RoutePreviewCard
-          ride={previewRide}
-          onDismiss={() => setPreviewRide(null)}
-          onOpen={() => {
-            const r = previewRide.raw;
-            setPreviewRide(null);
-            router.navigate(appHref("AvailableRidesSelectedScreen", {
-              ride: r,
-            } as any));
-          }}
-        />
-      )}
+      {/* Route preview sheet — wraps SheetShell so it picks up the
+          same chrome (dim backdrop, grab handle, close X, slide-up
+          spring) as every other modal sheet in the app. Always
+          mounted; SheetShell drives the open/close animation off
+          the `ride` prop being null vs set. Home sheet underneath
+          collapses to its min height via the `previewRide` effect
+          below so the preview sheet lands on a calm background
+          instead of stacking atop a busy sheet. */}
+      <RoutePreviewCard
+        ride={previewRide}
+        onDismiss={() => setPreviewRide(null)}
+        onOpen={() => {
+          if (!previewRide) return;
+          const r = previewRide.raw;
+          setPreviewRide(null);
+          router.navigate(appHref("AvailableRidesSelectedScreen", {
+            ride: r,
+          } as any));
+        }}
+      />
 
       {/* Search sheet — only used when the home surface has
           collapsed the inline RideDetailsSelector behind the
