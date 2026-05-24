@@ -53,3 +53,4 @@ my-upload-key.keystore
 android/app/my-upload-key.keystore
 
 .env.ota
+.asc

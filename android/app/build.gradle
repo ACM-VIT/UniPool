@@ -108,8 +108,8 @@ android {
         applicationId 'com.carpoolitapp'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "2.0.7"
+        versionCode 13
+        versionName "2.0.8"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
 
