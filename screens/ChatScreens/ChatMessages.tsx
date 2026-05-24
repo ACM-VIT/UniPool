@@ -221,6 +221,16 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const flatListRef = useRef<FlatList<ChatRow> | null>(null);
   const onlineUserIdsRef = useRef<Set<string>>(new Set());
   const shouldScrollToEndRef = useRef(false);
+  // First-render gate for the scroll-to-bottom path. The initial
+  // batch of messages arrives async, so the FlatList mounts empty
+  // and `onContentSizeChange` fires once the data lands. On that
+  // first call we must jump to the bottom WITHOUT animation so the
+  // user lands on the latest message instantly — an animated scroll
+  // visibly plays from the top, reading as "the chat opened at the
+  // top". Subsequent autoscrolls (after sending a message, after a
+  // counterpart's WS message lands while at the bottom) keep the
+  // smooth animation.
+  const hasInitialScrolledRef = useRef(false);
   const seenStatusIdsRef = useRef<Set<string>>(new Set());
   const typingUsersRef = useRef<{ [k: string]: { name: string; timeout: NodeJS.Timeout } }>({});
   const userProfilesRef = useRef<Record<string, UserProfile>>({});
@@ -1757,6 +1767,22 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         </View>
       ) : null}
 
+      {/* Everything below — message list, typing indicator, quick
+          replies, input bar — lives inside a single
+          KeyboardAvoidingView so the keyboard lifts the WHOLE chat
+          surface (not just the input). Pre-fix the KAV wrapped only
+          the input row; the FlatList kept its full natural height,
+          so when the keyboard opened the list's bottom got clipped
+          underneath it and the user's view jumped to the top of the
+          list. Now the list shrinks from the bottom in step with
+          the keyboard, the input sits just above the keyboard, and
+          the existing scroll position (bottom by default) is
+          preserved. */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.select({ ios: 'padding', android: 'padding' })}
+        keyboardVerticalOffset={Platform.select({ ios: 80, android: 0 })}
+      >
       {isLoadingInitial ? (
         // Suspense skeleton — three ghost bubbles alternating sides,
         // pulsing via opacity. Reads as "the chat exists, just give it
@@ -1937,7 +1963,13 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         onContentSizeChange={() => {
           if (!shouldScrollToEndRef.current) return;
           shouldScrollToEndRef.current = false;
-          flatListRef.current?.scrollToEnd({ animated: true });
+          // First scroll after mount lands instantly so the user
+          // never sees the top frame. Subsequent autoscrolls (send,
+          // counterpart message while at-bottom) keep the smooth
+          // ease-in.
+          const animated = hasInitialScrolledRef.current;
+          hasInitialScrolledRef.current = true;
+          flatListRef.current?.scrollToEnd({ animated });
         }}
         // Pulls the next older page when the user reaches the top of
         // the list. RN renders top-down, so `onStartReached` only
@@ -2003,19 +2035,11 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         </View>
       )}
 
-      <KeyboardAvoidingView
-        // `padding` on Android too (was `undefined`, a no-op). This
-        // KAV wraps only the input bar at the bottom of the screen,
-        // not the whole chat — so `height` would shrink the input
-        // itself, which is wrong. `padding` adds bottom padding
-        // equal to the keyboard height, which lifts the input bar
-        // above the keyboard while leaving the messages list above
-        // it intact. The manifest's `adjustResize` alone wasn't
-        // enough here (edge-to-edge / immersive insets break the
-        // automatic window resize on newer Android builds).
-        behavior={Platform.select({ ios: 'padding', android: 'padding' })}
-        keyboardVerticalOffset={Platform.select({ ios: 80, android: 0 })}
-      >
+      {/* Keyboard avoidance is now handled by the outer
+          KeyboardAvoidingView wrapping the FlatList + this footer,
+          so the inner Fragment here just groups the quick-replies
+          row with the input bar. */}
+      <>
         {/* Quick replies — hidden once the user starts typing so they don't
             crowd a real composition. Mobbin precedent: Gojek "Quick chat",
             Bolt onboarding chips, Uber "I'm here / Be right there". */}
@@ -2089,6 +2113,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             </Svg>
           </TouchableOpacity>
         </View>
+      </>
       </KeyboardAvoidingView>
 
       {renderSettingsModal()}
