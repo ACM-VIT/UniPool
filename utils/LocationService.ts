@@ -2572,7 +2572,14 @@ export const POPULAR_LOCATIONS_WITH_COORDS = {
     }
   },
   "vellore": {
-    "VIT University": {
+    // Canonical name across all UniPool surfaces is "VIT Vellore" —
+    // not "VIT University" or "Vellore Institute of Technology".
+    // Picked because (a) it matches what students actually call the
+    // place in conversation and (b) it disambiguates from the other
+    // VIT campuses (Chennai, AP, Bhopal). Coordinates pulled from the
+    // backend's curated source of truth so a search hit here and a
+    // hit from /locations/search both point to the same pin.
+    "VIT Vellore": {
       "lat": 12.9692,
       "lon": 79.1559
     },
@@ -3672,7 +3679,7 @@ export const POPULAR_LOCATIONS = {
     "Chetganj"
   ],
   vellore: [
-    "VIT University",
+    "VIT Vellore",
     "Katpadi Junction",
     "Vellore New Bus Stand",
     "CMC Hospital",

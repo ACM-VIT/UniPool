@@ -184,8 +184,22 @@ const PostTripRatingScreen: React.FC = () => {
             ? `Ratings open ${formatRelativeFromNow(eligibility.opens_at)}.`
             : "You've already rated everyone on this trip."}
         </Text>
+        {/* alignSelf: "stretch" overrides the centered parent's
+            shrink-to-content default so the button reads as a real
+            CTA pill (~full-width minus the screen padding) instead
+            of the pinched odd-shaped thing it was. minWidth +
+            paddingHorizontal cap it on iPad so it doesn't stretch
+            to 700pt and look like a banner. */}
         <TouchableOpacity
-          style={[styles.primaryBtn, { marginTop: 24 }]}
+          style={[
+            styles.primaryBtn,
+            {
+              marginTop: 24,
+              alignSelf: "stretch",
+              maxWidth: 360,
+              paddingHorizontal: 32,
+            },
+          ]}
           activeOpacity={0.85}
           onPress={() => router.back()}
         >
@@ -198,12 +212,13 @@ const PostTripRatingScreen: React.FC = () => {
   return (
     <View style={[styles.container, tabletContentStyle]}>
       <KeyboardAvoidingView
-        // `behavior="height"` on Android so the comment TextInput at
-        // the bottom of this screen rises with the keyboard. The
-        // earlier `undefined` left the KAV inert and the input got
-        // covered.
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        // `padding` on both platforms — the previous Android
+        // `height` setting shrank the KAV but kept the Submit
+        // button parked below the keyboard. Padding pushes the
+        // entire content above the keyboard instead.
+        behavior="padding"
         style={{ flex: 1 }}
+        keyboardVerticalOffset={0}
       >
         <ScrollView
           contentContainerStyle={[
@@ -214,20 +229,31 @@ const PostTripRatingScreen: React.FC = () => {
             // doubling the padding and parking the close button +
             // heading way too far down. Just a small fixed cushion
             // on top of whatever inset the system already provided.
-            { paddingTop: insets.top + 4 },
+            { paddingTop: insets.top + 4, paddingBottom: Math.max(insets.bottom, 16) + 12 },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Title + close on one row. Previously the X sat on its
+              own row at flex-end with the title underneath, which
+              parked the heading further from the top than it needed
+              to be and disconnected the two visually. Now they read
+              as one toolbar: title left, close right. */}
           <View style={styles.topRow}>
-            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.closeBtn}>
+            <Text style={styles.heading}>How was the ride?</Text>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              activeOpacity={0.7}
+              style={styles.closeBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityLabel="Close"
+            >
               <Svg width={14} height={14} viewBox="0 0 16 16">
                 <Path d="M3 3 L 13 13 M13 3 L 3 13" stroke={AppColors.secondaryDarkGreen} strokeWidth={2.2} strokeLinecap="round" />
               </Svg>
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.heading}>How was the ride?</Text>
           <Text style={styles.routeLine} numberOfLines={2}>
             {displayRideLocation(eligibility.start_location)} to {displayRideLocation(eligibility.end_location)}
           </Text>
@@ -243,12 +269,19 @@ const PostTripRatingScreen: React.FC = () => {
             />
           ))}
 
-          <View style={{ height: 24 }} />
-        </ScrollView>
-
-        <View style={[styles.ctaWrap, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
+          {/* Submit lives inside the ScrollView (not as a sticky
+              footer outside the KAV) so the keyboard physically
+              can't hide it — the scroll content shifts up with the
+              keyboard, the user scrolls one nudge if needed, the
+              button is right there. The previous sticky-footer
+              setup looked clean when the keyboard was closed but
+              broke the moment the comment field took focus. */}
           <TouchableOpacity
-            style={[styles.primaryBtn, (!allRated || submitting) && styles.primaryBtnDisabled]}
+            style={[
+              styles.primaryBtn,
+              styles.submitInline,
+              (!allRated || submitting) && styles.primaryBtnDisabled,
+            ]}
             activeOpacity={0.85}
             disabled={!allRated || submitting}
             onPress={submit}
@@ -259,7 +292,7 @@ const PostTripRatingScreen: React.FC = () => {
               <Text style={styles.primaryBtnText}>Submit</Text>
             )}
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -381,7 +414,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 16,
   },
-  topRow: { flexDirection: "row", justifyContent: "flex-end" },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    // Title + close on one row — see the JSX comment. No
+    // marginBottom: the routeLine below has its own marginTop, so
+    // we don't double-pad the gap.
+  },
   closeBtn: {
     width: 36,
     height: 36,
@@ -389,11 +429,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(38,59,51,0.08)",
     alignItems: "center",
     justifyContent: "center",
-    // 16pt below the close put the heading way down the sheet on
-    // a modal presentation where the top inset is already generous.
-    // 6pt keeps the X-to-title gap tight without the title hugging
-    // the button.
-    marginBottom: 6,
   },
   heading: {
     fontFamily: "NunitoSans_800ExtraBold",
@@ -469,6 +504,14 @@ const styles = StyleSheet.create({
   ctaWrap: {
     paddingHorizontal: 24,
     paddingTop: 8,
+  },
+  // Inline submit (lives inside ScrollView, not as a sticky footer)
+  // — see the JSX comment. marginTop matches the spacing between
+  // RatingCard rows so the button reads as the next item in the
+  // sequence rather than a detached overlay.
+  submitInline: {
+    marginTop: 6,
+    alignSelf: "stretch",
   },
   primaryBtn: {
     height: 54,
