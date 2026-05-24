@@ -53,7 +53,8 @@ if [[ -d dist ]]; then
 fi
 
 echo "==> running expo export"
-npx expo export --platform all
+
+npx expo export --platform ios --platform android
 
 if [[ ! -f dist/metadata.json ]]; then
   echo "expo export did not produce dist/metadata.json" >&2

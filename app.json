@@ -3,7 +3,7 @@
     "name": "UniPool",
     "slug": "UniPool",
     "scheme": "unipool",
-    "version": "2.0.7",
+    "version": "2.0.8",
     "orientation": "portrait",
     "icon": "./assets/icon2.png",
     "userInterfaceStyle": "light",
