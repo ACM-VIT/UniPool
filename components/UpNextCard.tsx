@@ -57,7 +57,15 @@ const UpNextCard: React.FC<Props> = ({
           <View style={styles.connectorDot} />
         </View>
         <View style={styles.routeRow}>
-          <View style={[styles.routeDotFilled, { backgroundColor: AppColors.primaryLightGreen }]} />
+          {/* Navigation glyph matches RouteStack everywhere else in
+              the app — the filled lime dot we had here was the
+              only "to" indicator in any card surface that didn't
+              read as the navigation arrow. */}
+          <Image
+            source={require("../assets/navigation-2.png")}
+            style={styles.routeArrow}
+            resizeMode="contain"
+          />
           <Text style={styles.routeText} numberOfLines={1} ellipsizeMode="tail">
             {destination}
           </Text>
@@ -176,6 +184,17 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     marginRight: 12,
+  },
+  // Slightly larger than the 10pt origin dot — the arrow glyph
+  // reads visually smaller than a filled circle at the same box,
+  // so a 13pt arrow holds the same optical weight. Same lime
+  // tint, same right margin so the text baselines stay aligned
+  // across the From / To rows.
+  routeArrow: {
+    width: 13,
+    height: 13,
+    tintColor: AppColors.primaryLightGreen,
+    marginRight: 11,
   },
   connector: {
     paddingLeft: 4,
