@@ -990,8 +990,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     nearbyFetchTimerRef.current = setTimeout(async () => {
       const seq = ++nearbyFetchSeqRef.current;
       try {
+        // Pass the viewer's user id when we know it so the backend
+        // drops the viewer's own rides from the response server-side.
+        // The old client-side filter raced against the user-context
+        // load — a /rides/nearby response landing before viewerUser
+        // resolved would leak the viewer's own pins onto the map
+        // until the next pan re-ran the memo. Doing the filter
+        // server-side closes that window entirely. Guest viewers
+        // omit the param and see every ride as before.
+        const excludeParam = viewerUser?.id
+          ? `&exclude_host_user_id=${encodeURIComponent(viewerUser.id)}`
+          : "";
         const resp = await apiUtil.getUncached<{ rides: NearbyRideSummary[] }>(
-          `/rides/nearby?lat=${centreLat.toFixed(6)}&lng=${centreLng.toFixed(6)}&radius=${radiusM}&limit=50`,
+          `/rides/nearby?lat=${centreLat.toFixed(6)}&lng=${centreLng.toFixed(6)}&radius=${radiusM}&limit=50${excludeParam}`,
         );
         // Discard if a newer fetch has been kicked off in the
         // meantime — prevents stale results from overwriting fresher
@@ -1012,7 +1023,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         nearbyFetchTimerRef.current = null;
       }
     };
-  }, [mapBounds, apiUtil, previewRide]);
+  }, [mapBounds, apiUtil, previewRide, viewerUser?.id]);
 
   const loadHomeState = useCallback(async (isCancelled: () => boolean = () => false) => {
     try {
