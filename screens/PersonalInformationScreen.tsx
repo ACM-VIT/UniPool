@@ -6,6 +6,8 @@ import {
   TextInput,
   ActivityIndicator,
   ScrollView,
+  FlatList,
+  ListRenderItem,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import styles from './ProfileScreen/ProfileScreen.styles';
@@ -466,7 +468,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
     return () => clearTimeout(handle);
   }, [searchQuery, step, apiUtil]);
 
-  const pickInstitute = (inst: PickedInstitute) => {
+  const pickInstitute = React.useCallback((inst: PickedInstitute) => {
     haptic('selection');
     setPicked(inst);
     // Pre-seed the email field: keep whatever local-part the user
@@ -476,7 +478,32 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
       setEmail(`${local}@${inst.domains[0]}`);
     }
     setStep('email');
-  };
+  }, [email]);
+
+  const renderInstituteResult = React.useCallback<ListRenderItem<PickedInstitute>>(
+    ({ item: inst }) => (
+      <TouchableOpacity
+        style={ui.resultRow}
+        activeOpacity={0.7}
+        onPress={() => pickInstitute(inst)}
+      >
+        <Text style={ui.resultName} numberOfLines={2}>
+          {inst.name}
+        </Text>
+        <Text style={ui.resultMeta} numberOfLines={1}>
+          {[
+            inst.country,
+            inst.domains.slice(0, 2).map((d) => `@${d}`).join(' · '),
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </Text>
+      </TouchableOpacity>
+    ),
+    [pickInstitute],
+  );
+
+  const instituteKeyExtractor = React.useCallback((inst: PickedInstitute) => inst.id, []);
 
   const sendCode = async () => {
     const target = email.trim().toLowerCase();
@@ -587,32 +614,18 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
                 domain (the part after the @).
               </Text>
             ) : (
-              <ScrollView
+              <FlatList
+                data={searchResults}
+                keyExtractor={instituteKeyExtractor}
+                renderItem={renderInstituteResult}
                 keyboardShouldPersistTaps="handled"
                 style={ui.resultsScroll}
                 showsVerticalScrollIndicator={false}
-              >
-                {searchResults.map((inst) => (
-                  <TouchableOpacity
-                    key={inst.id}
-                    style={ui.resultRow}
-                    activeOpacity={0.7}
-                    onPress={() => pickInstitute(inst)}
-                  >
-                    <Text style={ui.resultName} numberOfLines={2}>
-                      {inst.name}
-                    </Text>
-                    <Text style={ui.resultMeta} numberOfLines={1}>
-                      {[
-                        inst.country,
-                        inst.domains.slice(0, 2).map((d) => `@${d}`).join(' · '),
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+                initialNumToRender={6}
+                maxToRenderPerBatch={6}
+                updateCellsBatchingPeriod={48}
+                windowSize={5}
+              />
             )}
           </View>
         </>
