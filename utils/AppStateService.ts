@@ -73,6 +73,10 @@ export const getAppState = (
 ) => {
   const params = new URLSearchParams();
   params.set("surface", "home");
+  // Home already hydrates the viewer through UserContext. Keep the
+  // app-state payload focused on the sections this screen renders:
+  // rides, active card, pending ratings, and nearby pins.
+  params.set("include_user", "0");
 
   if (location) {
     params.set("lat", location.latitude.toFixed(4));
