@@ -88,7 +88,7 @@ export default function VerifyDeepLinkRoute() {
         let nextUser = resp?.user || null;
         if (!nextUser) {
           try {
-            const details = await apiUtil.get<{ user: any }>("/user/details");
+            const details = await apiUtil.get<{ user: any }>("/user/details?summary=1");
             nextUser = details?.user || null;
           } catch {
             // Non-fatal — fall through to generic success copy.

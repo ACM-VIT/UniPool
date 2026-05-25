@@ -17,6 +17,7 @@ import UpNextCard from "../components/UpNextCard";
 import AppColors from "../design_systems/colors";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuthGate } from "../contexts/AuthGate";
+import { useUser } from "../contexts/UserContext";
 import LoadingComponent from "../components/LoadingComponent";
 import { appHref } from "../navigation/routes";
 import { useTabletContentStyle } from "../utils/responsive";
@@ -105,6 +106,7 @@ const BookingsScreen: React.FC = () => {
   const router = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const { requireAuth } = useAuthGate();
+  const { user: viewerUser } = useUser();
   const { apiUtil } = useApi();
   const [trips, setTrips] = useState<TripItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -267,11 +269,12 @@ const BookingsScreen: React.FC = () => {
     router.navigate(appHref("ChatMessages", {
       chatId: String(rideId),
       chatTitle: title,
+      userId: viewerUser?.id,
       // No subtitle — date metadata doesn't belong under the chat
       // title, matches the rest of the entry points.
       isGroupChat: true,
     }));
-  }, [router]);
+  }, [router, viewerUser?.id]);
 
   const renderTrip = useCallback<ListRenderItem<TripItem>>(({ item }) => {
     const seats =

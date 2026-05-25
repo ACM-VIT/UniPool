@@ -92,7 +92,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
         return;
       }
 
-      if (contextUser) {
+      if (contextUser && contextUser.completed_trips !== undefined) {
         setUserData(contextUser as unknown as UserData);
         return;
       }

@@ -81,6 +81,12 @@ type ChatRoomRow = ChatRoom & {
   hostFirstName: string;
 };
 
+type ChatListItem =
+  | { type: "pending_header"; key: string }
+  | { type: "pending_request"; key: string; request: PendingRequestRow; isLast: boolean }
+  | { type: "active_header"; key: string }
+  | { type: "chat"; key: string; room: ChatRoomRow; isLast: boolean };
+
 // Host-only section returned by /chats/me — one row per pending
 // booking on a ride the viewer hosts, paired with the DM thread used
 // to talk to that requester before the accept/reject decision.
@@ -377,13 +383,13 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
     [chats],
   );
 
-  const renderRow = useCallback(({ item }: { item: ChatRoomRow }) => {
+  const renderChatRow = useCallback((item: ChatRoomRow, isLast: boolean) => {
     const role = item.role;
 
     return (
       <TouchableOpacity
         activeOpacity={0.85}
-        style={[styles.card, item.isPending && styles.cardPending]}
+        style={[styles.card, item.isPending && styles.cardPending, !isLast && styles.chatCardSpacer]}
         onPress={() => openChat(item)}
       >
         <View style={styles.topContainer}>
@@ -466,31 +472,57 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
     [chatRows],
   );
 
-  const pendingListHeader = useMemo(() => {
-    if (pendingRequests.length === 0) return null;
-    return (
-      <View style={styles.pendingSection}>
-        {/* Count pill removed — the count is visible at a
-            glance from the cards below it, and the orange
-            pill clashed with the rest of the app's quieter
-            section headers. */}
-        <Text style={styles.pendingSectionTitle}>
-          Pending requests
-        </Text>
-        {pendingRequests.map((pr, idx) => (
+  const listItems = useMemo<ChatListItem[]>(() => {
+    const items: ChatListItem[] = [];
+    if (pendingRequests.length > 0) {
+      items.push({ type: "pending_header", key: "pending-header" });
+      pendingRequests.forEach((request, index) => {
+        items.push({
+          type: "pending_request",
+          key: `pending-${request.booking_id}`,
+          request,
+          isLast: index === pendingRequests.length - 1,
+        });
+      });
+      if (chatRows.length > 0) {
+        items.push({ type: "active_header", key: "active-header" });
+      }
+    }
+    chatRows.forEach((room, index) => {
+      items.push({
+        type: "chat",
+        key: `chat-${room.id}`,
+        room,
+        isLast: index === chatRows.length - 1,
+      });
+    });
+    return items;
+  }, [chatRows, pendingRequests]);
+
+  const renderListItem = useCallback(({ item }: { item: ChatListItem }) => {
+    switch (item.type) {
+      case "pending_header":
+        return (
+          <Text style={styles.pendingSectionTitle}>
+            Pending requests
+          </Text>
+        );
+      case "pending_request":
+        return (
           <PendingRequestCard
-            key={pr.booking_id}
-            request={pr}
-            isLast={idx === pendingRequests.length - 1}
-            onPress={() => openPendingRequest(pr)}
+            request={item.request}
+            isLast={item.isLast}
+            onPress={() => openPendingRequest(item.request)}
           />
-        ))}
-        {chatRows.length > 0 ? (
-          <Text style={styles.activeChatsLabel}>Active chats</Text>
-        ) : null}
-      </View>
-    );
-  }, [chatRows.length, openPendingRequest, pendingRequests]);
+        );
+      case "active_header":
+        return <Text style={styles.activeChatsLabel}>Active chats</Text>;
+      case "chat":
+        return renderChatRow(item.room, item.isLast);
+      default:
+        return null;
+    }
+  }, [openPendingRequest, renderChatRow]);
 
   return (
     <View style={styles.container}>
@@ -533,18 +565,16 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
         />
       ) : (
         <FlatList
-          data={chatRows}
-          keyExtractor={(it) => it.id}
-          renderItem={renderRow}
-          initialNumToRender={8}
+          data={listItems}
+          keyExtractor={(it) => it.key}
+          renderItem={renderListItem}
+          initialNumToRender={10}
           maxToRenderPerBatch={8}
           updateCellsBatchingPeriod={40}
           windowSize={7}
           removeClippedSubviews
-          ItemSeparatorComponent={ChatListSeparator}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={pendingListHeader}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -558,10 +588,6 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
     </View>
   );
 };
-
-function ChatListSeparator() {
-  return <View style={styles.separator} />;
-}
 
 // Compact card surfaced under "Pending requests" on the host's chat
 // list. One row per requester awaiting an accept/reject decision; tap
@@ -668,14 +694,13 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 140,
   },
-  separator: { height: hp(1.5) },
+  chatCardSpacer: {
+    marginBottom: hp(1.5),
+  },
 
   /* Host-only "Pending requests" section that sits above the regular
      chat list. Tight peach-tinted card stack so the host can scan
      waiting requesters at a glance. */
-  pendingSection: {
-    marginBottom: hp(2),
-  },
   // Section labels — match the canonical HomeScreen `sectionTitle`
   // style ("Where'd you like to go?", "Your trips", etc.). Bold
   // weight, sentence-case, soft opacity, no uppercase / no

@@ -43,10 +43,10 @@ const AccountSettingsScreen: React.FC = () => {
               }
 
               try {
-                await AsyncStorage.multiRemove([
-                  'unipool_start_address',
-                  'defaultAddress',
-                  'lastUserVerification',
+                await Promise.all([
+                  AsyncStorage.removeItem('unipool_start_address'),
+                  AsyncStorage.removeItem('defaultAddress'),
+                  AsyncStorage.removeItem('lastUserVerification'),
                 ]);
               } catch (e) {
                 console.error('AsyncStorage cleanup error:', e);

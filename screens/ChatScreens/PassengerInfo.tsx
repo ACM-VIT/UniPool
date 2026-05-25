@@ -70,7 +70,7 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
           RideService.getAllPassengers(apiUtil),
           contextUser?.id
             ? Promise.resolve(null)
-            : apiUtil.get<{user: {id: string, name: string}}>("/user/details"),
+            : apiUtil.get<{user: {id: string, name: string}}>("/user/details?summary=1"),
         ]);
         const fetchedCurrentUserId = contextUser?.id ?? currentUserResponse?.user.id ?? '';
         setCurrentUserId(fetchedCurrentUserId);
@@ -130,6 +130,7 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
       chatId: dmRoomId,
       chatTitle: `Chat with ${passenger.name}`,
       chatSubtitle: ``,
+      userId: currentUserId,
       isGroupChat: false,
       otherUserId: passenger.id,
     }));

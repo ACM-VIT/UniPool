@@ -52,7 +52,7 @@ const AuthScreen: React.FC = () => {
           // cached token and refreshes only when it's actually close
           // to expiry. The previous force-refresh added a wasted
           // network round-trip every time AuthScreen mounted.
-          await apiUtil.getForUserUncached("/user/details", currentUser);
+          await apiUtil.getForUserUncached("/user/details?summary=1", currentUser);
           navigateAfterAuth();
         } catch (err: any) {
           // 404 = Firebase auth is good but the user has no backend
@@ -74,7 +74,7 @@ const AuthScreen: React.FC = () => {
 
   const routeAfterAuth = async (firebaseUser: any) => {
     try {
-      await apiUtil.getForUserUncached("/user/details", firebaseUser);
+      await apiUtil.getForUserUncached("/user/details?summary=1", firebaseUser);
       navigateAfterAuth();
     } catch (err: any) {
       if (err.response?.status === 404) {

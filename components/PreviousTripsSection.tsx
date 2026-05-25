@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { appHref } from "../navigation/routes";
 import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
+import { useUser } from "../contexts/UserContext";
 import AppColors from "../design_systems/colors";
 import LoadingComponent from "./LoadingComponent";
 import PreviousTripsSkeleton from "./PreviousTripsSkeleton";
@@ -38,6 +39,7 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
     const [error, setError] = useState<string | null>(null);
     const { apiUtil } = useApi();
     const { isGuest } = useAuthGate();
+    const { user: viewerUser } = useUser();
     const screenWidth = Dimensions.get("window").width;
     const maxDots = 5;
     const controlledByAppState = appStateResolved !== undefined;
@@ -291,6 +293,7 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
                                             appHref("ChatMessages", {
                                                 chatId: String(trip.ride_id),
                                                 chatTitle: title,
+                                                userId: viewerUser?.id,
                                                 isGroupChat: true,
                                             })
                                         );
