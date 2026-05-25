@@ -24,6 +24,7 @@ import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
 import PaymentChatCard from '../../components/PaymentChatCard';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
+import { useUser } from '../../contexts/UserContext';
 import { useTabletContentStyle } from '../../utils/responsive';
 import { passengerSeatsLeft } from '../../utils/seatMath';
 import ChatService from '../../utils/ChatService';
@@ -402,6 +403,10 @@ const processBackendMessage = (backendMsg: any, currentUserId: string): ChatMess
     backendMsg.profile_picture_url ||
     backendMsg.sender?.profile_picture_url;
   const timestamp = backendMsg.timestamp || backendMsg.created_at || backendMsg.sent_at;
+  const rawReadBy = backendMsg.read_by || backendMsg.readBy || [];
+  const readBy = Array.isArray(rawReadBy)
+    ? rawReadBy.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+    : [];
 
   let parsedTimestamp: Date;
   if (timestamp) {
@@ -415,6 +420,7 @@ const processBackendMessage = (backendMsg: any, currentUserId: string): ChatMess
   }
 
   const isFromCurrentUser = senderId === currentUserId;
+  const hasBeenSeen = readBy.some((id) => id !== currentUserId);
 
   return {
     id: messageId,
@@ -425,8 +431,8 @@ const processBackendMessage = (backendMsg: any, currentUserId: string): ChatMess
     senderAvatar,
     timestamp: parsedTimestamp,
     timeLabel: formatChatTime(parsedTimestamp),
-    status: isFromCurrentUser ? 'sent' : undefined,
-    readBy: backendMsg.read_by || [],
+    status: isFromCurrentUser ? (hasBeenSeen ? 'seen' : 'sent') : undefined,
+    readBy,
     kind: backendMsg.kind || 'user',
     metadata: backendMsg.metadata || undefined,
   };
@@ -516,6 +522,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
 }) => {
   const router = useRouter();
   const { apiUtil } = useApi();
+  const { user: contextUser, loading: contextUserLoading } = useUser();
   const chatParams = useDecodedLocalSearchParams<ChatRouteParams>();
   // iPad-only: phone-shape centred column so the header, messages,
   // quick-reply chips, and message input stack at readable widths
@@ -692,10 +699,16 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     }
 
     try {
-      const res = await apiUtil.get<{ user: { name: string; avatar?: string; profile_picture_url?: string } }>(`/user/${uid}`);
+      const res = await apiUtil.get<{
+        user?: { name?: string; avatar?: string; profile_picture_url?: string };
+        name?: string;
+        avatar?: string;
+        profile_picture_url?: string;
+      }>(`/user/${uid}`);
+      const user = res.user || res;
       const prof = {
-        name: res.user.name || 'Unknown',
-        avatar: res.user.profile_picture_url || res.user.avatar,
+        name: user.name || 'Unknown',
+        avatar: user.profile_picture_url || user.avatar,
       };
       delete profileRetryBlockedUntilRef.current[uid];
       setUserProfile(uid, prof);
@@ -716,8 +729,19 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       return;
     }
 
+    if (contextUser?.id) {
+      setUserUuid(contextUser.id);
+      setUserProfile(contextUser.id, {
+        name: contextUser.name || 'You',
+        avatar: contextUser.profile_picture_url,
+      });
+      return;
+    }
+
+    if (contextUserLoading) return;
+
     apiUtil
-      .get<{ user: { id: string; name: string } }>('/user/details')
+      .get<{ user: { id: string; name: string } }>('/user/details?summary=1')
       .then(resp => {
         setUserUuid(resp.user.id);
         setUserProfile(resp.user.id, { name: resp.user.name || 'You', avatar: undefined });
@@ -736,7 +760,16 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         
         console.warn('[Chat] fetch user failed', e);
       });
-  }, [apiUtil, chatParams.userId, setNavBarVariant, setUserProfile]);
+  }, [
+    apiUtil,
+    chatParams.userId,
+    contextUser?.id,
+    contextUser?.name,
+    contextUser?.profile_picture_url,
+    contextUserLoading,
+    setNavBarVariant,
+    setUserProfile,
+  ]);
 
   useEffect(() => {
     if (!userUuid) return;
@@ -906,7 +939,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       const list: Participant[] = [
         {
           id: r.host.id,
-          name: r.host.name,
+          name: r.host.name || 'Unknown',
           avatar: r.host.profile_picture_url,
           isOnline: r.host.id === userUuid || onlineUserIdsRef.current.has(r.host.id),
           role: 'admin',
@@ -916,7 +949,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         r.bookings.filter(b => b.request_status === 'accepted').forEach(b =>
           list.push({
             id: b.passenger_id,
-            name: b.passenger_name,
+            name: b.passenger_name || 'Unknown',
             avatar: b.passenger_profile_picture_url,
             isOnline: b.passenger_id === userUuid || onlineUserIdsRef.current.has(b.passenger_id),
             role: 'member',
@@ -930,6 +963,23 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         subtitle: `${list.length} participants`,
         availableSeats: Math.max(0, (prev.totalSeats||0) - list.length),
       }));
+
+      const missingProfileIds = list
+        .filter(p => p.id && p.id !== userUuid && (!p.name || p.name === 'Unknown'))
+        .map(p => p.id);
+      if (missingProfileIds.length > 0) {
+        Promise.all(missingProfileIds.map(id => fetchUserProfile(id).then(profile => ({ id, profile }))))
+          .then(profiles => {
+            const resolvedById = new Map(profiles.map(({ id, profile }) => [id, profile]));
+            setParticipants(prev => prev.map(participant => {
+              const resolved = resolvedById.get(participant.id);
+              return resolved && resolved.name !== 'Unknown'
+                ? { ...participant, name: resolved.name, avatar: resolved.avatar || participant.avatar }
+                : participant;
+            }));
+          })
+          .catch(() => {});
+      }
     } catch (e) {
       console.warn('[Chat] fetchChatDetails error', e);
       const now = new Date();
@@ -948,34 +998,42 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       });
       setParticipants([{ id: userUuid||'', name: userProfilesRef.current[userUuid||'']?.name||'You', role: 'member', isOnline: true }]);
     }
-  }, [apiUtil, userUuid]);
+  }, [apiUtil, fetchUserProfile, userUuid]);
 
   const fetchChatSettings = async () => {
     const chatId = activeChatId;
     if (!chatId || chatParams.isGroupChat === false || settingsLoadedFor === chatId) return;
 
-    const [settingsResult, muteResult] = await Promise.allSettled([
-      apiUtil.get<{ settings: { chat_name?: string } }>(`/ride/${chatId}/settings`),
-      apiUtil.get<{ muted: boolean }>(`/ride/${chatId}/chat-mute`),
-    ]);
-
     let settingsStatus: number | undefined;
-    if (settingsResult.status === 'fulfilled') {
-      settingsResult.value.settings.chat_name && setChatTitle(settingsResult.value.settings.chat_name);
+    let loaded = false;
+    try {
+      const settingsResult = await apiUtil.get<{
+        settings: { chat_name?: string };
+        muted?: boolean;
+      }>(`/ride/${chatId}/settings`);
+      settingsResult.settings.chat_name && setChatTitle(settingsResult.settings.chat_name);
+      if (typeof settingsResult.muted === 'boolean') {
+        setNotificationsMuted(settingsResult.muted);
+      } else {
+        try {
+          const muteResult = await apiUtil.get<{ muted: boolean }>(`/ride/${chatId}/chat-mute`);
+          setNotificationsMuted(!!muteResult.muted);
+        } catch {}
+      }
       setHasSettingsPermission(true);
-    } else {
-      settingsStatus = (settingsResult.reason as any)?.response?.status;
+      loaded = true;
+    } catch (error: any) {
+      settingsStatus = error?.response?.status;
       setHasSettingsPermission(settingsStatus !== 403);
+      if (settingsStatus !== 403) {
+        try {
+          const muteResult = await apiUtil.get<{ muted: boolean }>(`/ride/${chatId}/chat-mute`);
+          setNotificationsMuted(!!muteResult.muted);
+          loaded = true;
+        } catch {}
+      }
     }
-
-    if (muteResult.status === 'fulfilled') {
-      setNotificationsMuted(!!muteResult.value.muted);
-    }
-    if (
-      settingsResult.status === 'fulfilled' ||
-      muteResult.status === 'fulfilled' ||
-      settingsStatus === 403
-    ) {
+    if (loaded || settingsStatus === 403) {
       setSettingsLoadedFor(chatId);
     }
   };
@@ -2201,26 +2259,33 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             crowd a real composition. Mobbin precedent: Gojek "Quick chat",
             Bolt onboarding chips, Uber "I'm here / Be right there". */}
         {newMessage.trim().length === 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            style={chatMessagesStyles.quickReplyRail}
-            contentContainerStyle={chatMessagesStyles.quickReplyRailContent}
-          >
-            {QUICK_REPLIES.map((q) => (
-              <TouchableOpacity
-                key={q}
-                onPress={() => sendMessage(q)}
-                activeOpacity={0.7}
-                style={chatMessagesStyles.quickReplyChip}
-              >
-                <Text style={chatMessagesStyles.quickReplyText}>
-                  {q}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <View style={chatMessagesStyles.quickReplyRailFrame}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              alwaysBounceHorizontal={false}
+              keyboardShouldPersistTaps="handled"
+              style={chatMessagesStyles.quickReplyRail}
+              contentContainerStyle={chatMessagesStyles.quickReplyRailContent}
+            >
+              {QUICK_REPLIES.map((q) => (
+                <TouchableOpacity
+                  key={q}
+                  onPress={() => sendMessage(q)}
+                  activeOpacity={0.7}
+                  style={chatMessagesStyles.quickReplyChip}
+                >
+                  <Text
+                    style={chatMessagesStyles.quickReplyText}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {q}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         ) : null}
         <View style={chatMessagesStyles.typingBarContainer}>
           <TextInput

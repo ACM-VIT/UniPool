@@ -274,7 +274,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
         return;
       }
       try {
-        const me = await apiUtil.getUncached<{ user?: { is_email_verified?: boolean } }>("/user/details");
+        const me = await apiUtil.getUncached<{ user?: { is_email_verified?: boolean } }>("/user/details?summary=1");
         if (me?.user?.is_email_verified) {
           if (me.user) onVerified(me.user);
           haptic("success");

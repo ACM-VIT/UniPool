@@ -47,17 +47,7 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>13</string>
-    <!-- Export-compliance declaration. UniPool only uses TLS for
-         network traffic (no custom crypto), which is exempt under
-         Apple's "uses only standard encryption" carve-out. Without
-         this key, every TestFlight / App Store submission gets
-         blocked with "You must provide a value for the attribute
-         'usesNonExemptEncryption'" until the ASC build is updated
-         manually. Setting it here so the value rides into the IPA
-         and the submission goes through on the first try. -->
-    <key>ITSAppUsesNonExemptEncryption</key>
-    <false/>
+    <string>1</string>
     <key>LSApplicationQueriesSchemes</key>
     <array>
       <string>upi</string>

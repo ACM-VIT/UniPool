@@ -7,5 +7,5 @@
   "apple.privacyManifestAggregationEnabled": "true",
   "expo.inlineModules.watchedDirectories": "[]",
   "ios.forceStaticLinking": "[]",
-  "EXPO_USE_PRECOMPILED_MODULES": "false"
+  "EXPO_USE_PRECOMPILED_MODULES": "true"
 }

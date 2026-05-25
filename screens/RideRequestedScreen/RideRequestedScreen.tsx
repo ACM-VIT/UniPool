@@ -126,6 +126,7 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
         chatId: makeDMRoomId(viewerId, hostUserId),
         chatTitle: hostUserName,
         chatSubtitle: "Pending request",
+        userId: viewerId,
         isGroupChat: false,
         otherUserId: hostUserId,
         pendingHostInquiry: true,

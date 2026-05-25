@@ -14,6 +14,7 @@ import MainNavBar, { MAIN_NAV_BAR_TOP_OFFSET } from "../components/MainNavBar";
 import { BrandedAlertHost } from "../components/BrandedAlert";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { useApi } from "../utils/ApiUtil";
+import { useUser } from "../contexts/UserContext";
 
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { useFonts } from "expo-font";
@@ -151,6 +152,7 @@ const AppShell = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { apiUtil } = useApi();
+  const { user: viewerUser } = useUser();
   const [initialRoute, setInitialRoute] =
     useState<keyof RootStackParamList | null>(null);
   const [loading, setLoading] = useState(true);
@@ -257,6 +259,7 @@ const AppShell = () => {
           chatId: String(rideId),
           chatTitle: String(data.chat_title || "Chat"),
           chatSubtitle: String(data.chat_subtitle || "Ride Chat"),
+          userId: viewerUser?.id,
           isGroupChat: true
         }));
       }
@@ -265,6 +268,7 @@ const AppShell = () => {
         router.navigate(appHref("ChatMessages", {
           chatId: String(dmRoomId),
           chatTitle: String(data.sender_name || data.chat_title || "Chat"),
+          userId: viewerUser?.id,
           isGroupChat: false,
           otherUserId: data.sender_id ? String(data.sender_id) : undefined,
         }));
@@ -277,6 +281,7 @@ const AppShell = () => {
           chatId: String(rideId),
           chatTitle: String(data.chat_title || "Trip chat"),
           chatSubtitle: String(data.chat_subtitle || "Ride Chat"),
+          userId: viewerUser?.id,
           isGroupChat: true,
         }));
       } else {
@@ -287,6 +292,7 @@ const AppShell = () => {
         router.navigate(appHref("ChatMessages", {
           chatId: String(dmRoomId || rideId),
           chatTitle: String(data.passenger_name || data.chat_title || "Ride request"),
+          userId: viewerUser?.id,
           isGroupChat: !dmRoomId,
           otherUserId: data.passenger_id ? String(data.passenger_id) : undefined,
           pendingHostInquiry: !!dmRoomId,
@@ -427,7 +433,7 @@ const AppShell = () => {
             debugLog("Token is valid, checking user details in database...");
             
             try {
-              await apiUtil.get("/user/details");
+              await apiUtil.get("/user/details?summary=1");
               debugLog("User details found in database, setting route to HomeScreen");
               markUserAsVerified();
               setInitialRoute("HomeScreen");
@@ -464,7 +470,7 @@ const AppShell = () => {
             debugLog("Fresh token obtained, checking user details in database...");
             
             try {
-              await apiUtil.get("/user/details");
+              await apiUtil.get("/user/details?summary=1");
               debugLog("User details found in database, setting route to HomeScreen");
               markUserAsVerified();
               setInitialRoute("HomeScreen");
@@ -546,7 +552,7 @@ const AppShell = () => {
             
             // Check if user exists in database before proceeding to HomeScreen
             try {
-              await apiUtil.get("/user/details");
+              await apiUtil.get("/user/details?summary=1");
               debugLog("User details found in database, setting route to HomeScreen");
               markUserAsVerified(); // Mark as verified on success
               setInitialRoute("HomeScreen");

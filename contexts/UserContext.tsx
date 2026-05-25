@@ -84,7 +84,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
     setLoading(true);
     try {
-      const resp = await apiUtil.get<{ user: UserDetails }>("/user/details");
+      const resp = await apiUtil.get<{ user: UserDetails }>("/user/details?summary=1");
       const next = resp?.user ?? null;
       setUser(next);
       return next;

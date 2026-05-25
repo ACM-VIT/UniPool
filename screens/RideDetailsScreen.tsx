@@ -681,13 +681,18 @@ const RideDetailsScreen: React.FC = () => {
       }
       
       try {
-        const userId =
-          contextUser?.id ??
-          (await apiUtil.get<UserResponse>("/user/details"))?.user?.id ??
-          null;
-        setCurrentUserId(userId);
+        const userIdPromise = contextUser?.id
+          ? Promise.resolve(contextUser.id)
+          : apiUtil
+              .get<UserResponse>("/user/details?summary=1")
+              .then((response) => response?.user?.id ?? null);
+        const rideDetailsPromise = apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
 
-        const completeRideData = await apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
+        const [userId, completeRideData] = await Promise.all([
+          userIdPromise,
+          rideDetailsPromise,
+        ]);
+        setCurrentUserId(userId);
         setRideData(completeRideData);
 
         // ----- Server-computed state -----
@@ -899,6 +904,7 @@ const RideDetailsScreen: React.FC = () => {
       appHref("ChatMessages", {
         chatId: rideData.id || rideId || "",
         chatTitle: shortDest ? `Trip to ${shortDest}` : "Trip",
+        userId: currentUserId || undefined,
         isGroupChat: true,
         hostUserId: rideData.host_user_id,
       } as any),
@@ -918,6 +924,7 @@ const RideDetailsScreen: React.FC = () => {
       appHref("ChatMessages", {
         chatId: dmRoomId,
         chatTitle: passengerName,
+        userId: currentUserId,
         isGroupChat: false,
         otherUserId: req.passenger_id,
         pendingHostInquiry: true,
@@ -1461,6 +1468,7 @@ const RideDetailsScreen: React.FC = () => {
                 appHref("ChatMessages", {
                   chatId: rideData.id || rideId || "",
                   chatTitle: shortDest ? `Trip to ${shortDest}` : "Trip",
+                  userId: currentUserId,
                   isGroupChat: true,
                   hostUserId: rideData.host_user_id,
                 } as any),
@@ -1474,6 +1482,7 @@ const RideDetailsScreen: React.FC = () => {
               appHref("ChatMessages", {
                 chatId: dmRoomId,
                 chatTitle: p.name || "Requester",
+                userId: currentUserId,
                 isGroupChat: false,
                 otherUserId: p.id,
                 pendingHostInquiry: true,
@@ -1961,6 +1970,7 @@ const RideDetailsScreen: React.FC = () => {
                     chatId: dmRoomId,
                     chatTitle: hostName || "Host",
                     chatSubtitle: `${displayRideLocation(rideData?.start_location)} → ${displayRideLocation(rideData?.end_location)}`,
+                    userId: currentUserId,
                     isGroupChat: false,
                     otherUserId: hostUserId,
                     pendingHostInquiry: true,

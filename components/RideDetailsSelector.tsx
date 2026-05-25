@@ -18,9 +18,9 @@ import {
   Platform,
 } from "react-native";
 import DateTimePicker, {
-  DateTimePickerAndroid,
-  DateTimePickerEvent as AndroidDateTimePickerEvent,
-} from "@react-native-community/datetimepicker";import { format } from "date-fns";
+  type DateTimePickerEvent as AndroidDateTimePickerEvent,
+} from "@expo/ui/community/datetime-picker";
+import { format } from "date-fns";
 import AppColors from "../design_systems/colors";
 import { 
   searchLocationsWithFallback,
@@ -641,12 +641,9 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       setPickerMode("date");
       pickerModeRef.current = "date";
       const initialDate = selectedDate || getInitialDate();
-      DateTimePickerAndroid.open({
-        value: initialDate,
-        onChange: handleAndroidPickerChange,
-        mode: "date",
-        minimumDate: new Date(),
-      });
+      setSelectedDate(initialDate);
+      setTempDate(initialDate);
+      setShowDateTimePicker(true);
     }
   };
 
@@ -654,12 +651,13 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     event: AndroidDateTimePickerEvent,
     date?: Date
   ) => {
-    if (FORCE_IOS_PICKER_UI || showDateTimePicker) {
-      if (DEBUG_RIDE_SELECTOR) console.log('Ignoring Android picker event - iOS UI forced or modal showing');
+    if (FORCE_IOS_PICKER_UI || Platform.OS !== "android") {
+      if (DEBUG_RIDE_SELECTOR) console.log('Ignoring Android picker event - iOS UI forced or non-Android platform');
       return;
     }
     
     if (event.type === "dismissed") {
+      setShowDateTimePicker(false);
       if (pickerModeRef.current === "time") {
         const finalDate = selectedDate || getInitialDate();
         if (DEBUG_RIDE_SELECTOR) console.log('Time picker dismissed, using current date:', finalDate);
@@ -691,16 +689,11 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       setTempDate(current);
       setPickerMode("time");
       pickerModeRef.current = "time";
-      
-      DateTimePickerAndroid.open({
-        value: current,
-        onChange: handleAndroidPickerChange,
-        mode: "time",
-      });
     } else if (pickerModeRef.current === "time") {
       if (DEBUG_RIDE_SELECTOR) console.log('Final Android date/time selected:', current);
       setSelectedDate(current);
       setTempDate(current);
+      setShowDateTimePicker(false);
       setPickerMode("date");
       pickerModeRef.current = "date";
       if (fromLocation && toLocation && current) {
@@ -1117,6 +1110,20 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         </KeyboardAvoidingView>
       </Modal>
 
+      {Platform.OS === 'android' && !FORCE_IOS_PICKER_UI && showDateTimePicker && (
+        <DateTimePicker
+          key={`ride-details-${pickerMode}-${(tempDate || selectedDate || getInitialDate()).getTime()}`}
+          value={tempDate || selectedDate || getInitialDate()}
+          mode={pickerMode}
+          display="default"
+          minimumDate={pickerMode === "date" ? new Date() : undefined}
+          onChange={handleAndroidPickerChange}
+          accentColor={AppColors.primaryLightGreen}
+          positiveButton={{ label: "Done" }}
+          negativeButton={{ label: "Cancel" }}
+        />
+      )}
+
       {(Platform.OS === 'ios' || FORCE_IOS_PICKER_UI) && (
         <Modal
           visible={showDateTimePicker}
@@ -1146,13 +1153,10 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                     }
                   }}
                   minimumDate={new Date()}
-                  // The modal sits on the forest dark surface, so the
-                  // spinner needs to render its wheel text in white,
-                  // not black. `themeVariant="dark"` flips iOS 14+ to
-                  // the dark spinner, and `textColor` covers older
-                  // builds.
+                  // The modal sits on the forest dark surface, so
+                  // `themeVariant="dark"` flips the iOS wheel into
+                  // the matching dark appearance.
                   themeVariant="dark"
-                  textColor={AppColors.basicWhite}
                   accentColor={AppColors.primaryLightGreen}
                   style={styles.dateTimePicker}
                 />
