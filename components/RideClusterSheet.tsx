@@ -5,7 +5,8 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  ScrollView,
+  FlatList,
+  ListRenderItem,
   TouchableOpacity,
   Platform,
 } from "react-native";
@@ -96,6 +97,65 @@ type DestinationGroup = {
   nextDeparture: number;
 };
 
+type DestinationGroupRowProps = {
+  group: DestinationGroup;
+  isLast: boolean;
+  onPickRide: (ride: ClusteredRide) => void;
+};
+
+const DestinationGroupRow = React.memo(function DestinationGroupRow({
+  group,
+  isLast,
+  onPickRide,
+}: DestinationGroupRowProps) {
+  return (
+    <View style={[styles.group, isLast && styles.groupLast]}>
+      {/* Destination header — bold name, price + ride count
+          as a quiet caption on the right. */}
+      <View style={styles.groupHeader}>
+        <Text style={styles.groupDest} numberOfLines={1}>
+          {shorten(group.destination)}
+        </Text>
+        <View style={styles.groupMeta}>
+          <Text style={styles.groupPrice}>₹{group.cheapestPrice}</Text>
+        </View>
+      </View>
+
+      {/* Tappable time chips, one per departure. Each chip
+          is a forest-outlined pill with the weekday on top
+          and the time below. Compact + scannable. */}
+      <View style={styles.chipsWrap}>
+        {group.rides.map((ride) => (
+          <TouchableOpacity
+            key={ride.id}
+            activeOpacity={0.85}
+            disabled={ride.isFull}
+            onPress={() => onPickRide(ride)}
+            style={[
+              styles.chip,
+              ride.isFull && styles.chipFull,
+            ]}
+          >
+            <Text style={styles.chipDay}>{ride.chipDay}</Text>
+            <Text style={styles.chipTime}>{ride.chipTime}</Text>
+            <View style={styles.chipDivider} />
+            <Text
+              style={[
+                styles.chipSeats,
+                ride.isFull && styles.chipSeatsFull,
+              ]}
+            >
+              {ride.isFull
+                ? "Full"
+                : `${ride.seatsLeft} ${ride.seatsLeft === 1 ? "seat" : "seats"}`}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+});
+
 /**
  * RideClusterSheet — transit-board style picker.
  *
@@ -154,6 +214,19 @@ const RideClusterSheet: React.FC<Props> = ({
     );
   }, [rides]);
 
+  const renderGroup = React.useCallback<ListRenderItem<DestinationGroup>>(
+    ({ item, index }) => (
+      <DestinationGroupRow
+        group={item}
+        isLast={index === groups.length - 1}
+        onPickRide={onPickRide}
+      />
+    ),
+    [groups.length, onPickRide],
+  );
+
+  const keyExtractor = React.useCallback((group: DestinationGroup) => group.destination, []);
+
   return (
     <Modal
       visible={visible}
@@ -194,63 +267,19 @@ const RideClusterSheet: React.FC<Props> = ({
             </Text>
           </View>
 
-          <ScrollView
+          <FlatList
+            data={groups}
+            keyExtractor={keyExtractor}
+            renderItem={renderGroup}
             style={styles.list}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
-          >
-            {groups.map((g, i) => (
-              <View
-                key={g.destination}
-                style={[styles.group, i === groups.length - 1 && styles.groupLast]}
-              >
-                {/* Destination header — bold name, price + ride count
-                    as a quiet caption on the right. */}
-                <View style={styles.groupHeader}>
-                  <Text style={styles.groupDest} numberOfLines={1}>
-                    {shorten(g.destination)}
-                  </Text>
-                  <View style={styles.groupMeta}>
-                    <Text style={styles.groupPrice}>₹{g.cheapestPrice}</Text>
-                  </View>
-                </View>
-
-                {/* Tappable time chips, one per departure. Each chip
-                    is a forest-outlined pill with the weekday on top
-                    and the time below. Compact + scannable. */}
-                <View style={styles.chipsWrap}>
-                  {g.rides.map((r) => {
-                    return (
-                      <TouchableOpacity
-                        key={r.id}
-                        activeOpacity={0.85}
-                        disabled={r.isFull}
-                        onPress={() => onPickRide(r)}
-                        style={[
-                          styles.chip,
-                          r.isFull && styles.chipFull,
-                        ]}
-                      >
-                        <Text style={styles.chipDay}>{r.chipDay}</Text>
-                        <Text style={styles.chipTime}>{r.chipTime}</Text>
-                        <View style={styles.chipDivider} />
-                        <Text
-                          style={[
-                            styles.chipSeats,
-                            r.isFull && styles.chipSeatsFull,
-                          ]}
-                        >
-                          {r.isFull
-                            ? "Full"
-                            : `${r.seatsLeft} ${r.seatsLeft === 1 ? "seat" : "seats"}`}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
-          </ScrollView>
+            initialNumToRender={8}
+            maxToRenderPerBatch={8}
+            updateCellsBatchingPeriod={48}
+            windowSize={7}
+            removeClippedSubviews={Platform.OS === "android"}
+          />
         </View>
       </View>
     </Modal>
