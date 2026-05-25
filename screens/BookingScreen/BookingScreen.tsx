@@ -8,6 +8,7 @@ import {
   StatusBar,
   RefreshControl,
   useWindowDimensions,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTabletContentStyle } from "../../utils/responsive";
@@ -59,13 +60,31 @@ export interface RideData {
 }
 
 type TabKey = "upcoming" | "hosting" | "past";
+type RideRow = RideData & {
+  rideId: string;
+  startTimeMs: number;
+  timeLabel: string;
+  dateLabel: string;
+  seatsAvailableLabel: string;
+  hasPendingRating: boolean;
+};
+
+const bookingDateFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+    });
+  } catch {
+    return null;
+  }
+})();
 
 const formatHHMM = (iso: string): string => {
   try {
     const d = new Date(iso);
-    const hh = d.getHours().toString().padStart(2, "0");
-    const mm = d.getMinutes().toString().padStart(2, "0");
-    return `${hh}${mm} hrs`;
+    if (Number.isNaN(d.getTime())) return "";
+    return `${d.getHours().toString().padStart(2, "0")}${d.getMinutes().toString().padStart(2, "0")} hrs`;
   } catch {
     return "";
   }
@@ -74,7 +93,7 @@ const formatHHMM = (iso: string): string => {
 const formatDate = (iso: string): string => {
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+    return bookingDateFormatter?.format(d) ?? d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
   } catch {
     return "";
   }
@@ -94,11 +113,7 @@ const BookingScreen: React.FC = () => {
   // stops nudging them — auto-defaulting on every refetch would
   // yank the user out of the bucket they were looking at.
   const userPickedTabRef = useRef(false);
-  // Backend UUID for the current user — NOT the Firebase uid.
-  // `host_user_id` on a ride comes from the backend's `users.id`
-  // column; the Firebase uid is unrelated. Comparing the two
-  // (the old behaviour) meant "Hosting" never matched any ride.
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const hasFocusedOnceRef = useRef(false);
   const { apiUtil } = useApi();
   const router = useRouter();
   const { requireAuth } = useAuthGate();
@@ -137,16 +152,10 @@ const BookingScreen: React.FC = () => {
           setError("Please sign in to view your trips");
           return;
         }
-        // Resolve the backend user id + the user's rides in parallel.
-        // `/user/rides` now carries `actions.can_rate`, so each row
-        // has the full render contract without a separate
-        // pending-ratings fetch.
-        const [details, ridesData] = await Promise.all([
-          apiUtil.getUncached<any>("/user/details").catch(() => null),
-          apiUtil.getUncached<any>("/user/rides"),
-        ]);
-        const myId: string | undefined = details?.user?.id ?? details?.id;
-        if (myId) setCurrentUserId(myId);
+        // `/user/rides` now carries viewer_state + actions, so this
+        // screen opens with one read instead of also resolving
+        // `/user/details` just to infer host ownership.
+        const ridesData = await apiUtil.get<any>("/user/rides");
         setRides(Array.isArray(ridesData) ? ridesData : []);
       } catch (err: any) {
         if (err.message === "AUTHENTICATION_REDIRECT") return;
@@ -163,7 +172,11 @@ const BookingScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
-      fetchAll();
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return undefined;
+      }
+      fetchAll({ refresh: true });
     }, [fetchAll]),
   );
 
@@ -172,10 +185,11 @@ const BookingScreen: React.FC = () => {
   // the API tells us exactly what the user's relationship to each
   // ride is.
   const buckets = useMemo(() => {
-    const upcoming: RideData[] = [];
-    const hosting: RideData[] = [];
-    const past: RideData[] = [];
+    const upcoming: RideRow[] = [];
+    const hosting: RideRow[] = [];
+    const past: RideRow[] = [];
     const seen = new Set<string>();
+    const nowMs = Date.now();
     for (const ride of rides) {
       const rid = ride.ride_id || ride.id;
       if (!rid || seen.has(rid)) continue;
@@ -188,18 +202,27 @@ const BookingScreen: React.FC = () => {
       // pre-migration clients hitting an older build).
       const state =
         ride.viewer_state ??
-        (ride.is_user_host || ride.host_user_id === currentUserId
+        (ride.is_user_host
           ? "host"
-          : startMs < Date.now() - 24 * 60 * 60 * 1000
+          : startMs < nowMs - 24 * 60 * 60 * 1000
           ? "past"
           : "available");
+      const row: RideRow = {
+        ...ride,
+        rideId: rid,
+        startTimeMs: startMs,
+        timeLabel: formatHHMM(ride.start_time),
+        dateLabel: formatDate(ride.start_time),
+        seatsAvailableLabel: seatsAvailableLabel(ride.total_seats || 0, ride.booked_seats || 0),
+        hasPendingRating: ride.actions?.can_rate === true,
+      };
 
       switch (state) {
         case "past":
-          past.push(ride);
+          past.push(row);
           break;
         case "host":
-          hosting.push(ride);
+          hosting.push(row);
           break;
         case "confirmed_passenger":
         case "pending_passenger":
@@ -207,15 +230,15 @@ const BookingScreen: React.FC = () => {
         case "available":
         case "full":
         default:
-          upcoming.push(ride);
+          upcoming.push(row);
           break;
       }
     }
-    upcoming.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-    hosting.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-    past.sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
+    upcoming.sort((a, b) => a.startTimeMs - b.startTimeMs);
+    hosting.sort((a, b) => a.startTimeMs - b.startTimeMs);
+    past.sort((a, b) => b.startTimeMs - a.startTimeMs);
     return { upcoming, hosting, past };
-  }, [rides, currentUserId]);
+  }, [rides]);
 
   const tabRides = buckets[tab];
   const counts = {
@@ -239,10 +262,49 @@ const BookingScreen: React.FC = () => {
     }
   }, [counts.upcoming, counts.hosting, counts.past, loading, tab]);
 
-  const openRide = (rideId: string) => {
+  const openRide = useCallback((rideId: string) => {
     if (!rideId) return;
     router.navigate(appHref("RideDetailsScreen", { rideId }));
-  };
+  }, [router]);
+
+  const renderTrip = useCallback(({ item }: { item: RideRow }) => (
+    <View style={styles.cardSlot}>
+      <RideCard
+        id={item.rideId}
+        origin={item.start_location}
+        destination={item.end_location}
+        time={item.timeLabel}
+        price={item.total_price}
+        seatsAvailable={item.seatsAvailableLabel}
+        totalSeats={item.total_seats}
+        variant={item.is_ongoing === 1 ? "inprogress" : "upcoming"}
+        date={item.dateLabel}
+        isPending={
+          item.viewer_state === "pending_passenger" ||
+          item.request_status === "pending"
+        }
+        onSelect={() => openRide(item.rideId)}
+        shareable
+        startTimeIso={item.start_time}
+      />
+      {tab === "past" && item.hasPendingRating ? (
+        <TouchableOpacity
+          onPress={() =>
+            router.navigate(
+              appHref("PostTripRatingScreen", { rideId: item.rideId }),
+            )
+          }
+          activeOpacity={0.85}
+          accessibilityLabel="Rate this trip"
+          style={styles.ratePill}
+        >
+          <Text style={styles.ratePillStar}>★</Text>
+          <Text style={styles.ratePillText}>Rate this trip</Text>
+          <Text style={styles.ratePillArrow}>↗</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  ), [openRide, router, tab]);
 
   // Empty-state copy is intentionally terse. Mobbin pattern across
   // Uber / Bolt / inDrive: one line + one CTA, nothing else.
@@ -391,7 +453,7 @@ const BookingScreen: React.FC = () => {
       ) : (
         <FlatList
           data={tabRides}
-          keyExtractor={(item) => item.ride_id || item.id || Math.random().toString()}
+          keyExtractor={(item) => item.rideId}
           contentContainerStyle={styles.listContent}
           // Pull-to-refresh — yanks `/user/rides` again without
           // tearing down the list mid-fetch. Forest spinner on the
@@ -406,96 +468,12 @@ const BookingScreen: React.FC = () => {
             />
           }
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => {
-            const rideId = item.ride_id || item.id || "";
-            // RideCard renders this string as "X seats available".
-            // The pre-migration code passed `booked/total` which read
-            // as "X booked", contradicting the label. Route through
-            // utils/seatMath so the format matches the label
-            // ("available out of passenger capacity") and stays
-            // consistent with the available-rides / ride-details
-            // screens.
-            const remaining = seatsAvailableLabel(item.total_seats || 0, item.booked_seats || 0);
-            const hasPendingRating = item.actions?.can_rate === true;
-            return (
-              <View style={styles.cardSlot}>
-                <RideCard
-                  id={rideId}
-                  origin={item.start_location}
-                  destination={item.end_location}
-                  time={formatHHMM(item.start_time)}
-                  price={item.total_price}
-                  seatsAvailable={remaining}
-                  totalSeats={item.total_seats}
-                  variant={item.is_ongoing === 1 ? "inprogress" : "upcoming"}
-                  date={formatDate(item.start_time)}
-                  isPending={
-                    item.viewer_state === "pending_passenger" ||
-                    item.request_status === "pending"
-                  }
-                  onSelect={() => openRide(rideId)}
-                  shareable
-                  startTimeIso={item.start_time}
-                />
-                {/* Rating affordance — moved here from the old
-                    HomeScreen popup. Sits as a soft pill beneath
-                    the trip card. Only renders for past trips with
-                    at least one unrated counterpart (driven by
-                    actions.can_rate). Tapping routes into the
-                    rating screen for this specific ride; the
-                    BrandedAlert that used to interrupt every Home
-                    focus is gone. */}
-                {tab === "past" && hasPendingRating ? (
-                  <TouchableOpacity
-                    onPress={() =>
-                      router.navigate(
-                        appHref("PostTripRatingScreen", { rideId }),
-                      )
-                    }
-                    activeOpacity={0.85}
-                    accessibilityLabel="Rate this trip"
-                    style={{
-                      marginTop: 10,
-                      marginLeft: 4,
-                      alignSelf: "flex-start",
-                      backgroundColor: AppColors.primaryLightGreen,
-                      borderWidth: 1.5,
-                      borderColor: AppColors.secondaryDarkGreen,
-                      paddingHorizontal: 14,
-                      paddingVertical: 8,
-                      borderRadius: 999,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <Text style={{ fontSize: 13, lineHeight: 14 }}>★</Text>
-                    <Text
-                      style={{
-                        fontFamily: "NunitoSans_800ExtraBold",
-                        fontSize: 12.5,
-                        color: AppColors.secondaryDarkGreen,
-                        letterSpacing: 0.2,
-                      }}
-                    >
-                      Rate this trip
-                    </Text>
-                    <Text
-                      style={{
-                        fontFamily: "NunitoSans_800ExtraBold",
-                        fontSize: 12,
-                        color: AppColors.secondaryDarkGreen,
-                        opacity: 0.55,
-                        marginLeft: -2,
-                      }}
-                    >
-                      ↗
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            );
-          }}
+          renderItem={renderTrip}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          updateCellsBatchingPeriod={48}
+          windowSize={7}
+          removeClippedSubviews={Platform.OS === "android"}
         />
       )}
       </View>

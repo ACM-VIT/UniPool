@@ -16,6 +16,7 @@ import {
   Easing,
   AppState,
 } from 'react-native';
+import type { StyleProp, TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from "expo-router";
 import { chatMessagesStyles } from './ChatScreen.styles';
@@ -33,6 +34,7 @@ import RouteStack from "../../components/RouteStack";
 import ShareRideSheet from "../../components/ShareRideSheet";
 import SheetShell, { sheetUi } from "../../components/SheetShell";
 import { useDecodedLocalSearchParams } from "../../navigation/routes";
+import { scheduleIdleTask, type ScheduledIdleTask } from "../../utils/scheduleIdleTask";
 
 /**
  * Quick-reply chips shown above the keyboard when the input is empty.
@@ -49,6 +51,39 @@ const QUICK_REPLIES = [
   "Thanks!",
 ];
 const PROFILE_RETRY_DELAY_MS = 30_000;
+const REPORT_REASONS: Array<{ key: string; label: string }> = [
+  { key: 'safety', label: 'Safety concern' },
+  { key: 'harassment', label: 'Harassment or hate' },
+  { key: 'scam', label: 'Scam or fraud' },
+  { key: 'spam', label: 'Spam' },
+  { key: 'inappropriate', label: 'Inappropriate content' },
+  { key: 'other', label: 'Something else' },
+];
+const NOOP = () => {};
+
+const SENDER_PALETTE = [
+  '#B5D750',
+  '#F09E5C',
+  '#FFD166',
+  '#A5D9C5',
+  '#9EC9F0',
+  '#E6A5D3',
+  '#C6B7F3',
+  '#FF8E72',
+];
+const senderColorCache = new Map<string, string>();
+
+const getSenderColor = (id?: string): string => {
+  if (!id) return SENDER_PALETTE[0];
+  const cached = senderColorCache.get(id);
+  if (cached) return cached;
+  let h = 0;
+  for (let i = 0; i < id.length; i += 1) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  const color = SENDER_PALETTE[h % SENDER_PALETTE.length];
+  if (senderColorCache.size > 512) senderColorCache.clear();
+  senderColorCache.set(id, color);
+  return color;
+};
 
 interface Participant {
   id: string;
@@ -67,6 +102,7 @@ interface RideDetails {
   departure: string;
   date: string;
   time: string;
+  startTimeIso?: string;
   price?: string;
   driverName?: string;
   totalSeats?: number;
@@ -74,6 +110,38 @@ interface RideDetails {
   hostUserId?: string;
   isUserHost?: boolean;
 }
+
+type ChatRouteParams = {
+  chatId?: string;
+  chatRoom?: { id: string; title?: string; subtitle?: string };
+  chatTitle?: string;
+  chatSubtitle?: string;
+  userId?: string;
+  isGroupChat?: boolean;
+  otherUserId?: string;
+  // Host of the ride this chat is attached to. Used to detect when
+  // the viewer is the host (e.g. for the host-empty-state card).
+  hostUserId?: string;
+  viewerRole?: string;
+  notificationsMuted?: boolean;
+  // Set when TripsListScreen opens a 1:1 with the host because the
+  // viewer's booking is still pending. Used to swap the safety
+  // strip for an explicit "you're messaging the host while your
+  // request is pending" explainer.
+  pendingHostInquiry?: boolean;
+  // True when the HOST is viewing the requester's DM (gives them
+  // accept/reject controls). False/undefined = passenger view.
+  viewerIsHost?: boolean;
+  pendingRideId?: string;
+  pendingHostName?: string;
+  hostPendingRequestBookingId?: string;
+  // Ride context now travels here instead of the header subtitle —
+  // rendered inside the centered empty-state card so the header
+  // stays minimal (just the other party's name + back + menu).
+  pendingRideStartLocation?: string;
+  pendingRideEndLocation?: string;
+  pendingRideStartTime?: string;
+};
 
 type ChatRow =
   | { kind: 'msg'; message: ChatMessage; id: string }
@@ -163,14 +231,292 @@ const formatChatTime = (timestamp: any): string => {
         ? new Date(timestamp > 1000000000000 ? timestamp : timestamp * 1000)
         : new Date(timestamp);
   if (isNaN(date.getTime())) return '';
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return chatTimeFormatter
+    ? chatTimeFormatter.format(date)
+    : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
+
+const chatTimeFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return null;
+  }
+})();
+
+const chatDateSeparatorFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+    });
+  } catch {
+    return null;
+  }
+})();
+
+const chatRideDateFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    });
+  } catch {
+    return null;
+  }
+})();
+
+const chatDayKey = (date: Date): number =>
+  date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate();
+
+const toChatDate = (timestamp: ChatMessage['timestamp']): Date => {
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp as any);
+  return Number.isFinite(date.getTime()) ? date : new Date();
+};
+
+const formatChatDateSeparator = (date: Date, todayKey: number, yesterdayKey: number): string => {
+  const key = chatDayKey(date);
+  if (key === todayKey) return 'Today';
+  if (key === yesterdayKey) return 'Yesterday';
+  return chatDateSeparatorFormatter
+    ? chatDateSeparatorFormatter.format(date)
+    : date.toLocaleDateString(undefined, {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+      });
+};
+
+const formatChatRideDate = (date: Date): string =>
+  chatRideDateFormatter
+    ? chatRideDateFormatter.format(date)
+    : date.toLocaleDateString(undefined, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+      });
+
+const formatChatRideWhen = (iso?: string): string => {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return '';
+  return `${formatChatRideDate(date)} · ${formatChatTime(date)}`;
+};
+
+const buildChatRows = (msgs: ChatMessage[]): ChatRow[] => {
+  const rows: ChatRow[] = [{ kind: 'safety', id: 'safety-banner' }];
+  let prevDayKey = 0;
+  const today = new Date();
+  const todayKey = chatDayKey(today);
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const yesterdayKey = chatDayKey(yesterday);
+
+  for (const m of msgs) {
+    const date = toChatDate(m.timestamp);
+    const key = chatDayKey(date);
+    if (key !== prevDayKey) {
+      rows.push({
+        kind: 'sep',
+        label: formatChatDateSeparator(date, todayKey, yesterdayKey),
+        id: `sep-${key}`,
+      });
+      prevDayKey = key;
+    }
+    rows.push({ kind: 'msg', message: m, id: m.id });
+  }
+  return rows;
+};
+
+const messageTimestampKey = (msg: ChatMessage): number => {
+  const timestamp = msg.timestamp as any;
+  if (timestamp instanceof Date) return timestamp.getTime();
+  const parsed = new Date(timestamp).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const areStringListsEqual = (a?: string[], b?: string[]): boolean => {
+  const left = a || [];
+  const right = b || [];
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    if (left[i] !== right[i]) return false;
+  }
+  return true;
+};
+
+const areMessageMetadataEqual = (
+  a?: Record<string, any>,
+  b?: Record<string, any>,
+): boolean => {
+  if (a === b) return true;
+  const left = a || {};
+  const right = b || {};
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) return false;
+  for (const key of leftKeys) {
+    if (!Object.prototype.hasOwnProperty.call(right, key)) return false;
+    if (!Object.is(left[key], right[key])) return false;
+  }
+  return true;
+};
+
+const areMessageListsEquivalent = (a: ChatMessage[], b: ChatMessage[]): boolean => {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i];
+    const right = b[i];
+    if (
+      left.id !== right.id ||
+      left.text !== right.text ||
+      left.senderId !== right.senderId ||
+      left.senderName !== right.senderName ||
+      left.kind !== right.kind ||
+      left.status !== right.status ||
+      left.timeLabel !== right.timeLabel ||
+      messageTimestampKey(left) !== messageTimestampKey(right) ||
+      !areStringListsEqual(left.readBy, right.readBy) ||
+      !areMessageMetadataEqual(left.metadata, right.metadata)
+    ) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const processBackendMessage = (backendMsg: any, currentUserId: string): ChatMessage => {
+  const messageId =
+    backendMsg.id ||
+    backendMsg.message_id ||
+    backendMsg.temp_id ||
+    `local_${Date.now()}_${Math.random()}`;
+  const content = backendMsg.content || backendMsg.text || backendMsg.message || '';
+  const senderId = backendMsg.sender_id || backendMsg.senderId || backendMsg.user_id || backendMsg.from_user_id || '';
+  const senderName = backendMsg.sender_name || backendMsg.senderName || backendMsg.user_name || backendMsg.sender?.name;
+  const senderAvatar =
+    backendMsg.sender_avatar ||
+    backendMsg.senderAvatar ||
+    backendMsg.profile_picture_url ||
+    backendMsg.sender?.profile_picture_url;
+  const timestamp = backendMsg.timestamp || backendMsg.created_at || backendMsg.sent_at;
+
+  let parsedTimestamp: Date;
+  if (timestamp) {
+    parsedTimestamp = new Date(timestamp);
+    if (isNaN(parsedTimestamp.getTime())) {
+      console.warn('[ProcessMessage] Invalid timestamp:', timestamp);
+      parsedTimestamp = new Date();
+    }
+  } else {
+    parsedTimestamp = new Date();
+  }
+
+  const isFromCurrentUser = senderId === currentUserId;
+
+  return {
+    id: messageId,
+    text: content,
+    sender: isFromCurrentUser ? 'user' : 'other',
+    senderId,
+    senderName: isFromCurrentUser ? 'You' : (senderName || 'Unknown'),
+    senderAvatar,
+    timestamp: parsedTimestamp,
+    timeLabel: formatChatTime(parsedTimestamp),
+    status: isFromCurrentUser ? 'sent' : undefined,
+    readBy: backendMsg.read_by || [],
+    kind: backendMsg.kind || 'user',
+    metadata: backendMsg.metadata || undefined,
+  };
+};
+
+const MessageStatus: React.FC<{ status?: ChatMessage['status'] }> = React.memo(({ status }) => {
+  let sym = '✓';
+  let statusStyle: StyleProp<TextStyle> = chatMessagesStyles.messageStatusDefault;
+  switch (status) {
+    case 'sending':
+      sym = '○';
+      break;
+    case 'sent':
+      sym = '✓';
+      break;
+    case 'delivered':
+      sym = '✓✓';
+      break;
+    case 'seen':
+      sym = '✓✓';
+      statusStyle = chatMessagesStyles.messageStatusSeen;
+      break;
+    case 'failed':
+      sym = '!';
+      statusStyle = chatMessagesStyles.messageStatusFailed;
+      break;
+  }
+  return <Text style={statusStyle}>{sym}</Text>;
+});
+
+const ChatMessageBubble = React.memo(function ChatMessageBubble({
+  message,
+  isGroupChat,
+  userUuid,
+  viewerIsHost,
+}: {
+  message: ChatMessage;
+  isGroupChat: boolean;
+  userUuid: string | null;
+  viewerIsHost: boolean;
+}) {
+  if (message.kind === 'payment_marker' || message.kind === 'payment_ack') {
+    const passengerIdMeta = String((message.metadata as any)?.passenger_id || '');
+    const isSelfMarker =
+      message.kind === 'payment_marker' &&
+      !!userUuid &&
+      passengerIdMeta === userUuid;
+    return (
+      <PaymentChatCard
+        message={message}
+        viewerIsHost={viewerIsHost && !isSelfMarker}
+        onAcked={NOOP}
+      />
+    );
+  }
+
+  const me = message.sender === 'user';
+  const senderColor = getSenderColor(message.senderId);
+
+  return (
+    <View style={me ? chatMessagesStyles.messageSent : chatMessagesStyles.messageReceived}>
+      {!me && isGroupChat ? (
+        <Text style={[chatMessagesStyles.senderName, { color: senderColor }]}>
+          {message.senderName}
+        </Text>
+      ) : null}
+      <Text style={me ? chatMessagesStyles.messageTextSent : chatMessagesStyles.messageText}>
+        {message.text}
+      </Text>
+      <View style={me ? chatMessagesStyles.messageMetaRowEnd : chatMessagesStyles.messageMetaRowStart}>
+        <Text style={me ? chatMessagesStyles.messageTimeSent : chatMessagesStyles.messageTime}>
+          {message.timeLabel || formatChatTime(message.timestamp)}
+        </Text>
+        {me ? <MessageStatus status={message.status} /> : null}
+      </View>
+    </View>
+  );
+}, (prev, next) =>
+  prev.message === next.message &&
+  prev.isGroupChat === next.isGroupChat &&
+  prev.userUuid === next.userUuid &&
+  prev.viewerIsHost === next.viewerIsHost,
+);
 
 const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarVariant">> = ({
   setNavBarVariant,
 }) => {
   const router = useRouter();
   const { apiUtil } = useApi();
+  const chatParams = useDecodedLocalSearchParams<ChatRouteParams>();
   // iPad-only: phone-shape centred column so the header, messages,
   // quick-reply chips, and message input stack at readable widths
   // instead of stretching across 1032pt of lime canvas. Hook returns
@@ -178,15 +524,16 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const tabletContentStyle = useTabletContentStyle();
 
   const [newMessage, setNewMessage] = useState('');
-  const [userUuid, setUserUuid] = useState<string | null>(null);
+  const [userUuid, setUserUuid] = useState<string | null>(() => chatParams.userId ?? null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userProfiles, setUserProfiles] = useState<Record<string, UserProfile>>({});
   const [showSettings, setShowSettings] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(() => new Set());
   const [rideDetails, setRideDetails] = useState<RideDetails | null>(null);
-  const [notificationsMuted, setNotificationsMuted] = useState(false);
+  const [notificationsMuted, setNotificationsMuted] = useState(!!chatParams.notificationsMuted);
   const [hasSettingsPermission, setHasSettingsPermission] = useState(true);
+  const [settingsLoadedFor, setSettingsLoadedFor] = useState<string | null>(null);
   const [editingChatName, setEditingChatName] = useState(false);
   const [newChatName, setNewChatName] = useState('');
   const [typingUsers, setTypingUsers] = useState<{ [k: string]: { name: string; timeout: NodeJS.Timeout } }>({});
@@ -206,14 +553,6 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const [reportReason, setReportReason] = useState<string | null>(null);
   const [reportDetails, setReportDetails] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
-  const REPORT_REASONS: Array<{ key: string; label: string }> = [
-    { key: 'safety', label: 'Safety concern' },
-    { key: 'harassment', label: 'Harassment or hate' },
-    { key: 'scam', label: 'Scam or fraud' },
-    { key: 'spam', label: 'Spam' },
-    { key: 'inappropriate', label: 'Inappropriate content' },
-    { key: 'other', label: 'Something else' },
-  ];
 
   const wsRef = useRef<WebSocket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -235,40 +574,43 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const typingUsersRef = useRef<{ [k: string]: { name: string; timeout: NodeJS.Timeout } }>({});
   const userProfilesRef = useRef<Record<string, UserProfile>>({});
   const profileRetryBlockedUntilRef = useRef<Record<string, number>>({});
+  const firstFocusRoomsRef = useRef<Set<string>>(new Set());
+  const messagesRef = useRef<ChatMessage[]>([]);
+  const hasMoreMessagesRef = useRef(hasMoreMessages);
+  const isLoadingOlderRef = useRef(isLoadingOlder);
 
-  type ChatRouteParams = {
-    chatId?: string;
-    chatRoom?: { id: string; title?: string; subtitle?: string };
-    chatTitle?: string;
-    chatSubtitle?: string;
-    userId?: string;
-    isGroupChat?: boolean;
-    otherUserId?: string;
-    // Host of the ride this chat is attached to. Used to detect when
-    // the viewer is the host (e.g. for the host-empty-state card).
-    hostUserId?: string;
-    viewerRole?: string;
-    // Set when TripsListScreen opens a 1:1 with the host because the
-    // viewer's booking is still pending. Used to swap the safety
-    // strip for an explicit "you're messaging the host while your
-    // request is pending" explainer.
-    pendingHostInquiry?: boolean;
-    // True when the HOST is viewing the requester's DM (gives them
-    // accept/reject controls). False/undefined = passenger view.
-    viewerIsHost?: boolean;
-    pendingRideId?: string;
-    pendingHostName?: string;
-    hostPendingRequestBookingId?: string;
-    // Ride context now travels here instead of the header subtitle —
-    // rendered inside the centered empty-state card so the header
-    // stays minimal (just the other party's name + back + menu).
-    pendingRideStartLocation?: string;
-    pendingRideEndLocation?: string;
-    pendingRideStartTime?: string;
-  };
-  const chatParams = useDecodedLocalSearchParams<ChatRouteParams>();
+  const replaceMessages = useCallback((nextMessages: ChatMessage[], shouldScrollToEnd: boolean) => {
+    setMessages((prev) => {
+      if (areMessageListsEquivalent(prev, nextMessages)) {
+        return prev;
+      }
+      if (shouldScrollToEnd) {
+        shouldScrollToEndRef.current = true;
+      }
+      return nextMessages;
+    });
+  }, []);
+
   const [chatTitle, setChatTitle] = useState(chatParams.chatTitle ?? 'Vellore to Chennai');
+  const chatTitleRef = useRef(chatTitle);
   const isPendingHostInquiry = !!chatParams.pendingHostInquiry;
+  const activeChatId = chatParams.chatRoom?.id || chatParams.chatId;
+
+  useEffect(() => {
+    chatTitleRef.current = chatTitle;
+  }, [chatTitle]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    hasMoreMessagesRef.current = hasMoreMessages;
+  }, [hasMoreMessages]);
+
+  useEffect(() => {
+    isLoadingOlderRef.current = isLoadingOlder;
+  }, [isLoadingOlder]);
 
   const otherUserIdFromDMRoom = useMemo(() => {
     const roomId = chatParams.chatRoom?.id || chatParams.chatId || "";
@@ -287,55 +629,23 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     'accept' | 'reject' | null
   >(null);
   const bookingIdForActions = chatParams.hostPendingRequestBookingId;
+  const isGroupChat = chatParams.isGroupChat !== false;
+
+  const typingUserList = useMemo(() => Object.values(typingUsers), [typingUsers]);
+  const typingText = useMemo(() => {
+    if (typingUserList.length === 0) return '';
+    if (typingUserList.length === 1) return `${typingUserList[0].name} is typing`;
+    if (typingUserList.length === 2) {
+      return `${typingUserList[0].name} and ${typingUserList[1].name} are typing`;
+    }
+    return `${typingUserList[0].name} and ${typingUserList.length - 1} others are typing`;
+  }, [typingUserList]);
+  const pendingRideWhen = useMemo(
+    () => formatChatRideWhen(chatParams.pendingRideStartTime),
+    [chatParams.pendingRideStartTime],
+  );
 
   const [hostShareOpen, setHostShareOpen] = useState(false);
-
-  const processBackendMessage = (backendMsg: any, currentUserId: string): ChatMessage => {
-    const messageId =
-      backendMsg.id ||
-      backendMsg.message_id ||
-      backendMsg.temp_id ||
-      `local_${Date.now()}_${Math.random()}`;
-    const content = backendMsg.content || backendMsg.text || backendMsg.message || '';
-    const senderId = backendMsg.sender_id || backendMsg.user_id || backendMsg.from_user_id || '';
-    const senderName = backendMsg.sender_name || backendMsg.user_name || backendMsg.sender?.name;
-    const senderAvatar = backendMsg.sender_avatar || backendMsg.profile_picture_url || backendMsg.sender?.profile_picture_url;
-    const timestamp = backendMsg.timestamp || backendMsg.created_at || backendMsg.sent_at;
-    
-    let parsedTimestamp: Date;
-    if (timestamp) {
-      parsedTimestamp = new Date(timestamp);
-      if (isNaN(parsedTimestamp.getTime())) {
-        console.warn('[ProcessMessage] Invalid timestamp:', timestamp);
-        parsedTimestamp = new Date();
-      }
-    } else {
-      parsedTimestamp = new Date();
-    }
-    
-    const isFromCurrentUser = senderId === currentUserId;
-    
-    const processedMessage: ChatMessage = {
-      id: messageId,
-      text: content,
-      sender: isFromCurrentUser ? 'user' : 'other',
-      senderId: senderId,
-      senderName: isFromCurrentUser ? 'You' : (senderName || 'Unknown'),
-      senderAvatar: senderAvatar,
-      timestamp: parsedTimestamp,
-      timeLabel: formatChatTime(parsedTimestamp),
-      status: isFromCurrentUser ? 'sent' : undefined,
-      readBy: backendMsg.read_by || [],
-      // Carry server kind + metadata through so the render branch
-      // can dispatch on system message types (payment_marker /
-      // payment_ack). Falls back to 'user' for any older API
-      // response shape that omits the field.
-      kind: backendMsg.kind || 'user',
-      metadata: backendMsg.metadata || undefined,
-    };
-
-    return processedMessage;
-  };
 
   const setOnlineUsers = useCallback((updater: (next: Set<string>) => void) => {
     setOnlineUserIds(prev => {
@@ -400,6 +710,12 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
 
   useEffect(() => {
     setNavBarVariant?.(0);
+    if (chatParams.userId) {
+      setUserUuid(chatParams.userId);
+      setUserProfile(chatParams.userId, userProfilesRef.current[chatParams.userId] || { name: 'You', avatar: undefined });
+      return;
+    }
+
     apiUtil
       .get<{ user: { id: string; name: string } }>('/user/details')
       .then(resp => {
@@ -420,7 +736,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         
         console.warn('[Chat] fetch user failed', e);
       });
-  }, [apiUtil, setNavBarVariant, setUserProfile]);
+  }, [apiUtil, chatParams.userId, setNavBarVariant, setUserProfile]);
 
   useEffect(() => {
     if (!userUuid) return;
@@ -430,6 +746,13 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   useEffect(() => {
     applyOnlinePresence(onlineUserIds);
   }, [applyOnlinePresence, onlineUserIds]);
+
+  useEffect(() => {
+    if (typeof chatParams.notificationsMuted === 'boolean') {
+      setNotificationsMuted(chatParams.notificationsMuted);
+    }
+    setSettingsLoadedFor(null);
+  }, [activeChatId, chatParams.notificationsMuted]);
 
   const sendMessageStatus = (mid: string, status: 'delivered' | 'seen') => {
     if (wsRef.current?.readyState === WebSocket.OPEN && userUuid) {
@@ -540,9 +863,9 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     });
   };
 
-  const fetchChatDetails = async (rideId: string) => {
+  const fetchChatDetails = useCallback(async (rideId: string) => {
     try {
-      const r = await apiUtil.getUncached<{
+      const r = await apiUtil.get<{
         id: string;
         host_user_id: string;
         start_location: string;
@@ -556,13 +879,15 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         bookings: Array<{ passenger_id: string; request_status: string; passenger_name: string; passenger_profile_picture_url: string }>;
       }>(`/ride/details/${rideId}`);
 
+      const startAt = new Date(r.start_time);
       setRideDetails({
         id: r.id,
         title: `${r.start_location} to ${r.end_location}`,
         departure: r.start_location,
         destination: r.end_location,
-        date: new Date(r.start_time).toLocaleDateString(),
-        time: new Date(r.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        date: formatChatRideDate(startAt),
+        time: formatChatTime(startAt),
+        startTimeIso: r.start_time,
         price: `₹${r.total_price}`,
         driverName: r.host.name,
         totalSeats: r.total_seats,
@@ -605,36 +930,53 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         subtitle: `${list.length} participants`,
         availableSeats: Math.max(0, (prev.totalSeats||0) - list.length),
       }));
-
-      const [settingsResult, muteResult] = await Promise.allSettled([
-        apiUtil.getUncached<{ settings: { chat_name?: string } }>(`/ride/${rideId}/settings`),
-        apiUtil.getUncached<{ muted: boolean }>(`/ride/${rideId}/chat-mute`),
-      ]);
-
-      if (settingsResult.status === 'fulfilled') {
-        settingsResult.value.settings.chat_name && setChatTitle(settingsResult.value.settings.chat_name);
-        setHasSettingsPermission(true);
-      } else {
-        const status = (settingsResult.reason as any)?.response?.status;
-        setHasSettingsPermission(status !== 403);
-      }
-
-      setNotificationsMuted(muteResult.status === 'fulfilled' ? !!muteResult.value.muted : false);
     } catch (e) {
       console.warn('[Chat] fetchChatDetails error', e);
+      const now = new Date();
       setRideDetails({
         id: rideId,
-        title: chatTitle,
+        title: chatTitleRef.current,
         departure: 'Unknown',
         destination: 'Unknown',
-        date: new Date().toLocaleDateString(),
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        date: formatChatRideDate(now),
+        time: formatChatTime(now),
+        startTimeIso: now.toISOString(),
         price: '₹0',
         driverName: 'Unknown',
         totalSeats: 4,
         availableSeats: 1,
       });
       setParticipants([{ id: userUuid||'', name: userProfilesRef.current[userUuid||'']?.name||'You', role: 'member', isOnline: true }]);
+    }
+  }, [apiUtil, userUuid]);
+
+  const fetchChatSettings = async () => {
+    const chatId = activeChatId;
+    if (!chatId || chatParams.isGroupChat === false || settingsLoadedFor === chatId) return;
+
+    const [settingsResult, muteResult] = await Promise.allSettled([
+      apiUtil.get<{ settings: { chat_name?: string } }>(`/ride/${chatId}/settings`),
+      apiUtil.get<{ muted: boolean }>(`/ride/${chatId}/chat-mute`),
+    ]);
+
+    let settingsStatus: number | undefined;
+    if (settingsResult.status === 'fulfilled') {
+      settingsResult.value.settings.chat_name && setChatTitle(settingsResult.value.settings.chat_name);
+      setHasSettingsPermission(true);
+    } else {
+      settingsStatus = (settingsResult.reason as any)?.response?.status;
+      setHasSettingsPermission(settingsStatus !== 403);
+    }
+
+    if (muteResult.status === 'fulfilled') {
+      setNotificationsMuted(!!muteResult.value.muted);
+    }
+    if (
+      settingsResult.status === 'fulfilled' ||
+      muteResult.status === 'fulfilled' ||
+      settingsStatus === 403
+    ) {
+      setSettingsLoadedFor(chatId);
     }
   };
 
@@ -647,8 +989,30 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     const userId = chatParams.userId || userUuid;
     if (!chatId) return;
 
+    let detailsFetchCancelled = false;
+    let detailsFetchTimeout: ReturnType<typeof setTimeout> | null = null;
+    let detailsFetchTask: ScheduledIdleTask | null = null;
+    const scheduleChatDetailsFetch = () => {
+      detailsFetchTask = scheduleIdleTask(() => {
+        if (detailsFetchTimeout) {
+          clearTimeout(detailsFetchTimeout);
+          detailsFetchTimeout = null;
+        }
+        if (!detailsFetchCancelled) {
+          void fetchChatDetails(chatId);
+        }
+      });
+      detailsFetchTimeout = setTimeout(() => {
+        detailsFetchTask?.cancel();
+        detailsFetchTask = null;
+        if (!detailsFetchCancelled) {
+          void fetchChatDetails(chatId);
+        }
+      }, 1200);
+    };
+
     if (isGroup) {
-      fetchChatDetails(chatId);
+      scheduleChatDetailsFetch();
     } else {
       setRideDetails(null);
       const otherUserId = chatParams.otherUserId || otherUserIdFromDMRoom;
@@ -683,13 +1047,21 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     // user would think their messages vanished. With this change, a
     // failed fetch leaves the visible message list alone; the next
     // successful fetch (focus refetch, foreground refetch) reconciles.
-    setIsLoadingInitial(true);
-    ChatService.fetchMessages(apiUtil, chatId, { limit: 50 })
+    const cachedMessages = ChatService.getCachedMessages(chatId);
+    if (cachedMessages) {
+      const processed = cachedMessages.messages.map((msg: any) => processBackendMessage(msg, userUuid));
+      replaceMessages(processed, true);
+      setHasMoreMessages(cachedMessages.hasMore);
+      setIsLoadingInitial(false);
+    } else {
+      setIsLoadingInitial(true);
+    }
+
+    ChatService.fetchMessages(apiUtil, chatId, { limit: 50, markRead: true })
       .then((res) => {
         if (!userUuid) return;
         const processed = res.messages.map((msg: any) => processBackendMessage(msg, userUuid));
-        shouldScrollToEndRef.current = true;
-        setMessages(processed);
+        replaceMessages(processed, true);
         setHasMoreMessages(res.hasMore);
       })
       .catch((err) => {
@@ -701,7 +1073,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
 
     let socketClosed = false;
     let activeSocket: WebSocket | null = null;
-    ChatService.openSocket(userId, chatId, e => {
+    ChatService.openSocket(apiUtil, userId, chatId, e => {
       (e.data as string).trim().split('\n').filter(Boolean).forEach(line => {
         try {
           const d = JSON.parse(line);
@@ -760,6 +1132,11 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       });
     return () => {
       socketClosed = true;
+      detailsFetchCancelled = true;
+      detailsFetchTask?.cancel();
+      if (detailsFetchTimeout) {
+        clearTimeout(detailsFetchTimeout);
+      }
       typingTimeoutRef.current && clearTimeout(typingTimeoutRef.current);
       typingDebounceRef.current && clearTimeout(typingDebounceRef.current);
       const ws = activeSocket ?? wsRef.current;
@@ -775,8 +1152,10 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     chatParams.isGroupChat,
     chatParams.otherUserId,
     chatParams.userId,
+    fetchChatDetails,
     fetchUserProfile,
     otherUserIdFromDMRoom,
+    replaceMessages,
     userUuid,
   ]);
 
@@ -799,44 +1178,48 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       setActiveChat(chatId);
 
       let cancelled = false;
+      const focusKey = `${chatId}:${userUuid}`;
+      const isFirstFocusForRoom = !firstFocusRoomsRef.current.has(focusKey);
+      firstFocusRoomsRef.current.add(focusKey);
 
-      if (isGroup) {
-        void fetchChatDetails(chatId);
-      } else {
-        const otherUserId = chatParams.otherUserId || otherUserIdFromDMRoom;
-        if (otherUserId) {
-          fetchUserProfile(otherUserId).then((profile) => {
-            if (cancelled) return;
-            setParticipants([
-              { id: userUuid, name: userProfilesRef.current[userUuid]?.name || "You", role: "member", isOnline: true },
-              {
-                id: otherUserId,
-                name: profile.name,
-                role: "member",
-                isOnline: onlineUserIdsRef.current.has(otherUserId),
-              },
-            ]);
-          });
+      if (!isFirstFocusForRoom) {
+        if (isGroup) {
+          void fetchChatDetails(chatId);
+        } else {
+          const otherUserId = chatParams.otherUserId || otherUserIdFromDMRoom;
+          if (otherUserId) {
+            fetchUserProfile(otherUserId).then((profile) => {
+              if (cancelled) return;
+              setParticipants([
+                { id: userUuid, name: userProfilesRef.current[userUuid]?.name || "You", role: "member", isOnline: true },
+                {
+                  id: otherUserId,
+                  name: profile.name,
+                  role: "member",
+                  isOnline: onlineUserIdsRef.current.has(otherUserId),
+                },
+              ]);
+            });
+          }
         }
+
+        // Focus refetch — keeps the visible list in sync with anything
+        // that landed in the DB while the user was off-screen (a
+        // counterpart's message broadcast while the WS was closed
+        // between navigations). On first focus the mount effect is
+        // already fetching this same page, so only later focuses run
+        // this reconciliation pass.
+        ChatService.fetchMessages(apiUtil, chatId, { limit: 50, markRead: true })
+          .then((res) => {
+            if (cancelled) return;
+            const processed = res.messages.map((msg: any) => processBackendMessage(msg, userUuid));
+            replaceMessages(processed, false);
+            setHasMoreMessages(res.hasMore);
+          })
+          .catch((err) => {
+            console.warn("[Chat] focus fetchMessages err (keeping existing list)", err);
+          });
       }
-
-      // Focus refetch — keeps the visible list in sync with anything
-      // that landed in the DB while the user was off-screen (a
-      // counterpart's message broadcast while the WS was closed
-      // between navigations). On failure we keep the existing list
-      // exactly as before; never set [] from an error branch.
-      ChatService.fetchMessages(apiUtil, chatId, { limit: 50 })
-        .then((res) => {
-          if (cancelled) return;
-          const processed = res.messages.map((msg: any) => processBackendMessage(msg, userUuid));
-          setMessages(processed);
-          setHasMoreMessages(res.hasMore);
-        })
-        .catch((err) => {
-          console.warn("[Chat] focus fetchMessages err (keeping existing list)", err);
-        });
-
-      void ChatService.markRideRead(apiUtil, chatId);
 
       // Foreground-resume refetch. When the user backgrounds the app
       // mid-chat, the WS closes; messages persisted while away aren't
@@ -847,13 +1230,13 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       // WS broadcast that delivered them was missed during background.
       const appStateSub = AppState.addEventListener("change", (state) => {
         if (state !== "active" || cancelled) return;
-        ChatService.fetchMessages(apiUtil, chatId, { limit: 50 })
+        ChatService.fetchMessages(apiUtil, chatId, { limit: 50, markRead: true })
           .then((res) => {
             if (cancelled || !userUuid) return;
             const processed = res.messages.map((msg: any) =>
               processBackendMessage(msg, userUuid),
             );
-            setMessages(processed);
+            replaceMessages(processed, false);
             setHasMoreMessages(res.hasMore);
           })
           .catch(() => {
@@ -875,6 +1258,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       chatParams.otherUserId,
       fetchUserProfile,
       otherUserIdFromDMRoom,
+      replaceMessages,
       userUuid,
     ]),
   );
@@ -1046,24 +1430,22 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     );
   };
 
-  const formatMessageTime = (timestamp: any) => {
-    return formatChatTime(timestamp);
-  };
-
   /**
    * Load the page of messages just before the oldest one currently in
    * memory. Wired to FlatList's `onEndReached` (inverted lists put
    * "older" at the natural scroll end). Skipped while one is in
    * flight to avoid stacking concurrent fetches.
    */
-  const loadOlderMessages = async () => {
-    if (isLoadingOlder || !hasMoreMessages) return;
+  const loadOlderMessages = useCallback(async () => {
+    if (isLoadingOlderRef.current || !hasMoreMessagesRef.current) return;
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
-    if (!chatId || !userUuid || messages.length === 0) return;
-    const oldest = messages[0];
+    const currentMessages = messagesRef.current;
+    if (!chatId || !userUuid || currentMessages.length === 0) return;
+    const oldest = currentMessages[0];
     const before = oldest.timestamp instanceof Date
       ? oldest.timestamp.toISOString()
       : new Date(oldest.timestamp as any).toISOString();
+    isLoadingOlderRef.current = true;
     setIsLoadingOlder(true);
     try {
       const res = await ChatService.fetchMessages(apiUtil, chatId, { before, limit: 50 });
@@ -1075,163 +1457,15 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         const next = [...older, ...prev];
         return next;
       });
+      hasMoreMessagesRef.current = res.hasMore;
       setHasMoreMessages(res.hasMore);
     } catch (err) {
       console.warn('[Chat] loadOlderMessages failed', err);
     } finally {
+      isLoadingOlderRef.current = false;
       setIsLoadingOlder(false);
     }
-  };
-
-  /**
-   * Insert "Today / Yesterday / <date>" separator entries between
-   * messages that span a calendar-day boundary. Returns a tagged list
-   * the FlatList can render through a discriminated `renderItem`.
-   */
-  const buildRows = (msgs: ChatMessage[]): ChatRow[] => {
-    const rows: ChatRow[] = [];
-    // Pin the safety notice as the very first row in the conversation.
-    // Lives inside the FlatList so it scrolls away with the chat
-    // instead of permanently parking under the header.
-    rows.push({ kind: 'safety', id: 'safety-banner' });
-    let prevDayKey = '';
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-    const dayKey = (d: Date) => d.toDateString();
-    for (const m of msgs) {
-      const d = m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp as any);
-      const key = dayKey(d);
-      if (key !== prevDayKey) {
-        let label: string;
-        if (key === dayKey(today)) label = 'Today';
-        else if (key === dayKey(yesterday)) label = 'Yesterday';
-        else
-          label = d.toLocaleDateString(undefined, {
-            weekday: 'short',
-            day: '2-digit',
-            month: 'short',
-          });
-        rows.push({ kind: 'sep', label, id: `sep-${key}` });
-        prevDayKey = key;
-      }
-      rows.push({ kind: 'msg', message: m, id: m.id });
-    }
-    return rows;
-  };
-
-  const renderMessageStatus = (msg: ChatMessage) => {
-    if (msg.sender!=='user') return null;
-    let sym='✓', col='#999';
-    switch(msg.status){
-      case 'sending': sym='○'; break;
-      case 'sent': sym='✓'; break;
-      case 'delivered': sym='✓✓'; break;
-      case 'seen': sym='✓✓'; col=AppColors.secondaryDarkGreen; break;
-      case 'failed': sym='!'; col='#f44336'; break;
-    }
-    return <Text style={{
-      fontSize:10, color:col, marginLeft:4,
-      fontWeight: msg.status==='seen'?'bold':'normal',
-      fontFamily:'monospace'
-    }}>{sym}</Text>;
-  };
-
-  /**
-   * Map every sender to a stable, distinct accent color so group-chat
-   * participants are visually differentiable. Drawn from a brand-tuned
-   * palette (lime + orange + amber + sky) that reads well against the
-   * forest bubble. Same user always gets the same color.
-   */
-  const SENDER_PALETTE = [
-    '#B5D750', // brand lime
-    '#F09E5C', // brand orange
-    '#FFD166', // amber
-    '#A5D9C5', // mint
-    '#9EC9F0', // sky
-    '#E6A5D3', // pink lilac
-    '#C6B7F3', // periwinkle
-    '#FF8E72', // coral
-  ];
-  const getSenderColor = (id?: string): string => {
-    if (!id) return SENDER_PALETTE[0];
-    let h = 0;
-    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-    return SENDER_PALETTE[h % SENDER_PALETTE.length];
-  };
-
-  const renderMessage = (msg: ChatMessage) => {
-    // System-message dispatch. payment_marker and payment_ack live
-    // in their own card component (PaymentChatCard) and break out
-    // of the message-bubble lane to span the chat full-width — the
-    // Apple-Pay-in-iMessage idiom. Anything else falls through to
-    // the regular text bubble.
-    if (msg.kind === 'payment_marker' || msg.kind === 'payment_ack') {
-      const viewerIsHostHere =
-        rideDetails?.isUserHost === true ||
-        (rideDetails?.hostUserId !== undefined && rideDetails.hostUserId === userUuid);
-      // Self-marker guard: legacy rides where the host accidentally
-      // booked their own seat would post payment_markers naming the
-      // host as the passenger. Without this, the host sees Confirm
-      // received / Didn't receive buttons asking them to confirm a
-      // payment from themselves. Treat the viewer as NOT-host on
-      // those markers so the action buttons disappear and the card
-      // collapses to the read-only state.
-      const passengerIdMeta = String((msg.metadata as any)?.passenger_id || '');
-      const isSelfMarker =
-        msg.kind === 'payment_marker' &&
-        !!userUuid &&
-        passengerIdMeta === userUuid;
-      return (
-        <PaymentChatCard
-          key={msg.id}
-          message={msg}
-          viewerIsHost={viewerIsHostHere && !isSelfMarker}
-          onAcked={() => {
-            // Bump the messages list so the inbound payment_ack
-            // socket push lands at the bottom — we don't need to
-            // refetch here, the broadcast covers it.
-          }}
-        />
-      );
-    }
-
-    const me = msg.sender === 'user';
-    const isGroup = chatParams.isGroupChat !== false;
-    // Sender colour is reused for the in-bubble name so each
-    // participant has a consistent visual identity, without dropping
-    // a separate avatar chip next to every received message.
-    const senderColor = getSenderColor(msg.senderId);
-
-    return (
-      <View
-        key={msg.id}
-        style={me ? chatMessagesStyles.messageSent : chatMessagesStyles.messageReceived}
-      >
-        {!me && isGroup ? (
-          <Text style={[chatMessagesStyles.senderName, { color: senderColor }]}>
-            {msg.senderName}
-          </Text>
-        ) : null}
-        <Text style={me ? chatMessagesStyles.messageTextSent : chatMessagesStyles.messageText}>
-          {msg.text}
-        </Text>
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: me ? 'flex-end' : 'flex-start',
-            marginTop: 2,
-          }}
-        >
-          <Text style={me ? chatMessagesStyles.messageTimeSent : chatMessagesStyles.messageTime}>
-            {msg.timeLabel || formatMessageTime(msg.timestamp)}
-          </Text>
-          {renderMessageStatus(msg)}
-        </View>
-      </View>
-    );
-  };
+  }, [apiUtil, chatParams.chatId, chatParams.chatRoom?.id, userUuid]);
 
   const renderSettingsModal = () => {
     const isGroup = chatParams.isGroupChat!==false;
@@ -1578,7 +1812,110 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     </SheetShell>
   );
 
-  const chatRows = useMemo(() => buildRows(messages), [messages]);
+  const chatRows = useMemo(() => buildChatRows(messages), [messages]);
+  const otherParticipantCount = useMemo(
+    () => participants.reduce((count, p) => count + (p.id !== userUuid ? 1 : 0), 0),
+    [participants, userUuid],
+  );
+  const showHostEmptyState =
+    isGroupChat &&
+    !!chatParams.hostUserId &&
+    chatParams.hostUserId === userUuid &&
+    otherParticipantCount === 0 &&
+    messages.length === 0;
+  const viewerIsHostForPayment =
+    rideDetails?.isUserHost === true ||
+    (rideDetails?.hostUserId !== undefined && rideDetails.hostUserId === userUuid);
+  const openHostShare = useCallback(() => setHostShareOpen(true), []);
+  const chatRowKeyExtractor = useCallback((item: ChatRow) => item.id, []);
+  const handleMessagesContentSizeChange = useCallback(() => {
+    if (!shouldScrollToEndRef.current) return;
+    shouldScrollToEndRef.current = false;
+    // First scroll after mount lands instantly so the user never sees
+    // the top frame. Subsequent autoscrolls keep the smooth ease-in.
+    const animated = hasInitialScrolledRef.current;
+    hasInitialScrolledRef.current = true;
+    flatListRef.current?.scrollToEnd({ animated });
+  }, []);
+  const handleMessagesScroll = useCallback((e: any) => {
+    const y = e.nativeEvent.contentOffset.y;
+    if (y < 40) loadOlderMessages();
+  }, [loadOlderMessages]);
+  const renderChatRow = useCallback(({ item }: { item: ChatRow }) => {
+    if (item.kind === 'sep') {
+      return (
+        <View style={chatMessagesStyles.dateSeparatorWrap}>
+          <View style={chatMessagesStyles.dateSeparatorPill}>
+            <Text style={chatMessagesStyles.dateSeparatorText}>
+              {item.label}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    if (item.kind === 'safety') {
+      if (isPendingHostInquiry) {
+        return null;
+      }
+
+      if (showHostEmptyState) {
+        return (
+          <View style={chatMessagesStyles.hostEmptyMinimalWrap}>
+            <Text style={chatMessagesStyles.hostEmptyMinimalTitle}>
+              Waiting for passengers
+            </Text>
+            <Text style={chatMessagesStyles.hostEmptyMinimalBody}>
+              Share this trip so users can join.
+            </Text>
+            {chatParams.chatId ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={openHostShare}
+                style={chatMessagesStyles.hostEmptyMinimalShareBtn}
+              >
+                <Text style={chatMessagesStyles.hostEmptyMinimalShareBtnText}>
+                  Share ride
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        );
+      }
+
+      return (
+        <View style={chatMessagesStyles.safetyNoticeWrap}>
+          <View style={chatMessagesStyles.safetyNoticeCard}>
+            <Text style={chatMessagesStyles.safetyNoticeTitle}>
+              Be kind, ride safe
+            </Text>
+            <Text style={chatMessagesStyles.safetyNoticeBody}>
+              Keep payments, OTPs and personal IDs out of chat. UniPool is
+              here if anything goes wrong. You can report a problem from
+              chat settings.
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <ChatMessageBubble
+        message={item.message}
+        isGroupChat={isGroupChat}
+        userUuid={userUuid}
+        viewerIsHost={viewerIsHostForPayment}
+      />
+    );
+  }, [
+    chatParams.chatId,
+    isGroupChat,
+    isPendingHostInquiry,
+    openHostShare,
+    showHostEmptyState,
+    userUuid,
+    viewerIsHostForPayment,
+  ]);
 
   return (
     <View style={[chatMessagesStyles.container, { flex: 1 }, tabletContentStyle]}>
@@ -1619,7 +1956,14 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         </View>
 
         <View style={chatMessagesStyles.chatHeaderRight}>
-          <TouchableOpacity onPress={() => setShowSettings(true)} style={chatMessagesStyles.chatHeaderSettings} hitSlop={8}>
+          <TouchableOpacity
+            onPress={() => {
+              setShowSettings(true);
+              void fetchChatSettings();
+            }}
+            style={chatMessagesStyles.chatHeaderSettings}
+            hitSlop={8}
+          >
             <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
               <Circle cx={12} cy={6} r={1.7} fill={AppColors.secondaryDarkGreen} />
               <Circle cx={12} cy={12} r={1.7} fill={AppColors.secondaryDarkGreen} />
@@ -1726,25 +2070,9 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               </View>
             ) : null}
 
-            {chatParams.pendingRideStartTime ? (
+            {pendingRideWhen ? (
               <Text style={chatMessagesStyles.pendingEmptyWhen}>
-                {(() => {
-                  try {
-                    const d = new Date(chatParams.pendingRideStartTime);
-                    const date = d.toLocaleDateString(undefined, {
-                      weekday: 'short',
-                      day: 'numeric',
-                      month: 'short',
-                    });
-                    const time = d.toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    });
-                    return `${date} · ${time}`;
-                  } catch {
-                    return '';
-                  }
-                })()}
+                {pendingRideWhen}
               </Text>
             ) : null}
 
@@ -1817,167 +2145,20 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         ref={flatListRef}
         style={[chatMessagesStyles.messagesContainer, { flex: 1 }]}
         data={chatRows}
-        keyExtractor={(item) => item.id}
+        keyExtractor={chatRowKeyExtractor}
         initialNumToRender={24}
         maxToRenderPerBatch={16}
         updateCellsBatchingPeriod={32}
         windowSize={9}
         removeClippedSubviews={Platform.OS === 'android'}
         maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
-        renderItem={({ item }) => {
-          if (item.kind === 'sep') {
-            return (
-              <View style={{ alignItems: 'center', marginVertical: 14 }}>
-                <View
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 5,
-                    borderRadius: 999,
-                    backgroundColor: 'rgba(38,59,51,0.10)',
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: 'NunitoSans_800ExtraBold',
-                      fontSize: 11,
-                      letterSpacing: 0.5,
-                      color: AppColors.secondaryDarkGreen,
-                      opacity: 0.7,
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {item.label}
-                  </Text>
-                </View>
-              </View>
-            );
-          }
-          if (item.kind === 'safety') {
-            // Pending host inquiry: the polished centered card lives
-            // ABOVE the FlatList now (rendered conditionally on
-            // `messages.length === 0`), so this inline row collapses
-            // to nothing for the pending case. Letting the safety
-            // banner render here too would duplicate the surface.
-            if (isPendingHostInquiry) {
-              return null;
-            }
-
-            // Host viewing their own ride chat before anyone has been
-            // accepted in. The generic safety strip doesn't fit this
-            // moment — it reads as if the host is mid-conversation
-            // with someone. Swap it for a calm "trip is live, waiting
-            // for someone to join" card with an explicit Share CTA
-            // that opens the same ShareRideSheet the Ride Management
-            // header uses. Single tasteful surface centered in the
-            // empty chat body.
-            const isViewerHost = !!chatParams.hostUserId && chatParams.hostUserId === userUuid;
-            const isGroup = chatParams.isGroupChat !== false;
-            const others = participants.filter((p) => p.id !== userUuid);
-            if (isGroup && isViewerHost && others.length === 0 && messages.length === 0) {
-              // Minimal empty state — no card, no animation, no
-              // dashboard widget. Just calm centered text on the
-              // lime canvas with a small Share pill underneath.
-              // The previous big forest card was over-engineered
-              // for what is essentially "nothing to see yet".
-              return (
-                <View style={chatMessagesStyles.hostEmptyMinimalWrap}>
-                  <Text style={chatMessagesStyles.hostEmptyMinimalTitle}>
-                    Waiting for passengers
-                  </Text>
-                  <Text style={chatMessagesStyles.hostEmptyMinimalBody}>
-                    Share this trip so users can join.
-                  </Text>
-                  {chatParams.chatId ? (
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={() => setHostShareOpen(true)}
-                      style={chatMessagesStyles.hostEmptyMinimalShareBtn}
-                    >
-                      <Text style={chatMessagesStyles.hostEmptyMinimalShareBtnText}>
-                        Share ride
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              );
-            }
-            // Standard safety strip — centred text on a soft forest
-            // wash. No icon. The point is the message, not a glyph
-            // shouting next to it.
-            return (
-              <View
-                style={{
-                  alignItems: 'center',
-                  paddingHorizontal: 24,
-                  paddingTop: 14,
-                  paddingBottom: 16,
-                }}
-              >
-                <View
-                  style={{
-                    backgroundColor: AppColors.basicWhite,
-                    paddingHorizontal: 18,
-                    paddingVertical: 12,
-                    borderRadius: 14,
-                    alignItems: 'center',
-                    maxWidth: 320,
-                    borderWidth: 1,
-                    borderColor: 'rgba(38,59,51,0.10)',
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: 'NunitoSans_800ExtraBold',
-                      fontSize: 11.5,
-                      letterSpacing: 0.8,
-                      color: AppColors.secondaryDarkGreen,
-                      opacity: 0.7,
-                      marginBottom: 4,
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    Be kind, ride safe
-                  </Text>
-                  <Text
-                    style={{
-                      fontFamily: 'NunitoSans_600SemiBold',
-                      fontSize: 12.5,
-                      lineHeight: 17,
-                      color: AppColors.secondaryDarkGreen,
-                      opacity: 0.78,
-                      textAlign: 'center',
-                      letterSpacing: -0.05,
-                    }}
-                  >
-                    Keep payments, OTPs and personal IDs out of chat. UniPool is
-                    here if anything goes wrong. You can report a problem from
-                    chat settings.
-                  </Text>
-                </View>
-              </View>
-            );
-          }
-          return renderMessage(item.message);
-        }}
+        renderItem={renderChatRow}
         showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => {
-          if (!shouldScrollToEndRef.current) return;
-          shouldScrollToEndRef.current = false;
-          // First scroll after mount lands instantly so the user
-          // never sees the top frame. Subsequent autoscrolls (send,
-          // counterpart message while at-bottom) keep the smooth
-          // ease-in.
-          const animated = hasInitialScrolledRef.current;
-          hasInitialScrolledRef.current = true;
-          flatListRef.current?.scrollToEnd({ animated });
-        }}
+        onContentSizeChange={handleMessagesContentSizeChange}
         // Pulls the next older page when the user reaches the top of
         // the list. RN renders top-down, so `onStartReached` only
         // works with `inverted`; we instead key off `onScroll` below.
-        onScroll={(e) => {
-          const y = e.nativeEvent.contentOffset.y;
-          if (y < 40) loadOlderMessages();
-        }}
+        onScroll={handleMessagesScroll}
         scrollEventThrottle={80}
         ListHeaderComponent={
           isLoadingOlder ? (
@@ -1998,39 +2179,15 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       />
       )}
 
-      {Object.keys(typingUsers).length > 0 && (
-        <View style={{
-          paddingHorizontal: 18,
-          paddingVertical: 6,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 8,
-        }}>
-          <View style={{ flexDirection: 'row', gap: 3 }}>
-            {[0, 1, 2].map((i) => (
-              <View
-                key={i}
-                style={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: 3,
-                  backgroundColor: AppColors.secondaryDarkGreen,
-                  opacity: 0.35 + i * 0.2,
-                }}
-              />
-            ))}
+      {typingUserList.length > 0 && (
+        <View style={chatMessagesStyles.typingIndicatorWrap}>
+          <View style={chatMessagesStyles.typingDots}>
+            <View style={chatMessagesStyles.typingDotLow} />
+            <View style={chatMessagesStyles.typingDotMid} />
+            <View style={chatMessagesStyles.typingDotHigh} />
           </View>
-          <Text style={{
-            color: AppColors.inkMuted,
-            fontSize: 12.5,
-            fontFamily: 'NunitoSans_600SemiBold',
-          }}>
-            {Object.values(typingUsers).length === 1
-              ? `${Object.values(typingUsers)[0].name} is typing`
-              : Object.values(typingUsers).length === 2
-                ? `${Object.values(typingUsers)[0].name} and ${Object.values(typingUsers)[1].name} are typing`
-                : `${Object.values(typingUsers)[0].name} and ${Object.values(typingUsers).length - 1} others are typing`
-            }
+          <Text style={chatMessagesStyles.typingIndicatorText}>
+            {typingText}
           </Text>
         </View>
       )}
@@ -2048,33 +2205,17 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             horizontal
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{
-              paddingHorizontal: 12,
-              paddingTop: 8,
-              paddingBottom: 8,
-              gap: 8,
-            }}
+            style={chatMessagesStyles.quickReplyRail}
+            contentContainerStyle={chatMessagesStyles.quickReplyRailContent}
           >
             {QUICK_REPLIES.map((q) => (
               <TouchableOpacity
                 key={q}
                 onPress={() => sendMessage(q)}
                 activeOpacity={0.7}
-                style={{
-                  paddingHorizontal: 14,
-                  paddingVertical: 7,
-                  borderRadius: 999,
-                  backgroundColor: AppColors.basicWhite,
-                  borderWidth: 1,
-                  borderColor: AppColors.inkSoft,
-                  shadowColor: AppColors.secondaryDarkGreen,
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.06,
-                  shadowRadius: 3,
-                  elevation: 1,
-                }}
+                style={chatMessagesStyles.quickReplyChip}
               >
-                <Text style={{ fontFamily: 'NunitoSans_700Bold', fontSize: 13, color: AppColors.secondaryDarkGreen }}>
+                <Text style={chatMessagesStyles.quickReplyText}>
                   {q}
                 </Text>
               </TouchableOpacity>

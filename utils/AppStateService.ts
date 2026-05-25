@@ -81,5 +81,5 @@ export const getAppState = (
     params.set("limit", "30");
   }
 
-  return apiUtil.getUncached<AppStateResponse>(`/app/state?${params.toString()}`);
+  return apiUtil.get<AppStateResponse>(`/app/state?${params.toString()}`);
 };

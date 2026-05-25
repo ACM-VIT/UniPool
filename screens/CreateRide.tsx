@@ -23,6 +23,10 @@ import {
 } from "../utils/seatMath";
 
 const { width, height } = Dimensions.get("window");
+const DEBUG_CREATE_RIDE =
+  typeof __DEV__ !== "undefined" &&
+  __DEV__ &&
+  process.env.EXPO_PUBLIC_DEBUG_CREATE_RIDE === "1";
 
 interface CreateRideResponse {
   id: string;
@@ -88,37 +92,50 @@ const CreateRide: React.FC = () => {
 
   const getUserLocation = async () => {
     if (userLocation) {
-      console.log("[CreateRide] User location already available, skipping fetch");
+      if (DEBUG_CREATE_RIDE) console.log("[CreateRide] User location already available, skipping fetch");
       return;
     }
     try {
-      console.log("[CreateRide] Attempting to get user location...");
+      if (DEBUG_CREATE_RIDE) console.log("[CreateRide] Attempting to get user location...");
+      try {
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown) {
+          const location = {
+            latitude: lastKnown.coords.latitude,
+            longitude: lastKnown.coords.longitude,
+          };
+          setUserLocation(location);
+        }
+      } catch {
+        // Fresh balanced lookup below is still the source of truth.
+      }
+
       const { coords } = await Location.getCurrentPositionAsync({ 
-        accuracy: Location.Accuracy.High,
+        accuracy: Location.Accuracy.Balanced,
       });
       const { latitude, longitude } = coords;
       const location = { latitude, longitude };
-      console.log("[CreateRide] User location fetched successfully:", location);
+      if (DEBUG_CREATE_RIDE) console.log("[CreateRide] User location fetched successfully:", location);
       setUserLocation(location);
     } catch (error) {
       console.error("[CreateRide] Error fetching user location:", error);
-      console.log("[CreateRide] Using fallback location");
+      if (DEBUG_CREATE_RIDE) console.log("[CreateRide] Using fallback location");
       setUserLocation({ latitude: 13.0827, longitude: 80.2707 });
     }
   };
 
   useEffect(() => {
-    console.log("[CreateRide] Component mounted, requesting location permission...");
+    if (DEBUG_CREATE_RIDE) console.log("[CreateRide] Component mounted, requesting location permission...");
     requestLocationPermission();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    console.log("[CreateRide] User location changed:", userLocation);
+    if (DEBUG_CREATE_RIDE) console.log("[CreateRide] User location changed:", userLocation);
     if (userLocation) {
-      console.log("[CreateRide] Valid user location available:", userLocation.latitude, userLocation.longitude);
+      if (DEBUG_CREATE_RIDE) console.log("[CreateRide] Valid user location available:", userLocation.latitude, userLocation.longitude);
     } else {
-      console.log("[CreateRide] No user location available yet");
+      if (DEBUG_CREATE_RIDE) console.log("[CreateRide] No user location available yet");
     }
   }, [userLocation]);
   // total_seats now COUNTS THE HOST. A 4-seat carpool = host + 3
@@ -274,7 +291,7 @@ const CreateRide: React.FC = () => {
     fromCoordinates?: { latitude: number; longitude: number };
     toCoordinates?: { latitude: number; longitude: number };
   }) => {
-    console.log("Submitted ride details:", details);
+    if (DEBUG_CREATE_RIDE) console.log("Submitted ride details:", details);
     setFromLocation(details.from);
     setToLocation(details.to);
     setRideDateTime(details.date);
@@ -340,13 +357,13 @@ const CreateRide: React.FC = () => {
         end_latitude: toCoordinates?.latitude || null,
         end_longitude: toCoordinates?.longitude || null,
       };
-      console.log("Creating ride with data:", rideData);
+      if (DEBUG_CREATE_RIDE) console.log("Creating ride with data:", rideData);
 
       const response = await apiUtil.post<CreateRideResponse, typeof rideData>(
         "/ride/create",
         rideData
       );
-      console.log("Ride created successfully:", response);
+      if (DEBUG_CREATE_RIDE) console.log("Ride created successfully:", response);
       // Carry the new ride's ID through the success interstitial so it
       // can drop the host on RideDetailsScreen (= the ride management
       // view), where the new share-ride affordance lives.

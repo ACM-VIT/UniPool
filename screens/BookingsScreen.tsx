@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ListRenderItem,
   TouchableOpacity,
   Image,
-  ScrollView,
   RefreshControl,
 } from "react-native";
 import styles from "./ProfileScreen/ProfileScreen.styles";
@@ -39,19 +38,6 @@ interface RawRide {
   [key: string]: any;
 }
 
-interface RawBooking {
-  id: string;
-  ride_id?: string;
-  request_status?: "pending" | "accepted" | "rejected";
-  ride_details?: RawRide;
-  ride?: RawRide;
-  [key: string]: any;
-}
-
-interface BookingsResponse {
-  bookings: RawBooking[];
-}
-
 type Status = "confirmed" | "pending" | "hosting" | "past" | "cancelled";
 
 interface TripItem {
@@ -69,9 +55,51 @@ interface TripItem {
   status: Status;
   /** Where this trip belongs in the tab structure. */
   bucket: "upcoming" | "hosting" | "past";
+  dateLabel: string;
+  timeLabel: string;
+  startTimeIso?: string;
 }
 
 type Tab = "upcoming" | "hosting" | "past";
+type TripBuckets = Record<Tab, TripItem[]>;
+
+const tripDateFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+  } catch {
+    return null;
+  }
+})();
+
+const tripTimeFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return null;
+  }
+})();
+
+const tripLabels = (date: Date) => {
+  if (!date || date.getTime() === 0 || Number.isNaN(date.getTime())) {
+    return { dateLabel: "", timeLabel: "", startTimeIso: undefined };
+  }
+  return {
+    dateLabel:
+      tripDateFormatter?.format(date) ??
+      date.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" }),
+    timeLabel:
+      tripTimeFormatter?.format(date) ??
+      date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    startTimeIso: date.toISOString(),
+  };
+};
 
 const BookingsScreen: React.FC = () => {
   const router = useRouter();
@@ -83,6 +111,7 @@ const BookingsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("upcoming");
+  const hasFocusedOnceRef = useRef(false);
 
   const fetchAllUserRides = useCallback(async (isRefresh = false) => {
     try {
@@ -96,65 +125,52 @@ const BookingsScreen: React.FC = () => {
         return;
       }
 
-      const [bookingsRes, hostedRes] = await Promise.allSettled([
-        apiUtil.getUncached<BookingsResponse>("/booking/list"),
-        apiUtil.getUncached<RawRide[]>("/user/rides"),
-      ]);
-
+      const ridesData = await apiUtil.get<RawRide[]>("/user/rides");
       const now = new Date();
-      const collected: TripItem[] = [];
+      const collected: TripItem[] = Array.isArray(ridesData)
+        ? ridesData.map((r) => {
+            const startAt = r.start_time ? new Date(r.start_time) : new Date(0);
+            const isPast = startAt.getTime() < now.getTime();
+            const labels = tripLabels(startAt);
+            const rideId =
+              r.ride_id ||
+              r.id ||
+              `${r.start_location || "unknown"}-${r.end_location || "unknown"}-${r.start_time || "unknown"}`;
+            const viewerState = r.viewer_state;
+            const status: Status =
+              viewerState === "host" || r.is_user_host
+                ? isPast ? "past" : "hosting"
+                : viewerState === "rejected_passenger" || r.request_status === "rejected"
+                ? "cancelled"
+                : viewerState === "pending_passenger" || r.request_status === "pending"
+                ? isPast ? "past" : "pending"
+                : isPast || viewerState === "past"
+                ? "past"
+                : "confirmed";
+            const bucket: TripItem["bucket"] =
+              isPast || status === "past"
+                ? "past"
+                : status === "hosting"
+                ? "hosting"
+                : "upcoming";
 
-      // 1. Passenger bookings
-      if (bookingsRes.status === "fulfilled" && bookingsRes.value?.bookings) {
-        for (const b of bookingsRes.value.bookings) {
-          const details = b.ride_details || b.ride || {};
-          const startAt = details.start_time ? new Date(details.start_time) : new Date(0);
-          const isPast = startAt.getTime() < now.getTime();
-          const status: Status =
-            b.request_status === "rejected"
-              ? "cancelled"
-              : b.request_status === "pending"
-              ? isPast ? "past" : "pending"
-              : isPast
-              ? "past"
-              : "confirmed";
-          collected.push({
-            id: b.id,
-            rideId: b.ride_id || details.ride_id || details.id,
-            origin: details.start_location || "Unknown",
-            destination: details.end_location || "Unknown",
-            startAt,
-            price: details.total_price !== undefined ? Number(details.total_price) : undefined,
-            totalSeats: details.total_seats,
-            bookedSeats: details.booked_seats,
-            hostName: details.host_user_name,
-            hostAvatarUrl: details.host_user_profile_picture_url ?? null,
-            status,
-            bucket: isPast ? "past" : "upcoming",
-          });
-        }
-      }
-
-      // 2. Hosted rides
-      if (hostedRes.status === "fulfilled" && Array.isArray(hostedRes.value)) {
-        for (const r of hostedRes.value) {
-          if (r.is_user_host === false) continue;
-          const startAt = r.start_time ? new Date(r.start_time) : new Date(0);
-          const isPast = startAt.getTime() < now.getTime();
-          collected.push({
-            id: `host-${r.ride_id || r.id || Math.random()}`,
-            rideId: r.ride_id || r.id,
-            origin: r.start_location || "Unknown",
-            destination: r.end_location || "Unknown",
-            startAt,
-            price: r.total_price,
-            totalSeats: r.total_seats,
-            bookedSeats: r.booked_seats,
-            status: isPast ? "past" : "hosting",
-            bucket: isPast ? "past" : "hosting",
-          });
-        }
-      }
+            return {
+              id: `${status === "hosting" ? "host" : "trip"}-${rideId}`,
+              rideId,
+              origin: r.start_location || "Unknown",
+              destination: r.end_location || "Unknown",
+              startAt,
+              price: r.total_price !== undefined ? Number(r.total_price) : undefined,
+              totalSeats: r.total_seats,
+              bookedSeats: r.booked_seats,
+              hostName: r.host_user_name,
+              hostAvatarUrl: r.host_user_profile_picture_url ?? null,
+              status,
+              bucket,
+              ...labels,
+            };
+          })
+        : [];
 
       // De-dupe by rideId (same ride could appear in both lists)
       const seen = new Set<string>();
@@ -182,47 +198,64 @@ const BookingsScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return undefined;
+      }
       fetchAllUserRides(true);
     }, [fetchAllUserRides]),
   );
 
-  // Soonest upcoming ride for the "Up next" hero. Must start within 24h to
-  // earn the slot — otherwise the hero would always be the next future
-  // event, even weeks out, which feels untruthful.
-  const upNext = useMemo<TripItem | null>(() => {
-    const candidates = trips
-      .filter((t) => (t.bucket === "upcoming" || t.bucket === "hosting") && t.status !== "cancelled")
-      .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
-    if (!candidates.length) return null;
-    const first = candidates[0];
-    const diffMs = first.startAt.getTime() - Date.now();
-    if (diffMs > 24 * 60 * 60 * 1000) return null;
-    return first;
-  }, [trips]);
+  const tripPresentation = useMemo(() => {
+    const buckets: TripBuckets = {
+      upcoming: [],
+      hosting: [],
+      past: [],
+    };
+    let soonestCandidate: TripItem | null = null;
 
-  const tabbed = useMemo(() => {
-    const filtered = trips.filter((t) => t.bucket === tab);
-    return filtered.sort((a, b) =>
-      tab === "past"
-        ? b.startAt.getTime() - a.startAt.getTime()
-        : a.startAt.getTime() - b.startAt.getTime()
-    );
-  }, [trips, tab]);
+    for (const trip of trips) {
+      buckets[trip.bucket].push(trip);
+      if (
+        trip.status !== "cancelled" &&
+        (trip.bucket === "upcoming" || trip.bucket === "hosting") &&
+        (!soonestCandidate || trip.startAt.getTime() < soonestCandidate.startAt.getTime())
+      ) {
+        soonestCandidate = trip;
+      }
+    }
 
-  const counts = useMemo(() => {
+    buckets.upcoming.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+    buckets.hosting.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+    buckets.past.sort((a, b) => b.startAt.getTime() - a.startAt.getTime());
+
+    let upNext: TripItem | null = null;
+    if (soonestCandidate) {
+      const diffMs = soonestCandidate.startAt.getTime() - Date.now();
+      upNext = diffMs <= 24 * 60 * 60 * 1000 ? soonestCandidate : null;
+    }
+
     return {
-      upcoming: trips.filter((t) => t.bucket === "upcoming").length,
-      hosting: trips.filter((t) => t.bucket === "hosting").length,
-      past: trips.filter((t) => t.bucket === "past").length,
+      buckets,
+      counts: {
+        upcoming: buckets.upcoming.length,
+        hosting: buckets.hosting.length,
+        past: buckets.past.length,
+      },
+      upNext,
     };
   }, [trips]);
 
-  const navigateToRide = (rideId?: string) => {
+  const upNext = tripPresentation.upNext;
+  const tabbed = tripPresentation.buckets[tab];
+  const counts = tripPresentation.counts;
+
+  const navigateToRide = useCallback((rideId?: string) => {
     if (!rideId) return;
     router.navigate(appHref("RideDetailsScreen", { rideId: String(rideId) }));
-  };
+  }, [router]);
 
-  const navigateToChat = (rideId?: string, route?: string, destination?: string) => {
+  const navigateToChat = useCallback((rideId?: string, route?: string, destination?: string) => {
     if (!rideId) return;
     // Prefer the short "Trip to <destination>" title — consistent
     // with TripInfo openChat. Falls back to the full route string
@@ -238,39 +271,37 @@ const BookingsScreen: React.FC = () => {
       // title, matches the rest of the entry points.
       isGroupChat: true,
     }));
-  };
+  }, [router]);
 
-  const renderTrip: ListRenderItem<TripItem> = ({ item }) => {
+  const renderTrip = useCallback<ListRenderItem<TripItem>>(({ item }) => {
     const seats =
       item.totalSeats !== undefined && item.bookedSeats !== undefined
         ? `${item.bookedSeats}/${item.totalSeats}`
         : "0/0";
-    const date = item.startAt
-      ? item.startAt.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })
-      : "";
-    const time = item.startAt
-      ? item.startAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-      : "";
     return (
       <RideCard
         id={item.rideId || item.id}
         origin={item.origin}
         destination={item.destination}
-        time={time}
+        time={item.timeLabel}
         price={item.price}
         seatsAvailable={seats}
         totalSeats={item.totalSeats}
-        date={date}
+        date={item.dateLabel}
         status={item.status}
         onSelect={() => navigateToRide(item.rideId)}
         variant="upcoming"
         shareable
-        startTimeIso={item.startAt ? item.startAt.toISOString() : undefined}
+        startTimeIso={item.startTimeIso}
       />
     );
-  };
+  }, [navigateToRide]);
 
-  const renderEmpty = () => {
+  const refreshTrips = useCallback(() => {
+    void fetchAllUserRides(true);
+  }, [fetchAllUserRides]);
+
+  const renderEmpty = useCallback(() => {
     const cfg =
       tab === "upcoming"
         ? {
@@ -353,9 +384,9 @@ const BookingsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
     );
-  };
+  }, [requireAuth, router, tab]);
 
-  const renderTab = (key: Tab, label: string, count: number) => {
+  const renderTab = useCallback((key: Tab, label: string, count: number) => {
     const active = tab === key;
     return (
       <TouchableOpacity
@@ -406,7 +437,59 @@ const BookingsScreen: React.FC = () => {
         ) : null}
       </TouchableOpacity>
     );
-  };
+  }, [requireAuth, router, tab]);
+
+  const listHeader = useMemo(() => (
+    <>
+      {upNext ? (
+        <UpNextCard
+          origin={upNext.origin}
+          destination={upNext.destination}
+          startTime={upNext.startAt}
+          hostName={upNext.hostName}
+          hostAvatarUrl={upNext.hostAvatarUrl}
+          isHost={upNext.status === "hosting"}
+          onChat={() => navigateToChat(upNext.rideId, `${upNext.origin} → ${upNext.destination}`, upNext.destination)}
+          onOpen={() => navigateToRide(upNext.rideId)}
+        />
+      ) : null}
+
+      <View
+        style={{
+          flexDirection: "row",
+          gap: 6,
+          marginBottom: 16,
+          paddingVertical: 4,
+        }}
+      >
+        {renderTab("upcoming", "Upcoming", counts.upcoming)}
+        {renderTab("hosting", "Hosting", counts.hosting)}
+        {renderTab("past", "Past", counts.past)}
+      </View>
+
+      {error ? (
+        <View
+          style={{
+            backgroundColor: AppColors.cardSurface,
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 14,
+          }}
+        >
+          <Text
+            style={{
+              color: AppColors.basicRed,
+              fontFamily: "NunitoSans_600SemiBold",
+              fontSize: 14,
+              textAlign: "center",
+            }}
+          >
+            {error}
+          </Text>
+        </View>
+      ) : null}
+    </>
+  ), [counts.hosting, counts.past, counts.upcoming, error, navigateToChat, navigateToRide, renderTab, upNext]);
 
   if (loading) {
     return (
@@ -441,74 +524,22 @@ const BookingsScreen: React.FC = () => {
         </View>
       </View>
 
-      <ScrollView
+      <FlatList
+        data={tabbed}
+        keyExtractor={(t) => t.id}
+        renderItem={renderTrip}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={renderEmpty}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        updateCellsBatchingPeriod={48}
+        windowSize={7}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => fetchAllUserRides(true)} />
+          <RefreshControl refreshing={refreshing} onRefresh={refreshTrips} />
         }
-      >
-        {/* Up Next hero — only when something's starting in 24h */}
-        {upNext ? (
-          <UpNextCard
-            origin={upNext.origin}
-            destination={upNext.destination}
-            startTime={upNext.startAt}
-            hostName={upNext.hostName}
-            hostAvatarUrl={upNext.hostAvatarUrl}
-            isHost={upNext.status === "hosting"}
-            onChat={() => navigateToChat(upNext.rideId, `${upNext.origin} → ${upNext.destination}`, upNext.destination)}
-            onOpen={() => navigateToRide(upNext.rideId)}
-          />
-        ) : null}
-
-        {/* Tab bar */}
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 6,
-            marginBottom: 16,
-            paddingVertical: 4,
-          }}
-        >
-          {renderTab("upcoming", "Upcoming", counts.upcoming)}
-          {renderTab("hosting", "Hosting", counts.hosting)}
-          {renderTab("past", "Past", counts.past)}
-        </View>
-
-        {error ? (
-          <View
-            style={{
-              backgroundColor: AppColors.cardSurface,
-              borderRadius: 12,
-              padding: 14,
-              marginBottom: 14,
-            }}
-          >
-            <Text
-              style={{
-                color: AppColors.basicRed,
-                fontFamily: "NunitoSans_600SemiBold",
-                fontSize: 14,
-                textAlign: "center",
-              }}
-            >
-              {error}
-            </Text>
-          </View>
-        ) : null}
-
-        {tabbed.length === 0 ? (
-          renderEmpty()
-        ) : (
-          <FlatList
-            scrollEnabled={false}
-            data={tabbed}
-            keyExtractor={(t) => t.id}
-            renderItem={renderTrip}
-          />
-        )}
-      </ScrollView>
+      />
     </View>
   );
 };

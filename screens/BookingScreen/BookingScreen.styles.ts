@@ -31,8 +31,6 @@ const styles = StyleSheet.create({
     width: "100%",
     backgroundColor: AppColors.primaryLightGreen,
   },
-
-  // ---- Header (title + subtitle on lime canvas) ----
   header: {
     paddingHorizontal: 20,
     paddingBottom: 10,
@@ -107,8 +105,37 @@ const styles = StyleSheet.create({
   cardSlot: {
     marginBottom: 14,
   },
-
-  // ---- Empty state ----
+  ratePill: {
+    marginTop: 10,
+    marginLeft: 4,
+    alignSelf: "flex-start",
+    backgroundColor: AppColors.primaryLightGreen,
+    borderWidth: 1.5,
+    borderColor: AppColors.secondaryDarkGreen,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  ratePillStar: {
+    fontSize: 13,
+    lineHeight: 14,
+  },
+  ratePillText: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 12.5,
+    color: AppColors.secondaryDarkGreen,
+    letterSpacing: 0.2,
+  },
+  ratePillArrow: {
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 12,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.55,
+    marginLeft: -2,
+  },
   emptyWrap: {
     flex: 1,
     alignItems: "center",
@@ -139,8 +166,6 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_800ExtraBold",
     letterSpacing: 0.2,
   },
-
-  // ---- Error state ----
   errorWrap: {
     flex: 1,
     justifyContent: "center",
@@ -153,8 +178,6 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_700Bold",
     textAlign: "center",
   },
-
-  // ---- Airplane decoration (empty state only) ----
   airplaneWrap: {
     position: "absolute",
     bottom: MAIN_NAV_BAR_TOP_OFFSET,

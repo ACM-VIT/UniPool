@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -52,6 +52,7 @@ type ChatRoom = {
   host_user_name: string;
   host_profile_picture_url?: string;
   host_is_verified?: boolean;
+  chat_name?: string;
   viewer_role:
     | "host"
     | "confirmed_passenger"
@@ -67,6 +68,17 @@ type ChatRoom = {
     sender_id: string;
     timestamp: string;
   };
+};
+
+type ChatRoomRow = ChatRoom & {
+  role: ReturnType<typeof roleBadge>;
+  preview: string;
+  ts: string;
+  tripDateTime: { time: string; date: string };
+  unread: boolean;
+  isPending: boolean;
+  showRolePill: boolean;
+  hostFirstName: string;
 };
 
 // Host-only section returned by /chats/me — one row per pending
@@ -96,16 +108,62 @@ type Props = {
   setNavBarVariant?: (variant: 0 | 1 | 2) => void;
 };
 
+const chatListTimeFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return null;
+  }
+})();
+
+const chatListShortDateFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      day: "2-digit",
+      month: "short",
+    });
+  } catch {
+    return null;
+  }
+})();
+
+const chatListTripDateFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return null;
+  }
+})();
+
+const chatListTripTimeFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+  } catch {
+    return null;
+  }
+})();
+
 const formatTimestamp = (iso: string): string => {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
   const now = new Date();
   const same = d.toDateString() === now.toDateString();
-  if (same) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (same) return chatListTimeFormatter?.format(d) ?? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const yest = new Date(now);
   yest.setDate(now.getDate() - 1);
   if (d.toDateString() === yest.toDateString()) return "Yesterday";
-  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
+  return chatListShortDateFormatter?.format(d) ?? d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
 };
 
 // Trip departure time + date for the card's right column. Mirrors
@@ -114,10 +172,8 @@ const formatTimestamp = (iso: string): string => {
 const formatTripDateTime = (iso: string): { time: string; date: string } => {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return { time: "", date: "" };
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  const time = `${hh}:${mm} hrs`;
-  const date = d.toLocaleDateString(undefined, {
+  const time = `${chatListTripTimeFormatter?.format(d) ?? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`} hrs`;
+  const date = chatListTripDateFormatter?.format(d) ?? d.toLocaleDateString(undefined, {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -212,16 +268,17 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
     }, [load]),
   );
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await load();
     setRefreshing(false);
-  };
+  }, [load]);
 
-  const openPendingRequest = (pr: PendingRequestRow) => {
+  const openPendingRequest = useCallback((pr: PendingRequestRow) => {
     router.navigate(appHref("ChatMessages", {
       chatId: pr.dm_room_id,
       chatTitle: pr.requester_name || "Pending request",
+      userId: viewerUserId || undefined,
       // No subtitle — route + date now live in the centered empty-
       // state card on the chat screen so the header stays light.
       // The receiving screen reads pendingRideStartLocation / End /
@@ -244,9 +301,9 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
       pendingRideStartTime: pr.ride_start_time,
       hostPendingRequestBookingId: pr.booking_id,
     } as any));
-  };
+  }, [router, viewerUserId]);
 
-  const openChat = (room: ChatRoom) => {
+  const openChat = useCallback((room: ChatRoom) => {
     // Pending passengers haven't joined the ride yet — they shouldn't
     // see (or be able to message into) the group thread. Route them to
     // a 1:1 DM with the host instead, using the existing
@@ -256,6 +313,7 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
       router.navigate(appHref("ChatMessages", {
         chatId: makeDMRoomId(viewerUserId, room.host_user_id),
         chatTitle: room.host_user_name || "Host",
+        userId: viewerUserId || undefined,
         // Subtitle dropped — route + date are now shown by the
         // centered empty-state card on the chat screen.
         isGroupChat: false,
@@ -280,7 +338,8 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
       // in a narrow chat header, and matches how passengers + hosts
       // actually talk about the trip ("the SFO → Powell trip" reads
       // as awkward in conversation; "the Powell trip" doesn't).
-      chatTitle: shortDest ? `Trip to ${shortDest}` : "Trip",
+      chatTitle: room.chat_name || (shortDest ? `Trip to ${shortDest}` : "Trip"),
+      userId: viewerUserId || undefined,
       // No subtitle — the previous "WED, MAY 20" date below the
       // title felt like trip metadata mid-conversation. The chat
       // header should be just the trip identity; details live one
@@ -288,30 +347,43 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
       isGroupChat: true,
       hostUserId: room.host_user_id,
       viewerRole: room.viewer_role,
+      notificationsMuted: !!room.notifications_muted,
     } as any));
-  };
+  }, [router, viewerUserId]);
 
-  const renderRow = ({ item }: { item: ChatRoom }) => {
-    const role = roleBadge(item.viewer_role);
-    const lastMsg = item.last_message;
-    const preview = lastMsg
-      ? `${item.viewer_role === "host" || lastMsg.sender_id === item.host_user_id ? "" : lastMsg.sender + ": "}${lastMsg.content}`
-      : "No messages yet";
-    const ts = lastMsg ? formatTimestamp(lastMsg.timestamp) : "";
-    const tripDateTime = formatTripDateTime(item.start_time);
-    const unread = !!item.unread_count && item.unread_count > 0;
-    const isPending = item.viewer_role === "pending_passenger";
-    // DECLINED still needs a label — the user has to know their
-    // request was actively rejected. Pending uses a whole-card visual
-    // treatment instead of a pill.
-    const showRolePill = !!role && item.viewer_role !== "pending_passenger" && item.viewer_role !== "host";
-    const hostFirstName =
-      (item.host_user_name || "").trim().split(/\s+/)[0] || "the host";
+  const chatRows = useMemo<ChatRoomRow[]>(
+    () =>
+      chats.map((room) => {
+        const role = roleBadge(room.viewer_role);
+        const lastMsg = room.last_message;
+        const isPending = room.viewer_role === "pending_passenger";
+        return {
+          ...room,
+          role,
+          preview: lastMsg
+            ? `${room.viewer_role === "host" || lastMsg.sender_id === room.host_user_id ? "" : `${lastMsg.sender}: `}${lastMsg.content}`
+            : "No messages yet",
+          ts: lastMsg ? formatTimestamp(lastMsg.timestamp) : "",
+          tripDateTime: formatTripDateTime(room.start_time),
+          unread: !!room.unread_count && room.unread_count > 0,
+          isPending,
+          // DECLINED still needs a label — the user has to know their
+          // request was actively rejected. Pending uses a whole-card visual
+          // treatment instead of a pill.
+          showRolePill: !!role && room.viewer_role !== "pending_passenger" && room.viewer_role !== "host",
+          hostFirstName: (room.host_user_name || "").trim().split(/\s+/)[0] || "the host",
+        };
+      }),
+    [chats],
+  );
+
+  const renderRow = useCallback(({ item }: { item: ChatRoomRow }) => {
+    const role = item.role;
 
     return (
       <TouchableOpacity
         activeOpacity={0.85}
-        style={[styles.card, isPending && styles.cardPending]}
+        style={[styles.card, item.isPending && styles.cardPending]}
         onPress={() => openChat(item)}
       >
         <View style={styles.topContainer}>
@@ -322,7 +394,7 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
           <View style={styles.routeContainer}>
             <RouteStack
               tone="onLime"
-              accentColor={isPending ? "#D24432" : AppColors.secondaryDarkGreen}
+              accentColor={item.isPending ? "#D24432" : AppColors.secondaryDarkGreen}
               start={item.start_location}
               end={item.end_location}
               numberOfLines={2}
@@ -337,10 +409,10 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
           <View style={styles.detailsContainer}>
             <View style={styles.timeContainer}>
               <Image source={clockIcon} style={styles.timeIcon} resizeMode="contain" />
-              <Text style={styles.detailText}>{tripDateTime.time}</Text>
+              <Text style={styles.detailText}>{item.tripDateTime.time}</Text>
             </View>
-            <Text style={styles.dateText}>{tripDateTime.date}</Text>
-            {!isPending && showRolePill ? (
+            <Text style={styles.dateText}>{item.tripDateTime.date}</Text>
+            {!item.isPending && item.showRolePill && role ? (
               <View style={[styles.rolePill, { backgroundColor: role.bg }]}>
                 <Text style={[styles.rolePillText, { color: role.fg }]}>{role.label}</Text>
               </View>
@@ -351,31 +423,31 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
         {/* Bottom sub-cell. For pending, this becomes a clear
             "tap to message host" CTA — the entire point of the row.
             For confirmed/hosting, it's the last-message preview. */}
-        {isPending ? (
+        {item.isPending ? (
           <View style={[styles.bottomContainer, styles.bottomContainerPending]}>
             <View style={styles.pendingCtaIcon}>
               <Text style={styles.pendingCtaIconGlyph}>›</Text>
             </View>
             <Text style={styles.pendingCtaText} numberOfLines={2}>
-              Message {hostFirstName} while you wait for approval
+              Message {item.hostFirstName} while you wait for approval
             </Text>
           </View>
         ) : (
           <View style={styles.bottomContainer}>
             <Text
-              style={[styles.preview, unread && styles.previewUnread]}
+              style={[styles.preview, item.unread && styles.previewUnread]}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
-              {preview}
+              {item.preview}
             </Text>
             <View style={styles.bottomRight}>
-              {ts ? (
-                <Text style={[styles.previewTimestamp, unread && styles.previewTimestampUnread]}>
-                  {ts}
+              {item.ts ? (
+                <Text style={[styles.previewTimestamp, item.unread && styles.previewTimestampUnread]}>
+                  {item.ts}
                 </Text>
               ) : null}
-              {unread ? (
+              {item.unread ? (
                 <View style={styles.unreadBadge}>
                   <Text style={styles.unreadText}>
                     {(item.unread_count || 0) > 99 ? "99+" : item.unread_count}
@@ -387,12 +459,38 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
         )}
       </TouchableOpacity>
     );
-  };
+  }, [openChat]);
 
-  const unreadTotal = chats.reduce(
-    (sum, c) => sum + (c.unread_count || 0),
-    0,
+  const unreadTotal = useMemo(
+    () => chatRows.reduce((sum, c) => sum + (c.unread_count || 0), 0),
+    [chatRows],
   );
+
+  const pendingListHeader = useMemo(() => {
+    if (pendingRequests.length === 0) return null;
+    return (
+      <View style={styles.pendingSection}>
+        {/* Count pill removed — the count is visible at a
+            glance from the cards below it, and the orange
+            pill clashed with the rest of the app's quieter
+            section headers. */}
+        <Text style={styles.pendingSectionTitle}>
+          Pending requests
+        </Text>
+        {pendingRequests.map((pr, idx) => (
+          <PendingRequestCard
+            key={pr.booking_id}
+            request={pr}
+            isLast={idx === pendingRequests.length - 1}
+            onPress={() => openPendingRequest(pr)}
+          />
+        ))}
+        {chatRows.length > 0 ? (
+          <Text style={styles.activeChatsLabel}>Active chats</Text>
+        ) : null}
+      </View>
+    );
+  }, [chatRows.length, openPendingRequest, pendingRequests]);
 
   return (
     <View style={styles.container}>
@@ -421,7 +519,7 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
 
       {loading ? (
         <LoadingComponent />
-      ) : chats.length === 0 && pendingRequests.length === 0 ? (
+      ) : chatRows.length === 0 && pendingRequests.length === 0 ? (
         <EmptyState
           // Cropped emoji-only version — the full no-rides.png has
           // "Uh Oh! No Rides Available" baked into the image, which
@@ -435,7 +533,7 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
         />
       ) : (
         <FlatList
-          data={chats}
+          data={chatRows}
           keyExtractor={(it) => it.id}
           renderItem={renderRow}
           initialNumToRender={8}
@@ -443,33 +541,10 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
           updateCellsBatchingPeriod={40}
           windowSize={7}
           removeClippedSubviews
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ItemSeparatorComponent={ChatListSeparator}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            pendingRequests.length > 0 ? (
-              <View style={styles.pendingSection}>
-                {/* Count pill removed — the count is visible at a
-                    glance from the cards below it, and the orange
-                    pill clashed with the rest of the app's quieter
-                    section headers. */}
-                <Text style={styles.pendingSectionTitle}>
-                  Pending requests
-                </Text>
-                {pendingRequests.map((pr, idx) => (
-                  <PendingRequestCard
-                    key={pr.booking_id}
-                    request={pr}
-                    isLast={idx === pendingRequests.length - 1}
-                    onPress={() => openPendingRequest(pr)}
-                  />
-                ))}
-                {chats.length > 0 ? (
-                  <Text style={styles.activeChatsLabel}>Active chats</Text>
-                ) : null}
-              </View>
-            ) : null
-          }
+          ListHeaderComponent={pendingListHeader}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -483,6 +558,10 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
     </View>
   );
 };
+
+function ChatListSeparator() {
+  return <View style={styles.separator} />;
+}
 
 // Compact card surfaced under "Pending requests" on the host's chat
 // list. One row per requester awaiting an accept/reject decision; tap

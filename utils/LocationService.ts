@@ -2,6 +2,11 @@ import "expo-sqlite/localStorage/install";
 import * as Location from "expo-location";
 import baseURL from "../config/urlconfig";
 
+const DEBUG_LOCATION_SERVICE =
+  typeof __DEV__ !== "undefined" &&
+  __DEV__ &&
+  process.env.EXPO_PUBLIC_DEBUG_LOCATION_SERVICE === "1";
+
 // -----------------------------------------------------------------------------
 // Interfaces and Types
 // -----------------------------------------------------------------------------
@@ -3797,7 +3802,9 @@ type BackendLocationCacheEntry = {
 const LOCATION_SEARCH_CACHE_PREFIX = "unipool:location-search:v1:"
 const LOCATION_SEARCH_TTL_MS = 12 * 60 * 60_000
 const LOCATION_SEARCH_MEMORY_MAX = 150
+const SEARCH_CACHE_MEMORY_MAX = 200
 const backendLocationSearchCache = new Map<string, BackendLocationCacheEntry>()
+const backendLocationSearchInflight = new Map<string, Promise<LocationResult[]>>()
 
 const hashLocationSearch = (input: string) => {
   let hash = 2166136261
@@ -3899,6 +3906,34 @@ const normalizeSearch = (value: string) =>
 const safeNumber = (value: string | number): number | null => {
   const num = typeof value === "number" ? value : Number(value)
   return Number.isFinite(num) ? num : null
+}
+
+const searchLocationBucket = (userLocation?: UserLocation) => {
+  const effectiveLocation = getEffectiveLocation(userLocation)
+  if (!effectiveLocation) return "no-location"
+  return `${effectiveLocation.latitude.toFixed(3)},${effectiveLocation.longitude.toFixed(3)}`
+}
+
+const searchCacheKey = (prefix: string, query: string, region: string | undefined, limit: number) =>
+  `${prefix}:${normalizeSearch(query)}:${normalizeSearch(region ?? "global")}:${limit}`
+
+const mergedSearchCacheKey = (
+  query: string,
+  region: string | undefined,
+  limit: number,
+  userLocation?: UserLocation,
+  options: LocationSearchOptions = {}
+) =>
+  `${searchCacheKey("merged", query, region, limit)}:${searchLocationBucket(userLocation)}:${options.includeCurrentLocation !== false}`
+
+const setSearchCacheEntry = (key: string, results: LocationResult[]) => {
+  if (searchCache.has(key)) searchCache.delete(key)
+  searchCache.set(key, results)
+  while (searchCache.size > SEARCH_CACHE_MEMORY_MAX) {
+    const oldestKey = searchCache.keys().next().value
+    if (!oldestKey) break
+    searchCache.delete(oldestKey)
+  }
 }
 
 const distanceKm = (from: UserLocation, to: { latitude: number; longitude: number }) => {
@@ -4092,12 +4127,38 @@ const searchBackendLocations = async (
     return cached
   }
 
-  const response = await fetch(`${baseURL}/locations/search?${params.toString()}`, { signal })
-  if (!response.ok) throw new Error(`Location search failed: ${response.status}`)
-  const json = await response.json()
-  const locations = Array.isArray(json?.locations) ? json.locations : []
-  writeBackendLocationSearchCache(cacheKey, locations)
-  return locations
+  const requestUrl = `${baseURL}/locations/search?${params.toString()}`
+  const loadLocations = async (requestSignal?: AbortSignal) => {
+    const response = await fetch(requestUrl, requestSignal ? { signal: requestSignal } : undefined)
+    if (!response.ok) throw new Error(`Location search failed: ${response.status}`)
+    const json = await response.json()
+    const locations = Array.isArray(json?.locations) ? json.locations : []
+    writeBackendLocationSearchCache(cacheKey, locations)
+    return locations
+  }
+
+  if (signal) {
+    return loadLocations(signal)
+  }
+
+  const existing = backendLocationSearchInflight.get(cacheKey)
+  if (existing) return existing
+
+  const promise = loadLocations()
+  backendLocationSearchInflight.set(cacheKey, promise)
+  promise.then(
+    () => {
+      if (backendLocationSearchInflight.get(cacheKey) === promise) {
+        backendLocationSearchInflight.delete(cacheKey)
+      }
+    },
+    () => {
+      if (backendLocationSearchInflight.get(cacheKey) === promise) {
+        backendLocationSearchInflight.delete(cacheKey)
+      }
+    }
+  )
+  return promise
 }
 
 // -----------------------------------------------------------------------------
@@ -4111,12 +4172,12 @@ export const getCoordinatesForLocation = async (
   locationName: string,
   cityName?: string
 ): Promise<{lat: number, lon: number} | null> => {
-  console.log(`Getting coordinates for: "${locationName}"`)
+  if (DEBUG_LOCATION_SERVICE) console.log(`Getting coordinates for: "${locationName}"`)
   
   const cacheKey = locationName.toLowerCase().trim()
   
   if (geocodingCache.has(cacheKey)) {
-    console.log(`Using cached coordinates for: ${locationName}`)
+    if (DEBUG_LOCATION_SERVICE) console.log(`Using cached coordinates for: ${locationName}`)
     return geocodingCache.get(cacheKey)!
   }
   
@@ -4126,7 +4187,7 @@ export const getCoordinatesForLocation = async (
       const locationCoords = cityCoords[locationName as keyof typeof cityCoords] as { lat: number, lon: number } | undefined
       if (locationCoords) {
         const coords = { lat: locationCoords.lat, lon: locationCoords.lon }
-        console.log(`Using hardcoded coordinates for "${locationName}": (${coords.lat}, ${coords.lon})`)
+        if (DEBUG_LOCATION_SERVICE) console.log(`Using hardcoded coordinates for "${locationName}": (${coords.lat}, ${coords.lon})`)
         geocodingCache.set(cacheKey, coords)
         return coords
       }
@@ -4134,7 +4195,7 @@ export const getCoordinatesForLocation = async (
   }
   
   try {
-    console.log(`Trying native geocoding for: "${locationName}"`)
+    if (DEBUG_LOCATION_SERVICE) console.log(`Trying native geocoding for: "${locationName}"`)
     const searchQuery = cityName ? `${locationName}, ${cityName}, India` : `${locationName}, India`
     const results = await Location.geocodeAsync(searchQuery)
     
@@ -4145,7 +4206,7 @@ export const getCoordinatesForLocation = async (
       
       if (isInIndiaBounds) {
         const coords = { lat: latitude, lon: longitude }
-        console.log(`Native geocoding success for "${locationName}": (${latitude}, ${longitude})`)
+        if (DEBUG_LOCATION_SERVICE) console.log(`Native geocoding success for "${locationName}": (${latitude}, ${longitude})`)
         
         geocodingCache.set(cacheKey, coords)
         return coords
@@ -4153,14 +4214,14 @@ export const getCoordinatesForLocation = async (
         console.warn(`Native geocoding returned coordinates outside India for "${locationName}": (${latitude}, ${longitude})`)
       }
     } else {
-      console.log(`No results from native geocoding for: "${locationName}"`)
+      if (DEBUG_LOCATION_SERVICE) console.log(`No results from native geocoding for: "${locationName}"`)
     }
   } catch (error) {
     console.warn(`Native geocoding failed for "${locationName}":`, error)
   }
   
   try {
-    console.log(`Trying OpenStreetMap fallback for: "${locationName}"`)
+    if (DEBUG_LOCATION_SERVICE) console.log(`Trying OpenStreetMap fallback for: "${locationName}"`)
     const searchQuery = cityName ? `${locationName}, ${cityName}, India` : locationName
     const osmResults = await searchLocations(searchQuery, "India", 1)
     
@@ -4173,7 +4234,7 @@ export const getCoordinatesForLocation = async (
       
       if (isInIndiaBounds) {
         const coords = { lat, lon }
-        console.log(`OpenStreetMap fallback success for "${locationName}": (${lat}, ${lon})`)
+        if (DEBUG_LOCATION_SERVICE) console.log(`OpenStreetMap fallback success for "${locationName}": (${lat}, ${lon})`)
         
         geocodingCache.set(cacheKey, coords)
         return coords
@@ -4181,7 +4242,7 @@ export const getCoordinatesForLocation = async (
         console.warn(`OpenStreetMap returned coordinates outside India for "${locationName}": (${lat}, ${lon})`)
       }
     } else {
-      console.log(`No results from OpenStreetMap for: "${locationName}"`)
+      if (DEBUG_LOCATION_SERVICE) console.log(`No results from OpenStreetMap for: "${locationName}"`)
     }
   } catch (error) {
     console.warn(`OpenStreetMap fallback failed for "${locationName}":`, error)
@@ -4189,7 +4250,7 @@ export const getCoordinatesForLocation = async (
   
   const knownCoords = getCityCoordinates(locationName)
   if (knownCoords.lat !== 12.9716 || knownCoords.lon !== 77.5946) {
-    console.log(`Using known city coordinates for "${locationName}": (${knownCoords.lat}, ${knownCoords.lon})`)
+    if (DEBUG_LOCATION_SERVICE) console.log(`Using known city coordinates for "${locationName}": (${knownCoords.lat}, ${knownCoords.lon})`)
     geocodingCache.set(cacheKey, knownCoords)
     return knownCoords
   }
@@ -4361,7 +4422,7 @@ export const searchLocations = async (
   region?: string,
   limit = 10
 ): Promise<LocationResult[]> => {
-  const cacheKey = `${query}_${region ?? "global"}_${limit}`
+  const cacheKey = searchCacheKey("osm", query, region, limit)
   if (searchCache.has(cacheKey)) {
     return searchCache.get(cacheKey)!
   }
@@ -4394,7 +4455,7 @@ export const searchLocations = async (
       name: item.name || item.display_name?.split(',')[0],
     }))
 
-    searchCache.set(cacheKey, results)
+    setSearchCacheEntry(cacheKey, results)
     return results
   } catch (error) {
     console.error("Error searching locations:", error)
@@ -4412,6 +4473,11 @@ export const searchLocationsWithFallback = async (
   signal?: AbortSignal,
   options: LocationSearchOptions = {}
 ): Promise<LocationResult[]> => {
+  const cacheKey = mergedSearchCacheKey(query, region, limit, userLocation, options)
+  if (searchCache.has(cacheKey)) {
+    return searchCache.get(cacheKey)!
+  }
+
   const localResults = getInstantLocationResults(query, userLocation, limit, options)
 
   try {
@@ -4423,7 +4489,7 @@ export const searchLocationsWithFallback = async (
       limit
     )
     if (merged.length > 0) {
-      searchCache.set(`${query}_${region ?? "global"}_${limit}`, merged)
+      setSearchCacheEntry(cacheKey, merged)
       return merged
     }
 
@@ -4437,15 +4503,19 @@ export const searchLocationsWithFallback = async (
         limit
       )
       if (broaderMerged.length > 0) {
+        setSearchCacheEntry(cacheKey, broaderMerged)
         return broaderMerged
       }
     }
 
     if (query.trim().length >= 3) {
       const osmResults = await searchLocations(query, region, limit)
-      return dedupeAndRankLocations([...localResults, ...osmResults], query, userLocation, limit)
+      const fallbackResults = dedupeAndRankLocations([...localResults, ...osmResults], query, userLocation, limit)
+      setSearchCacheEntry(cacheKey, fallbackResults)
+      return fallbackResults
     }
 
+    setSearchCacheEntry(cacheKey, localResults)
     return localResults
   } catch (error) {
     if ((error as any)?.name === "AbortError") {
@@ -4468,7 +4538,7 @@ export const getPopularLocations = async (
   userLocation?: UserLocation,
   options: LocationSearchOptions = {}
 ): Promise<LocationResult[]> => {
-  const cacheKey = `${searchQuery}_${userLocation?.latitude}_${userLocation?.longitude}_${options.includeCurrentLocation !== false}`
+  const cacheKey = `popular:${normalizeSearch(searchQuery)}:${searchLocationBucket(userLocation)}:${options.includeCurrentLocation !== false}`
   
   if (popularLocationsCache.has(cacheKey)) {
     return popularLocationsCache.get(cacheKey)!
@@ -4626,7 +4696,7 @@ export const getNearbyPopularPlaces = async (
   const effectiveLocation = getEffectiveLocation(userLocation)
   if (!effectiveLocation?.latitude || !effectiveLocation?.longitude) return []
 
-  const cacheKey = `${effectiveLocation.latitude},${effectiveLocation.longitude}`
+  const cacheKey = `${effectiveLocation.latitude.toFixed(3)},${effectiveLocation.longitude.toFixed(3)}:${radius}:${categories.join("|")}`
   if (nearbyPlacesCache.has(cacheKey)) {
     return nearbyPlacesCache.get(cacheKey)!
   }

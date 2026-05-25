@@ -32,6 +32,7 @@ const MAX_MEMORY_ENTRIES = 500;
 
 const memoryCache = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<unknown>>();
+let indexCache: CacheIndexEntry[] | null = null;
 
 const now = () => Date.now();
 
@@ -62,17 +63,24 @@ const headersSignature = (headers?: HeadersInit) => {
 };
 
 const readIndex = (): CacheIndexEntry[] => {
+  if (indexCache !== null) return indexCache;
   try {
     const raw = localStorage.getItem(CACHE_INDEX_KEY);
-    if (!raw) return [];
+    if (!raw) {
+      indexCache = [];
+      return indexCache;
+    }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    indexCache = Array.isArray(parsed) ? parsed : [];
+    return indexCache;
   } catch {
-    return [];
+    indexCache = [];
+    return indexCache;
   }
 };
 
 const writeIndex = (entries: CacheIndexEntry[]) => {
+  indexCache = entries;
   try {
     localStorage.setItem(CACHE_INDEX_KEY, JSON.stringify(entries));
   } catch {
@@ -83,26 +91,21 @@ const writeIndex = (entries: CacheIndexEntry[]) => {
 const putIndexEntry = (entry: CacheIndexEntry) => {
   const entries = readIndex().filter((item) => item.key !== entry.key);
   entries.push({ ...entry, cachedAt: now() });
+  entries.sort((a, b) => (b.cachedAt ?? 0) - (a.cachedAt ?? 0));
 
   if (entries.length > MAX_PERSISTED_ENTRIES) {
-    entries
-      .sort((a, b) => (b.cachedAt ?? 0) - (a.cachedAt ?? 0))
-      .slice(MAX_PERSISTED_ENTRIES)
-      .forEach((staleEntry) => {
-        memoryCache.delete(staleEntry.key);
-        try {
-          localStorage.removeItem(staleEntry.key);
-        } catch {
-          // Cache eviction is best-effort.
-        }
-      });
+    const staleEntries = entries.splice(MAX_PERSISTED_ENTRIES);
+    staleEntries.forEach((staleEntry) => {
+      memoryCache.delete(staleEntry.key);
+      try {
+        localStorage.removeItem(staleEntry.key);
+      } catch {
+        // Cache eviction is best-effort.
+      }
+    });
   }
 
-  writeIndex(
-    entries
-      .sort((a, b) => (b.cachedAt ?? 0) - (a.cachedAt ?? 0))
-      .slice(0, MAX_PERSISTED_ENTRIES),
-  );
+  writeIndex(entries);
 };
 
 const trimMemoryCache = () => {
@@ -166,29 +169,44 @@ export const cachePolicyForEndpoint = (endpoint: string): CachePolicy => {
     return { enabled: true, ttlMs: 5 * 60_000, staleMs: 24 * 60 * 60_000, persist: true };
   }
 
+  if (cleanEndpoint === "/app/state") {
+    return { enabled: true, ttlMs: 30_000, staleMs: 10 * 60_000, persist: true };
+  }
+
   if (
-    cleanEndpoint === "/app/state" ||
     cleanEndpoint === "/user/rides" ||
     cleanEndpoint === "/booking/list" ||
     cleanEndpoint === "/trip-card/active" ||
     cleanEndpoint === "/user/pending-ratings" ||
-    cleanEndpoint === "/user/notification-prefs" ||
     cleanEndpoint === "/user/passengers" ||
     cleanEndpoint === "/chats/me" ||
     cleanEndpoint === "/rides/involved" ||
     cleanEndpoint === "/passengers/all"
   ) {
-    return { enabled: false, ttlMs: 0, staleMs: 0, persist: false };
+    return { enabled: true, ttlMs: 15_000, staleMs: 5 * 60_000, persist: false };
+  }
+
+  if (cleanEndpoint === "/user/notification-prefs") {
+    return { enabled: true, ttlMs: 60_000, staleMs: 10 * 60_000, persist: false };
+  }
+
+  if (cleanEndpoint === "/rides/nearby" || cleanEndpoint === "/ride/search") {
+    return { enabled: true, ttlMs: 15_000, staleMs: 2 * 60_000, persist: false };
+  }
+
+  if (cleanEndpoint === "/ride/matching-create") {
+    return { enabled: true, ttlMs: 15_000, staleMs: 2 * 60_000, persist: false };
+  }
+
+  if (cleanEndpoint.startsWith("/ride/details/")) {
+    return { enabled: true, ttlMs: 15_000, staleMs: 5 * 60_000, persist: false };
   }
 
   if (
-    cleanEndpoint === "/rides/nearby" ||
-    cleanEndpoint === "/ride/search" ||
-    cleanEndpoint.startsWith("/ride/details/") ||
     /\/ride\/[^/]+\/settings$/.test(cleanEndpoint) ||
     /\/ride\/[^/]+\/chat-mute$/.test(cleanEndpoint)
   ) {
-    return { enabled: false, ttlMs: 0, staleMs: 0, persist: false };
+    return { enabled: true, ttlMs: 15_000, staleMs: 5 * 60_000, persist: false };
   }
 
   if (/^\/user\/[^/?]+$/.test(cleanEndpoint)) {
@@ -258,9 +276,10 @@ export const writeCache = <T>(
 
   memoryCache.set(key, entry);
   trimMemoryCache();
-  putIndexEntry({ key, endpoint, userId: entry.userId, cachedAt: cachedAt });
 
   if (!policy.persist) return;
+
+  putIndexEntry({ key, endpoint, userId: entry.userId, cachedAt: cachedAt });
 
   try {
     localStorage.setItem(key, JSON.stringify(entry));

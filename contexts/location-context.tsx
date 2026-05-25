@@ -1,15 +1,27 @@
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   ReactNode,
 } from "react";
 import { AppState, AppStateStatus } from "react-native";
 import * as Location from "expo-location";
+import { scheduleIdleTask, type ScheduledIdleTask } from "../utils/scheduleIdleTask";
 
 type Coords = { latitude: number; longitude: number };
+
+const DEBUG_LOCATION_CONTEXT =
+  typeof __DEV__ !== "undefined" &&
+  __DEV__ &&
+  process.env.EXPO_PUBLIC_DEBUG_LOCATION_CONTEXT === "1";
+
+const debugLog = (...args: any[]) => {
+  if (DEBUG_LOCATION_CONTEXT) console.log(...args);
+};
 
 type LocationContextValue = {
   loading: boolean;
@@ -41,8 +53,13 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchedOnceRef = useRef(false);
   const backgroundRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const locationTextRef = useRef(locationText);
 
-  const fetchLocation = async (retryCount = 0, isBackgroundRetry = false) => {
+  useEffect(() => {
+    locationTextRef.current = locationText;
+  }, [locationText]);
+
+  const fetchLocation = useCallback(async (retryCount = 0, isBackgroundRetry = false) => {
     try {
       if (!isBackgroundRetry) {
         setLoading(true);
@@ -112,21 +129,24 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
     } catch (e) {
       console.error("Location fetch error:", e);
       if (retryCount < 1) {
-        console.log("Retrying location fetch with lower accuracy...");
-        setTimeout(() => fetchLocation(retryCount + 1, isBackgroundRetry), 2000);
+        debugLog("Retrying location fetch after failure...");
+        setTimeout(() => {
+          void fetchLocation(retryCount + 1, isBackgroundRetry);
+        }, 2000);
         return;
       }
       
       setError("Failed to get location");
-      if (!isBackgroundRetry && (!locationText || locationText === "Fetching location...")) {
+      const currentLocationText = locationTextRef.current;
+      if (!isBackgroundRetry && (!currentLocationText || currentLocationText === "Fetching location...")) {
         setLocationText("Failed to get location");
       }
       
       if (!isBackgroundRetry || retryCount < 4) {
         const retryDelay = isBackgroundRetry ? 30000 : 15000;
         backgroundRetryTimeoutRef.current = setTimeout(() => {
-          console.log("Background retry attempt for location...");
-          fetchLocation(0, true);
+          debugLog("Background retry attempt for location...");
+          void fetchLocation(0, true);
         }, retryDelay);
       }
     } finally {
@@ -134,7 +154,7 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
         setLoading(false);
       }
     }
-  };
+  }, []);
 
   // Latest snapshot of whether we currently believe we have coords —
   // used by the AppState listener below to decide if a re-fetch is
@@ -146,9 +166,23 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
   }, [coords]);
 
   useEffect(() => {
+    let initialFetchTimeout: ReturnType<typeof setTimeout> | null = null;
+    let initialFetchTask: ScheduledIdleTask | null = null;
+
     if (!fetchedOnceRef.current) {
       fetchedOnceRef.current = true;
-      void fetchLocation();
+      initialFetchTask = scheduleIdleTask(() => {
+        if (initialFetchTimeout) {
+          clearTimeout(initialFetchTimeout);
+          initialFetchTimeout = null;
+        }
+        void fetchLocation();
+      });
+      initialFetchTimeout = setTimeout(() => {
+        initialFetchTask?.cancel();
+        initialFetchTask = null;
+        void fetchLocation();
+      }, 1500);
     }
 
     // Re-fetch when the app returns to the foreground IF the user has
@@ -177,31 +211,40 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
 
     return () => {
       sub.remove();
+      initialFetchTask?.cancel();
+      if (initialFetchTimeout) {
+        clearTimeout(initialFetchTimeout);
+      }
       if (backgroundRetryTimeoutRef.current) {
         clearTimeout(backgroundRetryTimeoutRef.current);
       }
     };
-  }, []);
+  }, [fetchLocation]);
 
-  const refreshLocation = async () => {
+  const refreshLocation = useCallback(async () => {
     if (backgroundRetryTimeoutRef.current) {
       clearTimeout(backgroundRetryTimeoutRef.current);
       backgroundRetryTimeoutRef.current = null;
     }
     await fetchLocation();
-  };
+  }, [fetchLocation]);
+
+  const value = useMemo(
+    () => ({
+      loading,
+      error,
+      coords,
+      locationText,
+      pincode,
+      lastUpdated,
+      refreshLocation,
+    }),
+    [coords, error, lastUpdated, loading, locationText, pincode, refreshLocation],
+  );
 
   return (
     <LocationContext.Provider
-      value={{
-        loading,
-        error,
-        coords,
-        locationText,
-        pincode,
-        lastUpdated,
-        refreshLocation,
-      }}
+      value={value}
     >
       {children}
     </LocationContext.Provider>

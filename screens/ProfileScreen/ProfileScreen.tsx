@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Image, ScrollView, TouchableOpacity, Platform, StatusBar, Share, Linking } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { ProfileScreenProps } from "./ProfileScreen.types";
@@ -12,6 +12,16 @@ import bottomNavItems from "../../data/BottomNavigationItems";
 import Svg, { G, Path, Defs, ClipPath, Rect } from 'react-native-svg';
 import BrandedAlert from "../../components/BrandedAlert";
 import { appHref } from "../../navigation/routes";
+import { useUser } from "../../contexts/UserContext";
+
+const DEBUG_PROFILE =
+  typeof __DEV__ !== "undefined" &&
+  __DEV__ &&
+  process.env.EXPO_PUBLIC_DEBUG_PROFILE === "1";
+
+const debugLog = (...args: any[]) => {
+  if (DEBUG_PROFILE) console.log(...args);
+};
 
 interface UserData {
   id: string;
@@ -25,6 +35,7 @@ interface UserData {
   profile_picture_url?: string;
   total_bookings?: number;
   total_hosted_rides?: number;
+  completed_trips?: number;
   distance_travelled?: number;
   weight_saved?: number;
 }
@@ -46,11 +57,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [calculatedStats, setCalculatedStats] = useState<{
-    totalDistance: number;
-    co2Saved: number;
-    completedTrips: number;
-  }>({ totalDistance: 0, co2Saved: 0, completedTrips: 0 });
   const { apiUtil } = useApi();
   // iPad-only: phone-shape centred column so the stat cards and
   // account/help/about sections sit in a readable width instead of
@@ -58,6 +64,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   const tabletContentStyle = useTabletContentStyle();
   const tabletScrollContentStyle = useTabletScrollContentStyle();
   const screenActiveRef = useRef(true);
+  const hasFocusedOnceRef = useRef(false);
+  const { user: contextUser, loading: contextUserLoading } = useUser();
 
   const showProfileError = useCallback((message: string) => {
     if (screenActiveRef.current) {
@@ -70,195 +78,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     isActive: index === 3,
   }));
 
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  };
-
-  const calculateCO2Savings = (distanceKm: number, numberOfRides: number): number => {
-    const avgEmissionPerKm = 0.12; // kg CO2 per km
-    const carpoolSavingRate = 0.7; // 70% saving
-    return Math.round(distanceKm * avgEmissionPerKm * carpoolSavingRate);
-  };
-
-  const fetchRideStats = useCallback(async () => {
-    try {
-      const auth = require('@react-native-firebase/auth').getAuth();
-      const currentUser = auth.currentUser;
-      
-      if (!currentUser) {
-        return;
-      }
-
-      console.log("Fetching user rides and bookings for stats calculation...");
-      
-      const [hostedRidesResponse, bookingsResponse] = await Promise.allSettled([
-        apiUtil.getUncached<any>("/user/rides"),
-        apiUtil.getUncached<any>("/booking/list")
-      ]);
-      
-      let totalDistance = 0;
-      let completedRideCount = 0;
-      const now = new Date();
-
-      if (hostedRidesResponse.status === 'fulfilled' && Array.isArray(hostedRidesResponse.value)) {
-        for (const ride of hostedRidesResponse.value) {
-          const startTime = new Date(ride.start_time);
-          const isCompleted = ride.is_ongoing !== 1 && startTime <= now;
-          
-          if (isCompleted && ride.start_location && ride.end_location) {
-            try {
-              let rideDistance = 0;
-              
-              if (ride.start_latitude && ride.start_longitude && 
-                  ride.end_latitude && ride.end_longitude) {
-                rideDistance = calculateDistance(
-                  ride.start_latitude,
-                  ride.start_longitude,
-                  ride.end_latitude,
-                  ride.end_longitude
-                );
-                console.log(`Calculated distance for completed hosted ride: ${rideDistance.toFixed(2)}km for ride ${ride.ride_id}`);
-              } else {
-                const basePrice = ride.total_price || 0;
-                const estimatedDistanceFromPrice = basePrice ? (basePrice / 10) : 0;
-                
-                const locationDistance = estimateDistanceFromLocations(ride.start_location, ride.end_location);
-                
-                rideDistance = Math.max(estimatedDistanceFromPrice, locationDistance);
-                console.log(`Estimated distance for completed hosted ride: ${rideDistance.toFixed(2)}km for ride ${ride.ride_id} (price: ₹${basePrice})`);
-              }
-              
-              if (rideDistance > 0 && rideDistance < 300) {
-                totalDistance += rideDistance;
-                completedRideCount++;
-              } else if (rideDistance >= 300) {
-                console.warn(`Unusually long distance (${rideDistance.toFixed(2)}km) for hosted ride ${ride.ride_id}, capping at 100km`);
-                totalDistance += 100;
-                completedRideCount++;
-              }
-            } catch (error) {
-              console.warn("Error calculating distance for hosted ride:", ride, error);
-            }
-          } else if (!isCompleted) {
-            console.log(`Skipping hosted ride ${ride.ride_id} - not completed (is_ongoing: ${ride.is_ongoing}, start_time: ${ride.start_time})`);
-          }
-        }
-      }
-
-      // Process bookings (rides as passenger)
-      if (bookingsResponse.status === 'fulfilled' && bookingsResponse.value?.bookings) {
-        for (const booking of bookingsResponse.value.bookings) {
-          // Check if booking is accepted and ride is completed
-          const isAccepted = booking.request_status === 'accepted';
-          const startTime = new Date(booking.ride_details?.start_time || booking.ride?.start_time);
-          const isRideCompleted = (booking.ride_details?.is_ongoing !== 1 || booking.ride?.is_ongoing !== 1) && startTime <= now;
-          
-          if (isAccepted && isRideCompleted) {
-            const rideDetails = booking.ride_details || booking.ride;
-            
-            if (rideDetails?.start_location && rideDetails?.end_location) {
-              try {
-                let rideDistance = 0;
-                
-                if (rideDetails.start_latitude && rideDetails.start_longitude && 
-                    rideDetails.end_latitude && rideDetails.end_longitude) {
-                  rideDistance = calculateDistance(
-                    rideDetails.start_latitude,
-                    rideDetails.start_longitude,
-                    rideDetails.end_latitude,
-                    rideDetails.end_longitude
-                  );
-                  console.log(`Calculated distance for completed booking: ${rideDistance.toFixed(2)}km for booking ${booking.id}`);
-                } else {
-                  const basePrice = rideDetails.total_price || 0;
-                  const estimatedDistanceFromPrice = basePrice ? (basePrice / 10) : 0;
-                  
-                  const locationDistance = estimateDistanceFromLocations(rideDetails.start_location, rideDetails.end_location);
-                  
-                  rideDistance = Math.max(estimatedDistanceFromPrice, locationDistance);
-                  console.log(`Estimated distance for completed booking: ${rideDistance.toFixed(2)}km for booking ${booking.id} (price: ₹${basePrice})`);
-                }
-                
-                if (rideDistance > 0 && rideDistance < 300) {
-                  totalDistance += rideDistance;
-                  completedRideCount++;
-                } else if (rideDistance >= 300) {
-                  console.warn(`Unusually long distance (${rideDistance.toFixed(2)}km) for booking ${booking.id}, capping at 100km`);
-                  totalDistance += 100;
-                  completedRideCount++;
-                }
-              } catch (error) {
-                console.warn("Error calculating distance for booking:", booking, error);
-              }
-            }
-          } else {
-            console.log(`Skipping booking ${booking.id} - not completed (status: ${booking.request_status}, is_ongoing: ${booking.ride_details?.is_ongoing || booking.ride?.is_ongoing}, start_time: ${booking.ride_details?.start_time || booking.ride?.start_time})`);
-          }
-        }
-      }
-
-      const co2Saved = calculateCO2Savings(totalDistance, completedRideCount);
-      
-      setCalculatedStats({
-        totalDistance: Math.round(totalDistance),
-        co2Saved: co2Saved,
-        completedTrips: completedRideCount
-      });
-
-      console.log(`Calculated stats from COMPLETED trips only: ${totalDistance.toFixed(1)}km traveled, ${co2Saved}kg CO2 saved from ${completedRideCount} completed trips`);
-    } catch (error) {
-      console.warn("Error fetching ride stats:", error);
-      // Set default values if calculation fails
-      setCalculatedStats({ totalDistance: 0, co2Saved: 0, completedTrips: 0 });
-    }
-  }, [apiUtil]);
-
-  const estimateDistanceFromLocations = (startLocation: string, endLocation: string): number => {
-    const start = startLocation.toLowerCase();
-    const end = endLocation.toLowerCase();
-    
-    if (start === end) return 2;
-    
-    const cityDistances: { [key: string]: number } = {
-      'vellore-chennai': 140,
-      'chennai-vellore': 140,
-      'vellore-bangalore': 220,
-      'bangalore-vellore': 220,
-      'delhi-gurgaon': 30,
-      'gurgaon-delhi': 30,
-      'mumbai-pune': 150,
-      'pune-mumbai': 150,
-    };
-    
-    const routeKey = `${start}-${end}`;
-    if (cityDistances[routeKey]) {
-      return cityDistances[routeKey];
-    }
-    
-    const similarity = calculateStringSimilarity(start, end);
-    if (similarity > 0.7) return 5;
-    if (similarity > 0.4) return 15;
-    return 25;
-  };
-
-  const calculateStringSimilarity = (str1: string, str2: string): number => {
-    const longer = str1.length > str2.length ? str1 : str2;
-    const shorter = str1.length > str2.length ? str2 : str1;
-    
-    if (longer.length === 0) return 1.0;
-    
-    const matches = shorter.split('').filter(char => longer.includes(char)).length;
-    return matches / longer.length;
-  };
-
   const fetchUserData = useCallback(async () => {
     try {
       setLoading(true);
@@ -267,25 +86,30 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       const currentUser = auth.currentUser;
       
       if (!currentUser) {
-        console.log("No authenticated user found in ProfileScreen");
+        debugLog("No authenticated user found in ProfileScreen");
         setError("Please sign in to view your profile");
         setLoading(false);
         return;
       }
 
-      console.log("User authenticated, fetching profile data...");
-      const response = await apiUtil.getUncached<ApiResponse>("/user/details");
+      if (contextUser) {
+        setUserData(contextUser as unknown as UserData);
+        return;
+      }
+
+      debugLog("User authenticated, fetching profile data...");
+      const response = await apiUtil.get<ApiResponse>("/user/details");
       setUserData(response.user);
-      console.log("User data fetched successfully:", response);
+      debugLog("User data fetched successfully:", response);
     } catch (error: any) {
       if (error?.message === "AUTHENTICATION_REDIRECT") {
-        console.log("Authentication redirect in ProfileScreen - not showing error");
+        debugLog("Authentication redirect in ProfileScreen - not showing error");
         return;
       }
       
       if (error?.response?.status === 404 && 
           error?.response?.data?.message === "User not found in database, signup required") {
-        console.log("User not found in database - redirect to signup handled by ApiUtil");
+        debugLog("User not found in database - redirect to signup handled by ApiUtil");
         return;
       }
       
@@ -298,7 +122,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     } finally {
       setLoading(false);
     }
-  }, [apiUtil]);
+  }, [apiUtil, contextUser]);
 
   useEffect(() => {
     return () => {
@@ -316,16 +140,35 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   );
 
   useEffect(() => {
-    fetchUserData();
-    fetchRideStats();
-  }, [fetchRideStats, fetchUserData]);
+    if (contextUser) {
+      setUserData(contextUser as unknown as UserData);
+      setLoading(false);
+    } else if (!contextUserLoading) {
+      fetchUserData();
+    }
+  }, [contextUser, contextUserLoading, fetchUserData]);
 
   useFocusEffect(
     useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return undefined;
+      }
       void fetchUserData();
-      void fetchRideStats();
-    }, [fetchRideStats, fetchUserData]),
+    }, [fetchUserData]),
   );
+
+  const profileStats = useMemo(() => {
+    const completedTrips = userData?.completed_trips ?? 0;
+    const totalTrips =
+      completedTrips > 0
+        ? completedTrips
+        : (userData?.total_bookings ?? 0) + (userData?.total_hosted_rides ?? 0);
+    return {
+      trips: totalTrips,
+      distanceKm: userData?.distance_travelled ?? 0,
+    };
+  }, [userData]);
 
 
   // "Bookings" row was removed — the Trips tab in the main nav is the
@@ -338,7 +181,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       icon: require("../../assets/user-male.png"),
       hasCheckmark: true,
       onPress: () => {
-        console.log("Navigating to PersonalInformationScreen");
+        debugLog("Navigating to PersonalInformationScreen");
         try {
           router.navigate(appHref("PersonalInformationScreen"));
         } catch (error) {
@@ -353,7 +196,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       icon: require("../../assets/car.png"),
       hasCheckmark: true,
       onPress: () => {
-        console.log("Navigating to PassengersHistoryScreen");
+        debugLog("Navigating to PassengersHistoryScreen");
         try {
           router.navigate(appHref("PassengersHistoryScreen"));
         } catch (error) {
@@ -384,7 +227,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       title: "Default Start Address",
       icon: require("../../assets/location-pin-2.png"),
       onPress: () => {
-        console.log("Navigating to DefaultAddressScreen");
+        debugLog("Navigating to DefaultAddressScreen");
         try {
           router.navigate(appHref("DefaultAddressScreen"));
         } catch (error) {
@@ -455,7 +298,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   };
 
   const handleLogout = () => {
-    console.log("Logout button pressed");
+    debugLog("Logout button pressed");
     BrandedAlert.alert(
       "Logout",
       "Are you sure you want to log out?",
@@ -465,26 +308,26 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
           text: "Logout",
           style: "destructive",
           onPress: async () => {
-            console.log("User confirmed logout");
+            debugLog("User confirmed logout");
             try {
               const { getAuth, signOut } = await import('@react-native-firebase/auth');
               const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
 
-              console.log("Starting logout process...");
+              debugLog("Starting logout process...");
               const auth = getAuth();
               await signOut(auth);
-              console.log("Firebase signout completed");
+              debugLog("Firebase signout completed");
 
               await AsyncStorage.removeItem('unipool_start_address');
               await AsyncStorage.removeItem('defaultAddress');
               await AsyncStorage.removeItem('lastUserVerification');
-              console.log("AsyncStorage cleared (including lastUserVerification)");
+              debugLog("AsyncStorage cleared (including lastUserVerification)");
 
               setUserData(null);
-              console.log("Navigating to AuthScreen...");
+              debugLog("Navigating to AuthScreen...");
 
               router.replace(appHref("AuthScreen"));
-              console.log("Navigation reset completed");
+              debugLog("Navigation reset completed");
             } catch (e) {
               console.error('Logout error:', e);
               BrandedAlert.alert('Logout Failed', 'An error occurred while logging out.');
@@ -547,10 +390,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       icon: require("../../assets/setting-3.png"),
       hasCheckmark: true,
       onPress: () => {
-        console.log("Navigating to AccountSettingsScreen");
+        debugLog("Navigating to AccountSettingsScreen");
         try {
           router.navigate(appHref("AccountSettingsScreen"));
-          console.log("Navigation to AccountSettingsScreen completed");
+          debugLog("Navigation to AccountSettingsScreen completed");
         } catch (error) {
           console.error("Navigation error:", error);
           BrandedAlert.alert("Navigation Error", "Unable to navigate to Account Settings");
@@ -576,7 +419,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
         key={item.id}
         style={itemStyle}
         onPress={() => {
-          console.log(`Menu item pressed: ${item.title} (${item.id})`);
+          debugLog(`Menu item pressed: ${item.title} (${item.id})`);
           if (item.onPress) {
             item.onPress();
           } else {
@@ -669,19 +512,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
 
         <View style={styles.statsContainer}>
           {renderStatsCard(
-            calculatedStats.completedTrips > 0
-              ? calculatedStats.completedTrips.toString()
-              : (() => {
-                  const bookings = userData.total_bookings ?? 0;
-                  const hosted = userData.total_hosted_rides ?? 0;
-                  return (bookings + hosted).toString();
-                })(),
+            profileStats.trips.toString(),
             "trips"
           )}
           {renderStatsCard(
-            calculatedStats.totalDistance > 0
-              ? calculatedStats.totalDistance.toString()
-              : (userData.distance_travelled?.toString() || "0"),
+            profileStats.distanceKm.toString(),
             "travelled",
             "km"
           )}

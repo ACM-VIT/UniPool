@@ -3,12 +3,14 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   ReactNode,
 } from "react";
 import { getAuth, onAuthStateChanged } from "@react-native-firebase/auth";
 import AuthSheet, { AuthSheetReturnTo } from "../components/AuthSheet";
+import { useApi } from "../utils/ApiUtil";
 
 type GatedAction = AuthSheetReturnTo;
 
@@ -34,6 +36,7 @@ const AuthGateContext = createContext<AuthGateValue>({
 });
 
 export const AuthGateProvider = ({ children }: { children: ReactNode }) => {
+  const { apiUtil } = useApi();
   const [user, setUser] = useState<any>(null);
   const [resolving, setResolving] = useState(true);
 
@@ -54,10 +57,14 @@ export const AuthGateProvider = ({ children }: { children: ReactNode }) => {
     setUser(auth.currentUser);
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u || null);
+      apiUtil.setAuthStateResolved(true);
+      if (!u) {
+        apiUtil.clearAuthTokenCache();
+      }
       setResolving(false);
     });
     return unsub;
-  }, []);
+  }, [apiUtil]);
 
   const requireAuth = useCallback(
     (returnTo: GatedAction, reason?: string) => {
@@ -71,9 +78,13 @@ export const AuthGateProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const dismissSheet = useCallback(() => setSheetVisible(false), []);
+  const value = useMemo(
+    () => ({ isGuest: !user, resolving, requireAuth }),
+    [requireAuth, resolving, user],
+  );
 
   return (
-    <AuthGateContext.Provider value={{ isGuest: !user, resolving, requireAuth }}>
+    <AuthGateContext.Provider value={value}>
       {children}
       <AuthSheet
         visible={sheetVisible}

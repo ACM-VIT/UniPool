@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -41,6 +41,26 @@ type Ride = {
   };
 };
 
+type TripHistoryRow = Ride & {
+  stableId: string;
+  whenLabel: string;
+  routeLabel: string;
+  roleLabel: string;
+  startTimeMs: number;
+};
+
+const tripHistoryDateFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return null;
+  }
+})();
+
 /**
  * Trip history — a calmly-presented log of past rides under Profile.
  * Filters `/user/rides` to viewer_state == past and sorts most-
@@ -63,12 +83,13 @@ const TripHistoryScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasFocusedOnceRef = useRef(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     setError(null);
     try {
-      const ridesResp = await apiUtil.getUncached<Ride[]>("/user/rides?scope=past");
+      const ridesResp = await apiUtil.get<Ride[]>("/user/rides?scope=past");
       const list = Array.isArray(ridesResp) ? ridesResp : [];
       setRides(list);
     } catch (err: any) {
@@ -86,29 +107,76 @@ const TripHistoryScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return undefined;
+      }
       void load(true);
+      return undefined;
     }, [load]),
   );
 
-  const pastRides = useMemo(() => {
+  const pastRides = useMemo<TripHistoryRow[]>(() => {
     const seen = new Set<string>();
-    const out: Ride[] = [];
+    const out: TripHistoryRow[] = [];
+    const nowMs = Date.now();
     for (const r of rides) {
       const id = r.ride_id || r.id;
       if (!id || seen.has(id)) continue;
+      const startTimeMs = new Date(r.start_time).getTime();
       const isPast =
         r.viewer_state === "past" ||
-        new Date(r.start_time).getTime() < Date.now() - 60 * 60 * 1000;
+        startTimeMs < nowMs - 60 * 60 * 1000;
       if (!isPast) continue;
       seen.add(id);
-      out.push(r);
+      out.push({
+        ...r,
+        stableId: id,
+        startTimeMs,
+        whenLabel: formatWhen(r.start_time),
+        routeLabel: `${displayRideLocation(r.start_location)} → ${displayRideLocation(r.end_location)}`,
+        roleLabel: r.is_user_host || r.viewer_state === "host" ? "You hosted" : "Rode along",
+      });
     }
-    out.sort(
-      (a, b) =>
-        new Date(b.start_time).getTime() - new Date(a.start_time).getTime(),
-    );
+    out.sort((a, b) => b.startTimeMs - a.startTimeMs);
     return out;
   }, [rides]);
+
+  const renderTrip = useCallback(({ item }: { item: TripHistoryRow }) => {
+    const needsRating = item.actions?.can_rate === true;
+    return (
+      <View style={styles.row}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          style={styles.rowMain}
+          onPress={() =>
+            router.navigate(appHref("RideDetailsScreen", { rideId: item.stableId }))
+          }
+        >
+          <Text style={styles.route} numberOfLines={2}>
+            {item.routeLabel}
+          </Text>
+          <Text style={styles.meta}>
+            {item.whenLabel} · {item.roleLabel}
+            {item.total_price ? ` · ₹${item.total_price}` : ""}
+          </Text>
+        </TouchableOpacity>
+        {needsRating ? (
+          <TouchableOpacity
+            style={styles.rateBtn}
+            activeOpacity={0.85}
+            onPress={() =>
+              router.navigate(
+                appHref("PostTripRatingScreen", { rideId: item.stableId }),
+              )
+            }
+          >
+            <Text style={styles.rateBtnText}>Rate</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  }, [router]);
 
   return (
     <View style={[profileStyles.container, tabletContentStyle]}>
@@ -143,50 +211,12 @@ const TripHistoryScreen: React.FC = () => {
       ) : (
         <FlatList
           data={pastRides}
-          keyExtractor={(item) => item.ride_id || item.id || Math.random().toString()}
+          keyExtractor={(item) => item.stableId}
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: Math.max(insets.bottom, 16) + 24 },
           ]}
-          renderItem={({ item }) => {
-            const id = item.ride_id || item.id || "";
-            const needsRating = item.actions?.can_rate === true;
-            return (
-              <View style={styles.row}>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  style={styles.rowMain}
-                  onPress={() =>
-                    router.navigate(appHref("RideDetailsScreen", { rideId: id }))
-                  }
-                >
-                  <Text style={styles.route} numberOfLines={2}>
-                    {displayRideLocation(item.start_location)} → {displayRideLocation(item.end_location)}
-                  </Text>
-                  <Text style={styles.meta}>
-                    {formatWhen(item.start_time)} ·{" "}
-                    {item.is_user_host || item.viewer_state === "host"
-                      ? "You hosted"
-                      : "Rode along"}
-                    {item.total_price ? ` · ₹${item.total_price}` : ""}
-                  </Text>
-                </TouchableOpacity>
-                {needsRating ? (
-                  <TouchableOpacity
-                    style={styles.rateBtn}
-                    activeOpacity={0.85}
-                    onPress={() =>
-                      router.navigate(
-                        appHref("PostTripRatingScreen", { rideId: id }),
-                      )
-                    }
-                  >
-                    <Text style={styles.rateBtnText}>Rate</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            );
-          }}
+          renderItem={renderTrip}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -208,7 +238,7 @@ export default TripHistoryScreen;
 const formatWhen = (iso: string): string => {
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString("en-GB", {
+    return tripHistoryDateFormatter?.format(d) ?? d.toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "short",
       year: "numeric",

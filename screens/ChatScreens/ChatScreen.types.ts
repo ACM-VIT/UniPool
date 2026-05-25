@@ -96,6 +96,7 @@ export interface ChatMessagesScreenProps {
       chatId: string;
       chatTitle: string;
       chatSubtitle: string;
+      userId?: string;
       messages: Array<{
         id: string;
         text: string;

@@ -41,6 +41,22 @@ const shorten = (s: string, max = 40): string => {
   return first.length > max ? first.slice(0, max - 1).trimEnd() + "…" : first;
 };
 
+const chipDayFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, { weekday: "short" });
+  } catch {
+    return null;
+  }
+})();
+
+const chipTimeFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return null;
+  }
+})();
+
 /**
  * Format a single ride's departure as a compact 2-line chip label:
  *   line 1: "Sat"  (short weekday)
@@ -51,12 +67,20 @@ const formatChipLabel = (iso: string): { day: string; time: string } => {
   try {
     const d = new Date(iso);
     return {
-      day: d.toLocaleDateString(undefined, { weekday: "short" }),
-      time: d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+      day: chipDayFormatter?.format(d) ?? d.toLocaleDateString(undefined, { weekday: "short" }),
+      time: chipTimeFormatter?.format(d) ?? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
     };
   } catch {
     return { day: "", time: "" };
   }
+};
+
+type ClusteredRideChip = ClusteredRide & {
+  startTimeMs: number;
+  chipDay: string;
+  chipTime: string;
+  seatsLeft: number;
+  isFull: boolean;
 };
 
 type DestinationGroup = {
@@ -66,7 +90,7 @@ type DestinationGroup = {
   // a price anyway; if they differ, the cheapest is the honest pitch.
   cheapestPrice: number;
   // All rides going to this destination, sorted by departure time.
-  rides: ClusteredRide[];
+  rides: ClusteredRideChip[];
   // Earliest departure timestamp in this group — drives the group
   // sort order (next-to-leave destination shows first).
   nextDeparture: number;
@@ -96,26 +120,33 @@ const RideClusterSheet: React.FC<Props> = ({
     for (const r of rides) {
       const key = r.end_location;
       const ts = new Date(r.start_time).getTime();
+      const { day, time } = formatChipLabel(r.start_time);
+      const seatsLeft = Math.max(0, r.total_seats - r.booked_seats);
+      const chip: ClusteredRideChip = {
+        ...r,
+        startTimeMs: ts,
+        chipDay: day,
+        chipTime: time,
+        seatsLeft,
+        isFull: seatsLeft <= 0,
+      };
       const existing = byDest.get(key);
       if (existing) {
-        existing.rides.push(r);
+        existing.rides.push(chip);
         if (r.total_price < existing.cheapestPrice) existing.cheapestPrice = r.total_price;
         if (ts < existing.nextDeparture) existing.nextDeparture = ts;
       } else {
         byDest.set(key, {
           destination: r.end_location,
           cheapestPrice: r.total_price,
-          rides: [r],
+          rides: [chip],
           nextDeparture: ts,
         });
       }
     }
     // Sort rides within each group by departure ascending.
     for (const g of byDest.values()) {
-      g.rides.sort(
-        (a, b) =>
-          new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
-      );
+      g.rides.sort((a, b) => a.startTimeMs - b.startTimeMs);
     }
     // Sort groups by their next departure (ascending).
     return Array.from(byDest.values()).sort(
@@ -189,35 +220,29 @@ const RideClusterSheet: React.FC<Props> = ({
                     and the time below. Compact + scannable. */}
                 <View style={styles.chipsWrap}>
                   {g.rides.map((r) => {
-                    const seatsLeft = Math.max(
-                      0,
-                      r.total_seats - r.booked_seats,
-                    );
-                    const isFull = seatsLeft <= 0;
-                    const { day, time } = formatChipLabel(r.start_time);
                     return (
                       <TouchableOpacity
                         key={r.id}
                         activeOpacity={0.85}
-                        disabled={isFull}
+                        disabled={r.isFull}
                         onPress={() => onPickRide(r)}
                         style={[
                           styles.chip,
-                          isFull && styles.chipFull,
+                          r.isFull && styles.chipFull,
                         ]}
                       >
-                        <Text style={styles.chipDay}>{day}</Text>
-                        <Text style={styles.chipTime}>{time}</Text>
+                        <Text style={styles.chipDay}>{r.chipDay}</Text>
+                        <Text style={styles.chipTime}>{r.chipTime}</Text>
                         <View style={styles.chipDivider} />
                         <Text
                           style={[
                             styles.chipSeats,
-                            isFull && styles.chipSeatsFull,
+                            r.isFull && styles.chipSeatsFull,
                           ]}
                         >
-                          {isFull
+                          {r.isFull
                             ? "Full"
-                            : `${seatsLeft} ${seatsLeft === 1 ? "seat" : "seats"}`}
+                            : `${r.seatsLeft} ${r.seatsLeft === 1 ? "seat" : "seats"}`}
                         </Text>
                       </TouchableOpacity>
                     );

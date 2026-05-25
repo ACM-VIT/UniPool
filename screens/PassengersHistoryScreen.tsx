@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, ListRenderItem, TouchableOpacity } from 'react-native';
 import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
@@ -25,10 +25,11 @@ const PassengersHistoryScreen: React.FC = () => {
   const [passengers, setPassengers] = useState<Passenger[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const hasFocusedOnceRef = useRef(false);
 
   const loadPassengers = useCallback(() => {
     setLoading(true);
-    apiUtil.getUncached<Passenger[]>("/user/passengers")
+    apiUtil.get<Passenger[]>("/user/passengers")
       .then((data: Passenger[]) => {
         setPassengers(data ?? []);
         setError(null);
@@ -46,7 +47,12 @@ const PassengersHistoryScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return undefined;
+      }
       loadPassengers();
+      return undefined;
     }, [loadPassengers]),
   );
 

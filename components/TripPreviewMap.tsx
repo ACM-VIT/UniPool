@@ -42,19 +42,41 @@ type Props = {
 // liberty style. Single source of truth for the brand's map look:
 // when we switch tile providers, we change it in one place.
 const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+const MIN_LINE_DELTA = 0.000001;
+
+const isValidCoord = (coord: Coord) =>
+  Number.isFinite(coord.latitude) &&
+  Number.isFinite(coord.longitude) &&
+  coord.latitude >= -90 &&
+  coord.latitude <= 90 &&
+  coord.longitude >= -180 &&
+  coord.longitude <= 180;
+
+const sameLngLat = (a: [number, number], b: [number, number]) =>
+  Math.abs(a[0] - b[0]) < MIN_LINE_DELTA &&
+  Math.abs(a[1] - b[1]) < MIN_LINE_DELTA;
 
 // Build the GeoJSON line feature MapLibre's LineLayer wants. We can't
 // pass an inline `coordinates` array like react-native-maps' Polyline.
 const buildLineString = (
   pts: Coord[],
-): GeoJSON.Feature<GeoJSON.LineString> => ({
-  type: "Feature",
-  properties: {},
-  geometry: {
-    type: "LineString",
-    coordinates: pts.map((p) => [p.longitude, p.latitude]),
-  },
-});
+): GeoJSON.Feature<GeoJSON.LineString> | null => {
+  const coordinates = pts
+    .filter(isValidCoord)
+    .map((p): [number, number] => [p.longitude, p.latitude])
+    .filter((point, index, points) => index === 0 || !sameLngLat(point, points[index - 1]));
+
+  if (coordinates.length < 2) return null;
+
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: {
+      type: "LineString",
+      coordinates,
+    },
+  };
+};
 
 const TripPreviewMap: React.FC<Props> = ({ start, end, routePoints, style }) => {
   // Frame the route via `bounds` instead of a single center+zoom so
@@ -185,18 +207,20 @@ const TripPreviewMap: React.FC<Props> = ({ start, end, routePoints, style }) => 
         {/* Route line — dashed red. `line-dasharray` in MapLibre is
             measured in line-width multiples, not pixels, so 3.6 px
             line × [2.2, 1.7] ≈ the old [8, 6] pixel pattern. */}
-        <GeoJSONSource id="trip-preview-route" data={lineData}>
-          <MapLibreLayer
-            id="trip-preview-line"
-            type="line"
-            layout={{ "line-join": "round", "line-cap": "round" }}
-            paint={{
-              "line-color": "#E5453B",
-              "line-width": 3.6,
-              "line-dasharray": [2.2, 1.7],
-            }}
-          />
-        </GeoJSONSource>
+        {lineData && (
+          <GeoJSONSource id="trip-preview-route" data={lineData}>
+            <MapLibreLayer
+              id="trip-preview-line"
+              type="line"
+              layout={{ "line-join": "round", "line-cap": "round" }}
+              paint={{
+                "line-color": "#E5453B",
+                "line-width": 3.6,
+                "line-dasharray": [2.2, 1.7],
+              }}
+            />
+          </GeoJSONSource>
+        )}
       </MapLibreMap>
     </View>
   );

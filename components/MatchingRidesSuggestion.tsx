@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Animated,
   Easing,
-  ActivityIndicator,
   ScrollView,
 } from "react-native";
 import AppColors from "../design_systems/colors";
@@ -41,6 +40,14 @@ type Props = {
   date?: Date | null;
 };
 
+type MatchView = {
+  match: Match;
+  routeLabel: string;
+  metaLabel: string;
+  distanceLabel: string;
+  accessibilityLabel: string;
+};
+
 /**
  * Soft suggestion card that appears at the top of CreateRide when
  * GET /ride/matching-create returns one or more rides already going
@@ -62,6 +69,11 @@ type Props = {
 const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }) => {
   const { apiUtil } = useApi();
   const router = useRouter();
+  const dateMs = date?.getTime() ?? null;
+  const dateIso = useMemo(
+    () => (dateMs !== null && Number.isFinite(dateMs) ? new Date(dateMs).toISOString() : ""),
+    [dateMs],
+  );
 
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(false);
@@ -101,10 +113,10 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
           window_hours: "4",
           limit: "5",
         });
-        if (date) {
-          params.set("start_time", date.toISOString());
+        if (dateIso) {
+          params.set("start_time", dateIso);
         }
-        const resp = await apiUtil.getUncached<{ matches: Match[] }>(
+        const resp = await apiUtil.get<{ matches: Match[] }>(
           `/ride/matching-create?${params.toString()}`,
         );
         if (id !== reqIdRef.current) return;
@@ -120,7 +132,14 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
     return () => {
       if (fetchTimer.current) clearTimeout(fetchTimer.current);
     };
-  }, [fromCoords?.latitude, fromCoords?.longitude, toCoords?.latitude, toCoords?.longitude, date, apiUtil]);
+  }, [
+    fromCoords?.latitude,
+    fromCoords?.longitude,
+    toCoords?.latitude,
+    toCoords?.longitude,
+    dateIso,
+    apiUtil,
+  ]);
 
   // Animate in / out as match presence flips.
   useEffect(() => {
@@ -141,6 +160,51 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
     ]).start();
   }, [matches.length, dismissed, opacity, translateY]);
 
+  const matchViews = useMemo<MatchView[]>(
+    () =>
+      matches.map((m) => {
+        const start = displayRideLocation(m.start_location);
+        const end = displayRideLocation(m.end_location);
+        return {
+          match: m,
+          routeLabel: `${start} → ${end}`,
+          metaLabel: `${formatTime(m.start_time)} · ₹${m.total_price} · ${seatsLabel(m)}`,
+          distanceLabel: `${formatDistance(m.start_distance_m)} from your pickup · ${formatDistance(m.end_distance_m)} from your drop`,
+          accessibilityLabel: `Open ride from ${start} to ${end}`,
+        };
+      }),
+    [matches],
+  );
+  const top = matches[0];
+  const restCount = Math.max(0, matches.length - 1);
+  const visible = expanded ? matchViews : matchViews.slice(0, 1);
+  const headerTitle = useMemo(
+    () =>
+      matches.length === 1
+        ? `${top?.host_user_name || "Someone"} is heading your way`
+        : `${matches.length} hosts are heading your way`,
+    [matches.length, top?.host_user_name],
+  );
+  const animatedStyle = useMemo(
+    () => [styles.wrap, { opacity, transform: [{ translateY }] }],
+    [opacity, translateY],
+  );
+
+  const open = useCallback((m: Match) => {
+    haptic("light");
+    router.navigate(
+      appHref("RideDetailsScreen", { rideId: m.id } as any),
+    );
+  }, [router]);
+  const dismiss = useCallback(() => {
+    haptic("selection");
+    setDismissed(true);
+  }, []);
+  const toggleExpanded = useCallback(() => {
+    haptic("selection");
+    setExpanded((v) => !v);
+  }, []);
+
   if (!fromCoords || !toCoords) return null;
   if (dismissed) return null;
   if (!loading && matches.length === 0) return null;
@@ -152,35 +216,19 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
     return null;
   }
 
-  const top = matches[0];
-  const rest = matches.slice(1);
-  const visible = expanded ? matches : [top];
-
-  const open = (m: Match) => {
-    haptic("light");
-    router.navigate(
-      appHref("RideDetailsScreen", { rideId: m.id } as any),
-    );
-  };
-
   return (
-    <Animated.View style={[styles.wrap, { opacity, transform: [{ translateY }] }]}>
+    <Animated.View style={animatedStyle}>
       <View style={styles.card}>
         <View style={styles.headerRow}>
           <Text style={styles.headerEmoji}>💡</Text>
-          <View style={{ flex: 1 }}>
+          <View style={styles.headerText}>
             <Text style={styles.headerKicker}>Already going there</Text>
             <Text style={styles.headerTitle}>
-              {matches.length === 1
-                ? `${top.host_user_name || "Someone"} is heading your way`
-                : `${matches.length} hosts are heading your way`}
+              {headerTitle}
             </Text>
           </View>
           <TouchableOpacity
-            onPress={() => {
-              haptic("selection");
-              setDismissed(true);
-            }}
+            onPress={dismiss}
             style={styles.dismissBtn}
             hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             accessibilityLabel="Dismiss suggestion"
@@ -194,27 +242,26 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
           // without needing real scrolling, but a ScrollView gives
           // us nicer overflow handling than a bare View if the
           // expanded mode goes past 4 rows.
-          scrollEnabled={expanded && rest.length > 2}
-          style={{ maxHeight: expanded ? 320 : undefined }}
+          scrollEnabled={expanded && restCount > 2}
+          style={expanded ? styles.matchListExpanded : undefined}
         >
-          {visible.map((m, idx) => (
+          {visible.map((item, idx) => (
             <TouchableOpacity
-              key={m.id}
+              key={item.match.id}
               activeOpacity={0.85}
-              style={[styles.matchRow, idx > 0 && styles.matchRowDivider]}
-              onPress={() => open(m)}
-              accessibilityLabel={`Open ride from ${displayRideLocation(m.start_location)} to ${displayRideLocation(m.end_location)}`}
+              style={idx > 0 ? styles.matchRowWithDivider : styles.matchRow}
+              onPress={() => open(item.match)}
+              accessibilityLabel={item.accessibilityLabel}
             >
-              <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={styles.matchTextColumn}>
                 <Text style={styles.matchRoute} numberOfLines={1}>
-                  {displayRideLocation(m.start_location)} → {displayRideLocation(m.end_location)}
+                  {item.routeLabel}
                 </Text>
                 <Text style={styles.matchMeta} numberOfLines={1}>
-                  {formatTime(m.start_time)} · ₹{m.total_price} · {seatsLabel(m)}
+                  {item.metaLabel}
                 </Text>
                 <Text style={styles.matchDistance} numberOfLines={1}>
-                  {formatDistance(m.start_distance_m)} from your pickup ·{" "}
-                  {formatDistance(m.end_distance_m)} from your drop
+                  {item.distanceLabel}
                 </Text>
               </View>
               <Text style={styles.matchChevron}>›</Text>
@@ -222,17 +269,14 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
           ))}
         </ScrollView>
 
-        {rest.length > 0 ? (
+        {restCount > 0 ? (
           <TouchableOpacity
-            onPress={() => {
-              haptic("selection");
-              setExpanded((v) => !v);
-            }}
+            onPress={toggleExpanded}
             style={styles.expandBtn}
             activeOpacity={0.7}
           >
             <Text style={styles.expandBtnText}>
-              {expanded ? "Show less" : `Show ${rest.length} more`}
+              {expanded ? "Show less" : `Show ${restCount} more`}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -247,17 +291,46 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
 
 // --- helpers --------------------------------------------------------
 
+const matchTimeFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return null;
+  }
+})();
+
+const matchDateFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return null;
+  }
+})();
+
+function dayKey(d: Date): number {
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const time = matchTimeFormatter
+    ? matchTimeFormatter.format(d)
+    : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  if (sameDay) return time;
+  const todayKey = dayKey(today);
+  if (dayKey(d) === todayKey) return time;
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
-  if (d.toDateString() === tomorrow.toDateString()) return `Tomorrow ${time}`;
-  return `${d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} ${time}`;
+  if (dayKey(d) === dayKey(tomorrow)) return `Tomorrow ${time}`;
+  const date = matchDateFormatter
+    ? matchDateFormatter.format(d)
+    : d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return `${date} ${time}`;
 }
 
 function formatDistance(metres: number): string {
@@ -301,6 +374,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 4,
   },
+  headerText: {
+    flex: 1,
+  },
   headerEmoji: {
     fontSize: 22,
     lineHeight: 26,
@@ -340,9 +416,20 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 12,
   },
-  matchRowDivider: {
+  matchRowWithDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    gap: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(38,59,51,0.10)",
+  },
+  matchListExpanded: {
+    maxHeight: 320,
+  },
+  matchTextColumn: {
+    flex: 1,
+    minWidth: 0,
   },
   matchRoute: {
     fontFamily: "NunitoSans_800ExtraBold",
@@ -392,9 +479,19 @@ const styles = StyleSheet.create({
   },
 });
 
-// Suppress unused-import warning if ActivityIndicator goes unused in
-// future revisions (kept around for the "loading inline" branch we
-// commented out — surfaces real fast on slow networks).
-export const __keepActivityIndicator = ActivityIndicator;
+function coordsEqual(
+  a: Props["fromCoords"],
+  b: Props["fromCoords"],
+): boolean {
+  return a?.latitude === b?.latitude && a?.longitude === b?.longitude;
+}
 
-export default MatchingRidesSuggestion;
+function suggestionPropsEqual(prev: Props, next: Props): boolean {
+  return (
+    coordsEqual(prev.fromCoords, next.fromCoords) &&
+    coordsEqual(prev.toCoords, next.toCoords) &&
+    (prev.date?.getTime() ?? null) === (next.date?.getTime() ?? null)
+  );
+}
+
+export default memo(MatchingRidesSuggestion, suggestionPropsEqual);

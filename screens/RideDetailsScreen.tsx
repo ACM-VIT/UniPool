@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ScrollView, View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, Platform, Linking } from "react-native";
 import { Share } from 'react-native';
 // const shareIcon = require('../assets/megaphone.png');
@@ -9,9 +9,9 @@ import { Share } from 'react-native';
 // file's imports because nothing else on the screen uses it.
 import TripPreviewMap from '../components/TripPreviewMap';
 import Svg, { Circle as SvgCircle, Path as SvgPath } from "react-native-svg";
-import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from "expo-router";
 import { useApi } from "../utils/ApiUtil";
+import { useUser } from "../contexts/UserContext";
 import AppColors from "../design_systems/colors";
 import ChevronBack from '../components/ChevronBack/ChevronBack';
 import HomeBack from '../components/HomeBack';
@@ -77,6 +77,10 @@ const ChatBubbleGlyph: React.FC = () => (
 );
 
 const { width, height } = Dimensions.get("window");
+const DEBUG_RIDE_DETAILS =
+  typeof __DEV__ !== "undefined" &&
+  __DEV__ &&
+  process.env.EXPO_PUBLIC_DEBUG_RIDE_DETAILS === "1";
 
 const customMapStyle = [
   {
@@ -350,7 +354,9 @@ const correctCoordinatesForLocation = (locationName?: string | null, currentLat?
   );
   
   if (commonLocation) {
-    console.log(`Correcting coordinates for "${normalizedLocationName}" from (${currentLat}, ${currentLon}) to (${commonLocation.latitude}, ${commonLocation.longitude})`);
+    if (DEBUG_RIDE_DETAILS) {
+      console.log(`Correcting coordinates for "${normalizedLocationName}" from (${currentLat}, ${currentLon}) to (${commonLocation.latitude}, ${commonLocation.longitude})`);
+    }
     return {
       latitude: commonLocation.latitude,
       longitude: commonLocation.longitude
@@ -459,6 +465,8 @@ const RideDetailsScreen: React.FC = () => {
   const backToHome =
     routeParams.backToHome === true || routeParams.backToHome === "true";
   const { apiUtil } = useApi();
+  const { user: contextUser } = useUser();
+  const hasFocusedOnceRef = useRef(false);
   
   // State management
   const [rideData, setRideData] = useState<RideData | null>(null);
@@ -517,8 +525,6 @@ const RideDetailsScreen: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   
   // Map related state
-  const [location, setLocation] = useState<any>(null);
-  const [hasPermission, setHasPermission] = useState(false);
   const [routeCoordinates, setRouteCoordinates] = useState<any[]>([]);
   const [estimatedDuration, setEstimatedDuration] = useState<string>('Estimating...');
   
@@ -661,31 +667,6 @@ const RideDetailsScreen: React.FC = () => {
     return Date.now() > (start.getTime() + oneDayMs);
   };
 
-  const requestLocationPermission = async () => {
-    // READ ONLY — the native prompt belongs exclusively to
-    // LocationPermissionScreen. Here we just check current state and
-    // silently no-op if the user hasn't granted it yet.
-    const { status } = await Location.getForegroundPermissionsAsync();
-    if (status === "granted") {
-      getUserLocation();
-      setHasPermission(true);
-    } else {
-      setHasPermission(false);
-    }
-  };
-
-  const getUserLocation = async () => {
-    try {
-      const { coords } = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      const { latitude, longitude } = coords;
-      setLocation({ latitude, longitude });
-    } catch (error) {
-      console.error("Error fetching location:", error);
-    }
-  };
-
   useEffect(() => {
     const fetchRideDetails = async () => {
       setLoading(true);
@@ -700,11 +681,13 @@ const RideDetailsScreen: React.FC = () => {
       }
       
       try {
-        const userInfo = await apiUtil.getUncached<UserResponse>("/user/details");
-        const userId = userInfo?.user?.id || null;
+        const userId =
+          contextUser?.id ??
+          (await apiUtil.get<UserResponse>("/user/details"))?.user?.id ??
+          null;
         setCurrentUserId(userId);
 
-        const completeRideData = await apiUtil.getUncached<RideResponse>(`/ride/details/${rideId}`);
+        const completeRideData = await apiUtil.get<RideResponse>(`/ride/details/${rideId}`);
         setRideData(completeRideData);
 
         // ----- Server-computed state -----
@@ -796,24 +779,26 @@ const RideDetailsScreen: React.FC = () => {
           setUserBooking(null);
         }
         
-        console.log("Ride details:", completeRideData);
-        console.log("Current user ID:", userId);
-        console.log("Viewer state:", vs);
-        console.log("Is host:", isUserHost);
-        console.log("Bookings found:", completeRideData.bookings);
-        console.log("Coordinates:", {
-          start_lat: completeRideData.start_latitude,
-          start_lon: completeRideData.start_longitude,
-          end_lat: completeRideData.end_latitude,
-          end_lon: completeRideData.end_longitude
-        });
+        if (DEBUG_RIDE_DETAILS) {
+          console.log("Ride details:", completeRideData);
+          console.log("Current user ID:", userId);
+          console.log("Viewer state:", vs);
+          console.log("Is host:", isUserHost);
+          console.log("Bookings found:", completeRideData.bookings);
+          console.log("Coordinates:", {
+            start_lat: completeRideData.start_latitude,
+            start_lon: completeRideData.start_longitude,
+            end_lat: completeRideData.end_latitude,
+            end_lon: completeRideData.end_longitude
+          });
+        }
         
       } catch (err: any) {
         console.error("Error fetching ride details:", err);
         
         // Handle user not found error gracefully - redirect to signup without showing error modal
         if (err.status === 404 && err.message && err.message.includes("User not found")) {
-          console.log("User not found, redirecting to signup");
+          if (DEBUG_RIDE_DETAILS) console.log("User not found, redirecting to signup");
           router.navigate(appHref("SignUpScreen"));
           return;
         }
@@ -826,12 +811,16 @@ const RideDetailsScreen: React.FC = () => {
     };
 
     fetchRideDetails();
-    requestLocationPermission();
-  }, [rideId, apiUtil, router, refreshTick]);
+  }, [rideId, apiUtil, router, refreshTick, contextUser?.id]);
 
   useFocusEffect(
     useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return undefined;
+      }
       setRefreshTick((tick) => tick + 1);
+      return undefined;
     }, []),
   );
 
@@ -851,14 +840,16 @@ const RideDetailsScreen: React.FC = () => {
         rideData.end_longitude
       );
       
-      console.log('Original coordinates:', {
-        start: { lat: rideData.start_latitude, lon: rideData.start_longitude },
-        end: { lat: rideData.end_latitude, lon: rideData.end_longitude }
-      });
-      console.log('Corrected coordinates:', {
-        start: correctedStartCoords,
-        end: correctedEndCoords
-      });
+      if (DEBUG_RIDE_DETAILS) {
+        console.log('Original coordinates:', {
+          start: { lat: rideData.start_latitude, lon: rideData.start_longitude },
+          end: { lat: rideData.end_latitude, lon: rideData.end_longitude }
+        });
+        console.log('Corrected coordinates:', {
+          start: correctedStartCoords,
+          end: correctedEndCoords
+        });
+      }
       
       if (correctedStartCoords && correctedEndCoords) {
         const distance = calculateDistance(
@@ -888,7 +879,7 @@ const RideDetailsScreen: React.FC = () => {
           end_longitude: correctedEndCoords.longitude
         } : null);
       } else {
-        console.log('Invalid or missing coordinates, using fallback duration');
+        if (DEBUG_RIDE_DETAILS) console.log('Invalid or missing coordinates, using fallback duration');
       }
     }
   }, [rideData?.id]); // Use rideData.id as dependency to avoid infinite loops
@@ -1009,11 +1000,11 @@ const RideDetailsScreen: React.FC = () => {
             onPress: async () => {
               setIsActionLoading(true);
               try {
-                console.log(`Attempting to delete ride: ${rideId}`);
+                if (DEBUG_RIDE_DETAILS) console.log(`Attempting to delete ride: ${rideId}`);
                 
                 try {
                   const deleteResponse = await apiUtil.delete(`/ride/delete/${rideId}`);
-                  console.log("Delete ride response:", deleteResponse);
+                  if (DEBUG_RIDE_DETAILS) console.log("Delete ride response:", deleteResponse);
                   
                   BrandedAlert.alert("Ride deleted", "It's no longer visible to anyone.", [
                     {
@@ -1022,11 +1013,11 @@ const RideDetailsScreen: React.FC = () => {
                     }
                   ]);
                 } catch (deleteError: any) {
-                  console.log("Delete ride error details:", deleteError);
+                  if (DEBUG_RIDE_DETAILS) console.log("Delete ride error details:", deleteError);
                   
                   // If it's just an empty response error, treat as success since backend likely processed it
                   if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
-                    console.log("Got empty response from delete ride - treating as success");
+                    if (DEBUG_RIDE_DETAILS) console.log("Got empty response from delete ride - treating as success");
                     BrandedAlert.alert("Ride deleted", "It's no longer visible to anyone.", [
                       {
                         text: "OK",
@@ -1088,11 +1079,11 @@ const RideDetailsScreen: React.FC = () => {
               setIsActionLoading(true);
               try {
                 if (userBooking) {
-                  console.log(`Attempting to cancel user booking: ${userBooking.id}`);
+                  if (DEBUG_RIDE_DETAILS) console.log(`Attempting to cancel user booking: ${userBooking.id}`);
                   
                   try {
                     const deleteResponse = await apiUtil.delete(`/booking/delete/${userBooking.id}`);
-                    console.log("Cancel booking response:", deleteResponse);
+                    if (DEBUG_RIDE_DETAILS) console.log("Cancel booking response:", deleteResponse);
                     
                     BrandedAlert.alert("Booking cancelled", "Your seat is no longer reserved.", [
                       {
@@ -1101,11 +1092,11 @@ const RideDetailsScreen: React.FC = () => {
                       }
                     ]);
                   } catch (deleteError: any) {
-                    console.log("Cancel booking error details:", deleteError);
+                    if (DEBUG_RIDE_DETAILS) console.log("Cancel booking error details:", deleteError);
                     
                     // If it's just an empty response error, treat as success since backend likely processed it
                     if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
-                      console.log("Got empty response from cancel booking - treating as success");
+                      if (DEBUG_RIDE_DETAILS) console.log("Got empty response from cancel booking - treating as success");
                       BrandedAlert.alert("Booking cancelled", "Your seat is no longer reserved.", [
                         {
                           text: "OK",

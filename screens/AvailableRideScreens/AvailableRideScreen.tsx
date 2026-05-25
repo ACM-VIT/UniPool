@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions, Platform, RefreshControl } from "react-native";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions, Platform, RefreshControl, FlatList, ListRenderItem } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import DateTimePicker, {
@@ -65,6 +65,11 @@ interface RideData {
   match_signals?: MatchSignal[];
 }
 
+type VisibleRideItem = {
+  ride: RideData;
+  isBestMatch: boolean;
+};
+
 interface ApiResponse {
   rides: RideData[];
   /** Server-flagged strict matches — rides whose start AND end are
@@ -103,6 +108,142 @@ const formatFilterDateLabel = (value: string) => {
     year: "numeric",
   });
 };
+
+const rideTimeFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return null;
+  }
+})();
+
+const rideDateFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+  } catch {
+    return null;
+  }
+})();
+
+const formatRideStart = (iso: string) => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return { time: "", date: "" };
+  return {
+    time: rideTimeFormatter?.format(date) ?? date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    date: rideDateFormatter?.format(date) ?? date.toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    }),
+  };
+};
+
+const formatDistance = (distance?: number) => {
+  if (!distance) return '';
+  return distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`;
+};
+
+const formatHostRating = (ride: RideData) => {
+  const count = ride.host_rating_count || 0;
+  if (!ride.host_rating_average || count === 0) return null;
+  return `${ride.host_rating_average.toFixed(1)} (${count})`;
+};
+
+const AvailableRideResultRow = React.memo(function AvailableRideResultRow({
+  item,
+  selectedRideId,
+  viewerGender,
+  onSelect,
+}: {
+  item: VisibleRideItem;
+  selectedRideId: string | null;
+  viewerGender: string | null;
+  onSelect: (rideId: string) => void;
+}) {
+  const { ride, isBestMatch } = item;
+  const startLabels = useMemo(() => formatRideStart(ride.start_time), [ride.start_time]);
+  const hostRating = formatHostRating(ride);
+
+  return (
+    <View style={styles.rideCardWrapper}>
+      {isBestMatch ? (
+        <View style={styles.bestMatchBadgeWrap} pointerEvents="none">
+          <View style={styles.bestMatchBadge}>
+            <Text style={styles.bestMatchBadgeGlyph}>★</Text>
+            <Text style={styles.bestMatchBadgeText}>Best match</Text>
+          </View>
+        </View>
+      ) : null}
+      <RideCard
+        id={ride.id}
+        origin={ride.start_location}
+        destination={ride.end_location}
+        shareable
+        startTimeIso={ride.start_time}
+        time={startLabels.time}
+        date={startLabels.date}
+        price={ride.total_price}
+        isSelected={selectedRideId === ride.id}
+        seatsAvailable={seatsAvailableLabel(ride.total_seats, ride.booked_seats)}
+        onSelect={onSelect}
+        pricePerPerson={false}
+        matchReason={ride.match_reason}
+        isSameGenderFemale={
+          ride.same_gender_female === true ||
+          ride.is_same_gender_female === true ||
+          (
+            viewerGender === "female" &&
+            (ride.host_user_gender || "").toLowerCase() === "female"
+          )
+        }
+      />
+
+      {Array.isArray(ride.match_signals) && ride.match_signals.length > 0 ? (
+        <MatchInsightsShelf
+          signals={ride.match_signals}
+          isBestMatch={isBestMatch}
+        />
+      ) : null}
+
+      <View style={styles.rideEnhancements}>
+        <View style={styles.hostLine}>
+          <Text style={styles.hostName}>
+            Hosted by {ride.host_user_name}
+          </Text>
+          {hostRating ? (
+            <Text style={styles.hostRating}>
+              ★ {hostRating}
+            </Text>
+          ) : null}
+        </View>
+        <View style={styles.distanceInfo}>
+          {ride.start_distance ? (
+            <Text style={styles.distanceText}>
+              {formatDistance(ride.start_distance)} from pickup
+            </Text>
+          ) : null}
+          {ride.end_distance ? (
+            <Text style={styles.distanceText}>
+              {formatDistance(ride.end_distance)} from drop-off
+            </Text>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
+});
+
+const DEBUG_RIDE_SEARCH =
+  typeof __DEV__ !== "undefined" &&
+  __DEV__ &&
+  process.env.EXPO_PUBLIC_DEBUG_RIDE_SEARCH === "1";
 
 const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   setNavBarVariant,
@@ -153,6 +294,16 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   // while the context is still hydrating.
   const { user: viewerUser } = useUser();
   const viewerGender = (viewerUser?.gender || "").toLowerCase() || null;
+  const visibleRides = useMemo(
+    () =>
+      rides
+        .filter((ride: RideData) => ride.total_seats > (ride.booked_seats + 1))
+        .map((ride: RideData) => ({
+          ride,
+          isBestMatch: strictMatchIds.has(ride.id),
+        })),
+    [rides, strictMatchIds],
+  );
   
   // State for locations and coordinates
   const [fromLocation, setFromLocation] = useState("");
@@ -226,7 +377,9 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       }
     }
 
-    console.log('Route params updated:', { newFromLocation, newToLocation, newFromCoordinates, newToCoordinates, newTargetTimeIso });
+    if (DEBUG_RIDE_SEARCH) {
+      console.log('Route params updated:', { newFromLocation, newToLocation, newFromCoordinates, newToCoordinates, newTargetTimeIso });
+    }
     
     setFromLocation(newFromLocation);
     setToLocation(newToLocation);
@@ -278,7 +431,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
 
   const fetchRides = ({ refresh = false }: { refresh?: boolean } = {}) => {
     if (!fromLocation || !toLocation) {
-      console.log("No locations provided, not fetching rides.");
+      if (DEBUG_RIDE_SEARCH) console.log("No locations provided, not fetching rides.");
       setRides([]);
       return;
     }
@@ -290,14 +443,16 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     } else {
       setLoading(true);
     }
-    console.log("Fetching rides for:", { fromLocation, toLocation, fromCoordinates, toCoordinates, filters });
+    if (DEBUG_RIDE_SEARCH) {
+      console.log("Fetching rides for:", { fromLocation, toLocation, fromCoordinates, toCoordinates, filters });
+    }
 
     const queryParams = buildQueryParams();
 
     apiUtil
-      .getUncached<ApiResponse>(`/ride/search?${queryParams}`)
+      .get<ApiResponse>(`/ride/search?${queryParams}`)
       .then((response) => {
-        console.log("API response:", response);
+        if (DEBUG_RIDE_SEARCH) console.log("API response:", response);
         if (response && response.rides) {
           setRides(response.rides);
           setSearchMeta(response.meta);
@@ -377,7 +532,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     setNavBarItems,
   ]);
 
-  const handleRideSelection = (rideId: string) => {
+  const handleRideSelection = useCallback((rideId: string) => {
     const selectedRide = rides.find(ride => ride.id === rideId);
     if (selectedRide) {
       router.navigate(appHref("AvailableRidesSelectedScreen", {
@@ -386,7 +541,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     } else {
       setSelectedRideId((prev) => (prev === rideId ? null : rideId));
     }
-  };
+  }, [rides, router]);
 
   const applyFilters = () => {
     setShowFilters(false);
@@ -462,25 +617,6 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     setFilters((current) => ({ ...current, date: "" }));
     setTempPickerDate(null);
     setShowDatePicker(false);
-  };
-
-  const formatDistance = (distance?: number) => {
-    if (!distance) return '';
-    return distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`;
-  };
-
-  const formatHostRating = (ride: RideData) => {
-    const count = ride.host_rating_count || 0;
-    if (!ride.host_rating_average || count === 0) return null;
-    return `${ride.host_rating_average.toFixed(1)} (${count})`;
-  };
-
-  const getRelevanceLabel = (score?: number) => {
-    if (!score) return '';
-    if (score >= 80) return '🔥 Perfect Match';
-    if (score >= 60) return '✨ Great Match';
-    if (score >= 40) return '👍 Good Match';
-    return '💡 Possible Match';
   };
 
   const getSortLabel = () => {
@@ -582,6 +718,97 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       </View>
     </Modal>
   );
+
+  const renderRideItem: ListRenderItem<VisibleRideItem> = useCallback(({ item }) => (
+    <AvailableRideResultRow
+      item={item}
+      selectedRideId={selectedRideId}
+      viewerGender={viewerGender}
+      onSelect={handleRideSelection}
+    />
+  ), [handleRideSelection, selectedRideId, viewerGender]);
+
+  const rideKeyExtractor = useCallback((item: VisibleRideItem) => item.ride.id, []);
+
+  const renderEmptyResults = useCallback(() => {
+    if (loading && rides.length === 0) {
+      return (
+        <>
+          {[0, 1, 2].map((i) => (
+            <View key={`skeleton-${i}`} style={styles.rideCardWrapper}>
+              <RideCardSkeleton />
+            </View>
+          ))}
+        </>
+      );
+    }
+
+    if (rides.length !== 0 || loading) return null;
+
+    return (
+      <View style={styles.noRidesContainer}>
+        <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+          <Image
+            source={require('../../assets/no-rides-emoji.png')}
+            style={{
+              marginTop: 16,
+              width: Math.min(Dimensions.get('window').width * 0.45, 200),
+              height: Math.min(Dimensions.get('window').width * 0.45, 200),
+              resizeMode: 'contain',
+            }}
+          />
+        </View>
+        <Text style={{ fontFamily: 'NunitoSans_800ExtraBold', fontSize: 22, color: AppColors.secondaryDarkGreen, letterSpacing: -0.4, textAlign: 'center', marginBottom: 6 }}>
+          No rides on this route yet
+        </Text>
+        <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 15, lineHeight: 22, color: AppColors.secondaryDarkGreen, opacity: 0.7, textAlign: 'center', marginBottom: 24, paddingHorizontal: 16 }}>
+          Try a wider time window, or post your own ride and let others jump in.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
+          <TouchableOpacity
+            style={[styles.adjustFiltersButton, { backgroundColor: AppColors.secondaryDarkGreen }]}
+            onPress={() => setShowFilters(true)}
+          >
+            <Text style={[styles.adjustFiltersButtonText, { color: AppColors.primaryLightGreen, fontFamily: 'NunitoSans_800ExtraBold' }]}>Adjust filters</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.adjustFiltersButton,
+              {
+                backgroundColor: AppColors.cardSurface,
+              },
+            ]}
+            onPress={() => {
+              const createTarget = {
+                screen: "CreateRide" as const,
+                params: {
+                  fromLocation,
+                  toLocation,
+                  fromCoordinates,
+                  toCoordinates,
+                  date: filters.date || undefined,
+                },
+              };
+              if (!requireAuth(createTarget as any, "to post a ride")) return;
+              router.navigate(appHref("CreateRide", createTarget.params as any));
+            }}
+          >
+            <Text style={[styles.adjustFiltersButtonText, { color: AppColors.secondaryDarkGreen, fontFamily: 'NunitoSans_800ExtraBold' }]}>Post a ride</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }, [
+    filters.date,
+    fromCoordinates,
+    fromLocation,
+    loading,
+    requireAuth,
+    rides.length,
+    router,
+    toCoordinates,
+    toLocation,
+  ]);
 
   const renderFilterModal = () => (
     <Modal
@@ -853,22 +1080,20 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
             Home composer, not as a permanent header chip. */}
       </View>
 
-      {/* Cold-fetch loading state is handled INSIDE the ScrollView
-          below — we render `RideCardSkeleton` placeholders in the
-          same wrapper the real cards use, so the swap from loading
-          to results is a content fade rather than a layout jump.
-          Previous overlay (`SearchingForRidesLoader`) sat on top of
-          the page as a full-bleed spinner; replaced because the
-          skeleton stack reads as "list loading" instead of "screen
-          is broken." */}
-
-      <ScrollView
+      {/* Cold-fetch loading state is handled inside the virtualized
+          list so search results render in batches instead of mapping
+          every card eagerly. */}
+      <FlatList
         style={styles.scrollView}
+        data={loading && rides.length === 0 ? [] : visibleRides}
+        keyExtractor={rideKeyExtractor}
+        renderItem={renderRideItem}
+        ListEmptyComponent={renderEmptyResults}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { backgroundColor: AppColors.primaryLightGreen },
+        ]}
         showsVerticalScrollIndicator={false}
-        // Pull-to-refresh — re-runs the search query without tearing
-        // down the result list. Forest spinner matches the brand;
-        // skipped while `fromLocation`/`toLocation` aren't both set
-        // (handled internally by `fetchRides`).
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -877,190 +1102,12 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
             colors={[AppColors.secondaryDarkGreen]}
           />
         }
-      >
-        <View style={[styles.contentContainer, { backgroundColor: require('../../design_systems/colors').default.primaryLightGreen }]}>
-          {loading && rides.length === 0 ? (
-            // Cold-fetch skeleton stack — three placeholder rows
-            // sized to match the real ride cards so the list reserves
-            // the right space and content fades in rather than
-            // shifting layout. Each wrapped in `rideCardWrapper`
-            // (same spacing as the live cards below).
-            <>
-              {[0, 1, 2].map((i) => (
-                <View key={`skeleton-${i}`} style={styles.rideCardWrapper}>
-                  <RideCardSkeleton />
-                </View>
-              ))}
-            </>
-          ) : rides.length === 0 && !loading ? (
-            <View style={styles.noRidesContainer}>
-              <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                <Image
-                  // Cropped emoji-only asset — the full no-rides.png
-                  // has "Uh Oh! No Rides Available" baked in, which
-                  // collides with our own title + body below.
-                  source={require('../../assets/no-rides-emoji.png')}
-                  style={{
-                    marginTop: 16,
-                    width: Math.min(Dimensions.get('window').width * 0.45, 200),
-                    height: Math.min(Dimensions.get('window').width * 0.45, 200),
-                    resizeMode: 'contain',
-                  }}
-                />
-              </View>
-              <Text style={{ fontFamily: 'NunitoSans_800ExtraBold', fontSize: 22, color: require('../../design_systems/colors').default.secondaryDarkGreen, letterSpacing: -0.4, textAlign: 'center', marginBottom: 6 }}>
-                No rides on this route yet
-              </Text>
-              <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 15, lineHeight: 22, color: require('../../design_systems/colors').default.secondaryDarkGreen, opacity: 0.7, textAlign: 'center', marginBottom: 24, paddingHorizontal: 16 }}>
-                Try a wider time window, or post your own ride and let others jump in.
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
-                <TouchableOpacity
-                  style={[styles.adjustFiltersButton, { backgroundColor: require('../../design_systems/colors').default.secondaryDarkGreen }]}
-                  onPress={() => setShowFilters(true)}
-                >
-                  <Text style={[styles.adjustFiltersButtonText, { color: require('../../design_systems/colors').default.primaryLightGreen, fontFamily: 'NunitoSans_800ExtraBold' }]}>Adjust filters</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  // Cream-filled secondary button — pairs with the
-                  // forest "Adjust filters" sibling on the left as a
-                  // calm primary/secondary duo. No border; the cream
-                  // surface alone provides enough contrast against
-                  // the lime canvas.
-                  style={[
-                    styles.adjustFiltersButton,
-                    {
-                      backgroundColor: require('../../design_systems/colors').default.cardSurface,
-                    },
-                  ]}
-                  onPress={() => {
-                    // Posting requires an account — gate here so the
-                    // user gets the AuthSheet up front instead of
-                    // filling out the whole form only to hit a 401
-                    // ("Authorization header not found") on submit.
-                    const createTarget = {
-                      screen: "CreateRide" as const,
-                      params: {
-                        fromLocation,
-                        toLocation,
-                        fromCoordinates,
-                        toCoordinates,
-                        date: filters.date || undefined,
-                      },
-                    };
-                    if (!requireAuth(createTarget as any, "to post a ride")) return;
-                    router.navigate(appHref("CreateRide", createTarget.params as any));
-                  }}
-                >
-                  <Text style={[styles.adjustFiltersButtonText, { color: require('../../design_systems/colors').default.secondaryDarkGreen, fontFamily: 'NunitoSans_800ExtraBold' }]}>Post a ride</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            rides
-              .filter((ride: RideData) => ride.total_seats > (ride.booked_seats + 1)) // Filter out full rides (accounting for ride creator)
-              .map((ride: RideData) => {
-                // Server flagged this ride as a strict match (both
-                // endpoints within 500m of the requested route AND
-                // start_time within ±3h). Surface a small "Best
-                // match" pill on the card so users see the most
-                // relevant rows without having to compare distances
-                // themselves.
-                const isBestMatch = strictMatchIds.has(ride.id);
-                return (
-              <View key={ride.id} style={styles.rideCardWrapper}>
-                {isBestMatch ? (
-                  <View style={styles.bestMatchBadgeWrap} pointerEvents="none">
-                    <View style={styles.bestMatchBadge}>
-                      <Text style={styles.bestMatchBadgeGlyph}>★</Text>
-                      <Text style={styles.bestMatchBadgeText}>Best match</Text>
-                    </View>
-                  </View>
-                ) : null}
-                <RideCard
-                  id={ride.id}
-                  origin={ride.start_location}
-                  destination={ride.end_location}
-                  // Opt in to long-press share — works for any
-                  // signed-in or guest user; the share sheet has no
-                  // host-only restriction.
-                  shareable
-                  startTimeIso={ride.start_time}
-                  time={new Date(ride.start_time).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                  // Short weekday + day + month, e.g. "Thu, 21 May" —
-                  // the time is already in the top-right detail row, so
-                  // this slot just owns the date half of the timestamp.
-                  date={new Date(ride.start_time).toLocaleDateString("en-GB", {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "short",
-                  })}
-                  price={ride.total_price}
-                  isSelected={selectedRideId === ride.id}
-                  seatsAvailable={seatsAvailableLabel(ride.total_seats, ride.booked_seats)}
-                  onSelect={handleRideSelection}
-                  pricePerPerson={false}
-                  matchReason={ride.match_reason}
-                  // Same-gender affinity tint — only paints when both
-                  // sides resolve to "female". Guests + missing host
-                  // gender fall through to the default surface.
-                  isSameGenderFemale={
-                    ride.same_gender_female === true ||
-                    ride.is_same_gender_female === true ||
-                    (
-                      viewerGender === "female" &&
-                      (ride.host_user_gender || "").toLowerCase() === "female"
-                    )
-                  }
-                />
-
-                {/* Layered insight shelf — chips that explain why the ride
-                    ranked where it did (exact-time match, on-the-way,
-                    trusted host, etc.). Slots under the card with a
-                    small negative top margin so it reads as part of the
-                    same composed object, not a separate strip. */}
-                {Array.isArray(ride.match_signals) && ride.match_signals.length > 0 ? (
-                  <MatchInsightsShelf
-                    signals={ride.match_signals}
-                    isBestMatch={isBestMatch}
-                  />
-                ) : null}
-
-                {/* Sub-row beneath card: host + walking distances. Kept compact
-                    so the BlaBlaCar-style card stays the visual anchor. */}
-                <View style={styles.rideEnhancements}>
-                  <View style={styles.hostLine}>
-                    <Text style={styles.hostName}>
-                      Hosted by {ride.host_user_name}
-                    </Text>
-                    {formatHostRating(ride) ? (
-                      <Text style={styles.hostRating}>
-                        ★ {formatHostRating(ride)}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <View style={styles.distanceInfo}>
-                    {ride.start_distance ? (
-                      <Text style={styles.distanceText}>
-                        {formatDistance(ride.start_distance)} from pickup
-                      </Text>
-                    ) : null}
-                    {ride.end_distance ? (
-                      <Text style={styles.distanceText}>
-                        {formatDistance(ride.end_distance)} from drop-off
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
-              </View>
-                );
-              })
-          )}
-        </View>
-      </ScrollView>
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        updateCellsBatchingPeriod={48}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === "android"}
+      />
 
       {renderFilterModal()}
     </View>
