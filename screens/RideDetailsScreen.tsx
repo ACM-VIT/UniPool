@@ -1808,29 +1808,11 @@ const RideDetailsScreen: React.FC = () => {
             <TouchableOpacity
               onPress={openRideChat}
               activeOpacity={0.85}
-              style={{
-                backgroundColor: AppColors.secondaryDarkGreen,
-                paddingVertical: 14,
-                borderRadius: 14,
-                alignItems: "center",
-                justifyContent: "center",
-                flexDirection: "row",
-                gap: 10,
-                marginBottom: 10,
-              }}
+              style={styles.tripChatPill}
               accessibilityLabel="Open trip chat"
             >
               <ChatBubbleGlyph />
-              <Text
-                style={{
-                  color: AppColors.primaryLightGreen,
-                  fontFamily: "NunitoSans_800ExtraBold",
-                  fontSize: 15,
-                  letterSpacing: 0.2,
-                }}
-              >
-                Open trip chat
-              </Text>
+              <Text style={styles.tripChatPillText}>Open trip chat</Text>
             </TouchableOpacity>
           ) : null}
           {!rideOver ? (
@@ -2172,29 +2154,11 @@ const RideDetailsScreen: React.FC = () => {
                   <TouchableOpacity
                     onPress={openRideChat}
                     activeOpacity={0.85}
-                    style={{
-                      backgroundColor: AppColors.secondaryDarkGreen,
-                      paddingVertical: 14,
-                      borderRadius: 14,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexDirection: "row",
-                      gap: 10,
-                      marginBottom: 10,
-                    }}
+                    style={styles.tripChatPill}
                     accessibilityLabel="Open trip chat"
                   >
                     <ChatBubbleGlyph />
-                    <Text
-                      style={{
-                        color: AppColors.primaryLightGreen,
-                        fontFamily: "NunitoSans_800ExtraBold",
-                        fontSize: 15,
-                        letterSpacing: 0.2,
-                      }}
-                    >
-                      Open trip chat
-                    </Text>
+                    <Text style={styles.tripChatPillText}>Open trip chat</Text>
                   </TouchableOpacity>
                 ) : null}
                 {/* Slider is driven by the server's `viewer_actions`
@@ -2557,12 +2521,49 @@ const styles = StyleSheet.create({
   bottomContainer: {
     backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 20,
+    paddingTop: 18,
     paddingBottom: 10,
   },
   bottomActionsContainer: {
     backgroundColor: AppColors.primaryLightGreen,
     paddingHorizontal: 20,
+    paddingTop: 18,
     paddingBottom: 10,
+  },
+  // Open-trip-chat pill. Shared between the host's Ride Management
+  // view and the passenger's Booking Details view so both surfaces
+  // read as the same affordance. Sits in the light-green
+  // bottomContainer / bottomActionsContainer rail above the
+  // slide-to-* destructive action, with a subtle shadow to lift it
+  // off the green canvas (the dark card above already has its own
+  // shadow, so the pill needs its own elevation to read as a
+  // separate, tappable surface rather than a sliver continuing the
+  // card).
+  tripChatPill: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 14,
+    // Elevation — matches the chat-card / sheet treatment elsewhere
+    // in the app. Kept subtle (low opacity, short radius) so the
+    // pill reads as raised rather than dropping a heavy shadow on
+    // the already-busy light-green background.
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  tripChatPillText: {
+    color: AppColors.primaryLightGreen,
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 15,
+    letterSpacing: 0.2,
   },
   // Booking management styles
   requestsHeader: {

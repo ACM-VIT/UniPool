@@ -8,6 +8,37 @@ export type FetchMessagesResult = {
   hasMore: boolean;
 };
 
+const MARK_READ_DEDUPE_MS = 5_000;
+
+const markReadAttempts = new Map<
+  string,
+  {
+    lastAttemptAt: number;
+    inFlight?: Promise<void>;
+  }
+>();
+
+const postReadMarker = async (apiUtil: ApiUtil, chatId: string): Promise<void> => {
+  try {
+    // Either a ride UUID (group chat) or a `dm_<a>_<b>` room id —
+    // pick the matching backend endpoint so unread badges clear for
+    // both chat types. Pending-request DMs need this so the host's
+    // pending section count drops the moment they open the thread.
+    //
+    // Uses `postSilent` so a backend hiccup on `/read` doesn't hijack
+    // the screen with the global "Uh Oh!" error sheet.
+    if (chatId.startsWith("dm_")) {
+      await apiUtil.postSilent(`/dm/${chatId}/read`, {});
+    } else {
+      await apiUtil.postSilent(`/chat/${chatId}/read`, {});
+    }
+  } catch (err) {
+    // Mark-read is a UX nicety; failing silently is correct so we
+    // don't surface noisy errors over a transient network blip.
+    console.warn("[ChatService] markRideRead failed", err);
+  }
+};
+
 export default class ChatService {
   /**
    * Fetch a page of messages for a room. The backend returns them
@@ -59,29 +90,31 @@ export default class ChatService {
    * list stays accurate without the frontend tracking it locally.
    */
   static async markRideRead(apiUtil: ApiUtil, chatId: string): Promise<void> {
-    try {
-      // Either a ride UUID (group chat) or a `dm_<a>_<b>` room id —
-      // pick the matching backend endpoint so unread badges clear for
-      // both chat types. Pending-request DMs need this so the host's
-      // pending section count drops the moment they open the thread.
-      //
-      // Uses `postSilent` so a backend hiccup on `/read` doesn't
-      // hijack the screen with the global "Uh Oh!" error sheet. The
-      // local try/catch already swallows the failure visibly through
-      // a warn log; the user just keeps using the chat with a stale
-      // unread badge until the next open. That's the right trade —
-      // a noisy modal over a UX-nicety endpoint is worse than a
-      // delayed badge update.
-      if (chatId.startsWith("dm_")) {
-        await apiUtil.postSilent(`/dm/${chatId}/read`, {});
-      } else {
-        await apiUtil.postSilent(`/chat/${chatId}/read`, {});
-      }
-    } catch (err) {
-      // Mark-read is a UX nicety; failing silently is correct so we
-      // don't surface noisy errors over a transient network blip.
-      console.warn("[ChatService] markRideRead failed", err);
+    const now = Date.now();
+    const existing = markReadAttempts.get(chatId);
+
+    if (existing?.inFlight) {
+      return existing.inFlight;
     }
+
+    if (existing && now - existing.lastAttemptAt < MARK_READ_DEDUPE_MS) {
+      return;
+    }
+
+    let attempt: Promise<void>;
+    attempt = postReadMarker(apiUtil, chatId).finally(() => {
+      const current = markReadAttempts.get(chatId);
+      if (current?.inFlight === attempt) {
+        markReadAttempts.set(chatId, { lastAttemptAt: current.lastAttemptAt });
+      }
+    });
+
+    markReadAttempts.set(chatId, {
+      lastAttemptAt: now,
+      inFlight: attempt,
+    });
+
+    return attempt;
   }
 
   static async openSocket(
