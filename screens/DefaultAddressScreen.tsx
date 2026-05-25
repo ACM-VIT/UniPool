@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, StyleSheet, Dimensions } from "react-native";
-import { TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Modal, Image } from "react-native";
+import { TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Modal, Image, FlatList, ListRenderItem } from "react-native";
 import { X } from "lucide-react-native";
 import ChevronBack from "../components/ChevronBack";
 import BrandInfo from "../components/BrandInfo";
@@ -19,6 +19,18 @@ import {
 type DefaultAddressResponse = { address?: string };
 
 const { width, height } = Dimensions.get("window");
+
+type LocationListRow =
+  | { type: "loading"; id: string }
+  | { type: "section"; id: string; title: string }
+  | { type: "popular"; id: string; location: LocationResult; label: string }
+  | { type: "search"; id: string; result: LocationResult }
+  | { type: "empty"; id: string; message: string };
+
+const locationLabel = (location: LocationResult) =>
+  location.name ||
+  location.display_name.split(",")[0] ||
+  location.display_name;
 
 const DefaultAddressScreen: React.FC = () => {
   const [defaultAddress, setDefaultAddress] = useState<string>("");
@@ -151,6 +163,104 @@ const DefaultAddressScreen: React.FC = () => {
     }
   };
 
+  const locationRows = useMemo<LocationListRow[]>(() => {
+    const rows: LocationListRow[] = [];
+    if (isLoadingPopular) {
+      rows.push({ type: "loading", id: "loading-popular" });
+      return rows;
+    }
+
+    if (popularLocations.length > 0) {
+      rows.push({ type: "section", id: "popular-section", title: "Popular Locations" });
+      popularLocations.forEach((location, index) => {
+        rows.push({
+          type: "popular",
+          id: `popular-${location.place_id || index}`,
+          location,
+          label: locationLabel(location),
+        });
+      });
+    }
+
+    if (searchResults.length > 0) {
+      rows.push({ type: "section", id: "search-section", title: "Search Results" });
+      searchResults.forEach((result, index) => {
+        rows.push({
+          type: "search",
+          id: `search-${result.place_id || index}`,
+          result,
+        });
+      });
+    }
+
+    if (searchQuery.length >= 2 && !isSearching && searchResults.length === 0) {
+      rows.push({ type: "empty", id: "no-results", message: "No locations found." });
+    }
+
+    return rows;
+  }, [isLoadingPopular, isSearching, popularLocations, searchQuery.length, searchResults]);
+
+  const renderLocationRow = useCallback<ListRenderItem<LocationListRow>>(({ item }) => {
+    switch (item.type) {
+      case "loading":
+        return (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={AppColors.basicWhite} accessibilityLabel="Loading" />
+            <Text style={styles.loadingText}>Loading nearby places...</Text>
+          </View>
+        );
+      case "section":
+        return <Text style={styles.sectionHeader}>{item.title}</Text>;
+      case "popular":
+        return (
+          <TouchableOpacity
+            style={styles.locationItem}
+            onPress={() => handleLocationSelect(item.label)}
+            activeOpacity={0.7}
+          >
+            <Image
+              source={require("../assets/location-pin.png")}
+              style={styles.locationIcon}
+            />
+            <Text style={styles.locationText}>{item.label}</Text>
+          </TouchableOpacity>
+        );
+      case "search": {
+        const label = item.result.name || item.result.display_name.split(",")[0];
+        return (
+          <TouchableOpacity
+            style={styles.locationItem}
+            onPress={() => handleLocationSelect(label)}
+            activeOpacity={0.7}
+          >
+            <Image
+              source={require("../assets/location-pin.png")}
+              style={styles.locationIcon}
+            />
+            <View style={styles.searchResultContent}>
+              <Text style={styles.locationText} numberOfLines={1}>
+                {label}
+              </Text>
+              <Text style={styles.locationSubtext} numberOfLines={2}>
+                {item.result.display_name}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      }
+      case "empty":
+        return (
+          <Text style={styles.noResultsText}>
+            {item.message}
+          </Text>
+        );
+      default:
+        return null;
+    }
+  }, [handleLocationSelect]);
+
+  const locationRowKeyExtractor = useCallback((item: LocationListRow) => item.id, []);
+
   return (
     <View style={styles.container}>
       <View style={styles.brandInfoHeaderRow}>
@@ -247,75 +357,18 @@ const DefaultAddressScreen: React.FC = () => {
               )}
             </View>
 
-            <ScrollView style={styles.locationList} showsVerticalScrollIndicator={false}>
-              {isLoadingPopular ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={AppColors.basicWhite} accessibilityLabel="Loading" />
-                  <Text style={styles.loadingText}>Loading nearby places...</Text>
-                </View>
-              ) : popularLocations.length > 0 ? (
-                <>
-                  <Text style={styles.sectionHeader}>Popular Locations</Text>
-                  {popularLocations.map((location, index) => {
-                    // LocationResult — pick the same human-friendly
-                    // label the search-results branch below uses so
-                    // we never bind an object straight into a <Text>
-                    // child.
-                    const label =
-                      location.name ||
-                      location.display_name.split(",")[0] ||
-                      location.display_name;
-                    return (
-                      <TouchableOpacity
-                        key={`popular-${location.place_id || index}`}
-                        style={styles.locationItem}
-                        onPress={() => handleLocationSelect(label)}
-                        activeOpacity={0.7}
-                      >
-                        <Image
-                          source={require("../assets/location-pin.png")}
-                          style={styles.locationIcon}
-                        />
-                        <Text style={styles.locationText}>{label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </>
-              ) : null}
-
-              {searchResults.length > 0 && (
-                <>
-                  <Text style={styles.sectionHeader}>Search Results</Text>
-                  {searchResults.map((result) => (
-                    <TouchableOpacity
-                      key={result.place_id}
-                      style={styles.locationItem}
-                      onPress={() => handleLocationSelect(result.name || result.display_name.split(',')[0])}
-                      activeOpacity={0.7}
-                    >
-                      <Image
-                        source={require("../assets/location-pin.png")}
-                        style={styles.locationIcon}
-                      />
-                      <View style={styles.searchResultContent}>
-                        <Text style={styles.locationText} numberOfLines={1}>
-                          {result.name || result.display_name.split(',')[0]}
-                        </Text>
-                        <Text style={styles.locationSubtext} numberOfLines={2}>
-                          {result.display_name}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </>
-              )}
-
-              {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
-                <Text style={styles.noResultsText}>
-                  No locations found.
-                </Text>
-              )}
-            </ScrollView>
+            <FlatList
+              data={locationRows}
+              keyExtractor={locationRowKeyExtractor}
+              renderItem={renderLocationRow}
+              style={styles.locationList}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              initialNumToRender={4}
+              maxToRenderPerBatch={6}
+              updateCellsBatchingPeriod={48}
+              windowSize={5}
+            />
 
             <TouchableOpacity
               style={styles.closeButton}

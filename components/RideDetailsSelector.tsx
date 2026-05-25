@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { X } from "lucide-react-native";
 import {
@@ -9,6 +9,8 @@ import {
   Image,
   Modal,
   ScrollView,
+  FlatList,
+  ListRenderItem,
   Dimensions,
   TextInput,
   ActivityIndicator,
@@ -74,6 +76,14 @@ interface LocationCoordinates {
   latitude: number;
   longitude: number;
 }
+
+type LocationPickerRow =
+  | { type: "loading"; id: string }
+  | { type: "section"; id: string; title: string }
+  | { type: "popular"; id: string; location: LocationResult; label: string }
+  | { type: "search"; id: string; result: LocationResult }
+  | { type: "noResults"; id: string; query: string }
+  | { type: "hint"; id: string };
 
 const coordinatesFromLocationResult = (locationResult?: LocationResult): LocationCoordinates | null => {
   if (!locationResult?.lat || !locationResult?.lon) return null;
@@ -435,6 +445,126 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       }
     });
   };
+
+  const locationRows = useMemo<LocationPickerRow[]>(() => {
+    const rows: LocationPickerRow[] = [];
+    if (isLoadingPopular) {
+      rows.push({ type: "loading", id: "loading-popular" });
+      return rows;
+    }
+
+    if (
+      !isSearching &&
+      searchQuery.length <= 2 &&
+      searchResults.length === 0 &&
+      popularLocations.length > 0
+    ) {
+      rows.push({ type: "section", id: "popular-section", title: "Popular Locations" });
+      popularLocations.forEach((location, index) => {
+        rows.push({
+          type: "popular",
+          id: `popular-${location.place_id || index}`,
+          location,
+          label: getLocationDisplayName(location),
+        });
+      });
+    }
+
+    if (searchResults.length > 0) {
+      rows.push({ type: "section", id: "search-section", title: "Search Results" });
+      searchResults.forEach((result, index) => {
+        rows.push({
+          type: "search",
+          id: `search-${result.place_id || index}`,
+          result,
+        });
+      });
+    }
+
+    if (searchQuery.length > 2 && !isSearching && searchResults.length === 0) {
+      rows.push({ type: "noResults", id: "no-results", query: searchQuery });
+    }
+
+    if (searchQuery.length > 0 && searchQuery.length <= 2 && !isSearching && searchResults.length === 0) {
+      rows.push({ type: "hint", id: "short-query-hint" });
+    }
+
+    return rows;
+  }, [isLoadingPopular, isSearching, popularLocations, searchQuery, searchResults]);
+
+  const renderLocationRow = useCallback<ListRenderItem<LocationPickerRow>>(({ item }) => {
+    switch (item.type) {
+      case "loading":
+        return (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={AppColors.basicWhite} accessibilityLabel="Loading" />
+            <Text style={styles.loadingText}>Loading nearby places...</Text>
+          </View>
+        );
+      case "section":
+        return <Text style={styles.sectionHeader}>{item.title}</Text>;
+      case "popular":
+        return (
+          <TouchableOpacity
+            style={styles.locationItem}
+            onPress={() =>
+              handleLocationSelect(item.label, showFromDropdown, item.location)
+            }
+          >
+            <Image
+              source={require("../assets/location-pin.png")}
+              style={styles.locationIcon}
+            />
+            <Text style={styles.locationText}>{item.label}</Text>
+          </TouchableOpacity>
+        );
+      case "search":
+        return (
+          <TouchableOpacity
+            style={styles.locationItem}
+            onPress={() =>
+              handleLocationSelect(formatLocationName(item.result), showFromDropdown, item.result)
+            }
+          >
+            <Image
+              source={require("../assets/location-pin.png")}
+              style={styles.locationIcon}
+            />
+            <View style={styles.searchResultContent}>
+              <Text style={styles.locationText} numberOfLines={1}>
+                {item.result.name || item.result.display_name.split(',')[0]}
+              </Text>
+              <Text style={styles.locationSubtext} numberOfLines={2}>
+                {item.result.display_name}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      case "noResults":
+        return (
+          <View style={styles.noResultsContainer}>
+            <Text style={styles.noResultsText}>
+              No locations found for "{item.query}"
+            </Text>
+            <Text style={styles.noResultsSubtext}>
+              Try a different search term or check your spelling
+            </Text>
+          </View>
+        );
+      case "hint":
+        return (
+          <View style={styles.hintContainer}>
+            <Text style={styles.hintText}>
+              Type more characters to search for locations...
+            </Text>
+          </View>
+        );
+      default:
+        return null;
+    }
+  }, [handleLocationSelect, showFromDropdown]);
+
+  const locationRowKeyExtractor = useCallback((item: LocationPickerRow) => item.id, []);
 
   const handleLocationSelectorOpen = async (isFrom: boolean) => {
     if (DEBUG_RIDE_SELECTOR) console.log('Opening location selector, isFrom:', isFrom, 'userLocation:', userLocation);
@@ -949,100 +1079,19 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             </View>
 
             <View style={styles.scrollableArea}>
-              <ScrollView 
+              <FlatList
+                data={locationRows}
+                keyExtractor={locationRowKeyExtractor}
+                renderItem={renderLocationRow}
                 style={styles.locationList}
                 showsVerticalScrollIndicator={true}
                 nestedScrollEnabled={true}
-              >
-              {/* Show loading state */}
-              {isLoadingPopular ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={AppColors.basicWhite} accessibilityLabel="Loading" />
-                  <Text style={styles.loadingText}>Loading nearby places...</Text>
-                </View>
-              ) : null}
-
-              {/* Show popular locations only when:
-                  1. Search query is empty or very short (<=2 chars)
-                  2. No search results are available
-                  3. Not currently searching
-              */}
-              {!isSearching && 
-               searchQuery.length <= 2 && 
-               searchResults.length === 0 && 
-               popularLocations.length > 0 ? (
-                <>
-                  <Text style={styles.sectionHeader}>
-                    {searchQuery.length === 0 ? "Popular Locations" : "Popular Locations"}
-                  </Text>
-                  {popularLocations.map((location, index) => (
-                    <TouchableOpacity
-                      key={`popular-${index}`}
-                      style={styles.locationItem}
-                      onPress={() =>
-                        handleLocationSelect(getLocationDisplayName(location), showFromDropdown, location)
-                      }
-                    >
-                      <Image
-                        source={require("../assets/location-pin.png")}
-                        style={styles.locationIcon}
-                      />
-                      <Text style={styles.locationText}>{getLocationDisplayName(location)}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </>
-              ) : null}
-
-              {/* Show search results when available */}
-              {searchResults.length > 0 && (
-                <>
-                  <Text style={styles.sectionHeader}>Search Results</Text>
-                  {searchResults.map((result) => (
-                    <TouchableOpacity
-                      key={result.place_id}
-                      style={styles.locationItem}
-                      onPress={() =>
-                        handleLocationSelect(formatLocationName(result), showFromDropdown, result)
-                      }
-                    >
-                      <Image
-                        source={require("../assets/location-pin.png")}
-                        style={styles.locationIcon}
-                      />
-                      <View style={styles.searchResultContent}>
-                        <Text style={styles.locationText} numberOfLines={1}>
-                          {result.name || result.display_name.split(',')[0]}
-                        </Text>
-                        <Text style={styles.locationSubtext} numberOfLines={2}>
-                          {result.display_name}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </>
-              )}
-
-              {/* Show "No results found" only when user has typed >2 chars and no results */}
-              {searchQuery.length > 2 && !isSearching && searchResults.length === 0 && (
-                <View style={styles.noResultsContainer}>
-                  <Text style={styles.noResultsText}>
-                    No locations found for "{searchQuery}"
-                  </Text>
-                  <Text style={styles.noResultsSubtext}>
-                    Try a different search term or check your spelling
-                  </Text>
-                </View>
-              )}
-
-              {/* Show helpful message when user starts typing but results aren't loaded yet */}
-              {searchQuery.length > 0 && searchQuery.length <= 2 && !isSearching && searchResults.length === 0 && (
-                <View style={styles.hintContainer}>
-                  <Text style={styles.hintText}>
-                    Type more characters to search for locations...
-                  </Text>
-                </View>
-              )}
-            </ScrollView>
+                keyboardShouldPersistTaps="handled"
+                initialNumToRender={4}
+                maxToRenderPerBatch={6}
+                updateCellsBatchingPeriod={48}
+                windowSize={5}
+              />
             </View>
 
             <TouchableOpacity
