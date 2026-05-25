@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Linking, Platform } from "react-native";
 import { useFocusEffect } from "expo-router";
 import AppColors from "../design_systems/colors";
@@ -58,11 +58,12 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
   const { apiUtil } = useApi();
   const [card, setCard] = useState<TripCard | null>(null);
   const [busy, setBusy] = useState(false);
+  const hasFocusedOnceRef = useRef(false);
   const controlledByAppState = appStateResolved !== undefined;
 
   const load = useCallback(async () => {
     try {
-      const resp = await apiUtil.getUncached<{ trip_card: TripCard | null }>("/trip-card/active");
+      const resp = await apiUtil.get<{ trip_card: TripCard | null }>("/trip-card/active");
       setCard(resp?.trip_card ?? null);
     } catch {
       // 204 No Content shows up here too — silent failure is fine,
@@ -79,6 +80,10 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
   useFocusEffect(
     useCallback(() => {
       if (controlledByAppState) return undefined;
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return undefined;
+      }
       void load();
       return undefined;
     }, [controlledByAppState, load]),

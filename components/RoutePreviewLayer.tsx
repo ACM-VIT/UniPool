@@ -49,6 +49,19 @@ type Props = {
 };
 
 // --- geometry -------------------------------------------------------
+const MIN_LINE_DELTA = 0.000001;
+
+const sameLngLat = (a: [number, number], b: [number, number]) =>
+  Math.abs(a[0] - b[0]) < MIN_LINE_DELTA &&
+  Math.abs(a[1] - b[1]) < MIN_LINE_DELTA;
+
+const isValidLngLat = (coord: [number, number]) =>
+  Number.isFinite(coord[0]) &&
+  Number.isFinite(coord[1]) &&
+  coord[0] >= -180 &&
+  coord[0] <= 180 &&
+  coord[1] >= -90 &&
+  coord[1] <= 90;
 
 // Linear interpolation between two lng/lat pairs. Good enough for the
 // "actively dotting toward the destination" preview because UniPool's
@@ -473,6 +486,7 @@ const RoutePreviewLayer: React.FC<Props> = ({ ride, bounds, onTapDestination }) 
     if (!ride) return null;
     const start: [number, number] = [ride.start_longitude, ride.start_latitude];
     const dest: [number, number] = [ride.end_longitude, ride.end_latitude];
+    if (!isValidLngLat(start) || !isValidLngLat(dest)) return null;
     const clip = bounds ? clipSegmentToBounds(start, dest, bounds) : null;
     const endpoint = clip ? ([clip.lng, clip.lat] as [number, number]) : dest;
     return { start, dest, endpoint, clip };
@@ -482,6 +496,13 @@ const RoutePreviewLayer: React.FC<Props> = ({ ride, bounds, onTapDestination }) 
   const lineData = useMemo<GeoJSON.FeatureCollection | null>(() => {
     if (!segment) return null;
     const tip = lerp(segment.start, segment.endpoint, progress);
+    if (
+      !isValidLngLat(segment.start) ||
+      !isValidLngLat(tip) ||
+      sameLngLat(segment.start, tip)
+    ) {
+      return null;
+    }
     return {
       type: "FeatureCollection",
       features: [
@@ -497,7 +518,7 @@ const RoutePreviewLayer: React.FC<Props> = ({ ride, bounds, onTapDestination }) 
     };
   }, [segment, progress]);
 
-  if (!ride || !segment || !lineData) return null;
+  if (!ride || !segment) return null;
 
   // City label: short form of the end_location, comma-stripped.
   const cityLabel = (() => {
@@ -514,52 +535,54 @@ const RoutePreviewLayer: React.FC<Props> = ({ ride, bounds, onTapDestination }) 
 
   return (
     <>
-      <GeoJSONSource id="route-preview-source" data={lineData}>
-        {/* Soft halo underneath the dots so they read on lime / cream
-            land tiles AND on the river / water tiles MapLibre demotiles
-            paint blue. Same trick Apple Maps uses on its directions
-            line. */}
-        <MapLibreLayer
-          id="route-preview-halo"
-          type="line"
-          // `line-cap` and `line-join` are layout-class properties in
-          // the MapLibre style spec; the typed paint props block them.
-          layout={{
-            "line-cap": "round",
-            "line-join": "round",
-          }}
-          paint={{
-            "line-color": AppColors.primaryLightGreen,
-            "line-width": 8,
-            "line-opacity": 0.55,
-            "line-blur": 4,
-          }}
-        />
-        <MapLibreLayer
-          id="route-preview-line"
-          type="line"
-          layout={{
-            "line-cap": "round",
-            "line-join": "round",
-          }}
-          paint={{
-            "line-color": AppColors.secondaryDarkGreen,
-            // Round dots with breathing room. The dasharray is in
-            // line-widths, so [0.4, 1.8] reads as "tiny dot then a
-            // gap nearly twice the line width". With line-cap round
-            // the 0.4-unit dash renders as a near-circular dot.
-            "line-dasharray": [0.4, 1.8],
-            // Subtle living-breath on the line width — ~6%
-            // oscillation around the resting value once the dots
-            // have landed, zero during the draw-in (additive offset
-            // is 0 while pulsePhase is at its 0-init value). Keeps
-            // the line from feeling frozen without crossing into
-            // "needy" territory.
-            "line-width": 4 + pulsePhase * 0.24,
-            "line-opacity": 0.95,
-          }}
-        />
-      </GeoJSONSource>
+      {lineData && (
+        <GeoJSONSource id="route-preview-source" data={lineData}>
+          {/* Soft halo underneath the dots so they read on lime / cream
+              land tiles AND on the river / water tiles MapLibre demotiles
+              paint blue. Same trick Apple Maps uses on its directions
+              line. */}
+          <MapLibreLayer
+            id="route-preview-halo"
+            type="line"
+            // `line-cap` and `line-join` are layout-class properties in
+            // the MapLibre style spec; the typed paint props block them.
+            layout={{
+              "line-cap": "round",
+              "line-join": "round",
+            }}
+            paint={{
+              "line-color": AppColors.primaryLightGreen,
+              "line-width": 8,
+              "line-opacity": 0.55,
+              "line-blur": 4,
+            }}
+          />
+          <MapLibreLayer
+            id="route-preview-line"
+            type="line"
+            layout={{
+              "line-cap": "round",
+              "line-join": "round",
+            }}
+            paint={{
+              "line-color": AppColors.secondaryDarkGreen,
+              // Round dots with breathing room. The dasharray is in
+              // line-widths, so [0.4, 1.8] reads as "tiny dot then a
+              // gap nearly twice the line width". With line-cap round
+              // the 0.4-unit dash renders as a near-circular dot.
+              "line-dasharray": [0.4, 1.8],
+              // Subtle living-breath on the line width — ~6%
+              // oscillation around the resting value once the dots
+              // have landed, zero during the draw-in (additive offset
+              // is 0 while pulsePhase is at its 0-init value). Keeps
+              // the line from feeling frozen without crossing into
+              // "needy" territory.
+              "line-width": 4 + pulsePhase * 0.24,
+              "line-opacity": 0.95,
+            }}
+          />
+        </GeoJSONSource>
+      )}
 
       {/* Off-screen chevron — only rendered once we know the
           destination falls outside the viewport. Lives at a real

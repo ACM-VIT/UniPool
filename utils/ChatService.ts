@@ -1,7 +1,6 @@
 import { ChatMessage } from "../screens/ChatScreens/ChatScreen.types";
 import ApiUtil from "./ApiUtil";
 import baseURL from "../config/urlconfig";
-import { getAuth, getIdTokenResult } from "@react-native-firebase/auth";
 
 export type FetchMessagesResult = {
   messages: ChatMessage[];
@@ -9,12 +8,22 @@ export type FetchMessagesResult = {
 };
 
 const MARK_READ_DEDUPE_MS = 5_000;
+const MESSAGE_PAGE_CACHE_TTL_MS = 5 * 60_000;
+const MESSAGE_PAGE_CACHE_LIMIT = 80;
 
 const markReadAttempts = new Map<
   string,
   {
     lastAttemptAt: number;
     inFlight?: Promise<void>;
+  }
+>();
+const latestMessagePages = new Map<
+  string,
+  {
+    cachedAt: number;
+    messages: ChatMessage[];
+    hasMore: boolean;
   }
 >();
 
@@ -40,6 +49,27 @@ const postReadMarker = async (apiUtil: ApiUtil, chatId: string): Promise<void> =
 };
 
 export default class ChatService {
+  static getCachedMessages(roomId: string): FetchMessagesResult | null {
+    const cached = latestMessagePages.get(roomId);
+    if (!cached) return null;
+    if (Date.now() - cached.cachedAt > MESSAGE_PAGE_CACHE_TTL_MS) {
+      latestMessagePages.delete(roomId);
+      return null;
+    }
+    return {
+      messages: cached.messages,
+      hasMore: cached.hasMore,
+    };
+  }
+
+  static primeMessages(roomId: string, messages: ChatMessage[], hasMore: boolean): void {
+    latestMessagePages.set(roomId, {
+      cachedAt: Date.now(),
+      messages: messages.slice(-MESSAGE_PAGE_CACHE_LIMIT),
+      hasMore,
+    });
+  }
+
   /**
    * Fetch a page of messages for a room. The backend returns them
    * newest-to-oldest within a page; callers append to the existing
@@ -53,7 +83,7 @@ export default class ChatService {
   static async fetchMessages(
     apiUtil: ApiUtil,
     roomId: string,
-    opts: { before?: string; limit?: number } = {},
+    opts: { before?: string; limit?: number; markRead?: boolean } = {},
   ): Promise<FetchMessagesResult> {
     const base = roomId.startsWith("dm_")
       ? `/dm/${roomId}/messages`
@@ -62,14 +92,19 @@ export default class ChatService {
     const params = new URLSearchParams();
     if (opts.limit) params.set("limit", String(opts.limit));
     if (opts.before) params.set("before", opts.before);
+    if (opts.markRead && !opts.before) params.set("mark_read", "1");
     const qs = params.toString();
     const endpoint = qs ? `${base}?${qs}` : base;
 
     const res = await apiUtil.get<{ messages: ChatMessage[]; has_more?: boolean }>(endpoint);
-    return {
+    const result = {
       messages: res.messages || [],
       hasMore: !!res.has_more,
     };
+    if (!opts.before) {
+      ChatService.primeMessages(roomId, result.messages, result.hasMore);
+    }
+    return result;
   }
 
   static async sendMessage(
@@ -118,21 +153,21 @@ export default class ChatService {
   }
 
   static async openSocket(
+    apiUtil: ApiUtil,
     userId: string,
     roomId: string,
     onMessage: (evt: MessageEvent) => void,
   ): Promise<WebSocket> {
     const httpBase = baseURL.replace(/\/$/, "");
     const derivedWsBase = httpBase.replace(/^http/, "ws");
-    const currentUser = getAuth().currentUser;
-    if (!currentUser) {
+    const token = await apiUtil.getAuthToken();
+    if (!token) {
       throw new Error("Cannot open chat socket without a signed-in user");
     }
-    const tokenResult = await getIdTokenResult(currentUser);
     const params = new URLSearchParams({
       user_id: userId,
       room_id: roomId,
-      token: tokenResult.token,
+      token,
     });
     const wsUrl = `${process.env.EXPO_PUBLIC_WS_URL || derivedWsBase}/ws?${params.toString()}`;
     const ws = new WebSocket(wsUrl);

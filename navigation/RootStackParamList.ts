@@ -51,10 +51,12 @@ export type RootStackParamList = {
     chatRoom?: { id: string; title?: string; subtitle?: string };
     chatTitle?: string;
     chatSubtitle?: string;
+    userId?: string;
     isGroupChat?: boolean;
     otherUserId?: string;
     hostUserId?: string;
     viewerRole?: string;
+    notificationsMuted?: boolean;
     pendingHostInquiry?: boolean;
     // Set when the HOST is the one viewing a requester's pending DM.
     // When unset, the same screen is rendering for the passenger

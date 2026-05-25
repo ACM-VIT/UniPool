@@ -12,6 +12,11 @@ import type { HomeRide } from "../utils/AppStateService";
 
 type UserRideData = HomeRide;
 
+const DEBUG_PREVIOUS_TRIPS =
+    typeof __DEV__ !== "undefined" &&
+    __DEV__ &&
+    process.env.EXPO_PUBLIC_DEBUG_TRIPS === "1";
+
 interface PreviousTripsSectionProps {
     // Fires whenever the "do we have trips to show?" answer changes —
     // lets HomeScreen swap between this section and the "Rides around
@@ -72,15 +77,15 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
             // trips live under Profile → Trip history. Server-side
             // scope filter keeps the carousel honest even if a future
             // viewer_state changes.
-            const response = await apiUtil.getUncached<UserRideData[]>("/user/rides?scope=upcoming");
-            console.log("Raw API Response:", response);
+            const response = await apiUtil.get<UserRideData[]>("/user/rides?scope=upcoming");
+            if (DEBUG_PREVIOUS_TRIPS) console.log("Raw API Response:", response);
             
             if (!Array.isArray(response)) {
                 throw new Error("API response is not an array");
             }
             
             setRideData(response);
-            console.log("User rides fetched successfully:", response.length, "rides");
+            if (DEBUG_PREVIOUS_TRIPS) console.log("User rides fetched successfully:", response.length, "rides");
         } catch (error) {
             console.error("Error fetching user rides:", error);
             

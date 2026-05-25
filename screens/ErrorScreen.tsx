@@ -4,10 +4,10 @@ import {
   Text,
   Image,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Dimensions,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import AppColors from "../design_systems/colors";
 import { appHref } from "../navigation/routes";

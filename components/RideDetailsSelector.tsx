@@ -36,6 +36,10 @@ import {
 } from "../utils/LocationService";
 
 const { width: rawWidth, height: rawHeight } = Dimensions.get("window");
+const DEBUG_RIDE_SELECTOR =
+  typeof __DEV__ !== "undefined" &&
+  __DEV__ &&
+  process.env.EXPO_PUBLIC_DEBUG_RIDE_SELECTOR === "1";
 // Tablet branch only: phones keep their real window dimensions so
 // every `width * 0.NN` / `height * 0.NN` size below scales naturally
 // across iPhone SE → 16 Pro Max. On tablets we substitute a fixed
@@ -160,11 +164,11 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         const currentUser = auth.currentUser;
         
         if (!currentUser) {
-          console.log("No authenticated user found in RideDetailsSelector");
+          if (DEBUG_RIDE_SELECTOR) console.log("No authenticated user found in RideDetailsSelector");
           return;
         }
 
-        console.log("User authenticated, fetching default address...");
+        if (DEBUG_RIDE_SELECTOR) console.log("User authenticated, fetching default address...");
         const res = await apiUtil.get("/user/default-address");
         if (typeof res === "object" && res !== null && "address" in res && typeof (res as any).address === "string") {
           setDefaultStartAddress((res as any).address);
@@ -175,7 +179,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         }
       } catch (err: any) {
         if (err?.message !== "AUTHENTICATION_REDIRECT") {
-          console.log("Error fetching default address:", err);
+          if (DEBUG_RIDE_SELECTOR) console.log("Error fetching default address:", err);
         }
       }
     }
@@ -235,13 +239,13 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
     // Only submit if all three fields are filled
     if (!from || !to || !date) {
-      console.log('Not submitting - missing required fields:', { from: !!from, to: !!to, date: !!date });
+      if (DEBUG_RIDE_SELECTOR) console.log('Not submitting - missing required fields:', { from: !!from, to: !!to, date: !!date });
       return;
     }
 
     // Use the provided date directly, no fallback to avoid state issues
-    console.log('submitRideDetails called with date:', date);
-    console.log('Current selectedDate state:', selectedDate);
+    if (DEBUG_RIDE_SELECTOR) console.log('submitRideDetails called with date:', date);
+    if (DEBUG_RIDE_SELECTOR) console.log('Current selectedDate state:', selectedDate);
     
     const rideDetails: RideDetails = {
       from,
@@ -251,7 +255,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       toCoordinates: (toCoords ?? toCoordinates) ?? undefined
     };
     
-    console.log('Submitting ride details with coordinates:', rideDetails);
+    if (DEBUG_RIDE_SELECTOR) console.log('Submitting ride details with coordinates:', rideDetails);
     onSubmit(rideDetails);
   };
 
@@ -321,7 +325,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   };
 
   const handleLocationSelect = (location: string, isFrom: boolean, locationResult?: LocationResult) => {
-    console.log('Location selected:', location, 'isFrom:', isFrom, 'locationResult:', locationResult);
+    if (DEBUG_RIDE_SELECTOR) console.log('Location selected:', location, 'isFrom:', isFrom, 'locationResult:', locationResult);
 
     const immediateCoords = coordinatesFromLocationResult(locationResult);
 
@@ -433,7 +437,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   };
 
   const handleLocationSelectorOpen = async (isFrom: boolean) => {
-    console.log('Opening location selector, isFrom:', isFrom, 'userLocation:', userLocation);
+    if (DEBUG_RIDE_SELECTOR) console.log('Opening location selector, isFrom:', isFrom, 'userLocation:', userLocation);
     
     if (isFrom) {
       setShowFromDropdown(true);
@@ -473,7 +477,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
   const handleDateTimeChange = (event: any, selected?: Date) => {
     if (selected) {
-      console.log('Date/time changed to:', selected);
+      if (DEBUG_RIDE_SELECTOR) console.log('Date/time changed to:', selected);
       setSelectedDate(selected);
       setTempDate(selected);
       
@@ -484,7 +488,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         setPickerMode("date");
         
         if (fromLocation && toLocation && selected) {
-          console.log('Submitting with updated date:', selected);
+          if (DEBUG_RIDE_SELECTOR) console.log('Submitting with updated date:', selected);
           submitRideDetails(fromLocation, toLocation, selected, fromCoordinates ?? undefined, toCoordinates ?? undefined);
         }
       }
@@ -496,14 +500,14 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
   const handleDateFieldClick = () => {
     if (Platform.OS === "ios" || FORCE_IOS_PICKER_UI) {
-      console.log('Opening iOS-style picker modal');
+      if (DEBUG_RIDE_SELECTOR) console.log('Opening iOS-style picker modal');
       const initialDate = selectedDate || getInitialDate();
       setTempDate(initialDate);
       setPickerMode("date");
       pickerModeRef.current = "date";
       setShowDateTimePicker(true);
     } else {
-      console.log('Opening native Android picker');
+      if (DEBUG_RIDE_SELECTOR) console.log('Opening native Android picker');
       setPickerMode("date");
       pickerModeRef.current = "date";
       const initialDate = selectedDate || getInitialDate();
@@ -521,18 +525,18 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     date?: Date
   ) => {
     if (FORCE_IOS_PICKER_UI || showDateTimePicker) {
-      console.log('Ignoring Android picker event - iOS UI forced or modal showing');
+      if (DEBUG_RIDE_SELECTOR) console.log('Ignoring Android picker event - iOS UI forced or modal showing');
       return;
     }
     
     if (event.type === "dismissed") {
       if (pickerModeRef.current === "time") {
         const finalDate = selectedDate || getInitialDate();
-        console.log('Time picker dismissed, using current date:', finalDate);
+        if (DEBUG_RIDE_SELECTOR) console.log('Time picker dismissed, using current date:', finalDate);
         setPickerMode("date");
         pickerModeRef.current = "date";
         if (fromLocation && toLocation && finalDate) {
-          console.log('Submitting Android ride details after time dismissal:', finalDate);
+          if (DEBUG_RIDE_SELECTOR) console.log('Submitting Android ride details after time dismissal:', finalDate);
           submitRideDetails(
             fromLocation,
             toLocation,
@@ -549,10 +553,10 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
     
     const current = date || selectedDate || getInitialDate();
-    console.log('Android picker changed:', current, 'mode:', pickerModeRef.current);
+    if (DEBUG_RIDE_SELECTOR) console.log('Android picker changed:', current, 'mode:', pickerModeRef.current);
 
     if (pickerModeRef.current === "date") {
-      console.log('Date selected, updating state and opening time picker');
+      if (DEBUG_RIDE_SELECTOR) console.log('Date selected, updating state and opening time picker');
       setSelectedDate(current);
       setTempDate(current);
       setPickerMode("time");
@@ -564,13 +568,13 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         mode: "time",
       });
     } else if (pickerModeRef.current === "time") {
-      console.log('Final Android date/time selected:', current);
+      if (DEBUG_RIDE_SELECTOR) console.log('Final Android date/time selected:', current);
       setSelectedDate(current);
       setTempDate(current);
       setPickerMode("date");
       pickerModeRef.current = "date";
       if (fromLocation && toLocation && current) {
-        console.log('Submitting Android ride details with date:', current);
+        if (DEBUG_RIDE_SELECTOR) console.log('Submitting Android ride details with date:', current);
         submitRideDetails(
           fromLocation,
           toLocation,
@@ -584,13 +588,13 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
   const handleDateTimeConfirm = () => {
     const finalDate = tempDate || selectedDate || getInitialDate();
-    console.log('iOS date/time confirmed:', finalDate);
+    if (DEBUG_RIDE_SELECTOR) console.log('iOS date/time confirmed:', finalDate);
     setSelectedDate(finalDate);
     setShowDateTimePicker(false);
     setPickerMode("date");
     
     if (fromLocation && toLocation && finalDate) {
-      console.log('Submitting iOS ride details with date:', finalDate);
+      if (DEBUG_RIDE_SELECTOR) console.log('Submitting iOS ride details with date:', finalDate);
       submitRideDetails(
         fromLocation,
         toLocation,
@@ -602,7 +606,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   };
 
   const handleDateTimeCancel = () => {
-    console.log('iOS date/time picker cancelled');
+    if (DEBUG_RIDE_SELECTOR) console.log('iOS date/time picker cancelled');
     setTempDate(selectedDate);
     setShowDateTimePicker(false);
     setPickerMode("date");
@@ -664,11 +668,11 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     const today = new Date();
     today.setHours(today.getHours() + 1);
     today.setMinutes(0, 0, 0);
-    console.log('Setting to today:', today);
+    if (DEBUG_RIDE_SELECTOR) console.log('Setting to today:', today);
     setSelectedDate(today);
     setTempDate(today);
     if (fromLocation && toLocation) {
-      console.log('Submitting today ride details with date:', today);
+      if (DEBUG_RIDE_SELECTOR) console.log('Submitting today ride details with date:', today);
       submitRideDetails(
         fromLocation,
         toLocation,
@@ -683,11 +687,11 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(9, 0, 0, 0);
-    console.log('Setting to tomorrow:', tomorrow);
+    if (DEBUG_RIDE_SELECTOR) console.log('Setting to tomorrow:', tomorrow);
     setSelectedDate(tomorrow);
     setTempDate(tomorrow);
     if (fromLocation && toLocation) {
-      console.log('Submitting tomorrow ride details with date:', tomorrow);
+      if (DEBUG_RIDE_SELECTOR) console.log('Submitting tomorrow ride details with date:', tomorrow);
       submitRideDetails(
         fromLocation,
         toLocation,
@@ -1112,7 +1116,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                     const today = new Date();
                     today.setHours(today.getHours() + 1);
                     today.setMinutes(0, 0, 0);
-                    console.log('Quick select today:', today);
+                    if (DEBUG_RIDE_SELECTOR) console.log('Quick select today:', today);
                     setTempDate(today);
                   }}
                 >
@@ -1124,7 +1128,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                     const tomorrow = new Date();
                     tomorrow.setDate(tomorrow.getDate() + 1);
                     tomorrow.setHours(9, 0, 0, 0); // Set to 9 AM tomorrow
-                    console.log('Quick select tomorrow:', tomorrow);
+                    if (DEBUG_RIDE_SELECTOR) console.log('Quick select tomorrow:', tomorrow);
                     setTempDate(tomorrow);
                   }}
                 >

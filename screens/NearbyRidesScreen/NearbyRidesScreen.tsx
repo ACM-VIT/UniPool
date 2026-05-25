@@ -37,6 +37,12 @@ const sizeFor = (s: number, m: number, l: number) =>
   isSmallDevice ? s : isMediumDevice ? m : l;
 
 const clockIcon = require("../../assets/clock.png");
+const NEARBY_LOCATION_CACHE_MS = 60_000;
+const NEARBY_LAST_KNOWN_MAX_AGE_MS = 5 * 60_000;
+
+let nearbyLocationCache:
+  | { latitude: number; longitude: number; cachedAtMs: number }
+  | null = null;
 
 type NearbyRide = {
   id: string;
@@ -59,18 +65,52 @@ type NearbyRide = {
   total_price: number;
 };
 
+type NearbyRideWithComputed = NearbyRide & {
+  distanceKm: number;
+  startTimeMs: number;
+};
+
+type NearbyRideRow = Omit<NearbyRideWithComputed, "distanceKm"> & {
+  dateLabel: string;
+  timeLabel: string;
+  distanceKm: number | null;
+  seatsLeft: number;
+};
+
+const nearbyDateFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    });
+  } catch {
+    return null;
+  }
+})();
+
+const nearbyTimeFormatter = (() => {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+  } catch {
+    return null;
+  }
+})();
+
 const formatTime = (iso: string): string => {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm} hrs`;
+  return `${nearbyTimeFormatter?.format(d) ?? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`} hrs`;
 };
 
 const formatDate = (iso: string): string => {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, {
+  return nearbyDateFormatter?.format(d) ?? d.toLocaleDateString(undefined, {
     weekday: "short",
     day: "2-digit",
     month: "short",
@@ -114,7 +154,7 @@ const NearbyRidesScreen: React.FC = () => {
   const { user: viewerUser } = useUser();
   const viewerUserId = viewerUser?.id ?? "";
   const insets = useSafeAreaInsets();
-  const [rides, setRides] = useState<NearbyRide[]>([]);
+  const [rides, setRides] = useState<NearbyRideWithComputed[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -124,6 +164,39 @@ const NearbyRidesScreen: React.FC = () => {
   // don't share copy ("We hit a snag" doesn't fit a permission gate).
   const [needsLocation, setNeedsLocation] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
+
+  const getCurrentCoords = useCallback(async (forceFresh: boolean) => {
+    const cached = nearbyLocationCache;
+    if (!forceFresh && cached && Date.now() - cached.cachedAtMs < NEARBY_LOCATION_CACHE_MS) {
+      return { latitude: cached.latitude, longitude: cached.longitude };
+    }
+
+    if (!forceFresh) {
+      try {
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown && Date.now() - lastKnown.timestamp < NEARBY_LAST_KNOWN_MAX_AGE_MS) {
+          nearbyLocationCache = {
+            latitude: lastKnown.coords.latitude,
+            longitude: lastKnown.coords.longitude,
+            cachedAtMs: Date.now(),
+          };
+          return { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
+        }
+      } catch (e) {
+        console.warn("[NearbyRides] last-known location unavailable", e);
+      }
+    }
+
+    const { coords: c } = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+    nearbyLocationCache = {
+      latitude: c.latitude,
+      longitude: c.longitude,
+      cachedAtMs: Date.now(),
+    };
+    return { latitude: c.latitude, longitude: c.longitude };
+  }, []);
 
   const load = useCallback(async (forceNetwork = false) => {
     setError(null);
@@ -139,10 +212,8 @@ const NearbyRidesScreen: React.FC = () => {
         setRides([]);
         return;
       }
-      const { coords: c } = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      setCoords({ latitude: c.latitude, longitude: c.longitude });
+      const c = await getCurrentCoords(forceNetwork);
+      setCoords(c);
 
       // Pass the viewer's user id so the backend drops the viewer's
       // own rides server-side — the surrounding client filter at
@@ -156,15 +227,21 @@ const NearbyRidesScreen: React.FC = () => {
         ? await apiUtil.getUncached<{ rides?: NearbyRide[] }>(endpoint)
         : await apiUtil.get<{ rides?: NearbyRide[] }>(endpoint);
       const nowMs = Date.now();
-      const list: NearbyRide[] = (Array.isArray(json?.rides) ? json.rides : [])
+      const list: NearbyRideWithComputed[] = (Array.isArray(json?.rides) ? json.rides : [])
         .filter((r) => isRideUpcomingAt(r.start_time, nowMs))
-        .filter((r) => !viewerUserId || r.host_user_id !== viewerUserId);
+        .filter((r) => !viewerUserId || r.host_user_id !== viewerUserId)
+        .map((r) => ({
+          ...r,
+          distanceKm: haversineKm(c.latitude, c.longitude, r.start_latitude, r.start_longitude),
+          startTimeMs: new Date(r.start_time).getTime(),
+        }));
       // Sort by distance from the user, then by start_time within ties.
+      // Distance and timestamps are precomputed once per row. The
+      // previous comparator recalculated haversine twice per
+      // comparison, then visibleRides calculated it all over again.
       list.sort((a, b) => {
-        const da = haversineKm(c.latitude, c.longitude, a.start_latitude, a.start_longitude);
-        const db = haversineKm(c.latitude, c.longitude, b.start_latitude, b.start_longitude);
-        if (Math.abs(da - db) > 0.05) return da - db;
-        return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+        if (Math.abs(a.distanceKm - b.distanceKm) > 0.05) return a.distanceKm - b.distanceKm;
+        return a.startTimeMs - b.startTimeMs;
       });
       setRides(list);
     } catch (e: any) {
@@ -172,7 +249,7 @@ const NearbyRidesScreen: React.FC = () => {
       setError("Couldn't load rides. Pull down to try again.");
       setRides([]);
     }
-  }, [apiUtil, viewerUserId]);
+  }, [apiUtil, getCurrentCoords, viewerUserId]);
 
   // Reload on every focus so coming back from LocationPermissionScreen
   // (after the user granted permission) actually refreshes the list
@@ -195,7 +272,7 @@ const NearbyRidesScreen: React.FC = () => {
     }, [load]),
   );
 
-  const visibleRides = useMemo(
+  const visibleRides = useMemo<NearbyRideRow[]>(
     () =>
       rides
         .filter((r) => isRideUpcomingAt(r.start_time, nowTick))
@@ -203,17 +280,24 @@ const NearbyRidesScreen: React.FC = () => {
         // that a cached response from before the user logged in (or
         // an /rides/nearby that landed pre-context) never leaks the
         // viewer's own pins into the list.
-        .filter((r) => !viewerUserId || r.host_user_id !== viewerUserId),
-    [rides, nowTick, viewerUserId],
+        .filter((r) => !viewerUserId || r.host_user_id !== viewerUserId)
+        .map((r) => ({
+          ...r,
+          dateLabel: formatDate(r.start_time),
+          timeLabel: formatTime(r.start_time),
+          distanceKm: coords ? r.distanceKm : null,
+          seatsLeft: Math.max(0, r.total_seats - r.booked_seats),
+        })),
+    [coords, rides, nowTick, viewerUserId],
   );
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await load(true);
     setRefreshing(false);
-  };
+  }, [load]);
 
-  const openRide = (ride: NearbyRide) => {
+  const openRide = useCallback((ride: NearbyRideRow) => {
     const nowMs = Date.now();
     if (!isRideUpcomingAt(ride.start_time, nowMs)) {
       setRides((current) =>
@@ -221,16 +305,18 @@ const NearbyRidesScreen: React.FC = () => {
       );
       return;
     }
-    router.navigate(appHref("AvailableRidesSelectedScreen", { ride } as any));
-  };
+    const {
+      distanceKm: _distanceKm,
+      startTimeMs: _startTimeMs,
+      dateLabel: _dateLabel,
+      timeLabel: _timeLabel,
+      seatsLeft: _seatsLeft,
+      ...ridePayload
+    } = ride;
+    router.navigate(appHref("AvailableRidesSelectedScreen", { ride: ridePayload } as any));
+  }, [router]);
 
-  const renderRide = ({ item }: { item: NearbyRide }) => {
-    const distanceKm = coords
-      ? haversineKm(coords.latitude, coords.longitude, item.start_latitude, item.start_longitude)
-      : null;
-    const seatsLeft = Math.max(0, item.total_seats - item.booked_seats);
-
-    return (
+  const renderRide = useCallback(({ item }: { item: NearbyRideRow }) => (
       <TouchableOpacity
         activeOpacity={0.85}
         style={styles.card}
@@ -252,24 +338,23 @@ const NearbyRidesScreen: React.FC = () => {
           <View style={styles.right}>
             <View style={styles.timeRow}>
               <Image source={clockIcon} style={styles.timeIcon} resizeMode="contain" />
-              <Text style={styles.timeText}>{formatTime(item.start_time)}</Text>
+              <Text style={styles.timeText}>{item.timeLabel}</Text>
             </View>
-            <Text style={styles.dateText}>{formatDate(item.start_time)}</Text>
+            <Text style={styles.dateText}>{item.dateLabel}</Text>
           </View>
         </View>
 
         <View style={styles.cardFooter}>
           <Text style={styles.metaText}>
-            {distanceKm !== null ? `${distanceKm.toFixed(1)} km away · ` : ""}
-            {seatsLeft} {seatsLeft === 1 ? "seat" : "seats"} left
+            {item.distanceKm !== null ? `${item.distanceKm.toFixed(1)} km away · ` : ""}
+            {item.seatsLeft} {item.seatsLeft === 1 ? "seat" : "seats"} left
           </Text>
           <View style={styles.pricePill}>
             <Text style={styles.priceText}>₹{item.total_price}</Text>
           </View>
         </View>
       </TouchableOpacity>
-    );
-  };
+  ), [openRide]);
 
   const headerCount = !loading && visibleRides.length > 0
     ? `${visibleRides.length} carpool${visibleRides.length === 1 ? "" : "s"} within 10 km`
@@ -349,7 +434,7 @@ const NearbyRidesScreen: React.FC = () => {
           keyExtractor={(it) => it.id}
           renderItem={renderRide}
           contentContainerStyle={[styles.listContent, tabletScrollContentStyle]}
-          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          ItemSeparatorComponent={NearbyRideSeparator}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -363,6 +448,10 @@ const NearbyRidesScreen: React.FC = () => {
     </View>
   );
 };
+
+function NearbyRideSeparator() {
+  return <View style={styles.rideSeparator} />;
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -401,6 +490,9 @@ const styles = StyleSheet.create({
     // it. MAIN_NAV_BAR_TOP_OFFSET = distance from screen bottom to
     // the *top* of the floating nav; +24 gives breathing room.
     paddingBottom: MAIN_NAV_BAR_TOP_OFFSET + 24,
+  },
+  rideSeparator: {
+    height: 12,
   },
 
   // Forest dark card, same vocabulary as RideCard + the chat list row.

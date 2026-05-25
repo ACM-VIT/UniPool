@@ -71,6 +71,7 @@ const PostTripRatingScreen: React.FC = () => {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasFocusedOnceRef = useRef(false);
 
   const loadEligibility = useCallback(() => {
     if (!rideId) {
@@ -109,6 +110,10 @@ const PostTripRatingScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return undefined;
+      }
       return loadEligibility();
     }, [loadEligibility]),
   );

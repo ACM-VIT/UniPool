@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import AppColors from "../design_systems/colors";
 
@@ -22,7 +22,18 @@ type Props = {
  * Lifted from the Uber Activity / Freenow "In progress" pattern but
  * styled to match UniPool's warm-illustrative brand.
  */
-const UpNextCard: React.FC<Props> = ({
+const upNextTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const upNextDateFormatter = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
+
+const UpNextCard = memo(function UpNextCard({
   origin,
   destination,
   startTime,
@@ -30,9 +41,9 @@ const UpNextCard: React.FC<Props> = ({
   isHost,
   onChat,
   onOpen,
-}) => {
-  const countdown = humanCountdown(startTime);
-  const dateLabel = formatDateLabel(startTime);
+}: Props) {
+  const countdown = useMemo(() => humanCountdown(startTime), [startTime]);
+  const dateLabel = useMemo(() => formatDateLabel(startTime), [startTime]);
 
   return (
     <TouchableOpacity activeOpacity={0.92} onPress={onOpen} style={styles.card}>
@@ -99,7 +110,7 @@ const UpNextCard: React.FC<Props> = ({
       </View>
     </TouchableOpacity>
   );
-};
+});
 
 const firstName = (full: string) => (full ? full.split(" ")[0] : "");
 
@@ -124,10 +135,10 @@ const formatDateLabel = (d: Date): string => {
   const tomorrow = new Date(now);
   tomorrow.setDate(now.getDate() + 1);
   const isTomorrow = d.toDateString() === tomorrow.toDateString();
-  const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const timeStr = upNextTimeFormatter.format(d);
   if (sameDay) return `Today · ${timeStr}`;
   if (isTomorrow) return `Tomorrow · ${timeStr}`;
-  const dayStr = d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+  const dayStr = upNextDateFormatter.format(d);
   return `${dayStr} · ${timeStr}`;
 };
 

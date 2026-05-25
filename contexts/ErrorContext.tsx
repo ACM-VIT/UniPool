@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Animated, Easing, View } from 'react-native';
 import { router } from "expo-router";
 import ErrorComponent from '../components/ErrorComponent';
@@ -36,7 +36,7 @@ export const ErrorProvider: React.FC<ErrorProviderProps> = ({ children }) => {
   const [slideAnim] = useState(new Animated.Value(1000));
   const lastShownErrorRef = useRef<{ key: string; shownAt: number } | null>(null);
 
-  const handleApiError = (error: any, retryAction?: () => void) => {
+  const handleApiError = useCallback((error: any, retryAction?: () => void) => {
     console.error('API Error handled:', error);
 
     let showHomeButton = false;
@@ -81,13 +81,13 @@ export const ErrorProvider: React.FC<ErrorProviderProps> = ({ children }) => {
       useNativeDriver: true,
       easing: Easing.out(Easing.cubic),
     }).start();
-  };
+  }, [slideAnim]);
 
-  const showError = (error: any, retryAction?: () => void) => {
+  const showError = useCallback((error: any, retryAction?: () => void) => {
     handleApiError(error, retryAction);
-  };
+  }, [handleApiError]);
 
-  const hideError = () => {
+  const hideError = useCallback(() => {
     Animated.timing(slideAnim, {
       toValue: 1000,
       duration: 300,
@@ -96,7 +96,7 @@ export const ErrorProvider: React.FC<ErrorProviderProps> = ({ children }) => {
     }).start(() => {
       setErrorState({ hasError: false });
     });
-  };
+  }, [slideAnim]);
 
   const retry = () => {
     if (errorState.retryAction) {
@@ -119,8 +119,10 @@ export const ErrorProvider: React.FC<ErrorProviderProps> = ({ children }) => {
     }
   };
 
+  const value = useMemo(() => ({ showError, hideError }), [hideError, showError]);
+
   return (
-    <ErrorContext.Provider value={{ showError, hideError }}>
+    <ErrorContext.Provider value={value}>
       {children}
       {errorState.hasError && (
         <View 

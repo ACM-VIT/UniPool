@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StatusBar,
-  ScrollView,
-  Image,
+  FlatList,
+  ListRenderItem,
 } from 'react-native';
 import { useFocusEffect, useRouter } from "expo-router";
 import { passengerInfoStyles } from './ChatScreen.styles';
@@ -15,10 +15,37 @@ import BrandInfo from '../../components/BrandInfo';
 import LoadingComponent from '../../components/LoadingComponent';
 import SmileyGlyph from '../../components/SmileyGlyph';
 import { useApi } from '../../utils/ApiUtil';
+import { useUser } from '../../contexts/UserContext';
 import RideService from '../../utils/RideService';
 import styles from '../ProfileScreen/ProfileScreen.styles';
 import { appHref } from "../../navigation/routes";
 import { useTabletContentStyle } from "../../utils/responsive";
+
+const generateDMRoomId = (userId1: string, userId2: string): string => {
+  const sortedIds = [userId1, userId2].sort();
+  return `dm_${sortedIds[0]}_${sortedIds[1]}`;
+};
+
+const PassengerRow = React.memo(function PassengerRow({
+  passenger,
+  onPress,
+}: {
+  passenger: User;
+  onPress: (passenger: User) => void;
+}) {
+  const handlePress = useCallback(() => {
+    onPress(passenger);
+  }, [onPress, passenger]);
+
+  return (
+    <TouchableOpacity
+      style={passengerInfoStyles.destinationItem}
+      onPress={handlePress}
+    >
+      <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
+    </TouchableOpacity>
+  );
+});
 
 const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVariant">> = ({ setNavBarVariant }) => {
   const router = useRouter();
@@ -27,11 +54,8 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const { apiUtil } = useApi();
-
-  const generateDMRoomId = (userId1: string, userId2: string): string => {
-    const sortedIds = [userId1, userId2].sort();
-    return `dm_${sortedIds[0]}_${sortedIds[1]}`;
-  };
+  const { user: contextUser } = useUser();
+  const hasFocusedOnceRef = useRef(false);
 
   useEffect(() => {
     if (setNavBarVariant) {
@@ -42,53 +66,26 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
   const fetchPassengers = useCallback(async () => {
       try {
         setLoading(true);
-        const involvedRides = await RideService.getInvolvedRides(apiUtil);
-        
-        const currentUserResponse = await apiUtil.getUncached<{user: {id: string, name: string}}>("/user/details");
-        const fetchedCurrentUserId = currentUserResponse.user.id;
+        const [people, currentUserResponse] = await Promise.all([
+          RideService.getAllPassengers(apiUtil),
+          contextUser?.id
+            ? Promise.resolve(null)
+            : apiUtil.get<{user: {id: string, name: string}}>("/user/details"),
+        ]);
+        const fetchedCurrentUserId = contextUser?.id ?? currentUserResponse?.user.id ?? '';
         setCurrentUserId(fetchedCurrentUserId);
-        
-        const allPeople: User[] = [];
+
         const uniquePeopleMap = new Map<string, User>();
-        
-        for (const ride of involvedRides) {
-          try {
-            const rideDetails = await apiUtil.getUncached<{
-              host: {
-                id: string;
-                name: string;
-                email: string;
-                profile_picture_url: string;
-              };
-              bookings: Array<{
-                passenger_id: string;
-                passenger_name: string;
-                passenger_email: string;
-                passenger_profile_picture_url: string;
-                request_status: string;
-              }>;
-            }>(`/ride/details/${ride.id}`);
-            
-            if (rideDetails.host.id !== fetchedCurrentUserId) {
-              uniquePeopleMap.set(rideDetails.host.id, {
-                id: rideDetails.host.id,
-                name: rideDetails.host.name,
-                email: rideDetails.host.email,
-              });
-            }
-            
-            rideDetails.bookings
-              .filter(booking => booking.request_status === 'accepted' && booking.passenger_id !== fetchedCurrentUserId)
-              .forEach(booking => {
-                uniquePeopleMap.set(booking.passenger_id, {
-                  id: booking.passenger_id,
-                  name: booking.passenger_name,
-                  email: booking.passenger_email,
-                });
-              });
-          } catch (error) {
-            console.warn(`Failed to fetch details for ride ${ride.id}:`, error);
+
+        for (const person of people) {
+          if (!person?.id || person.id === fetchedCurrentUserId) {
+            continue;
           }
+          uniquePeopleMap.set(person.id, {
+            id: person.id,
+            name: person.name,
+            email: person.email || '',
+          });
         }
         
         const uniquePeople = Array.from(uniquePeopleMap.values());
@@ -110,7 +107,7 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
       } finally {
         setLoading(false);
       }
-    }, [apiUtil]);
+    }, [apiUtil, contextUser?.id]);
 
   useEffect(() => {
     fetchPassengers();
@@ -118,18 +115,34 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
 
   useFocusEffect(
     useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return undefined;
+      }
       void fetchPassengers();
+      return undefined;
     }, [fetchPassengers]),
   );
 
-  return (
-    <View style={[passengerInfoStyles.container, tabletContentStyle]}>
-      <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
-      <View style={styles.brandInfoHeaderRow}>
-        <BrandInfo />
-      </View>
-      
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+  const openPassengerChat = useCallback((passenger: User) => {
+    const dmRoomId = generateDMRoomId(currentUserId, passenger.id);
+    router.navigate(appHref("ChatMessages", {
+      chatId: dmRoomId,
+      chatTitle: `Chat with ${passenger.name}`,
+      chatSubtitle: ``,
+      isGroupChat: false,
+      otherUserId: passenger.id,
+    }));
+  }, [currentUserId, router]);
+
+  const renderPassenger: ListRenderItem<User> = useCallback(({ item }) => (
+    <PassengerRow passenger={item} onPress={openPassengerChat} />
+  ), [openPassengerChat]);
+
+  const keyExtractor = useCallback((item: User) => item.id, []);
+
+  const renderHeader = useCallback(() => (
+    <>
         <View style={passengerInfoStyles.chatHeader}>
           <Text style={passengerInfoStyles.chatTitle}>Chat</Text>
         </View>
@@ -145,14 +158,20 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
             <Text style={passengerInfoStyles.toggleTextActive}>Passenger</Text>
           </TouchableOpacity>
         </View>
+    </>
+  ), [router]);
 
-        {loading ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 200 }}>
-            <LoadingComponent />
-          </View>
-        ) : (
-          passengers.length === 0 ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, paddingBottom: 180 }}>
+  const renderEmpty = useCallback(() => {
+    if (loading) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 200 }}>
+          <LoadingComponent />
+        </View>
+      );
+    }
+
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, paddingBottom: 180 }}>
               {/* Inline SVG smiley — vector replacement for the
                   pixelated happy-emoji.png raster. Stays crisp at @3x
                   and tracks the brand palette automatically. */}
@@ -165,31 +184,30 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
               <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 15, lineHeight: 22, color: AppColors.secondaryDarkGreen, opacity: 0.65, textAlign: 'center' }}>
                 When you share a ride, the people you've travelled with show up here for direct messages.
               </Text>
-            </View>
-          ) : (
-            <View style={passengerInfoStyles.destinationsList}>
-              {passengers.map((passenger) => {
-                const dmRoomId = generateDMRoomId(currentUserId, passenger.id);
-                return (
-                  <TouchableOpacity 
-                    key={passenger.id} 
-                    style={passengerInfoStyles.destinationItem}
-                    onPress={() => router.navigate(appHref("ChatMessages", {
-                      chatId: dmRoomId,
-                      chatTitle: `Chat with ${passenger.name}`,
-                      chatSubtitle: ``,
-                      isGroupChat: false,
-                      otherUserId: passenger.id,
-                    }))}
-                  >
-                    <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )
-        )}
-      </ScrollView>
+      </View>
+    );
+  }, [loading]);
+
+  return (
+    <View style={[passengerInfoStyles.container, tabletContentStyle]}>
+      <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
+      <View style={styles.brandInfoHeaderRow}>
+        <BrandInfo />
+      </View>
+
+      <FlatList
+        data={loading ? [] : passengers}
+        keyExtractor={keyExtractor}
+        renderItem={renderPassenger}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+        initialNumToRender={12}
+        maxToRenderPerBatch={12}
+        updateCellsBatchingPeriod={32}
+        windowSize={7}
+      />
     </View>
   );
 };

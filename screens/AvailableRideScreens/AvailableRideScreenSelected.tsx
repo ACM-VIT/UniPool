@@ -1,10 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Dimensions } from 'react-native';
 import TripPreviewMap from '../../components/TripPreviewMap';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from "expo-router";
 
 const { width, height } = Dimensions.get("window");
+const DEBUG_SELECTED_RIDE =
+  typeof __DEV__ !== "undefined" &&
+  __DEV__ &&
+  process.env.EXPO_PUBLIC_DEBUG_SELECTED_RIDE === "1";
 
 import ChevronBack from '../../components/ChevronBack/ChevronBack';
 import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
@@ -295,8 +299,6 @@ const AvailableRideScreenSelected: React.FC = () => {
   // filter already drops own rides from pins, but if we get here we
   // want to detect it up front and skip the "Slide to request" UI.
   const { user: viewerUser } = useUser();
-  const [location, setLocation] = useState<any>(null);
-  const [initialRegion, setInitialRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
   const [routeCoordinates, setRouteCoordinates] = useState<any[]>([]);
@@ -341,15 +343,16 @@ const AvailableRideScreenSelected: React.FC = () => {
   const [hostUserNameFetched, setHostUserNameFetched] = useState<string | null>(null);
   const [hostUserYobFetched, setHostUserYobFetched] = useState<number | null>(null);
   const [detailsRefreshTick, setDetailsRefreshTick] = useState(0);
+  const hasFocusedOnceRef = useRef(false);
 
   const [viewerBookingId, setViewerBookingId] = useState<string | null>(
     (routeParams?.ride as any)?.viewer_booking_id ?? null,
   );
 
   const rideData = routeParams?.ride;
-  console.log("Received ride data:", rideData);
+  if (DEBUG_SELECTED_RIDE) console.log("Received ride data:", rideData);
 
-  if (rideData) {
+  if (DEBUG_SELECTED_RIDE && rideData) {
     console.log("Ride coordinates:", {
       start_latitude: rideData.start_latitude,
       start_longitude: rideData.start_longitude,
@@ -502,30 +505,7 @@ const AvailableRideScreenSelected: React.FC = () => {
     // LocationPermissionScreen. Here we just check current state and
     // silently no-op if the user hasn't granted it yet.
     const { status } = await Location.getForegroundPermissionsAsync();
-    if (status === "granted") {
-      getUserLocation();
-      setHasPermission(true);
-    } else {
-      setHasPermission(false);
-    }
-  };
-
-  const getUserLocation = async () => {
-    try {
-      const { coords } = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      const { latitude, longitude } = coords;
-      setLocation({ latitude, longitude });
-      setInitialRegion({
-        latitude,
-        longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      });
-    } catch (error) {
-      console.error("Error fetching location:", error);
-    }
+    setHasPermission(status === "granted");
   };
 
   useEffect(() => {
@@ -534,7 +514,12 @@ const AvailableRideScreenSelected: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
+      if (!hasFocusedOnceRef.current) {
+        hasFocusedOnceRef.current = true;
+        return undefined;
+      }
       setDetailsRefreshTick((tick) => tick + 1);
+      return undefined;
     }, []),
   );
 
@@ -548,7 +533,7 @@ const AvailableRideScreenSelected: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const details = await apiUtil.getUncached<any>(`/ride/details/${ride.id}`);
+        const details = await apiUtil.get<any>(`/ride/details/${ride.id}`);
         if (cancelled) return;
         if (details?.viewer_state) setViewerState(details.viewer_state);
         if (details?.actions) setViewerActions(details.actions);
@@ -585,7 +570,7 @@ const AvailableRideScreenSelected: React.FC = () => {
     if (isValidCoordinate(ride.start_latitude, ride.start_longitude) && 
         isValidCoordinate(ride.end_latitude, ride.end_longitude)) {
       
-      console.log('Using dynamic coordinates for ride:', {
+      if (DEBUG_SELECTED_RIDE) console.log('Using dynamic coordinates for ride:', {
         start: { lat: ride.start_latitude, lon: ride.start_longitude },
         end: { lat: ride.end_latitude, lon: ride.end_longitude }
       });
@@ -608,7 +593,7 @@ const AvailableRideScreenSelected: React.FC = () => {
       );
       setRouteCoordinates(dynamicRoute);
     } else {
-      console.log('Using fallback coordinates - dynamic coordinates not available');
+      if (DEBUG_SELECTED_RIDE) console.log('Using fallback coordinates - dynamic coordinates not available');
       setEstimatedDuration('2 hours 45 minutes');
       setRouteCoordinates([
         { latitude: 12.9698, longitude: 79.1559 },
@@ -637,11 +622,11 @@ const AvailableRideScreenSelected: React.FC = () => {
         request_status: "pending",
       };
 
-      console.log('Requesting ride with payload:', requestPayload);
+      if (DEBUG_SELECTED_RIDE) console.log('Requesting ride with payload:', requestPayload);
 
       const response = await apiUtil.post('/bookings/request', requestPayload) as RideRequestResponse;
       
-      console.log('Ride request response:', response);
+      if (DEBUG_SELECTED_RIDE) console.log('Ride request response:', response);
 
       if (response && (response.success || response.id || response.booking_id)) {
         // Flip the local viewer state immediately so the user sees

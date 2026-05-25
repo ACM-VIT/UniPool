@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -83,13 +84,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
     setLoading(true);
     try {
-      // Uncached on purpose — `refresh()` is the explicit "bust and
-      // re-read" entry point. The implicit reads everywhere else come
-      // from React context state (sync), so this single network call
-      // serves the entire app until something tells us to refresh.
-      const resp = await apiUtil.getUncached<{ user: UserDetails }>(
-        "/user/details",
-      );
+      const resp = await apiUtil.get<{ user: UserDetails }>("/user/details");
       const next = resp?.user ?? null;
       setUser(next);
       return next;
@@ -116,11 +111,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     void refresh();
   }, [authResolving, refresh]);
 
-  return (
-    <UserContext.Provider value={{ user, loading, refresh }}>
-      {children}
-    </UserContext.Provider>
+  const value = useMemo(
+    () => ({ user, loading, refresh }),
+    [loading, refresh, user],
   );
+
+  return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 };
 
 /**

@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { View, StyleSheet, Platform, AppState } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { Stack } from "expo-router/stack";
@@ -25,13 +25,22 @@ import {
   NunitoSans_800ExtraBold,
 } from "@expo-google-fonts/nunito-sans";
 import * as SplashScreen from "expo-splash-screen";
-import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithCredential } from "@react-native-firebase/auth";
+import { getAuth, getIdTokenResult, onAuthStateChanged, GoogleAuthProvider, signInWithCredential } from "@react-native-firebase/auth";
 
 import * as Notifications from "expo-notifications";
 import * as SystemUI from "expo-system-ui";
 import * as Device from "expo-device";
 import AppColors from "../design_systems/colors";
 import { shouldShowPermissionsPrompt } from "../utils/permissionsPrompt";
+
+const DEBUG_APP =
+  typeof __DEV__ !== "undefined" &&
+  __DEV__ &&
+  process.env.EXPO_PUBLIC_DEBUG_APP === "1";
+
+const debugLog = (...args: any[]) => {
+  if (DEBUG_APP) console.log(...args);
+};
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 void SystemUI.setBackgroundColorAsync(AppColors.primaryLightGreen).catch(() => {});
@@ -79,19 +88,19 @@ async function registerForPushNotificationsAsync(
       }
 
       if (finalStatus !== "granted") {
-        console.log("Push notification permission not granted");
+        debugLog("Push notification permission not granted");
         return null;
       }
 
       const tokenData = await Notifications.getDevicePushTokenAsync();
       token = tokenData.data;
-      console.log("Push Token obtained:", token?.substring(0, 20) + "...");
+      debugLog("Push Token obtained:", token?.substring(0, 20) + "...");
     } catch (error) {
       console.error("Error getting push token:", error);
       return null;
     }
   } else {
-    console.log("Must use physical device for Push Notifications");
+    debugLog("Must use physical device for Push Notifications");
   }
 
   return token;
@@ -127,6 +136,17 @@ GoogleSignin.configure({
   forceCodeForRefreshToken: true,
 });
 
+const NAVBAR_HIDDEN_ROUTES = [
+  "OnboardingScreen",
+  "LocationPermissionScreen",
+  "AuthScreen",
+  "SignUpScreen",
+  "CreateRide",
+  "AvailableRidesSelectedScreen",
+  "ChatMessages",
+  "RideDetailsScreen",
+];
+
 const AppShell = () => {
   const router = useRouter();
   const pathname = usePathname();
@@ -143,7 +163,7 @@ const AppShell = () => {
   const [locationDetour, setLocationDetour] =
     useState<"LocationPermissionScreen" | null | undefined>(undefined);
   const [authStateResolved, setAuthStateResolved] = useState(false);
-  const [pushToken, setPushToken] = useState<string | null>(null);
+  const lastPostedPushTokenRef = useRef<string | null>(null);
   const [lastUserVerification, setLastUserVerification] = useState<number | null>(null);
 
   const isCachedAuthValid = () => {
@@ -160,7 +180,7 @@ const AppShell = () => {
         AsyncStorage.setItem('lastUserVerification', now.toString());
       });
     } catch (error) {
-      console.log('Could not store verification timestamp:', error);
+      debugLog('Could not store verification timestamp:', error);
     }
   };
 
@@ -177,7 +197,7 @@ const AppShell = () => {
           setLastUserVerification(parseInt(cached));
         }
       } catch (error) {
-        console.log('Could not load cached verification:', error);
+        debugLog('Could not load cached verification:', error);
       }
     };
     loadCachedVerification();
@@ -205,6 +225,15 @@ const AppShell = () => {
     require("../assets/wallet.png")
   );
   const [navBarItems, setNavBarItems] = useState(bottomNavItems);
+  const navBarControls = useMemo(
+    () => ({
+      setNavBarVariant,
+      setNavBarText,
+      setNavBarIcon,
+      setNavBarItems,
+    }),
+    [],
+  );
   const currentRouteName = routeNameFromPath(pathname) ?? initialRoute ?? "SplashScreen";
   const isBootstrapping =
     showCustomSplash ||
@@ -317,23 +346,23 @@ const AppShell = () => {
   useEffect(() => {
     const authInstance = getAuth();
     
-    console.log("Setting up Firebase auth state listener...");
+    debugLog("Setting up Firebase auth state listener...");
     
     const currentUser = authInstance.currentUser;
-    console.log("Current user on startup:", currentUser ? `Signed in as ${currentUser.email}` : "No current user");
+    debugLog("Current user on startup:", currentUser ? `Signed in as ${currentUser.email}` : "No current user");
 
     const checkGoogleSignInStatus = async () => {
       try {
         const googleUser = GoogleSignin.getCurrentUser();
-        console.log("Google Sign-In status:", googleUser ? "Signed in" : "Not signed in");
+        debugLog("Google Sign-In status:", googleUser ? "Signed in" : "Not signed in");
         if (googleUser) {
-          console.log("Google current user:", googleUser?.user?.email || "No email");
+          debugLog("Google current user:", googleUser?.user?.email || "No email");
           
           if (!currentUser) {
-            console.log("Attempting to restore Firebase auth from Google user...");
+            debugLog("Attempting to restore Firebase auth from Google user...");
             try {
               const userInfo = await GoogleSignin.signInSilently();
-              console.log("Google silent sign-in successful");
+              debugLog("Google silent sign-in successful");
               
               const tokens = await GoogleSignin.getTokens();
               const idToken = tokens.idToken;
@@ -342,17 +371,17 @@ const AppShell = () => {
                 const googleCredential = GoogleAuthProvider.credential(idToken);
                 
                 await signInWithCredential(authInstance, googleCredential);
-                console.log("Firebase auth restored from Google credentials");
+                debugLog("Firebase auth restored from Google credentials");
               } else {
-                console.log("No ID token available from Google");
+                debugLog("No ID token available from Google");
               }
             } catch (silentSignInError: any) {
-              console.log("Google silent sign-in failed:", silentSignInError);
+              debugLog("Google silent sign-in failed:", silentSignInError);
             }
           }
         }
       } catch (err: any) {
-        console.log("Google Sign-In status check error:", err);
+        debugLog("Google Sign-In status check error:", err);
       }
     };
     
@@ -375,7 +404,7 @@ const AppShell = () => {
         clearTimeout(authCheckTimeout);
       }
 
-      console.log("Auth state changed:", user ? "User signed in" : "User signed out");
+      debugLog("Auth state changed:", user ? "User signed in" : "User signed out");
       if (bootRouteDecided) {
         // Not our problem any more — the screen that initiated the
         // change (AuthSheet, AccountSettings, etc.) drives routing.
@@ -383,90 +412,92 @@ const AppShell = () => {
       }
       bootRouteDecided = true;
       if (user) {
-        console.log("User UID:", user.uid);
-        console.log("User email:", user.email);
-        console.log("Last sign in:", user.metadata.lastSignInTime);
+        debugLog("User UID:", user.uid);
+        debugLog("User email:", user.email);
+        debugLog("Last sign in:", user.metadata.lastSignInTime);
         
         try {
-          const tokenResult = await user.getIdTokenResult(false);
-          console.log("Token valid until:", new Date(tokenResult.expirationTime));
+          const tokenResult = await getIdTokenResult(user, false);
+          apiUtil.primeAuthToken(user.uid, tokenResult.token, Date.parse(tokenResult.expirationTime));
+          debugLog("Token valid until:", new Date(tokenResult.expirationTime));
           
           const now = new Date();
           const expirationTime = new Date(tokenResult.expirationTime);
           if (expirationTime > now) {
-            console.log("Token is valid, checking user details in database...");
+            debugLog("Token is valid, checking user details in database...");
             
             try {
-              await apiUtil.getUncached("/user/details");
-              console.log("User details found in database, setting route to HomeScreen");
+              await apiUtil.get("/user/details");
+              debugLog("User details found in database, setting route to HomeScreen");
               markUserAsVerified();
               setInitialRoute("HomeScreen");
             } catch (userDetailsError: any) {
               if (isSignupRequiredError(userDetailsError)) {
-                console.log("User not found in database, redirecting to signup");
+                debugLog("User not found in database, redirecting to signup");
                 setInitialRoute("SignUpScreen");
               } else if (userDetailsError.message && userDetailsError.message.includes("Timeout")) {
                 if (isCachedAuthValid()) {
-                  console.log("Network timeout but cached auth is valid (within 24h), proceeding to HomeScreen");
+                  debugLog("Network timeout but cached auth is valid (within 24h), proceeding to HomeScreen");
                   setInitialRoute("HomeScreen");
                 } else {
-                  console.log("Network timeout and no valid cached auth, redirecting to AuthScreen");
+                  debugLog("Network timeout and no valid cached auth, redirecting to AuthScreen");
                   setInitialRoute("HomeScreen");
                 }
               } else if (userDetailsError.status >= 500) {
                 if (isCachedAuthValid()) {
-                  console.log("Server error but cached auth is valid (within 24h), proceeding to HomeScreen");
+                  debugLog("Server error but cached auth is valid (within 24h), proceeding to HomeScreen");
                   setInitialRoute("HomeScreen");
                 } else {
-                  console.log("Server error and no valid cached auth, redirecting to AuthScreen");
+                  debugLog("Server error and no valid cached auth, redirecting to AuthScreen");
                   setInitialRoute("HomeScreen");
                 }
               } else {
                 console.error("Error checking user details:", userDetailsError);
-                console.log("Redirecting to AuthScreen due to user details error");
+                debugLog("Redirecting to AuthScreen due to user details error");
                 setInitialRoute("HomeScreen");
               }
             }
           } else {
-            console.log("Token is expired, forcing refresh...");
-            const freshToken = await user.getIdTokenResult(true);
-            console.log("Fresh token obtained, checking user details in database...");
+            debugLog("Token is expired, forcing refresh...");
+            const freshToken = await getIdTokenResult(user, true);
+            apiUtil.primeAuthToken(user.uid, freshToken.token, Date.parse(freshToken.expirationTime));
+            debugLog("Fresh token obtained, checking user details in database...");
             
             try {
-              await apiUtil.getUncached("/user/details");
-              console.log("User details found in database, setting route to HomeScreen");
+              await apiUtil.get("/user/details");
+              debugLog("User details found in database, setting route to HomeScreen");
               markUserAsVerified();
               setInitialRoute("HomeScreen");
             } catch (userDetailsError: any) {
               if (isSignupRequiredError(userDetailsError)) {
-                console.log("User not found in database, redirecting to signup");
+                debugLog("User not found in database, redirecting to signup");
                 setInitialRoute("SignUpScreen");
               } else if (userDetailsError.message && userDetailsError.message.includes("Timeout")) {
                 if (isCachedAuthValid()) {
-                  console.log("Network timeout but cached auth is valid (within 24h), proceeding to HomeScreen");
+                  debugLog("Network timeout but cached auth is valid (within 24h), proceeding to HomeScreen");
                   setInitialRoute("HomeScreen");
                 } else {
-                  console.log("Network timeout and no valid cached auth, redirecting to AuthScreen");
+                  debugLog("Network timeout and no valid cached auth, redirecting to AuthScreen");
                   setInitialRoute("HomeScreen");
                 }
               } else if (userDetailsError.status >= 500) {
                 if (isCachedAuthValid()) {
-                  console.log("Server error but cached auth is valid (within 24h), proceeding to HomeScreen");
+                  debugLog("Server error but cached auth is valid (within 24h), proceeding to HomeScreen");
                   setInitialRoute("HomeScreen");
                 } else {
-                  console.log("Server error and no valid cached auth, redirecting to AuthScreen");
+                  debugLog("Server error and no valid cached auth, redirecting to AuthScreen");
                   setInitialRoute("HomeScreen");
                 }
               } else {
                 console.error("Error checking user details:", userDetailsError);
-                console.log("Redirecting to AuthScreen due to user details error");
+                debugLog("Redirecting to AuthScreen due to user details error");
                 setInitialRoute("HomeScreen");
               }
             }
           }
         } catch (tokenError) {
           console.error("Token validation error:", tokenError);
-          console.log("Redirecting to AuthScreen due to token error");
+          debugLog("Redirecting to AuthScreen due to token error");
           setInitialRoute("HomeScreen");
         }
       } else {
@@ -478,14 +509,14 @@ const AppShell = () => {
           const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
           const seen = await AsyncStorage.getItem("hasSeenOnboarding");
           if (seen === "true") {
-            console.log("No user, onboarding seen — HomeScreen (guest)");
+            debugLog("No user, onboarding seen — HomeScreen (guest)");
             setInitialRoute("HomeScreen");
           } else {
-            console.log("No user, first run — OnboardingScreen");
+            debugLog("No user, first run — OnboardingScreen");
             setInitialRoute("OnboardingScreen");
           }
         } catch (e) {
-          console.log("Onboarding flag check failed, defaulting to OnboardingScreen", e);
+          debugLog("Onboarding flag check failed, defaulting to OnboardingScreen", e);
           setInitialRoute("OnboardingScreen");
         }
       }
@@ -495,52 +526,53 @@ const AppShell = () => {
     
     authCheckTimeout = setTimeout(async () => {
       if (!hasAuthStateChanged) {
-        console.log("Auth state timeout - checking current user manually");
+        debugLog("Auth state timeout - checking current user manually");
         bootRouteDecided = true;
 
         try {
           await authInstance.currentUser?.reload();
         } catch (reloadError: any) {
-          console.log("Auth reload error:", reloadError);
+          debugLog("Auth reload error:", reloadError);
         }
         
         const manualCurrentUser = authInstance.currentUser;
         if (manualCurrentUser) {
-          console.log("Found current user manually:", manualCurrentUser.email);
+          debugLog("Found current user manually:", manualCurrentUser.email);
           
           try {
-            const tokenResult = await manualCurrentUser.getIdTokenResult(true); // Force refresh
-            console.log("Token refreshed and valid until:", new Date(tokenResult.expirationTime));
+            const tokenResult = await getIdTokenResult(manualCurrentUser, true); // Force refresh
+            apiUtil.primeAuthToken(manualCurrentUser.uid, tokenResult.token, Date.parse(tokenResult.expirationTime));
+            debugLog("Token refreshed and valid until:", new Date(tokenResult.expirationTime));
             
             // Check if user exists in database before proceeding to HomeScreen
             try {
-              await apiUtil.getUncached("/user/details");
-              console.log("User details found in database, setting route to HomeScreen");
+              await apiUtil.get("/user/details");
+              debugLog("User details found in database, setting route to HomeScreen");
               markUserAsVerified(); // Mark as verified on success
               setInitialRoute("HomeScreen");
             } catch (userDetailsError: any) {
               if (isSignupRequiredError(userDetailsError)) {
-                console.log("User not found in database, redirecting to signup");
+                debugLog("User not found in database, redirecting to signup");
                 setInitialRoute("SignUpScreen");
               } else if (userDetailsError.message && userDetailsError.message.includes("Timeout")) {
                 if (isCachedAuthValid()) {
-                  console.log("Network timeout but cached auth is valid (within 24h), proceeding to HomeScreen");
+                  debugLog("Network timeout but cached auth is valid (within 24h), proceeding to HomeScreen");
                   setInitialRoute("HomeScreen");
                 } else {
-                  console.log("Network timeout and no valid cached auth, redirecting to AuthScreen");
+                  debugLog("Network timeout and no valid cached auth, redirecting to AuthScreen");
                   setInitialRoute("HomeScreen");
                 }
               } else if (userDetailsError.status >= 500) {
                 if (isCachedAuthValid()) {
-                  console.log("Server error but cached auth is valid (within 24h), proceeding to HomeScreen");
+                  debugLog("Server error but cached auth is valid (within 24h), proceeding to HomeScreen");
                   setInitialRoute("HomeScreen");
                 } else {
-                  console.log("Server error and no valid cached auth, redirecting to AuthScreen");
+                  debugLog("Server error and no valid cached auth, redirecting to AuthScreen");
                   setInitialRoute("HomeScreen");
                 }
               } else {
                 console.error("Error checking user details:", userDetailsError);
-                console.log("Redirecting to AuthScreen due to user details error");
+                debugLog("Redirecting to AuthScreen due to user details error");
                 setInitialRoute("HomeScreen");
               }
             }
@@ -587,22 +619,25 @@ const AppShell = () => {
     // the host could not get DM / booking pings until they happened
     // to hit one of the niche paths that posted the token.
     //
-    // Idempotent: posting the same token repeatedly is a no-op on
-    // the backend (the token column just gets re-set to the same
-    // string). Cheap to spam.
+    // Idempotent: once a user/token pair is posted in this shell,
+    // repeat triggers skip the network write entirely.
     const setupNotifications = async () => {
       const token = await registerForPushNotificationsAsync();
       if (!token) return;
-      setPushToken(token);
       if (!authStateResolved) {
         // Auth not ready yet — bail. The deps array will re-fire
         // this effect once authStateResolved flips, by which point
         // apiUtil has a bearer token to attach.
         return;
       }
+      const uid = getAuth().currentUser?.uid;
+      if (!uid) return;
+      const cacheKey = `${uid}:${token}`;
+      if (lastPostedPushTokenRef.current === cacheKey) return;
       try {
         await apiUtil.post("/users/me/token", { token });
-        console.log("Push token posted to backend.");
+        lastPostedPushTokenRef.current = cacheKey;
+        debugLog("Push token posted to backend.");
       } catch (error) {
         console.error("Failed to send push token to backend:", error);
       }
@@ -622,15 +657,17 @@ const AppShell = () => {
     });
 
     if (!Device.isDevice) {
-      return;
+      return () => {
+        appStateSub.remove();
+      };
     }
 
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log("Notification received:", notification);
+      debugLog("Notification received:", notification);
     });
 
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log("Notification response:", response);
+      debugLog("Notification response:", response);
       
       const data = response.notification.request.content.data as any;
       
@@ -639,7 +676,7 @@ const AppShell = () => {
 
     Notifications.getLastNotificationResponseAsync().then(response => {
       if (response) {
-        console.log("App opened from notification:", response);
+        debugLog("App opened from notification:", response);
         const data = response.notification.request.content.data as any;
         
         setTimeout(() => {
@@ -722,16 +759,6 @@ const AppShell = () => {
     }
   }, [initialRoute, isBootstrapping, pathname, router, locationDetour]);
 
-  const NAVBAR_HIDDEN_ROUTES = [
-    "OnboardingScreen",
-    "LocationPermissionScreen",
-    "AuthScreen",
-    "SignUpScreen",
-    "CreateRide",
-    "AvailableRidesSelectedScreen",
-    "ChatMessages",
-    "RideDetailsScreen",
-  ];
   const showNavBar =
     !isBootstrapping && !NAVBAR_HIDDEN_ROUTES.includes(currentRouteName as string);
   
@@ -745,44 +772,18 @@ const AppShell = () => {
           app/verify.tsx — a full polished landing screen instead of a
           silent listener + toast. */}
       <NavBarProvider
-        value={{
-          setNavBarVariant,
-          setNavBarText,
-          setNavBarIcon,
-          setNavBarItems,
-        }}
+        value={navBarControls}
       >
         <View style={globalStyles.shellRoot}>
           <Stack
             screenOptions={{
               headerShown: false,
-              // Default the screen container background to the brand
-              // lime canvas. Without this, Android's native stack
-              // renders each screen on top of a white `windowBackground`
-              // and the user sees a one-frame WHITE FLASH on every
-              // back-navigation toward Home — the destination screen
-              // hasn't painted its own lime background yet, so the
-              // window's default shows through. Setting `contentStyle`
-              // here means the underlying view IS already lime when
-              // the new screen mounts, so the transition is seamless.
-              // Doubly safe with the global `SystemUI.setBackgroundColorAsync`
-              // call up top, which sets the same colour for the
-              // OS-level window background that surrounds the React
-              // root view.
               contentStyle: { backgroundColor: AppColors.primaryLightGreen },
             }}
           >
             <Stack.Screen name="index" options={{ headerShown: false, animation: "fade" }} />
             <Stack.Screen name="AuthScreen" options={{ headerShown: false, presentation: "card" }} />
-            {/* Profile completion is a forced onboarding step, not a
-                bottom sheet — keep it in the normal card stack so iOS
-                never presents it as a pageSheet/native modal when the
-                navigation starts from the AuthSheet. */}
             <Stack.Screen name="SignUpScreen" options={{ headerShown: false, presentation: "card", animation: "none", gestureEnabled: false }} />
-            {/* Post-trip rating + Trip history — both short focused
-                flows that the user lands on from notifications /
-                profile menu. Card present matches the rest of the
-                app's navigation language. */}
             <Stack.Screen name="PostTripRatingScreen" options={{ headerShown: false, presentation: "modal" }} />
             <Stack.Screen name="TripHistoryScreen" options={{ headerShown: false }} />
             <Stack.Screen name="AvailableRidesSelectedScreen" options={{ headerShown: false, animation: "none" }} />

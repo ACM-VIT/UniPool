@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, Image, TouchableOpacity, SafeAreaView, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView, InteractionManager, AppState, useWindowDimensions } from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView, AppState, useWindowDimensions } from "react-native";
 import { TABLET_BREAKPOINT } from "../utils/responsive";
 import navigationImg from "../assets/navigation.png";
 import locationPinImg from "../assets/location-pin-2.png";
@@ -21,7 +21,7 @@ import {
 } from "@maplibre/maplibre-react-native";
 import * as Location from "expo-location";
 import { useRouter, useFocusEffect } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
@@ -46,6 +46,7 @@ import RoutePreviewCard from "../components/RoutePreviewCard";
 import { getAppState } from "../utils/AppStateService";
 import type { AppStateResponse, NearbyRideSummary } from "../utils/AppStateService";
 import { isRideUpcomingAt } from "../utils/rideTime";
+import { scheduleIdleTask, type ScheduledIdleTask } from "../utils/scheduleIdleTask";
 
 const { width: rawScreenWidth, height: rawScreenHeight } = Dimensions.get("window");
 
@@ -80,6 +81,7 @@ const responsiveWidth = (percentage: number) => {
 };
 
 const COORDINATE_EPSILON = 0.000001;
+const LOCATION_REFRESH_EPSILON = 0.001;
 const MAP_CAMERA_ANIMATION_MS = 280;
 
 const areCoordsEqual = (a: LocationCoords | null, b: LocationCoords | null) => {
@@ -90,6 +92,20 @@ const areCoordsEqual = (a: LocationCoords | null, b: LocationCoords | null) => {
     Math.abs(a.longitude - b.longitude) < COORDINATE_EPSILON
   );
 };
+
+const MIN_LINE_DELTA = 0.000001;
+
+const isValidLocationCoord = (coord: { latitude: number; longitude: number }) =>
+  Number.isFinite(coord.latitude) &&
+  Number.isFinite(coord.longitude) &&
+  coord.latitude >= -90 &&
+  coord.latitude <= 90 &&
+  coord.longitude >= -180 &&
+  coord.longitude <= 180;
+
+const sameLngLat = (a: [number, number], b: [number, number]) =>
+  Math.abs(a[0] - b[0]) < MIN_LINE_DELTA &&
+  Math.abs(a[1] - b[1]) < MIN_LINE_DELTA;
 
 // Hard cap for the physical sheet surface. The expanded snap is still
 // measured from content; this only gives dense signed-in layouts enough
@@ -184,14 +200,23 @@ const buildCirclePolygon = (
  */
 const buildLineString = (
   pts: { latitude: number; longitude: number }[],
-): GeoJSON.Feature<GeoJSON.LineString> => ({
-  type: "Feature",
-  properties: {},
-  geometry: {
-    type: "LineString",
-    coordinates: pts.map((p) => [p.longitude, p.latitude]),
-  },
-});
+): GeoJSON.Feature<GeoJSON.LineString> | null => {
+  const coordinates = pts
+    .filter(isValidLocationCoord)
+    .map((p): [number, number] => [p.longitude, p.latitude])
+    .filter((point, index, points) => index === 0 || !sameLngLat(point, points[index - 1]));
+
+  if (coordinates.length < 2) return null;
+
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: {
+      type: "LineString",
+      coordinates,
+    },
+  };
+};
 
 /**
  * Compute a bounding box `[west, south, east, north]` from a set of
@@ -357,6 +382,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const cameraRef = useRef<CameraRef>(null);
 
   const [location, setLocation] = useState<LocationCoords | null>(null);
+  const locationRef = useRef<LocationCoords | null>(null);
   // Cluster sheet state — populated when the user taps a multi-ride
   // cluster pin (Cash App / Uber style). `null` when closed.
   const [clusterSheet, setClusterSheet] = useState<{
@@ -611,7 +637,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     from: null,
     to: null,
   });
-  const mapCameraTaskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
+  const mapCameraTaskRef = useRef<ScheduledIdleTask | null>(null);
   const mapCameraFrameRef = useRef<number | null>(null);
   const rideSubmitGeocodeRequestRef = useRef(0);
   const homeStateFocusReloadReadyRef = useRef(false);
@@ -841,10 +867,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   };
 
   const getUserLocation = async () => {
-    if (location) return;
+    if (locationRef.current) return;
 
     const applyCoords = (latitude: number, longitude: number) => {
-      setLocation({ latitude, longitude });
+      const next = { latitude, longitude };
+      const previous = locationRef.current;
+      if (
+        previous &&
+        Math.abs(previous.latitude - latitude) < LOCATION_REFRESH_EPSILON &&
+        Math.abs(previous.longitude - longitude) < LOCATION_REFRESH_EPSILON
+      ) {
+        return;
+      }
+      locationRef.current = next;
+      setLocation(next);
       const latitudeDelta = 0.02;
       const longitudeDelta = 0.02;
       const latOffset = latitudeDelta * 0.45;
@@ -1001,8 +1037,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         const excludeParam = viewerUser?.id
           ? `&exclude_host_user_id=${encodeURIComponent(viewerUser.id)}`
           : "";
-        const resp = await apiUtil.getUncached<{ rides: NearbyRideSummary[] }>(
-          `/rides/nearby?lat=${centreLat.toFixed(6)}&lng=${centreLng.toFixed(6)}&radius=${radiusM}&limit=50${excludeParam}`,
+        const resp = await apiUtil.get<{ rides: NearbyRideSummary[] }>(
+          `/rides/nearby?lat=${centreLat.toFixed(4)}&lng=${centreLng.toFixed(4)}&radius=${radiusM}&limit=50${excludeParam}`,
         );
         // Discard if a newer fetch has been kicked off in the
         // meantime — prevents stale results from overwriting fresher
@@ -1182,12 +1218,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       mapCameraFrameRef.current = null;
     }
 
-    mapCameraTaskRef.current = InteractionManager.runAfterInteractions(() => {
+    mapCameraTaskRef.current = scheduleIdleTask(() => {
       mapCameraFrameRef.current = requestAnimationFrame(() => {
         mapCameraFrameRef.current = null;
         runMapCameraUpdate(from, to);
       });
-    });
+    }, 300);
   }, [runMapCameraUpdate]);
 
   // Stable callback for RideDetailsSelector. The selector calls this
@@ -1302,6 +1338,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     if (!fromCoords || !toCoords) return [];
     return generateCurvedRoute(fromCoords.latitude, fromCoords.longitude, toCoords.latitude, toCoords.longitude);
   }, [fromCoords, toCoords]);
+  const routeLineData = React.useMemo(
+    () => buildLineString(routePolylineCoordinates),
+    [routePolylineCoordinates],
+  );
 
   // Render the map as soon as the screen is focused — don't wait for
   // location to arrive. Previously this gate required all three of
@@ -1419,7 +1459,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 rather than a CircleLayer because CircleLayer
                 radii are in *pixels*, not metres, which would
                 shrink-and-grow with zoom. */}
-            {location && (
+            {location && isValidLocationCoord(location) && (
               <GeoJSONSource
                 id="service-area-source"
                 data={buildCirclePolygon(
@@ -1517,10 +1557,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               </MapLibreMarker>
             )}
 
-            {fromCoords && toCoords && (
+            {fromCoords && toCoords && routeLineData && (
               <GeoJSONSource
                 id="route-source"
-                data={buildLineString(routePolylineCoordinates)}
+                data={routeLineData}
               >
                 <MapLibreLayer
                   id="route-line"

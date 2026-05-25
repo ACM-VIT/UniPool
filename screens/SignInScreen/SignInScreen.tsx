@@ -13,15 +13,24 @@ import BrandedAlert from "../../components/BrandedAlert";
 import { appHref } from "../../navigation/routes";
 import { useTabletContentStyle } from "../../utils/responsive";
 
+const DEBUG_SIGN_IN =
+  typeof __DEV__ !== "undefined" &&
+  __DEV__ &&
+  process.env.EXPO_PUBLIC_DEBUG_SIGN_IN === "1";
+
+const debugLog = (...args: any[]) => {
+  if (DEBUG_SIGN_IN) console.log(...args);
+};
+
 const SignInScreen: React.FC = () => {
   const router = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const handleGoogleSignIn = async () => {
     try {
-      console.log("Starting Google Sign-In");
+      debugLog("Starting Google Sign-In");
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const userInfo = await GoogleSignin.signIn();
-      console.log("Google Sign-In successful", userInfo);
+      debugLog("Google Sign-In successful");
 
       const idToken = userInfo.data?.idToken;
       if (!idToken) {
@@ -33,7 +42,7 @@ const SignInScreen: React.FC = () => {
       const auth = getAuth();
       const userCredential = await signInWithCredential(auth, googleCredential);
 
-      console.log("Signed in as:", userCredential.user.email);
+      debugLog("Signed in as:", userCredential.user.email);
       router.navigate(appHref("BookingScreen"));
     } catch (err) {
       console.error("Google Sign-In error", err);
