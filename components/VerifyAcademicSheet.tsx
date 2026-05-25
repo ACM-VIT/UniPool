@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
+  ListRenderItem,
   ActivityIndicator,
   Animated,
   Easing,
@@ -116,7 +117,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
     return () => clearTimeout(handle);
   }, [searchQuery, step, apiUtil]);
 
-  const pickInstitute = (inst: PickedInstitute) => {
+  const pickInstitute = useCallback((inst: PickedInstitute) => {
     haptic("selection");
     setPicked(inst);
     const local = email.split("@")[0] || "";
@@ -124,7 +125,29 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
       setEmail(`${local}@${inst.domains[0]}`);
     }
     setStep("email");
-  };
+  }, [email]);
+
+  const renderInstituteResult = useCallback<ListRenderItem<PickedInstitute>>(
+    ({ item: inst }) => (
+      <TouchableOpacity
+        style={styles.resultRow}
+        activeOpacity={0.7}
+        onPress={() => pickInstitute(inst)}
+      >
+        <Text style={styles.resultName} numberOfLines={2}>
+          {inst.name}
+        </Text>
+        <Text style={styles.resultMeta} numberOfLines={1}>
+          {[inst.country, inst.domains.slice(0, 2).map((d) => `@${d}`).join(" · ")]
+            .filter(Boolean)
+            .join(" · ")}
+        </Text>
+      </TouchableOpacity>
+    ),
+    [pickInstitute],
+  );
+
+  const instituteKeyExtractor = useCallback((inst: PickedInstitute) => inst.id, []);
 
   // The TextInput is pre-seeded with `@<domain>` so the user only has
   // to type the local part. On iOS / Android, the QuickType /
@@ -304,29 +327,18 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
                 domain (the part after the @).
               </Text>
             ) : (
-              <ScrollView
+              <FlatList
+                data={searchResults}
+                keyExtractor={instituteKeyExtractor}
+                renderItem={renderInstituteResult}
                 keyboardShouldPersistTaps="handled"
                 style={styles.resultsScroll}
                 showsVerticalScrollIndicator={false}
-              >
-                {searchResults.map((inst) => (
-                  <TouchableOpacity
-                    key={inst.id}
-                    style={styles.resultRow}
-                    activeOpacity={0.7}
-                    onPress={() => pickInstitute(inst)}
-                  >
-                    <Text style={styles.resultName} numberOfLines={2}>
-                      {inst.name}
-                    </Text>
-                    <Text style={styles.resultMeta} numberOfLines={1}>
-                      {[inst.country, inst.domains.slice(0, 2).map((d) => `@${d}`).join(" · ")]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+                initialNumToRender={6}
+                maxToRenderPerBatch={6}
+                updateCellsBatchingPeriod={48}
+                windowSize={5}
+              />
             )}
           </View>
         </>
