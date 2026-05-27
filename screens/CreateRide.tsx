@@ -1218,7 +1218,19 @@ const CreateRide: React.FC = () => {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={styles.customSeatList}>
+              <View style={[
+                styles.customSeatList,
+                // Dark mode: swap the forest tile for a neutral
+                // surfaceElevated card so the seat list doesn't
+                // read as a forest-tinted slab on the charcoal
+                // canvas. White text + lime ± buttons stay the
+                // brand splash on top.
+                themeColors.mode === "dark" && {
+                  backgroundColor: themeColors.surfaceElevated,
+                  borderWidth: 1,
+                  borderColor: themeColors.inkSoft,
+                },
+              ]}>
                 {seatFares.map((amount, idx) => {
                   const isEditing = editingSeatIndex === idx;
                   return (
@@ -1236,10 +1248,30 @@ const CreateRide: React.FC = () => {
                       </View>
                       <TouchableOpacity
                         onPress={() => bumpSeat(idx, -25)}
-                        style={styles.customSeatStepBtn}
+                        style={[
+                          styles.customSeatStepBtn,
+                          // Dark mode: drop the lime circle (which
+                          // doesn't match the cream-on-charcoal
+                          // stepper buttons elsewhere on the fare
+                          // sheet) for the same neutral cream pill
+                          // those steppers use, so the whole sheet
+                          // reads as one stepper family.
+                          themeColors.mode === "dark" && {
+                            backgroundColor: "rgba(237,236,231,0.10)",
+                          },
+                        ]}
                         activeOpacity={0.7}
                       >
-                        <Text style={styles.customSeatStepText}>−</Text>
+                        <Text
+                          style={[
+                            styles.customSeatStepText,
+                            themeColors.mode === "dark" && {
+                              color: themeColors.textOnDark,
+                            },
+                          ]}
+                        >
+                          −
+                        </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.customSeatValueWrap}
@@ -1269,10 +1301,24 @@ const CreateRide: React.FC = () => {
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={() => bumpSeat(idx, 25)}
-                        style={styles.customSeatStepBtn}
+                        style={[
+                          styles.customSeatStepBtn,
+                          themeColors.mode === "dark" && {
+                            backgroundColor: "rgba(237,236,231,0.10)",
+                          },
+                        ]}
                         activeOpacity={0.7}
                       >
-                        <Text style={styles.customSeatStepText}>+</Text>
+                        <Text
+                          style={[
+                            styles.customSeatStepText,
+                            themeColors.mode === "dark" && {
+                              color: themeColors.textOnDark,
+                            },
+                          ]}
+                        >
+                          +
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   );

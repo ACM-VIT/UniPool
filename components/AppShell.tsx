@@ -33,6 +33,10 @@ import * as SystemUI from "expo-system-ui";
 import * as Device from "expo-device";
 import AppColors from "../design_systems/colors";
 import { shouldShowPermissionsPrompt } from "../utils/permissionsPrompt";
+import {
+  isAuthenticationRedirectError,
+  rollbackFirebaseSession,
+} from "../utils/authFlow";
 
 const DEBUG_APP =
   typeof __DEV__ !== "undefined" &&
@@ -138,6 +142,7 @@ GoogleSignin.configure({
 });
 
 const NAVBAR_HIDDEN_ROUTES = [
+  "SplashScreen",
   "OnboardingScreen",
   "LocationPermissionScreen",
   "AuthScreen",
@@ -441,6 +446,10 @@ const AppShell = () => {
               if (isSignupRequiredError(userDetailsError)) {
                 debugLog("User not found in database, redirecting to signup");
                 setInitialRoute("SignUpScreen");
+              } else if (isAuthenticationRedirectError(userDetailsError)) {
+                console.error("Persisted Firebase session rejected by backend:", userDetailsError);
+                await rollbackFirebaseSession(apiUtil);
+                setInitialRoute("HomeScreen");
               } else if (userDetailsError.message && userDetailsError.message.includes("Timeout")) {
                 if (isCachedAuthValid()) {
                   debugLog("Network timeout but cached auth is valid (within 24h), proceeding to HomeScreen");
@@ -478,6 +487,10 @@ const AppShell = () => {
               if (isSignupRequiredError(userDetailsError)) {
                 debugLog("User not found in database, redirecting to signup");
                 setInitialRoute("SignUpScreen");
+              } else if (isAuthenticationRedirectError(userDetailsError)) {
+                console.error("Persisted Firebase session rejected by backend:", userDetailsError);
+                await rollbackFirebaseSession(apiUtil);
+                setInitialRoute("HomeScreen");
               } else if (userDetailsError.message && userDetailsError.message.includes("Timeout")) {
                 if (isCachedAuthValid()) {
                   debugLog("Network timeout but cached auth is valid (within 24h), proceeding to HomeScreen");
@@ -504,6 +517,9 @@ const AppShell = () => {
         } catch (tokenError) {
           console.error("Token validation error:", tokenError);
           debugLog("Redirecting to AuthScreen due to token error");
+          if (isAuthenticationRedirectError(tokenError)) {
+            await rollbackFirebaseSession(apiUtil);
+          }
           setInitialRoute("HomeScreen");
         }
       } else {
@@ -560,6 +576,10 @@ const AppShell = () => {
               if (isSignupRequiredError(userDetailsError)) {
                 debugLog("User not found in database, redirecting to signup");
                 setInitialRoute("SignUpScreen");
+              } else if (isAuthenticationRedirectError(userDetailsError)) {
+                console.error("Persisted Firebase session rejected by backend:", userDetailsError);
+                await rollbackFirebaseSession(apiUtil);
+                setInitialRoute("HomeScreen");
               } else if (userDetailsError.message && userDetailsError.message.includes("Timeout")) {
                 if (isCachedAuthValid()) {
                   debugLog("Network timeout but cached auth is valid (within 24h), proceeding to HomeScreen");
@@ -584,6 +604,9 @@ const AppShell = () => {
             }
           } catch (tokenError: any) {
             console.error("Token refresh failed:", tokenError);
+            if (isAuthenticationRedirectError(tokenError)) {
+              await rollbackFirebaseSession(apiUtil);
+            }
             setInitialRoute("HomeScreen");
           }
         } else {

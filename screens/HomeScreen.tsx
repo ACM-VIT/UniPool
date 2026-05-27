@@ -1486,7 +1486,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                   id="service-area-stroke"
                   type="line"
                   paint={{
-                    "line-color": AppColors.secondaryDarkGreen,
+                    // Forest on the light map; lime on the dark map
+                    // — same reasoning as the route line below, the
+                    // forest stroke vanishes into the dark tile set.
+                    "line-color": colors.mode === "dark"
+                      ? AppColors.primaryLightGreen
+                      : AppColors.secondaryDarkGreen,
                     "line-width": 2,
                   }}
                 />
@@ -1577,7 +1582,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                     "line-cap": "round",
                   }}
                   paint={{
-                    "line-color": AppColors.secondaryDarkGreen || "#2d5016",
+                    // Forest reads cleanly on the light map but
+                    // disappears into the dark map style. Switch to
+                    // lime in dark — the brand splash doubles as a
+                    // high-visibility route accent against charcoal
+                    // tiles.
+                    "line-color": colors.mode === "dark"
+                      ? AppColors.primaryLightGreen
+                      : (AppColors.secondaryDarkGreen || "#2d5016"),
                     "line-width": 3,
                     // MapLibre style-spec dash pattern is in
                     // line-width multiples (not pixels), so 3 width
@@ -1719,10 +1731,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             {(isGuest || hasUserTrips === false) && (
               <TouchableOpacity
                 activeOpacity={0.85}
-                style={styles.nearbyTile}
+                style={[styles.nearbyTile, colors.mode === "dark" && { backgroundColor: colors.surface }]}
                 onPress={() => router.navigate(appHref("NearbyRidesScreen"))}
               >
-                <Text style={styles.nearbyTileText}>Rides around you</Text>
+                <Text style={[styles.nearbyTileText, colors.mode === "dark" && { color: colors.textPrimary }]}>Rides around you</Text>
               </TouchableOpacity>
             )}
 

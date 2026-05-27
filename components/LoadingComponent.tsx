@@ -23,6 +23,18 @@ const LoadingComponent: React.FC<LoadingComponentProps> = ({ label, overlay = fa
   // still hints the screen behind without painting it lime in dark.
   const overlayBg =
     colors.mode === "dark" ? "rgba(15,15,18,0.94)" : "rgba(181,215,80,0.94)";
+  // The loader Lottie has the forest brand colour baked into two
+  // layers ("Uni Pool" wordmark fill + "Vector 2 - Stroke" route
+  // stroke). On the dark canvas those forest paths read as a faint
+  // ghost — the wordmark literally vanishes. Lottie's `colorFilters`
+  // lets us swap those layer colours at runtime without touching the
+  // JSON. Light mode keeps the historical paint.
+  const lottieColorFilters = colors.mode === "dark"
+    ? [
+        { keypath: "Uni Pool", color: colors.textPrimary },
+        { keypath: "Vector 2 - Stroke", color: colors.textPrimary },
+      ]
+    : undefined;
   return (
     <View
       style={[
@@ -36,6 +48,7 @@ const LoadingComponent: React.FC<LoadingComponentProps> = ({ label, overlay = fa
         autoPlay
         loop
         style={styles.lottie}
+        colorFilters={lottieColorFilters}
       />
       {label ? (
         <Text style={[styles.label, { color: colors.textSecondary }]}>
