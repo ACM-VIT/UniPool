@@ -17,6 +17,7 @@ import { usePathname, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../design_systems/colors";
 import { useAuthGate } from "../contexts/AuthGate";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 // Tabs that require a signed-in user. Guests tapping these get the auth sheet.
 const GUEST_GATED_ROUTES = new Set(["trips", "chat", "profile"]);
@@ -105,6 +106,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
     routeNameFromPath(pathname) ?? DEFAULT_ACTIVE_SCREEN
   ).toLowerCase();
   const { requireAuth, isGuest } = useAuthGate();
+  const colors = useThemeColors();
 
   const handleNavigation = (routeKey: string) => {
     const mapping = ROUTE_MAP[routeKey] ?? routeKey;
@@ -142,6 +144,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
   return (
     <View style={[
       styles.bottomNavContainer,
+      { backgroundColor: colors.navFill },
       Platform.OS === 'ios' && {
         paddingBottom: Math.max(insets.bottom, 20),
         marginBottom: 10,
@@ -172,9 +175,13 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
               style={[
                 styles.icon,
                 {
+                  // `navIconActive` / `navIconInactive` resolve to the
+                  // historical white-on-forest (light) and to off-white-
+                  // on-charcoal (dark) — both correct against the
+                  // navbar's `navFill` in their respective modes.
                   tintColor: isActive
-                    ? AppColors.basicWhite
-                    : AppColors.primaryLightGreen,
+                    ? colors.navIconActive
+                    : colors.navIconInactive,
                   opacity: isActive ? 1 : 0.8,
                 },
               ]}
@@ -185,8 +192,8 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
                 styles.navLabel,
                 {
                   color: isActive
-                    ? AppColors.basicWhite
-                    : AppColors.primaryLightGreen,
+                    ? colors.navIconActive
+                    : colors.navIconInactive,
                   opacity: isActive ? 1 : 0.8,
                 },
               ]}
@@ -208,11 +215,13 @@ const SingleBar: React.FC<SingleBarProps> = ({
   onClose,
 }) => {
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
 
   return (
     <View
       style={[
         styles.singleBarContainer,
+        { backgroundColor: colors.navFill },
         // On iOS, lift the bar a little (marginBottom) so it sits
         // above the home indicator. Do NOT add paddingBottom — the
         // SingleBar's content is centered (not pinned to the bottom
@@ -232,17 +241,17 @@ const SingleBar: React.FC<SingleBarProps> = ({
         activeOpacity={0.85}
       >
         <View style={styles.singleBarContent}>
-          <Text style={styles.singleBarText}>{text}</Text>
+          <Text style={[styles.singleBarText, colors.mode === "dark" && { color: colors.navIconActive }]}>{text}</Text>
           <View style={styles.iconsContainer}>
             <Image
               source={iconPath}
-              style={[styles.icon, { tintColor: AppColors.primaryLightGreen }]}
+              style={[styles.icon, colors.mode === "dark" && { tintColor: colors.navIconActive }]}
               resizeMode="contain"
             />
             {showSwitchIcon && (
               <Image
                 source={require("../assets/switch-1.png")}
-                style={[styles.switchIcon, { tintColor: AppColors.primaryLightGreen }]}
+                style={[styles.switchIcon, colors.mode === "dark" && { tintColor: colors.navIconActive }]}
                 resizeMode="contain"
               />
             )}
@@ -261,7 +270,7 @@ const SingleBar: React.FC<SingleBarProps> = ({
           activeOpacity={0.7}
           hitSlop={8}
         >
-          <Text style={styles.singleBarCloseGlyph}>✕</Text>
+          <Text style={[styles.singleBarCloseGlyph, { color: colors.navIconInactive }]}>✕</Text>
         </TouchableOpacity>
       ) : null}
     </View>

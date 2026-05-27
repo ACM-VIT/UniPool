@@ -9,6 +9,7 @@ import { useRouter } from "expo-router";
 import BrandedAlert from "../components/BrandedAlert";
 import profileStyles from "./ProfileScreen/ProfileScreen.styles";
 import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/responsive";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 const { width, height } = Dimensions.get("window");
 
@@ -57,6 +58,7 @@ const NotificationsScreen: React.FC = () => {
   const tabletContentStyle = useTabletContentStyle();
   const tabletScrollContentStyle = useTabletScrollContentStyle();
   const { apiUtil } = useApi();
+  const colors = useThemeColors();
   const [prefs, setPrefs] = useState<PrefsState>(DEFAULT_STATE);
   const [loading, setLoading] = useState(true);
 
@@ -101,20 +103,20 @@ const NotificationsScreen: React.FC = () => {
   }, {});
 
   return (
-    <View style={profileStyles.container}>
+    <View style={[profileStyles.container, { backgroundColor: colors.background }]}>
       <View style={profileStyles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={profileStyles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity onPress={() => router.back()}>
             <ChevronBack />
           </TouchableOpacity>
-          <Text style={profileStyles.headerTitle}>Notifications</Text>
+          <Text style={[profileStyles.headerTitle, { color: colors.textPrimary }]}>Notifications</Text>
         </View>
       </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator color={AppColors.secondaryDarkGreen} accessibilityLabel="Loading" />
+          <ActivityIndicator color={colors.textPrimary} accessibilityLabel="Loading" />
         </View>
       ) : (
         <ScrollView
@@ -124,29 +126,35 @@ const NotificationsScreen: React.FC = () => {
         >
           {Object.entries(sections).map(([sectionTitle, items]) => (
             <View style={styles.section} key={sectionTitle}>
-              <Text style={styles.sectionTitle}>{sectionTitle}</Text>
-              <View style={styles.menuContainer}>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{sectionTitle}</Text>
+              <View style={[
+                styles.menuContainer,
+                colors.mode === "dark" && { backgroundColor: colors.surface, borderColor: colors.inkSubtle },
+              ]}>
                 {items.map((item, idx) => (
                   <View
                     style={[
                       styles.settingItem,
+                      colors.mode === "dark" && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle },
                       idx === items.length - 1 && { borderBottomWidth: 0 },
                     ]}
                     key={item.key}
                   >
                     <View style={styles.settingTextContainer}>
-                      <Text style={styles.settingTitle}>{item.title}</Text>
-                      <Text style={styles.settingDescription}>{item.description}</Text>
+                      <Text style={[styles.settingTitle, colors.mode === "dark" && { color: colors.textPrimary }]}>{item.title}</Text>
+                      <Text style={[styles.settingDescription, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>{item.description}</Text>
                     </View>
                     <Switch
                       value={prefs[item.key]}
                       onValueChange={(value) => updatePref(item.key, value)}
                       trackColor={{
-                        false: AppColors.secondaryDarkGreen + "30",
-                        true: AppColors.secondaryDarkGreen,
+                        false: colors.inkSoft,
+                        true: colors.primary,
                       }}
-                      thumbColor={prefs[item.key] ? AppColors.primaryLightGreen : AppColors.basicWhite}
-                      ios_backgroundColor={AppColors.secondaryDarkGreen + "30"}
+                      thumbColor={prefs[item.key]
+                        ? (colors.mode === "dark" ? colors.textOnAccent : AppColors.primaryLightGreen)
+                        : (colors.mode === "dark" ? colors.surfaceElevated : AppColors.basicWhite)}
+                      ios_backgroundColor={colors.inkSoft}
                       style={styles.switch}
                     />
                   </View>
@@ -155,8 +163,8 @@ const NotificationsScreen: React.FC = () => {
             </View>
           ))}
 
-          <View style={styles.infoSection}>
-            <Text style={styles.infoText}>
+          <View style={[styles.infoSection, colors.mode === "dark" && { backgroundColor: colors.surfaceInset }]}>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
               You can mute notifications for a specific ride from inside that ride's chat.
             </Text>
           </View>

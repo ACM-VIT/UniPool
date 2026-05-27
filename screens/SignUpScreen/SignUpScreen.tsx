@@ -20,6 +20,7 @@ import { useApi } from "../../utils/ApiUtil";
 import { useTabletContentStyle } from "../../utils/responsive";
 import styles from "./SignUpScreen.styles";
 import AppColors from "../../design_systems/colors";
+import { useThemeColors } from "../../contexts/ThemeContext";
 import BrandedAlert from "../../components/BrandedAlert";
 import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import type { AppRouteTarget } from "../../navigation/routes";
@@ -69,6 +70,7 @@ const SignUpScreen: React.FC = () => {
   // CTAs don't stretch across the 1032pt canvas. Hook returns null on
   // phones, so the existing mobile layout is unchanged.
   const tabletContentStyle = useTabletContentStyle();
+  const colors = useThemeColors();
 
   // Block hardware back — they need to either complete or log out.
   React.useEffect(() => {
@@ -195,8 +197,8 @@ const SignUpScreen: React.FC = () => {
   const isTablet = tabletContentStyle !== null;
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={AppColors.primaryLightGreen} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.statusBarBackground} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         // On iPad the ScrollView is no longer asked to flex-grow to
@@ -235,9 +237,9 @@ const SignUpScreen: React.FC = () => {
         >
           <View style={styles.heroBlock}>
             <View style={styles.headlineRow}>
-              <Text style={styles.headline}>One last thing.</Text>
+              <Text style={[styles.headline, { color: colors.textPrimary }]}>One last thing.</Text>
               <TouchableOpacity
-                style={styles.logoutBtn}
+                style={[styles.logoutBtn, { backgroundColor: colors.navFill }]}
                 onPress={handleLogout}
                 activeOpacity={0.75}
                 disabled={loading}
@@ -245,12 +247,12 @@ const SignUpScreen: React.FC = () => {
                 accessibilityLabel="Log out"
               >
                 <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                  <Path d="M10 7V5.8C10 4.8 10.8 4 11.8 4h5.4C18.2 4 19 4.8 19 5.8v12.4c0 1-.8 1.8-1.8 1.8h-5.4c-1 0-1.8-.8-1.8-1.8V17" stroke={AppColors.primaryLightGreen} strokeWidth={2} strokeLinecap="round" />
-                  <Path d="M14 12H4m0 0 3.5-3.5M4 12l3.5 3.5" stroke={AppColors.primaryLightGreen} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  <Path d="M10 7V5.8C10 4.8 10.8 4 11.8 4h5.4C18.2 4 19 4.8 19 5.8v12.4c0 1-.8 1.8-1.8 1.8h-5.4c-1 0-1.8-.8-1.8-1.8V17" stroke={colors.navIconInactive} strokeWidth={2} strokeLinecap="round" />
+                  <Path d="M14 12H4m0 0 3.5-3.5M4 12l3.5 3.5" stroke={colors.navIconInactive} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
               </TouchableOpacity>
             </View>
-            <Text style={styles.subhead}>
+            <Text style={[styles.subhead, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
               We need a few details so we can connect you with other users.
             </Text>
           </View>
@@ -258,8 +260,8 @@ const SignUpScreen: React.FC = () => {
           {/* Phone number with country picker — left side opens the
               CountryPicker bottom sheet, right side is the local
               number. We send +{dial}{local} as E.164 on submit. */}
-          <Text style={styles.fieldLabel}>Phone number</Text>
-          <View style={[styles.inputWrap, focused === "phone" && styles.inputWrapFocused]}>
+          <Text style={[styles.fieldLabel, colors.mode === "dark" && { color: colors.textPrimary, opacity: 1 }]}>Phone number</Text>
+          <View style={[styles.inputWrap, { backgroundColor: colors.navFill }, focused === "phone" && styles.inputWrapFocused]}>
             <TouchableOpacity
               style={styles.countryBtn}
               onPress={() => setCountryPickerOpen(true)}
@@ -268,11 +270,11 @@ const SignUpScreen: React.FC = () => {
               accessibilityLabel={`Country code, currently ${country.name}`}
             >
               <Text style={styles.countryFlag}>{flagFor(country.code)}</Text>
-              <Text style={styles.countryDial}>+{country.dial}</Text>
+              <Text style={[styles.countryDial, { color: colors.navIconInactive }]}>+{country.dial}</Text>
               <Svg width={10} height={10} viewBox="0 0 24 24" fill="none">
                 <Path
                   d="M6 9l6 6 6-6"
-                  stroke={AppColors.primaryLightGreen}
+                  stroke={colors.navIconInactive}
                   strokeWidth={2.2}
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -281,45 +283,45 @@ const SignUpScreen: React.FC = () => {
             </TouchableOpacity>
             <View style={styles.countryDivider} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: colors.navIconActive }]}
               value={contactNumber}
               onChangeText={(t) => setContactNumber(t.replace(/[^\d\s\-()]/g, ""))}
               keyboardType="phone-pad"
               maxLength={20}
               placeholder="98765 43210"
-              placeholderTextColor="rgba(181,215,80,0.40)"
+              placeholderTextColor={colors.textTertiary}
               onFocus={() => setFocused("phone")}
               onBlur={() => setFocused(null)}
             />
           </View>
 
-          <Text style={styles.fieldLabel}>Year of birth</Text>
-          <View style={[styles.inputWrap, focused === "yob" && styles.inputWrapFocused]}>
+          <Text style={[styles.fieldLabel, colors.mode === "dark" && { color: colors.textPrimary, opacity: 1 }]}>Year of birth</Text>
+          <View style={[styles.inputWrap, { backgroundColor: colors.navFill }, focused === "yob" && styles.inputWrapFocused]}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: colors.navIconActive }]}
               value={yob}
               onChangeText={(t) => setYob(t.replace(/[^\d]/g, ""))}
               keyboardType="number-pad"
               maxLength={4}
               placeholder="YYYY"
-              placeholderTextColor="rgba(181,215,80,0.40)"
+              placeholderTextColor={colors.textTertiary}
               onFocus={() => setFocused("yob")}
               onBlur={() => setFocused(null)}
             />
           </View>
 
-          <Text style={styles.fieldLabel}>Gender</Text>
+          <Text style={[styles.fieldLabel, colors.mode === "dark" && { color: colors.textPrimary, opacity: 1 }]}>Gender</Text>
           <View style={styles.genderRow}>
             {["Male", "Female"].map((g) => {
               const selected = gender === g;
               return (
                 <TouchableOpacity
                   key={g}
-                  style={[styles.genderChip, selected && styles.genderChipSelected]}
+                  style={[styles.genderChip, { backgroundColor: colors.navFill }, selected && styles.genderChipSelected]}
                   activeOpacity={0.8}
                   onPress={() => setGender(g)}
                 >
-                  <Text style={[styles.genderChipText, selected && styles.genderChipTextSelected]}>{g}</Text>
+                  <Text style={[styles.genderChipText, { color: colors.navIconInactive }, selected && styles.genderChipTextSelected]}>{g}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -329,12 +331,13 @@ const SignUpScreen: React.FC = () => {
               not yet done, then opens the verify sheet. Once
               verified, the button flips to a lime "done" state with
               the institute name. */}
-          <Text style={styles.fieldLabel}>
-            Academic status <Text style={styles.fieldLabelMuted}>(Optional)</Text>
+          <Text style={[styles.fieldLabel, colors.mode === "dark" && { color: colors.textPrimary, opacity: 1 }]}>
+            Academic status <Text style={[styles.fieldLabelMuted, { color: colors.textTertiary }]}>(Optional)</Text>
           </Text>
           <TouchableOpacity
             style={[
               styles.verifyBtn,
+              { backgroundColor: colors.navFill },
               verifiedInstitute ? styles.verifyBtnDone : null,
             ]}
             activeOpacity={verifiedInstitute ? 1 : 0.85}
@@ -344,6 +347,7 @@ const SignUpScreen: React.FC = () => {
             <Text
               style={[
                 styles.verifyBtnText,
+                { color: colors.navIconInactive },
                 verifiedInstitute ? styles.verifyBtnTextDone : null,
               ]}
               numberOfLines={1}
@@ -366,7 +370,7 @@ const SignUpScreen: React.FC = () => {
               <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
                 <Path
                   d="M9 6 L 15 12 L 9 18"
-                  stroke={AppColors.primaryLightGreen}
+                  stroke={colors.navIconInactive}
                   strokeWidth={2.2}
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -391,20 +395,20 @@ const SignUpScreen: React.FC = () => {
           {/* Inner content rendered below. Closing this comment to
               keep the JSX child structure intact. */}
           <TouchableOpacity
-            style={[styles.primaryBtn, (!isValid || loading) && styles.primaryBtnDisabled]}
+            style={[styles.primaryBtn, { backgroundColor: colors.navFill }, (!isValid || loading) && styles.primaryBtnDisabled]}
             onPress={handleComplete}
             disabled={!isValid || loading}
             activeOpacity={0.85}
           >
             {loading ? (
-              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
+              <ActivityIndicator size="small" color={colors.navIconInactive} accessibilityLabel="Loading" />
             ) : (
-              <Text style={styles.primaryBtnText}>
+              <Text style={[styles.primaryBtnText, { color: colors.navIconInactive }]}>
                 {profileSubmitted ? "Continue" : "Complete profile"}
               </Text>
             )}
           </TouchableOpacity>
-          <Text style={styles.privacyNote}>
+          <Text style={[styles.privacyNote, { color: colors.textTertiary, opacity: 1 }]}>
             We never share your data without your permission.
           </Text>
         </View>

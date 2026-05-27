@@ -14,6 +14,7 @@ import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import styles from "./LocationPermissionScreen.styles";
 import AppColors from "../../design_systems/colors";
+import { useThemeColors } from "../../contexts/ThemeContext";
 import { useApi } from "../../utils/ApiUtil";
 import { ensurePushNotificationsRegistered } from "../../utils/pushNotifications";
 import {
@@ -64,6 +65,7 @@ const LocationPermissionScreen: React.FC = () => {
   const returnTo = routeParams.returnTo;
   const { apiUtil } = useApi();
   const { refreshLocation } = useLocationInfo();
+  const colors = useThemeColors();
   const [checkingPermissions, setCheckingPermissions] = useState(true);
   // True from the first Allow tap until the chain finishes navigating.
   // Without this the button stays tappable while the native prompts +
@@ -187,20 +189,20 @@ const LocationPermissionScreen: React.FC = () => {
 
   if (checkingPermissions) {
     return (
-      <View style={styles.root}>
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
         <StatusBar
-          barStyle="dark-content"
-          backgroundColor={AppColors.primaryLightGreen}
+          barStyle={colors.statusBarStyle}
+          backgroundColor={colors.statusBarBackground}
         />
       </View>
     );
   }
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar
-        barStyle="dark-content"
-        backgroundColor={AppColors.primaryLightGreen}
+        barStyle={colors.statusBarStyle}
+        backgroundColor={colors.statusBarBackground}
       />
 
       <View style={styles.center}>
@@ -214,6 +216,7 @@ const LocationPermissionScreen: React.FC = () => {
             style={[
               styles.heroPlate,
               { width: heroWidth + 32, height: heroHeight + 32 },
+              colors.mode === "dark" && { backgroundColor: colors.surface },
             ]}
           >
             <Image
@@ -226,8 +229,8 @@ const LocationPermissionScreen: React.FC = () => {
         </View>
 
         <View style={styles.copy}>
-          <Text style={styles.headline}>One quick thing.</Text>
-          <Text style={styles.subhead}>
+          <Text style={[styles.headline, { color: colors.textPrimary }]}>One quick thing.</Text>
+          <Text style={[styles.subhead, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
             Allow location and notifications so we can show ride pins
             near you and ping you the moment a seat opens up.
           </Text>
@@ -235,7 +238,7 @@ const LocationPermissionScreen: React.FC = () => {
 
         <View style={styles.ctaBlock}>
           <TouchableOpacity
-            style={[styles.primaryBtn, busy && { opacity: 0.7 }]}
+            style={[styles.primaryBtn, { backgroundColor: colors.navFill }, busy && { opacity: 0.7 }]}
             activeOpacity={0.88}
             onPress={handleAllow}
             disabled={busy}
@@ -246,11 +249,11 @@ const LocationPermissionScreen: React.FC = () => {
             {busy ? (
               <ActivityIndicator
                 size="small"
-                color={AppColors.primaryLightGreen}
+                color={colors.navIconInactive}
                 accessibilityLabel="Requesting permissions"
               />
             ) : (
-              <Text style={styles.primaryBtnText}>Allow access</Text>
+              <Text style={[styles.primaryBtnText, { color: colors.navIconInactive }]}>Allow access</Text>
             )}
           </TouchableOpacity>
           <TouchableOpacity
@@ -262,7 +265,7 @@ const LocationPermissionScreen: React.FC = () => {
             accessibilityLabel="Skip permissions for now"
             hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
           >
-            <Text style={styles.secondaryBtnText}>Not now</Text>
+            <Text style={[styles.secondaryBtnText, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Not now</Text>
           </TouchableOpacity>
         </View>
       </View>

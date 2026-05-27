@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Animated, Easing, Dimensions } from "react-native";
 import LottieView from "lottie-react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 const { width } = Dimensions.get("window");
 
@@ -33,6 +34,7 @@ const SearchingForRidesLoader: React.FC<Props> = ({
   title = "Finding your ride",
   messages = MESSAGES,
 }) => {
+  const colors = useThemeColors();
   const [index, setIndex] = useState(0);
   const fade = useRef(new Animated.Value(1)).current;
 
@@ -61,7 +63,7 @@ const SearchingForRidesLoader: React.FC<Props> = ({
   }, [messages, fade]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.lottieWrap}>
         <LottieView
           source={require("../assets/loader.json")}
@@ -70,8 +72,10 @@ const SearchingForRidesLoader: React.FC<Props> = ({
           style={styles.lottie}
         />
       </View>
-      <Text style={styles.title}>{title}</Text>
-      <Animated.Text style={[styles.status, { opacity: fade }]}>
+      <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+      <Animated.Text
+        style={[styles.status, { opacity: fade, color: colors.textSecondary }]}
+      >
         {messages[index]}
       </Animated.Text>
     </View>

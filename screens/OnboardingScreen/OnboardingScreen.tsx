@@ -12,6 +12,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import styles, { SLIDE_WIDTH, HERO_SIZE } from "./OnboardingScreen.styles";
 import AppColors from "../../design_systems/colors";
+import { useThemeColors } from "../../contexts/ThemeContext";
 import { appHref } from "../../navigation/routes";
 import { shouldShowPermissionsPrompt } from "../../utils/permissionsPrompt";
 import { useTabletContentStyle } from "../../utils/responsive";
@@ -63,6 +64,7 @@ const SLIDES: Slide[] = [
 const OnboardingScreen: React.FC = () => {
   const router = useRouter();
   const tabletContentStyle = useTabletContentStyle();
+  const colors = useThemeColors();
   // `Animated.ScrollView` is required for `Animated.event` with
   // `useNativeDriver: true` to work under Fabric. A plain
   // `<ScrollView>` receives the `AnimatedEvent` instance as
@@ -141,10 +143,10 @@ const OnboardingScreen: React.FC = () => {
   const isLastSlide = index === SLIDES.length - 1;
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.navFill }]}>
       <StatusBar
         barStyle="light-content"
-        backgroundColor={AppColors.secondaryDarkGreen}
+        backgroundColor={colors.navFill}
       />
 
       <Animated.ScrollView
@@ -220,8 +222,8 @@ const OnboardingScreen: React.FC = () => {
                   },
                 ]}
               >
-                <Text style={styles.headline}>{slide.headline}</Text>
-                <Text style={styles.subhead}>{slide.subhead}</Text>
+                <Text style={[styles.headline, { color: colors.textOnDark }]}>{slide.headline}</Text>
+                <Text style={[styles.subhead, { color: colors.textOnDark }]}>{slide.subhead}</Text>
               </Animated.View>
             </View>
           );
@@ -231,14 +233,14 @@ const OnboardingScreen: React.FC = () => {
       {/* Top chrome — wordmark left, Skip right. Skip stays muted so
           it doesn't compete with the swipe-forward CTA below. */}
       <View style={styles.topBar} pointerEvents="box-none">
-        <Text style={styles.wordmark}>UniPool</Text>
+        <Text style={[styles.wordmark, { color: colors.primary }]}>UniPool</Text>
         <TouchableOpacity
           onPress={skip}
           style={styles.skipBtn}
           activeOpacity={0.6}
           hitSlop={8}
         >
-          <Text style={styles.skipText}>Skip</Text>
+          <Text style={[styles.skipText, { color: colors.textOnDark }]}>Skip</Text>
         </TouchableOpacity>
       </View>
 
@@ -268,7 +270,7 @@ const OnboardingScreen: React.FC = () => {
                 key={i}
                 style={[
                   styles.dot,
-                  { width: dotWidth, opacity: dotOpacity },
+                  { backgroundColor: colors.primary, width: dotWidth, opacity: dotOpacity },
                 ]}
               />
             );
@@ -283,11 +285,11 @@ const OnboardingScreen: React.FC = () => {
             Endel, Emma, Craft, Elevate, IRL, Babbel, etc. on their
             final onboarding screens. */}
         <TouchableOpacity
-          style={styles.primaryBtn}
+          style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
           activeOpacity={0.85}
           onPress={goNext}
         >
-          <Text style={styles.primaryBtnText}>
+          <Text style={[styles.primaryBtnText, { color: colors.textOnAccent }]}>
             {isLastSlide ? "Get started" : "Continue"}
           </Text>
         </TouchableOpacity>

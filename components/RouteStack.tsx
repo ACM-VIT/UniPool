@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Image, StyleSheet, TextStyle, ViewStyle } from "react-native";
-import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { displayRideLocation } from "../utils/LocationService";
 
 const titleCaseLocation = (s: string): string =>
@@ -30,7 +30,7 @@ export type RouteStackProps = {
   startAccessory?: React.ReactNode;
   endAccessory?: React.ReactNode;
   style?: ViewStyle;
-  textStyle?: TextStyle;
+  textStyle?: TextStyle | TextStyle[];
 };
 
 const RouteStack: React.FC<RouteStackProps> = ({
@@ -46,10 +46,28 @@ const RouteStack: React.FC<RouteStackProps> = ({
   style,
   textStyle,
 }) => {
+  const colors = useThemeColors();
+  // tone="onLime" — caller is painting onto the canvas / cream card.
+  // tone="onForest" — caller is painting onto a dark/forest card
+  // surface (the legacy selected RideCard fill, ActiveTripCard,
+  // RideDetailsScreen forest panel). The forest surface stays dark
+  // in BOTH themes, so the text/accent need to read as light text
+  // on a dark fill regardless of mode.
+  //
+  // Accent (origin dot + destination arrow) used to default to lime
+  // for the onForest tone — that pulled bright green into every
+  // dark-mode trip card and read as "brand on dark" rather than
+  // calm dark mode. In dark mode it now defaults to the same cream
+  // text colour as the route text, so the icons and labels read as
+  // one tonal family. Light mode is unchanged (still lime on
+  // forest, matching history).
+  const isOnForest = tone === "onForest";
   const resolvedAccent =
-    accentColor ?? (tone === "onLime" ? AppColors.secondaryDarkGreen : AppColors.primaryLightGreen);
+    accentColor ?? (isOnForest
+      ? (colors.mode === "dark" ? "#FFFDF4" : colors.primary)
+      : colors.textPrimary);
   const resolvedText =
-    textColor ?? (tone === "onLime" ? AppColors.secondaryDarkGreen : AppColors.basicWhite);
+    textColor ?? (tone === "onLime" ? colors.textPrimary : "#FFFDF4");
 
   const dashCount = compact ? 2 : 3;
 

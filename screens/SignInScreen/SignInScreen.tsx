@@ -12,6 +12,7 @@ import GoogleAuthButton from "../../components/GoogleAuthBox";
 import BrandedAlert from "../../components/BrandedAlert";
 import { appHref } from "../../navigation/routes";
 import { useTabletContentStyle } from "../../utils/responsive";
+import { useThemeColors } from "../../contexts/ThemeContext";
 
 const DEBUG_SIGN_IN =
   typeof __DEV__ !== "undefined" &&
@@ -25,6 +26,7 @@ const debugLog = (...args: any[]) => {
 const SignInScreen: React.FC = () => {
   const router = useRouter();
   const tabletContentStyle = useTabletContentStyle();
+  const colors = useThemeColors();
   const handleGoogleSignIn = async () => {
     try {
       debugLog("Starting Google Sign-In");
@@ -55,12 +57,12 @@ const SignInScreen: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, tabletContentStyle]}>
+    <View style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
       <Image source={require("../../assets/UFO.png")} style={styles.create} />
 
       <View style={styles.textContainer}>
-        <Text style={styles.title}>Unipool</Text>
-        <Text style={styles.subtitle}>Let's get started</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Unipool</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Let's get started</Text>
       </View>
 
       <GoogleAuthButton

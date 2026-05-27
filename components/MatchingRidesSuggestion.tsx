@@ -9,6 +9,7 @@ import {
   ScrollView,
 } from "react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { useApi } from "../utils/ApiUtil";
 import { useRouter } from "expo-router";
 import { appHref } from "../navigation/routes";
@@ -67,6 +68,7 @@ type MatchView = {
  * opens its booking flow in RideDetailsScreen.
  */
 const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }) => {
+  const colors = useThemeColors();
   const { apiUtil } = useApi();
   const router = useRouter();
   const dateMs = date?.getTime() ?? null;
@@ -218,22 +220,31 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
 
   return (
     <Animated.View style={animatedStyle}>
-      <View style={styles.card}>
+      <View
+        style={[
+          styles.card,
+          // White card in light → elevated charcoal sheet in dark.
+          // Border softens against either canvas via inkSubtle.
+          { backgroundColor: colors.surfaceElevated, borderColor: colors.inkSubtle },
+        ]}
+      >
         <View style={styles.headerRow}>
           <Text style={styles.headerEmoji}>💡</Text>
           <View style={styles.headerText}>
-            <Text style={styles.headerKicker}>Already going there</Text>
-            <Text style={styles.headerTitle}>
+            <Text style={[styles.headerKicker, { color: colors.textTertiary }]}>
+              Already going there
+            </Text>
+            <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
               {headerTitle}
             </Text>
           </View>
           <TouchableOpacity
             onPress={dismiss}
-            style={styles.dismissBtn}
+            style={[styles.dismissBtn, { backgroundColor: colors.inkSubtle }]}
             hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             accessibilityLabel="Dismiss suggestion"
           >
-            <Text style={styles.dismissGlyph}>×</Text>
+            <Text style={[styles.dismissGlyph, { color: colors.textPrimary }]}>×</Text>
           </TouchableOpacity>
         </View>
 
@@ -249,22 +260,25 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
             <TouchableOpacity
               key={item.match.id}
               activeOpacity={0.85}
-              style={idx > 0 ? styles.matchRowWithDivider : styles.matchRow}
+              style={[
+                idx > 0 ? styles.matchRowWithDivider : styles.matchRow,
+                idx > 0 ? { borderTopColor: colors.inkSubtle } : null,
+              ]}
               onPress={() => open(item.match)}
               accessibilityLabel={item.accessibilityLabel}
             >
               <View style={styles.matchTextColumn}>
-                <Text style={styles.matchRoute} numberOfLines={1}>
+                <Text style={[styles.matchRoute, { color: colors.textPrimary }]} numberOfLines={1}>
                   {item.routeLabel}
                 </Text>
-                <Text style={styles.matchMeta} numberOfLines={1}>
+                <Text style={[styles.matchMeta, { color: colors.textSecondary }]} numberOfLines={1}>
                   {item.metaLabel}
                 </Text>
-                <Text style={styles.matchDistance} numberOfLines={1}>
+                <Text style={[styles.matchDistance, { color: colors.textTertiary }]} numberOfLines={1}>
                   {item.distanceLabel}
                 </Text>
               </View>
-              <Text style={styles.matchChevron}>›</Text>
+              <Text style={[styles.matchChevron, { color: colors.textTertiary }]}>›</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -275,13 +289,13 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
             style={styles.expandBtn}
             activeOpacity={0.7}
           >
-            <Text style={styles.expandBtnText}>
+            <Text style={[styles.expandBtnText, { color: colors.textPrimary }]}>
               {expanded ? "Show less" : `Show ${restCount} more`}
             </Text>
           </TouchableOpacity>
         ) : null}
 
-        <Text style={styles.footnote}>
+        <Text style={[styles.footnote, { color: colors.textTertiary }]}>
           Or post your own below if none of these fit.
         </Text>
       </View>

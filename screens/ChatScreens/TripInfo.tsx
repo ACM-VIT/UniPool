@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import AppColors from "../../design_systems/colors";
+import { useThemeColors } from "../../contexts/ThemeContext";
 import { useApi } from "../../utils/ApiUtil";
 import { useTabletContentStyle } from "../../utils/responsive";
 import LoadingComponent from "../../components/LoadingComponent";
@@ -223,6 +224,7 @@ const makeDMRoomId = (a: string, b: string): string => {
 
 const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
   const router = useRouter();
+  const themeColors = useThemeColors();
   const [chats, setChats] = useState<ChatRoom[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -389,7 +391,12 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
     return (
       <TouchableOpacity
         activeOpacity={0.85}
-        style={[styles.card, item.isPending && styles.cardPending, !isLast && styles.chatCardSpacer]}
+        style={[
+          styles.card,
+          themeColors.mode === "dark" && { backgroundColor: themeColors.surface, borderColor: themeColors.inkSubtle },
+          item.isPending && styles.cardPending,
+          !isLast && styles.chatCardSpacer,
+        ]}
         onPress={() => openChat(item)}
       >
         <View style={styles.topContainer}>
@@ -400,12 +407,18 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
           <View style={styles.routeContainer}>
             <RouteStack
               tone="onLime"
-              accentColor={item.isPending ? "#D24432" : AppColors.secondaryDarkGreen}
+              accentColor={item.isPending ? "#D24432" : themeColors.textPrimary}
+              textColor={themeColors.textPrimary}
               start={item.start_location}
               end={item.end_location}
               numberOfLines={2}
               compact
-              textStyle={styles.locationText}
+              // styles.locationText bakes `color: basicBlack` which
+              // wins over the `textColor` prop above because RouteStack
+              // applies textStyle LAST in the style array. Append the
+              // themed colour here so the chat-list location text
+              // reads correctly in both modes.
+              textStyle={[styles.locationText, { color: themeColors.textPrimary }]}
             />
           </View>
 
@@ -414,10 +427,18 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
               no extra status pill is needed in this slot. */}
           <View style={styles.detailsContainer}>
             <View style={styles.timeContainer}>
-              <Image source={clockIcon} style={styles.timeIcon} resizeMode="contain" />
-              <Text style={styles.detailText}>{item.tripDateTime.time}</Text>
+              <Image
+                source={clockIcon}
+                style={[styles.timeIcon, { tintColor: themeColors.textSecondary }]}
+                resizeMode="contain"
+              />
+              <Text style={[styles.detailText, { color: themeColors.textPrimary }]}>
+                {item.tripDateTime.time}
+              </Text>
             </View>
-            <Text style={styles.dateText}>{item.tripDateTime.date}</Text>
+            <Text style={[styles.dateText, { color: themeColors.textSecondary }]}>
+              {item.tripDateTime.date}
+            </Text>
             {!item.isPending && item.showRolePill && role ? (
               <View style={[styles.rolePill, { backgroundColor: role.bg }]}>
                 <Text style={[styles.rolePillText, { color: role.fg }]}>{role.label}</Text>
@@ -441,7 +462,11 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
         ) : (
           <View style={styles.bottomContainer}>
             <Text
-              style={[styles.preview, item.unread && styles.previewUnread]}
+              style={[
+                styles.preview,
+                { color: item.unread ? themeColors.textPrimary : themeColors.textSecondary },
+                item.unread && styles.previewUnread,
+              ]}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
@@ -503,7 +528,10 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
     switch (item.type) {
       case "pending_header":
         return (
-          <Text style={styles.pendingSectionTitle}>
+          <Text style={[
+            styles.pendingSectionTitle,
+            themeColors.mode === "dark" && { color: themeColors.textSecondary, opacity: 1 },
+          ]}>
             Pending requests
           </Text>
         );
@@ -516,17 +544,27 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
           />
         );
       case "active_header":
-        return <Text style={styles.activeChatsLabel}>Active chats</Text>;
+        return (
+          <Text style={[
+            styles.activeChatsLabel,
+            themeColors.mode === "dark" && { color: themeColors.textSecondary, opacity: 1 },
+          ]}>
+            Active chats
+          </Text>
+        );
       case "chat":
         return renderChatRow(item.room, item.isLast);
       default:
         return null;
     }
-  }, [openPendingRequest, renderChatRow]);
+  }, [openPendingRequest, renderChatRow, themeColors]);
 
   return (
-    <View style={styles.container}>
-      <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
+    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+      <StatusBar
+        backgroundColor={themeColors.statusBarBackground}
+        barStyle={themeColors.statusBarStyle}
+      />
 
       {/* Centred phone-shape column on iPad so the Chats list reads
           at a digestible width instead of stretching the lime canvas.
@@ -538,7 +576,7 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
           headers do their job by being clear, not by talking. */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 10 }]}>
         <View style={styles.headerTopRow}>
-          <Text style={styles.headerTitle}>Chats</Text>
+          <Text style={[styles.headerTitle, { color: themeColors.textPrimary }]}>Chats</Text>
           {unreadTotal > 0 ? (
             <View style={styles.headerUnreadChip}>
               <Text style={styles.headerUnreadChipText}>
@@ -597,6 +635,8 @@ const PendingRequestCard: React.FC<{
   isLast: boolean;
   onPress: () => void;
 }> = ({ request, isLast, onPress }) => {
+  const themeColors = useThemeColors();
+  const isDark = themeColors.mode === "dark";
   const unread = (request.unread_count || 0) > 0;
   const firstName = (request.requester_name || "").trim().split(/\s+/)[0] || "Someone";
   // Short destination — strip the part after the first comma so long
@@ -607,10 +647,22 @@ const PendingRequestCard: React.FC<{
   const preview = request.last_message
     ? request.last_message.content
     : `Tap to chat with ${firstName} before deciding`;
+  // Dark mode equivalent of the peach `#FFF1DF` alert tile — a warm
+  // dark surface with a hint of peach undertone so the "this needs
+  // your attention" personality survives without screaming a cream
+  // card on the charcoal canvas. Subtle warm border instead of the
+  // peach saturation does the heavy lifting.
+  const darkPendingCard = isDark
+    ? {
+        backgroundColor: "#241F1B",
+        borderWidth: 1,
+        borderColor: "rgba(255,200,150,0.10)",
+      }
+    : null;
   return (
     <TouchableOpacity
       activeOpacity={0.85}
-      style={[styles.pendingCard, !isLast && styles.pendingCardSpacer]}
+      style={[styles.pendingCard, !isLast && styles.pendingCardSpacer, darkPendingCard]}
       onPress={onPress}
     >
       {/* Avatar + initial-letter fallback removed — the requester
@@ -620,23 +672,27 @@ const PendingRequestCard: React.FC<{
           instead of a tiny dot floating off an avatar. */}
       <View style={styles.pendingCardBody}>
         <View style={styles.pendingTopRow}>
-          <Text style={styles.pendingRequesterName} numberOfLines={1}>
+          <Text style={[styles.pendingRequesterName, isDark && { color: themeColors.textPrimary }]} numberOfLines={1}>
             {request.requester_name || "Someone"}
           </Text>
           {unread ? <View style={styles.pendingUnreadPill} /> : null}
         </View>
-        <Text style={styles.pendingRouteText} numberOfLines={1}>
+        <Text style={[styles.pendingRouteText, isDark && { color: themeColors.textSecondary, opacity: 1 }]} numberOfLines={1}>
           {tripLabel}
         </Text>
         <Text
-          style={[styles.pendingPreview, unread && styles.pendingPreviewUnread]}
+          style={[
+            styles.pendingPreview,
+            unread && styles.pendingPreviewUnread,
+            isDark && { color: themeColors.textSecondary, opacity: unread ? 1 : 1 },
+          ]}
           numberOfLines={1}
         >
           {preview}
         </Text>
       </View>
       <View style={styles.pendingCardRight}>
-        <Text style={styles.pendingCardChevron}>›</Text>
+        <Text style={[styles.pendingCardChevron, isDark && { color: themeColors.textSecondary, opacity: 1 }]}>›</Text>
       </View>
     </TouchableOpacity>
   );

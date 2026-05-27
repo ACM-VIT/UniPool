@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import type { StyleProp, TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Host as ExpoHost, TextInput as ExpoTextInput, useNativeState } from "@expo/ui";
 import { useFocusEffect, useRouter } from "expo-router";
 import { chatMessagesStyles } from './ChatScreen.styles';
 import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
@@ -25,6 +26,7 @@ import PaymentChatCard from '../../components/PaymentChatCard';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
 import { useUser } from '../../contexts/UserContext';
+import { useThemeColors } from '../../contexts/ThemeContext';
 import { useTabletContentStyle } from '../../utils/responsive';
 import { passengerSeatsLeft } from '../../utils/seatMath';
 import ChatService from '../../utils/ChatService';
@@ -491,19 +493,41 @@ const ChatMessageBubble = React.memo(function ChatMessageBubble({
 
   const me = message.sender === 'user';
   const senderColor = getSenderColor(message.senderId);
+  // Theme-aware overrides: outgoing (own) bubble paints the brand lime
+  // accent in dark; incoming bubble paints the elevated surface (raised
+  // charcoal) in dark so it reads as a card floating on the canvas.
+  // Light mode keeps the historical olive-on-lime / forest-on-lime
+  // pairing — those bubbles ARE the brand expression.
+  const colors = useThemeColors();
+  const isDark = colors.mode === "dark";
 
   return (
-    <View style={me ? chatMessagesStyles.messageSent : chatMessagesStyles.messageReceived}>
+    <View
+      style={[
+        me ? chatMessagesStyles.messageSent : chatMessagesStyles.messageReceived,
+        isDark && { backgroundColor: me ? colors.primary : colors.surface },
+      ]}
+    >
       {!me && isGroupChat ? (
         <Text style={[chatMessagesStyles.senderName, { color: senderColor }]}>
           {message.senderName}
         </Text>
       ) : null}
-      <Text style={me ? chatMessagesStyles.messageTextSent : chatMessagesStyles.messageText}>
+      <Text
+        style={[
+          me ? chatMessagesStyles.messageTextSent : chatMessagesStyles.messageText,
+          isDark && { color: me ? colors.textOnAccent : colors.textPrimary },
+        ]}
+      >
         {message.text}
       </Text>
       <View style={me ? chatMessagesStyles.messageMetaRowEnd : chatMessagesStyles.messageMetaRowStart}>
-        <Text style={me ? chatMessagesStyles.messageTimeSent : chatMessagesStyles.messageTime}>
+        <Text
+          style={[
+            me ? chatMessagesStyles.messageTimeSent : chatMessagesStyles.messageTime,
+            isDark && { color: colors.textTertiary },
+          ]}
+        >
           {message.timeLabel || formatChatTime(message.timestamp)}
         </Text>
         {me ? <MessageStatus status={message.status} /> : null}
@@ -524,13 +548,18 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const { apiUtil } = useApi();
   const { user: contextUser, loading: contextUserLoading } = useUser();
   const chatParams = useDecodedLocalSearchParams<ChatRouteParams>();
+  // Theme tokens drive the chrome — canvas, header, composer pill,
+  // quick-reply chips, safety strip, typing indicator. Bubble interiors
+  // are themed inside ChatMessageBubble (which also calls this hook).
+  const colors = useThemeColors();
   // iPad-only: phone-shape centred column so the header, messages,
   // quick-reply chips, and message input stack at readable widths
   // instead of stretching across 1032pt of lime canvas. Hook returns
   // null on phones so the mobile chat is untouched.
   const tabletContentStyle = useTabletContentStyle();
 
-  const [newMessage, setNewMessage] = useState('');
+  const messageDraft = useNativeState("");
+  const [hasMessageDraft, setHasMessageDraft] = useState(false);
   const [userUuid, setUserUuid] = useState<string | null>(() => chatParams.userId ?? null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [userProfiles, setUserProfiles] = useState<Record<string, UserProfile>>({});
@@ -564,6 +593,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const wsRef = useRef<WebSocket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const hasMessageDraftRef = useRef(false);
   const flatListRef = useRef<FlatList<ChatRow> | null>(null);
   const onlineUserIdsRef = useRef<Set<string>>(new Set());
   const shouldScrollToEndRef = useRef(false);
@@ -866,6 +896,21 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       setIsTyping(false);
       sendTypingIndicatorDebounced(false);
     }
+  };
+  const setComposerDraftPresence = (hasDraft: boolean) => {
+    if (hasMessageDraftRef.current === hasDraft) return;
+    hasMessageDraftRef.current = hasDraft;
+    setHasMessageDraft(hasDraft);
+  };
+  const handleComposerTextChange = (text: string) => {
+    const hasDraft = text.trim().length > 0;
+    setComposerDraftPresence(hasDraft);
+    if (hasDraft) handleTypingStart();
+    else handleTypingStop();
+  };
+  const clearComposerDraft = () => {
+    messageDraft.value = "";
+    setComposerDraftPresence(false);
   };
 
   const addTypingUser = (uid: string, name: string) => {
@@ -1323,7 +1368,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
 
   const sendMessage = (override?: string) => {
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
-    const text = (override ?? newMessage).trim();
+    const text = (override ?? messageDraft.value).trim();
     if (!userUuid || !chatId || !text) return;
 
     handleTypingStop();
@@ -1345,7 +1390,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       const next = [...prev, optimistic];
       return next;
     });
-    setNewMessage('');
+    clearComposerDraft();
 
     if (wsRef.current?.readyState===WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
@@ -1531,7 +1576,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       <SheetShell
         visible={showSettings}
         onDismiss={() => setShowSettings(false)}
-        surfaceColor={AppColors.primaryLightGreen}
+        surfaceColor={colors.surfaceElevated}
       >
         {/* SheetShell provides the slide-up chrome (grab handle, X
             button, rounded top corners, dim backdrop). The pageSheet
@@ -1539,7 +1584,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             that didn't match the rest of the app's bottom-sheet
             language. Content here renders on the cream-white sheet
             surface — same as every other sheet in the app. */}
-        <Text style={[sheetUi.sheetTitle, { marginBottom: 14 }]}>
+        <Text style={[sheetUi.sheetTitle, { marginBottom: 14, color: colors.textPrimary }]}>
           {isGroup ? "Chat settings" : "Conversation"}
         </Text>
         <ScrollView
@@ -1547,7 +1592,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           contentContainerStyle={{ paddingBottom: 8 }}
           showsVerticalScrollIndicator={false}
         >
-            <View style={chatMessagesStyles.settingsSection}>
+            <View style={[chatMessagesStyles.settingsSection, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
               <View style={chatMessagesStyles.chatInfoHeader}>
                 {/* No initial-letter avatar — the title carries the
                     route, and a route-derived letter ("A") read as
@@ -1556,15 +1601,16 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                   {editingChatName && isGroup ? (
                     <View style={chatMessagesStyles.editNameContainer}>
                       <TextInput
-                        style={chatMessagesStyles.editNameInput}
+                        style={[chatMessagesStyles.editNameInput, colors.mode === "dark" && { color: colors.textPrimary, borderBottomColor: colors.inkLine }]}
                         value={newChatName}
                         onChangeText={setNewChatName}
                         placeholder="Enter new chat name"
+                        placeholderTextColor={colors.mode === "dark" ? colors.textTertiary : undefined}
                         autoFocus
                         onSubmitEditing={handleChatRename}
                       />
                       <TouchableOpacity onPress={handleChatRename}>
-                        <Text style={chatMessagesStyles.saveButton}>Save</Text>
+                        <Text style={[chatMessagesStyles.saveButton, { color: colors.primary }]}>Save</Text>
                       </TouchableOpacity>
                     </View>
                   ) : (
@@ -1577,40 +1623,40 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                         }
                       }}
                     >
-                      <Text style={chatMessagesStyles.chatTitleLarge}>{chatTitle}</Text>
-                      {isGroup && hasSettingsPermission && <Text style={chatMessagesStyles.tapToEdit}>Tap to edit</Text>}
-                      {isGroup && !hasSettingsPermission && <Text style={[chatMessagesStyles.tapToEdit, {opacity: 0.5}]}>View only</Text>}
+                      <Text style={[chatMessagesStyles.chatTitleLarge, colors.mode === "dark" && { color: colors.textPrimary }]}>{chatTitle}</Text>
+                      {isGroup && hasSettingsPermission && <Text style={[chatMessagesStyles.tapToEdit, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Tap to edit</Text>}
+                      {isGroup && !hasSettingsPermission && <Text style={[chatMessagesStyles.tapToEdit, colors.mode === "dark" && { color: colors.textSecondary, opacity: 0.5 }]}>View only</Text>}
                     </TouchableOpacity>
                   )}
-                  <Text style={chatMessagesStyles.participantCount}>
+                  <Text style={[chatMessagesStyles.participantCount, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
                     {participants.length} participants
                   </Text>
                 </View>
               </View>
             </View>
 
-            <View style={chatMessagesStyles.settingsSection}>
-              <Text style={chatMessagesStyles.sectionTitle}>Participants</Text>
+            <View style={[chatMessagesStyles.settingsSection, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
+              <Text style={[chatMessagesStyles.sectionTitle, colors.mode === "dark" && { color: colors.textTertiary, opacity: 1 }]}>Participants</Text>
               {participants.map((p,i)=>{
                 const dotColor = getSenderColor(p.id);
                 return (
-                <View key={`${p.id}-${i}`} style={chatMessagesStyles.participantItem}>
+                <View key={`${p.id}-${i}`} style={[chatMessagesStyles.participantItem, colors.mode === "dark" && { borderBottomColor: colors.inkSubtle }]}>
                   {/* No letter avatar — instead, a small coloured
                       dot that matches the in-chat sender colour, so
                       participants in the list are visually tied to
                       their messages. */}
                   <View style={chatMessagesStyles.participantDotWrap}>
                     <View style={[chatMessagesStyles.participantDot, { backgroundColor: dotColor }]} />
-                    {p.isOnline && <View style={chatMessagesStyles.onlineIndicator}/>}
+                    {p.isOnline && <View style={[chatMessagesStyles.onlineIndicator, colors.mode === "dark" && { borderColor: colors.surface }]}/>}
                   </View>
                   <View style={chatMessagesStyles.participantInfo}>
-                    <Text style={chatMessagesStyles.participantName}>
+                    <Text style={[chatMessagesStyles.participantName, colors.mode === "dark" && { color: colors.textPrimary }]}>
                       {p.id===userUuid
                         ? `${userProfiles[userUuid]?.name || p.name || 'You'} (You)`
                         : p.name
                       }
                     </Text>
-                    <Text style={chatMessagesStyles.participantRole}>
+                    <Text style={[chatMessagesStyles.participantRole, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
                       {isGroup
                         ? p.role==='admin'?'Host':'Passenger'
                         : 'Contact'
@@ -1624,64 +1670,64 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             </View>
 
             {rideDetails && isGroup && (
-              <View style={chatMessagesStyles.settingsSection}>
-                <Text style={chatMessagesStyles.sectionTitle}>Ride Details</Text>
-                <View style={chatMessagesStyles.rideDetailItem}>
-                  <Text style={chatMessagesStyles.rideDetailLabel}>Route</Text>
-                  <Text style={chatMessagesStyles.rideDetailValue}>
+              <View style={[chatMessagesStyles.settingsSection, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
+                <Text style={[chatMessagesStyles.sectionTitle, colors.mode === "dark" && { color: colors.textTertiary, opacity: 1 }]}>Ride Details</Text>
+                <View style={[chatMessagesStyles.rideDetailItem, colors.mode === "dark" && { borderBottomColor: colors.inkSubtle }]}>
+                  <Text style={[chatMessagesStyles.rideDetailLabel, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Route</Text>
+                  <Text style={[chatMessagesStyles.rideDetailValue, colors.mode === "dark" && { color: colors.textPrimary }]}>
                     {rideDetails.departure} → {rideDetails.destination}
                   </Text>
                 </View>
-                <View style={chatMessagesStyles.rideDetailItem}>
-                  <Text style={chatMessagesStyles.rideDetailLabel}>Date & Time</Text>
-                  <Text style={chatMessagesStyles.rideDetailValue}>
+                <View style={[chatMessagesStyles.rideDetailItem, colors.mode === "dark" && { borderBottomColor: colors.inkSubtle }]}>
+                  <Text style={[chatMessagesStyles.rideDetailLabel, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Date & Time</Text>
+                  <Text style={[chatMessagesStyles.rideDetailValue, colors.mode === "dark" && { color: colors.textPrimary }]}>
                     {rideDetails.date} at {rideDetails.time}
                   </Text>
                 </View>
                 {rideDetails.price && (
-                  <View style={chatMessagesStyles.rideDetailItem}>
-                    <Text style={chatMessagesStyles.rideDetailLabel}>Price</Text>
-                    <Text style={chatMessagesStyles.rideDetailValue}>{rideDetails.price}</Text>
+                  <View style={[chatMessagesStyles.rideDetailItem, colors.mode === "dark" && { borderBottomColor: colors.inkSubtle }]}>
+                    <Text style={[chatMessagesStyles.rideDetailLabel, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Price</Text>
+                    <Text style={[chatMessagesStyles.rideDetailValue, colors.mode === "dark" && { color: colors.textPrimary }]}>{rideDetails.price}</Text>
                   </View>
                 )}
                 {rideDetails.driverName && (
-                  <View style={chatMessagesStyles.rideDetailItem}>
-                    <Text style={chatMessagesStyles.rideDetailLabel}>Host</Text>
-                    <Text style={chatMessagesStyles.rideDetailValue}>{rideDetails.driverName}</Text>
+                  <View style={[chatMessagesStyles.rideDetailItem, colors.mode === "dark" && { borderBottomColor: colors.inkSubtle }]}>
+                    <Text style={[chatMessagesStyles.rideDetailLabel, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Host</Text>
+                    <Text style={[chatMessagesStyles.rideDetailValue, colors.mode === "dark" && { color: colors.textPrimary }]}>{rideDetails.driverName}</Text>
                   </View>
                 )}
-                <View style={chatMessagesStyles.rideDetailItem}>
-                  <Text style={chatMessagesStyles.rideDetailLabel}>Seats</Text>
-                  <Text style={chatMessagesStyles.rideDetailValue}>
+                <View style={[chatMessagesStyles.rideDetailItem, colors.mode === "dark" && { borderBottomColor: colors.inkSubtle }]}>
+                  <Text style={[chatMessagesStyles.rideDetailLabel, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Seats</Text>
+                  <Text style={[chatMessagesStyles.rideDetailValue, colors.mode === "dark" && { color: colors.textPrimary }]}>
                     {(rideDetails.totalSeats! - rideDetails.availableSeats!)}/{rideDetails.totalSeats!} occupied • {rideDetails.availableSeats} available
                   </Text>
                 </View>
               </View>
             )}
 
-            <View style={chatMessagesStyles.settingsSection}>
-              <Text style={chatMessagesStyles.sectionTitle}>Settings</Text>
-              <View style={chatMessagesStyles.settingItem}>
-                <Text style={chatMessagesStyles.settingLabel}>Mute Notifications</Text>
+            <View style={[chatMessagesStyles.settingsSection, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
+              <Text style={[chatMessagesStyles.sectionTitle, colors.mode === "dark" && { color: colors.textTertiary, opacity: 1 }]}>Settings</Text>
+              <View style={[chatMessagesStyles.settingItem, colors.mode === "dark" && { borderBottomColor: colors.inkSubtle }]}>
+                <Text style={[chatMessagesStyles.settingLabel, colors.mode === "dark" && { color: colors.textPrimary }]}>Mute Notifications</Text>
                 <Switch
                   value={notificationsMuted}
                   onValueChange={hasSettingsPermission ? handleMuteToggle : undefined}
                   disabled={!hasSettingsPermission}
-                  trackColor={{ false: '#767577', true: AppColors.secondaryDarkGreen }}
-                  thumbColor={notificationsMuted ? AppColors.primaryLightGreen : '#f4f3f4'}
+                  trackColor={{ false: '#767577', true: colors.primary }}
+                  thumbColor={notificationsMuted ? colors.textOnAccent : '#f4f3f4'}
                 />
               </View>
               {!hasSettingsPermission && (
-                <Text style={[chatMessagesStyles.settingLabel, {fontSize: 12, opacity: 0.6, marginTop: 4}]}>
+                <Text style={[chatMessagesStyles.settingLabel, colors.mode === "dark" && { color: colors.textPrimary, fontSize: 12, opacity: 0.6, marginTop: 4 }]}>
                   You don't have permission to change settings
                 </Text>
               )}
             </View>
 
-            {/* Report a problem — sits on the lime canvas as a forest
-                outlined button. Available in every chat (group and
-                DM), since trust + safety is universal. Tapping it
-                closes settings and opens the dedicated report sheet. */}
+            {/* Report a problem — sits on the sheet as an outlined
+                button. Available in every chat (group and DM), since
+                trust + safety is universal. Tapping it closes settings
+                and opens the dedicated report sheet. */}
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => {
@@ -1697,14 +1743,14 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                 paddingHorizontal: 20,
                 borderRadius: 14,
                 alignItems: 'center',
-                backgroundColor: AppColors.basicWhite,
+                backgroundColor: colors.surfaceInset,
               }}
             >
               <Text
                 style={{
                   fontFamily: 'NunitoSans_800ExtraBold',
                   fontSize: 15,
-                  color: AppColors.secondaryDarkGreen,
+                  color: colors.textPrimary,
                   letterSpacing: 0.2,
                 }}
               >
@@ -1736,14 +1782,14 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       visible={showReportSheet}
       onDismiss={() => setShowReportSheet(false)}
       busy={reportSubmitting}
-      surfaceColor={AppColors.primaryLightGreen}
+      surfaceColor={colors.surfaceElevated}
     >
       {/* Same SheetShell chrome as every other sheet in the app —
           slide-up from bottom, grab handle, X close, rounded top.
           Previously this was a pageSheet which read as a separate
           full-screen modal, out of step with the rest of the app. */}
-      <Text style={[sheetUi.sheetTitle, { marginBottom: 6 }]}>Report</Text>
-      <Text style={sheetUi.sheetBody}>
+      <Text style={[sheetUi.sheetTitle, { marginBottom: 6, color: colors.textPrimary }]}>Report</Text>
+      <Text style={[sheetUi.sheetBody, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
         Pick what best describes the problem. Your report goes to the
         UniPool team and the other person isn't notified.
       </Text>
@@ -1754,8 +1800,8 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 4 }}
       >
-          {/* Reason chips — single-select. Forest fill for the
-              selected one, outlined forest for the rest. */}
+          {/* Reason chips — single-select. navFill fill for the
+              selected one, surface bg for the rest. */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 22 }}>
             {REPORT_REASONS.map((r) => {
               const selected = reportReason === r.key;
@@ -1769,10 +1815,10 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                     paddingVertical: 9,
                     borderRadius: 999,
                     backgroundColor: selected
-                      ? AppColors.secondaryDarkGreen
-                      : 'transparent',
+                      ? colors.navFill
+                      : colors.surface,
                     borderWidth: 1.5,
-                    borderColor: AppColors.secondaryDarkGreen,
+                    borderColor: colors.inkLine,
                   }}
                 >
                   <Text
@@ -1781,8 +1827,8 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                       fontSize: 13,
                       letterSpacing: 0.1,
                       color: selected
-                        ? AppColors.primaryLightGreen
-                        : AppColors.secondaryDarkGreen,
+                        ? colors.navIconInactive
+                        : colors.textPrimary,
                     }}
                   >
                     {r.label}
@@ -1796,8 +1842,8 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             style={{
               fontFamily: 'NunitoSans_800ExtraBold',
               fontSize: 11.5,
-              color: AppColors.secondaryDarkGreen,
-              opacity: 0.7,
+              color: colors.textTertiary,
+              opacity: 1,
               letterSpacing: 0.6,
               marginBottom: 8,
               textTransform: 'uppercase',
@@ -1810,24 +1856,21 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             onChangeText={setReportDetails}
             multiline
             placeholder="Anything else our team should know"
-            placeholderTextColor="rgba(38,59,51,0.45)"
+            placeholderTextColor={colors.textTertiary}
             style={{
               minHeight: 110,
-              // White field on the lime sheet — clean separation from
-              // the canvas. Was a faint forest tint that disappeared
-              // into the new lime surface.
-              backgroundColor: AppColors.basicWhite,
+              backgroundColor: colors.surfaceInset,
               borderRadius: 14,
               paddingHorizontal: 14,
               paddingTop: 12,
               paddingBottom: 12,
               fontSize: 14.5,
               lineHeight: 20,
-              color: AppColors.secondaryDarkGreen,
+              color: colors.textPrimary,
               fontFamily: 'NunitoSans_600SemiBold',
               textAlignVertical: 'top',
               borderWidth: 1,
-              borderColor: 'rgba(38,59,51,0.12)',
+              borderColor: colors.inkSubtle,
             }}
             maxLength={600}
           />
@@ -1843,12 +1886,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                   marginTop: 22,
                   paddingVertical: 15,
                   borderRadius: 16,
-                  // Keep the full forest shape when disabled and
-                  // lower the wrapper opacity instead of mixing a
-                  // semi-transparent forest into the lime canvas —
-                  // that combo read as a muddy olive smudge with
-                  // illegible lime text on top.
-                  backgroundColor: AppColors.secondaryDarkGreen,
+                  backgroundColor: colors.destructive,
                   opacity: submitDisabled ? 0.4 : 1,
                   alignItems: 'center',
                 }}
@@ -1857,7 +1895,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                   style={{
                     fontFamily: 'NunitoSans_800ExtraBold',
                     fontSize: 15.5,
-                    color: AppColors.primaryLightGreen,
+                    color: '#FFFFFF',
                     letterSpacing: 0.2,
                   }}
                 >
@@ -1920,19 +1958,37 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       if (showHostEmptyState) {
         return (
           <View style={chatMessagesStyles.hostEmptyMinimalWrap}>
-            <Text style={chatMessagesStyles.hostEmptyMinimalTitle}>
+            <Text
+              style={[
+                chatMessagesStyles.hostEmptyMinimalTitle,
+                { color: colors.textPrimary, opacity: 1 },
+              ]}
+            >
               Waiting for passengers
             </Text>
-            <Text style={chatMessagesStyles.hostEmptyMinimalBody}>
+            <Text
+              style={[
+                chatMessagesStyles.hostEmptyMinimalBody,
+                colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 },
+              ]}
+            >
               Share this trip so users can join.
             </Text>
             {chatParams.chatId ? (
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={openHostShare}
-                style={chatMessagesStyles.hostEmptyMinimalShareBtn}
+                style={[
+                  chatMessagesStyles.hostEmptyMinimalShareBtn,
+                  { backgroundColor: colors.navFill },
+                ]}
               >
-                <Text style={chatMessagesStyles.hostEmptyMinimalShareBtnText}>
+                <Text
+                  style={[
+                    chatMessagesStyles.hostEmptyMinimalShareBtnText,
+                    { color: colors.navIconInactive },
+                  ]}
+                >
                   Share ride
                 </Text>
               </TouchableOpacity>
@@ -1943,11 +1999,11 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
 
       return (
         <View style={chatMessagesStyles.safetyNoticeWrap}>
-          <View style={chatMessagesStyles.safetyNoticeCard}>
-            <Text style={chatMessagesStyles.safetyNoticeTitle}>
+          <View style={[chatMessagesStyles.safetyNoticeCard, colors.mode === "dark" && { backgroundColor: colors.surface, borderColor: colors.inkSubtle }]}>
+            <Text style={[chatMessagesStyles.safetyNoticeTitle, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
               Be kind, ride safe
             </Text>
-            <Text style={chatMessagesStyles.safetyNoticeBody}>
+            <Text style={[chatMessagesStyles.safetyNoticeBody, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
               Keep payments, OTPs and personal IDs out of chat. UniPool is
               here if anything goes wrong. You can report a problem from
               chat settings.
@@ -1967,6 +2023,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     );
   }, [
     chatParams.chatId,
+    colors,
     isGroupChat,
     isPendingHostInquiry,
     openHostShare,
@@ -1976,7 +2033,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   ]);
 
   return (
-    <View style={[chatMessagesStyles.container, { flex: 1 }, tabletContentStyle]}>
+    <View style={[chatMessagesStyles.container, { flex: 1, backgroundColor: colors.background }, tabletContentStyle]}>
       <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
 
       {/* iMessage-style centered chat header. Back chevron and menu
@@ -1985,7 +2042,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           fixed-position anchor so even long station names line up
           visually — no more "Powell Street BART…" mid-name truncation
           mash. */}
-      <View style={chatMessagesStyles.chatHeaderRow}>
+      <View style={[chatMessagesStyles.chatHeaderRow, { backgroundColor: colors.background }]}>
         <View style={chatMessagesStyles.chatHeaderLeft}>
           <ChevronBack onPress={() => router.back()} />
         </View>
@@ -2006,7 +2063,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               title = composeRideWithTitle(others, chatTitle); // route fallback when host is alone — was NBSP, leaving header blank
             }
             return (
-              <Text style={chatMessagesStyles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">
+              <Text style={[chatMessagesStyles.chatHeaderTitle, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
                 {title}
               </Text>
             );
@@ -2023,9 +2080,9 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             hitSlop={8}
           >
             <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-              <Circle cx={12} cy={6} r={1.7} fill={AppColors.secondaryDarkGreen} />
-              <Circle cx={12} cy={12} r={1.7} fill={AppColors.secondaryDarkGreen} />
-              <Circle cx={12} cy={18} r={1.7} fill={AppColors.secondaryDarkGreen} />
+              <Circle cx={12} cy={6} r={1.7} fill={colors.textPrimary} />
+              <Circle cx={12} cy={12} r={1.7} fill={colors.textPrimary} />
+              <Circle cx={12} cy={18} r={1.7} fill={colors.textPrimary} />
             </Svg>
           </TouchableOpacity>
         </View>
@@ -2238,13 +2295,16 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       )}
 
       {typingUserList.length > 0 && (
-        <View style={chatMessagesStyles.typingIndicatorWrap}>
+        <View style={[chatMessagesStyles.typingIndicatorWrap, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
           <View style={chatMessagesStyles.typingDots}>
-            <View style={chatMessagesStyles.typingDotLow} />
-            <View style={chatMessagesStyles.typingDotMid} />
-            <View style={chatMessagesStyles.typingDotHigh} />
+            {/* Dots keep the cascading 0.35 / 0.55 / 0.75 opacities baked
+                into the module-scope styles; we only swap the underlying
+                colour so the dots read against the themed surface. */}
+            <View style={[chatMessagesStyles.typingDotLow, { backgroundColor: colors.textPrimary }]} />
+            <View style={[chatMessagesStyles.typingDotMid, { backgroundColor: colors.textPrimary }]} />
+            <View style={[chatMessagesStyles.typingDotHigh, { backgroundColor: colors.textPrimary }]} />
           </View>
-          <Text style={chatMessagesStyles.typingIndicatorText}>
+          <Text style={[chatMessagesStyles.typingIndicatorText, colors.mode === "dark" && { color: colors.textSecondary }]}>
             {typingText}
           </Text>
         </View>
@@ -2258,7 +2318,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         {/* Quick replies — hidden once the user starts typing so they don't
             crowd a real composition. Mobbin precedent: Gojek "Quick chat",
             Bolt onboarding chips, Uber "I'm here / Be right there". */}
-        {newMessage.trim().length === 0 ? (
+        {!hasMessageDraft ? (
           <View style={chatMessagesStyles.quickReplyRailFrame}>
             <ScrollView
               horizontal
@@ -2273,10 +2333,10 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                   key={q}
                   onPress={() => sendMessage(q)}
                   activeOpacity={0.7}
-                  style={chatMessagesStyles.quickReplyChip}
+                  style={[chatMessagesStyles.quickReplyChip, colors.mode === "dark" && { backgroundColor: colors.surface, borderColor: colors.inkSubtle }]}
                 >
                   <Text
-                    style={chatMessagesStyles.quickReplyText}
+                    style={[chatMessagesStyles.quickReplyText, { color: colors.textPrimary }]}
                     numberOfLines={1}
                     ellipsizeMode="tail"
                   >
@@ -2287,23 +2347,30 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             </ScrollView>
           </View>
         ) : null}
-        <View style={chatMessagesStyles.typingBarContainer}>
-          <TextInput
-            style={chatMessagesStyles.typingBarText}
-            placeholder="Message"
-            placeholderTextColor={'rgba(255,255,255,0.45)'}
-            value={newMessage}
-            onChangeText={text => {
-              setNewMessage(text);
-              if (text.trim().length > 0) handleTypingStart();
-              else handleTypingStop();
-            }}
-            onBlur={handleTypingStop}
-            onSubmitEditing={() => {
-              handleTypingStop();
-              newMessage.trim() && sendMessage();
-            }}
-          />
+        <View style={[chatMessagesStyles.typingBarContainer, colors.mode === "dark" && { backgroundColor: colors.surfaceElevated }]}>
+          <View style={chatMessagesStyles.typingBarInputSlot}>
+            <ExpoHost matchContents={{ vertical: true }} style={{ width: "100%" }}>
+              <ExpoTextInput
+                style={{ width: "100%", paddingVertical: 8 }}
+                textStyle={{
+                  color: colors.textPrimary,
+                  fontSize: 15,
+                  fontFamily: "NunitoSans_600SemiBold",
+                }}
+                placeholder="Message"
+                placeholderTextColor={colors.textTertiary}
+                value={messageDraft}
+                onChangeText={handleComposerTextChange}
+                onBlur={handleTypingStop}
+                onSubmitEditing={(text) => {
+                  handleTypingStop();
+                  text.trim() && sendMessage(text);
+                }}
+                returnKeyType="send"
+                autoCorrect
+              />
+            </ExpoHost>
+          </View>
           <TouchableOpacity onPress={() => sendMessage()} style={chatMessagesStyles.typingBarIconContainer}>
             {/* Paper-plane on the lime send button. Forest stroke +
                 fill so it reads as a strong glyph against the lime. */}

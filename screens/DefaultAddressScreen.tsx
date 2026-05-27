@@ -9,6 +9,7 @@ import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "../components/BrandedAlert";
 import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/responsive";
+import { useThemeColors } from "../contexts/ThemeContext";
 import type { LocationResult } from "../utils/LocationService";
 import {
   getPopularLocations,
@@ -36,6 +37,7 @@ const DefaultAddressScreen: React.FC = () => {
   const [defaultAddress, setDefaultAddress] = useState<string>("");
   const tabletContentStyle = useTabletContentStyle();
   const tabletScrollContentStyle = useTabletScrollContentStyle();
+  const colors = useThemeColors();
   const [loading, setLoading] = useState(false);
   const api = useApi();
   const apiUtil = api.apiUtil;
@@ -200,48 +202,49 @@ const DefaultAddressScreen: React.FC = () => {
     return rows;
   }, [isLoadingPopular, isSearching, popularLocations, searchQuery.length, searchResults]);
 
+  const isDark = colors.mode === "dark";
   const renderLocationRow = useCallback<ListRenderItem<LocationListRow>>(({ item }) => {
     switch (item.type) {
       case "loading":
         return (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={AppColors.basicWhite} accessibilityLabel="Loading" />
-            <Text style={styles.loadingText}>Loading nearby places...</Text>
+            <ActivityIndicator size="small" color={isDark ? colors.textPrimary : AppColors.basicWhite} accessibilityLabel="Loading" />
+            <Text style={[styles.loadingText, isDark && { color: colors.textPrimary }]}>Loading nearby places...</Text>
           </View>
         );
       case "section":
-        return <Text style={styles.sectionHeader}>{item.title}</Text>;
+        return <Text style={[styles.sectionHeader, isDark && { color: colors.textSecondary }]}>{item.title}</Text>;
       case "popular":
         return (
           <TouchableOpacity
-            style={styles.locationItem}
+            style={[styles.locationItem, isDark && { borderBottomColor: colors.inkSubtle }]}
             onPress={() => handleLocationSelect(item.label)}
             activeOpacity={0.7}
           >
             <Image
               source={require("../assets/location-pin.png")}
-              style={styles.locationIcon}
+              style={[styles.locationIcon, isDark && { tintColor: colors.textPrimary }]}
             />
-            <Text style={styles.locationText}>{item.label}</Text>
+            <Text style={[styles.locationText, isDark && { color: colors.textPrimary }]}>{item.label}</Text>
           </TouchableOpacity>
         );
       case "search": {
         const label = item.result.name || item.result.display_name.split(",")[0];
         return (
           <TouchableOpacity
-            style={styles.locationItem}
+            style={[styles.locationItem, isDark && { borderBottomColor: colors.inkSubtle }]}
             onPress={() => handleLocationSelect(label)}
             activeOpacity={0.7}
           >
             <Image
               source={require("../assets/location-pin.png")}
-              style={styles.locationIcon}
+              style={[styles.locationIcon, isDark && { tintColor: colors.textPrimary }]}
             />
             <View style={styles.searchResultContent}>
-              <Text style={styles.locationText} numberOfLines={1}>
+              <Text style={[styles.locationText, isDark && { color: colors.textPrimary }]} numberOfLines={1}>
                 {label}
               </Text>
-              <Text style={styles.locationSubtext} numberOfLines={2}>
+              <Text style={[styles.locationSubtext, isDark && { color: colors.textSecondary }]} numberOfLines={2}>
                 {item.result.display_name}
               </Text>
             </View>
@@ -250,50 +253,52 @@ const DefaultAddressScreen: React.FC = () => {
       }
       case "empty":
         return (
-          <Text style={styles.noResultsText}>
+          <Text style={[styles.noResultsText, isDark && { color: colors.textSecondary }]}>
             {item.message}
           </Text>
         );
       default:
         return null;
     }
-  }, [handleLocationSelect]);
+  }, [handleLocationSelect, colors, isDark]);
 
   const locationRowKeyExtractor = useCallback((item: LocationListRow) => item.id, []);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
       <View style={styles.brandInfoHeaderRow}>
         <BrandInfo />
       </View>
 
       <View style={styles.headerRowWithChevron}>
         <ChevronBack />
-        <Text style={styles.headerTitle}>Default Start Address</Text>
+        <Text style={[styles.headerTitle, isDark && { color: colors.textPrimary }]}>Default Start Address</Text>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scrollContent, tabletScrollContentStyle]}
       >
-        <View style={styles.cardWrapper}>
+        <View style={[styles.cardWrapper, isDark && { backgroundColor: colors.surface }]}>
           {/* No card title / description — the page header already
               says "Default Start Address," and the input itself
               ("Enter your default address…") is self-explanatory. */}
           <TouchableOpacity
-            style={styles.inputContainer}
+            style={[styles.inputContainer, isDark && { backgroundColor: colors.surfaceInset, borderColor: colors.inkSubtle }]}
             onPress={handleDropdownOpen}
             disabled={loading}
           >
             <View style={styles.inputContent}>
               <Image
                 source={require("../assets/location-pin-2.png")}
-                style={styles.icon}
+                style={[styles.icon, isDark && { tintColor: colors.textPrimary }]}
               />
               <Text style={[
-                styles.selectedText, 
-                !defaultAddress && styles.placeholderText
+                styles.selectedText,
+                isDark
+                  ? { color: defaultAddress ? colors.textPrimary : colors.textTertiary }
+                  : !defaultAddress && styles.placeholderText,
               ]}>
                 {defaultAddress || "Enter your default address..."}
               </Text>
@@ -305,11 +310,11 @@ const DefaultAddressScreen: React.FC = () => {
                     clearAddress();
                   }}
                 >
-                  <X size={16} color={AppColors.basicWhite} />
+                  <X size={16} color={isDark ? colors.textPrimary : AppColors.basicWhite} />
                 </TouchableOpacity>
               )}
               {loading && (
-                <ActivityIndicator size="small" color={AppColors.primaryLightGreen} style={styles.loadingIcon} accessibilityLabel="Loading" />
+                <ActivityIndicator size="small" color={isDark ? colors.textPrimary : AppColors.basicWhite} style={styles.loadingIcon} accessibilityLabel="Loading" />
               )}
             </View>
           </TouchableOpacity>
@@ -335,22 +340,22 @@ const DefaultAddressScreen: React.FC = () => {
         animationType="slide"
       >
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Default Address</Text>
-            
-            <View style={styles.searchContainer}>
+          <View style={[styles.modalContent, isDark && { backgroundColor: colors.surfaceElevated }]}>
+            <Text style={[styles.modalTitle, isDark && { color: colors.textPrimary }]}>Select Default Address</Text>
+
+            <View style={[styles.searchContainer, isDark && { backgroundColor: colors.surfaceInset }]}>
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, isDark && { color: colors.textPrimary }]}
                 placeholder="Search for a location..."
-                placeholderTextColor={AppColors.basicWhite + "80"}
+                placeholderTextColor={isDark ? colors.textTertiary : "rgba(255,255,255,0.45)"}
                 value={searchQuery}
                 onChangeText={handleSearchInput}
                 autoFocus={true}
               />
               {isSearching && (
-                <ActivityIndicator 
-                  size="small" 
-                  color={AppColors.basicWhite} 
+                <ActivityIndicator
+                  size="small"
+                  color={isDark ? colors.textPrimary : AppColors.basicWhite}
                   style={styles.searchLoader}
                 accessibilityLabel="Loading"
                 />
@@ -371,7 +376,7 @@ const DefaultAddressScreen: React.FC = () => {
             />
 
             <TouchableOpacity
-              style={styles.closeButton}
+              style={[styles.closeButton, isDark && { backgroundColor: colors.surfaceInset }]}
               onPress={() => {
                 setShowDropdown(false);
                 setSearchQuery("");
@@ -379,7 +384,7 @@ const DefaultAddressScreen: React.FC = () => {
                 setPopularLocations([]);
               }}
             >
-              <Text style={styles.closeButtonText}>Close</Text>
+              <Text style={[styles.closeButtonText, isDark && { color: colors.textPrimary }]}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>

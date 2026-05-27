@@ -662,14 +662,9 @@ export const chatMessagesStyles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 3,
   },
-  typingBarText: {
-    // Lime text on the forest composer pill — same colour pattern as
-    // the SignUp / RideDetails inputs.
-    color: AppColors.basicWhite,
-    fontSize: 15,
+  typingBarInputSlot: {
     flex: 1,
-    paddingVertical: 8,
-    fontFamily: 'NunitoSans_600SemiBold',
+    justifyContent: 'center',
   },
   typingBarIconContainer: {
     // Lime send button on the forest pill — inverse of the rest of

@@ -5,6 +5,7 @@ import styles from "./RideRequestedScreen.styles";
 import { appHref } from "../../navigation/routes";
 import { useUser } from "../../contexts/UserContext";
 import { useTabletContentStyle } from "../../utils/responsive";
+import { useThemeColors } from "../../contexts/ThemeContext";
 
 // Confirmation interstitial. Lands with a spring scale + fade-in,
 // holds briefly so the user registers the moment, then morphs into a
@@ -32,6 +33,7 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
   const router = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const params = useLocalSearchParams<RouteParams>();
+  const colors = useThemeColors();
   // Viewer's UUID from the shared `UserContext`. Used to derive the
   // dm_<sortedUUIDs> DM room id for the "Message host" CTA. Sourced
   // from context so this screen doesn't re-fetch `/user/details` on
@@ -137,7 +139,7 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
   };
 
   return (
-    <View style={[styles.container, tabletContentStyle]}>
+    <View style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
       <Animated.Image
         source={require("../../assets/request.png")}
         style={[styles.create, { opacity, transform: [{ scale }] }]}
@@ -153,27 +155,27 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
           },
         ]}
       >
-        <Text style={styles.ctaTitle}>Request sent</Text>
-        <Text style={styles.ctaBody}>
+        <Text style={[styles.ctaTitle, { color: colors.textPrimary }]}>Request sent</Text>
+        <Text style={[styles.ctaBody, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
           {hostFirstName} has been notified. We'll let you know the
           moment they accept.
         </Text>
 
         <TouchableOpacity
-          style={styles.ctaPrimary}
+          style={[styles.ctaPrimary, { backgroundColor: colors.navFill }]}
           activeOpacity={0.85}
           onPress={viewRequestStatus}
         >
-          <Text style={styles.ctaPrimaryText}>View request status</Text>
+          <Text style={[styles.ctaPrimaryText, { color: colors.navIconInactive }]}>View request status</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.ctaSecondary}
+          style={[styles.ctaSecondary, { borderColor: colors.textPrimary }]}
           activeOpacity={0.85}
           onPress={openHostChat}
           disabled={!hostUserId}
         >
-          <Text style={styles.ctaSecondaryText}>
+          <Text style={[styles.ctaSecondaryText, { color: colors.textPrimary }]}>
             Message {hostFirstName}
           </Text>
         </TouchableOpacity>
@@ -183,7 +185,7 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
           activeOpacity={0.7}
           onPress={() => router.replace(appHref("BookingScreen"))}
         >
-          <Text style={styles.ctaTertiaryText}>Back to trips</Text>
+          <Text style={[styles.ctaTertiaryText, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Back to trips</Text>
         </TouchableOpacity>
       </Animated.View>
     </View>

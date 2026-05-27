@@ -16,6 +16,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useAuthGate } from "../../contexts/AuthGate";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../../design_systems/colors";
+import { useThemeColors } from "../../contexts/ThemeContext";
 import ChevronBack from "../../components/ChevronBack";
 import LoadingComponent from "../../components/LoadingComponent";
 import EmptyState from "../../components/EmptyState";
@@ -147,6 +148,7 @@ const haversineKm = (
  */
 const NearbyRidesScreen: React.FC = () => {
   const router = useRouter();
+  const colors = useThemeColors();
   const tabletContentStyle = useTabletContentStyle();
   const tabletScrollContentStyle = useTabletScrollContentStyle();
   const { requireAuth } = useAuthGate();
@@ -319,7 +321,7 @@ const NearbyRidesScreen: React.FC = () => {
   const renderRide = useCallback(({ item }: { item: NearbyRideRow }) => (
       <TouchableOpacity
         activeOpacity={0.85}
-        style={styles.card}
+        style={[styles.card, { backgroundColor: colors.navFill }]}
         onPress={() => openRide(item)}
       >
         <View style={styles.cardTop}>
@@ -354,25 +356,25 @@ const NearbyRidesScreen: React.FC = () => {
           </View>
         </View>
       </TouchableOpacity>
-  ), [openRide]);
+  ), [openRide, colors]);
 
   const headerCount = !loading && visibleRides.length > 0
     ? `${visibleRides.length} carpool${visibleRides.length === 1 ? "" : "s"} within 10 km`
     : null;
 
   return (
-    <View style={styles.container}>
-      <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar backgroundColor={colors.statusBarBackground} barStyle={colors.statusBarStyle} />
 
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 10 }]}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 10, backgroundColor: colors.background }]}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity onPress={() => router.back()}>
             <ChevronBack />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Rides around you</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Rides around you</Text>
         </View>
         {headerCount ? (
-          <Text style={styles.headerSubtitle}>{headerCount}</Text>
+          <Text style={[styles.headerSubtitle, colors.mode === "dark" && { color: colors.textSecondary }]}>{headerCount}</Text>
         ) : null}
       </View>
 

@@ -8,6 +8,7 @@ import { useApi } from '../utils/ApiUtil';
 import BrandedAlert from "../components/BrandedAlert";
 import { appHref } from "../navigation/routes";
 import { useTabletContentStyle } from "../utils/responsive";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 // Brand coral the rest of the app already uses for destructive
 // states (Leave ride, declined badge). Avoids dropping a raw red
@@ -18,6 +19,7 @@ const AccountSettingsScreen: React.FC = () => {
   const router = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const { apiUtil } = useApi();
+  const colors = useThemeColors();
   const [loading, setLoading] = useState(false);
 
   const handleDeleteAccount = async () => {
@@ -67,35 +69,35 @@ const AccountSettingsScreen: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, tabletContentStyle]}>
+    <View style={[styles.container, tabletContentStyle, { backgroundColor: colors.background }]}>
       <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity onPress={() => router.back()}>
             <ChevronBack />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Account Settings</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Account Settings</Text>
         </View>
       </View>
       <View style={styles.newSection}>
-        <View style={styles.menuContainer}>
+        <View style={[styles.menuContainer, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
           <TouchableOpacity
-            style={styles.menuItem}
+            style={[styles.menuItem, colors.mode === "dark" && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}
             onPress={() => router.navigate(appHref("NotificationsScreen"))}
             activeOpacity={0.7}
           >
-            <Text style={styles.menuItemText}>Notifications</Text>
+            <Text style={[styles.menuItemText, { color: colors.textOnDark }]}>Notifications</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.menuItem, { borderBottomWidth: 0 }]}
+            style={[styles.menuItem, { borderBottomWidth: 0 }, colors.mode === "dark" && { backgroundColor: colors.surface }]}
             onPress={handleDeleteAccount}
             activeOpacity={0.7}
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color={DESTRUCTIVE} accessibilityLabel="Loading" />
+              <ActivityIndicator color={colors.destructive} accessibilityLabel="Loading" />
             ) : (
-              <Text style={[styles.menuItemText, { color: DESTRUCTIVE }]}>
+              <Text style={[styles.menuItemText, { color: colors.destructive }]}>
                 Delete my account
               </Text>
             )}

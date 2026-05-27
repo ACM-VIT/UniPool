@@ -26,6 +26,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
 import { useUser } from "../contexts/UserContext";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { appHref } from "../navigation/routes";
 import AppColors from "../design_systems/colors";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
@@ -139,10 +140,11 @@ const FALLBACK_REGION = {
 
 // OpenFreeMap — donation-funded, OSM-based, no API key, no usage caps.
 // `liberty` is the well-rounded default (streets, POI icons, place
-// labels at every zoom). Other styles available on the same host if
-// we ever want to switch the look: `positron` (light/minimal — closer
-// to the old Google Maps "#f8f8f8" palette), `bright`, `dark`.
-const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+// labels at every zoom). `dark` is the same shape in a near-black
+// palette — used when the app theme resolves to dark mode. Other
+// styles available: `positron` (light/minimal), `bright`.
+const MAP_STYLE_URL_LIGHT = "https://tiles.openfreemap.org/styles/liberty";
+const MAP_STYLE_URL_DARK = "https://tiles.openfreemap.org/styles/dark";
 
 // MapLibre uses [longitude, latitude] tuples and a single `zoom`
 // level instead of react-native-maps' `{latitude, longitude,
@@ -358,6 +360,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   setNavBarItems,
 }) => {
   const router = useRouter();
+  const colors = useThemeColors();
   // Live window dimensions so iPad rotation reflows the layout
   // without a remount. The module-level `screenWidth`/`screenHeight`
   // constants stay where they are because the phone-only math
@@ -1355,19 +1358,23 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const shouldRenderMap = Boolean(isFocused);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.brandInfoContainer}>
         <BrandInfo />
       </View>
 
-      <View style={styles.mapContainer}>
+      <View style={[styles.mapContainer, { backgroundColor: colors.background }]}>
         {shouldRenderMap ? (
           <>
           <MapLibreMap
             ref={mapRef}
             style={styles.map}
-            // OpenFreeMap tiles — see MAP_STYLE_URL note at top of file.
-            mapStyle={MAP_STYLE_URL}
+            // OpenFreeMap tiles — see MAP_STYLE_URL_LIGHT / _DARK note
+            // at top of file. The map style swaps with the theme so
+            // dark mode shows OpenStreetMap's near-black palette
+            // instead of the bright `liberty` style that previously
+            // shouted against the dark canvas.
+            mapStyle={colors.mode === "dark" ? MAP_STYLE_URL_DARK : MAP_STYLE_URL_LIGHT}
             // Apple's HIG treats a map as a single navigable region for
             // VoiceOver; individual pins/the user puck render to the
             // native canvas and can't carry their own labels. A region
@@ -1621,6 +1628,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       <Animated.View
         style={[
           styles.bottomSheet,
+          { backgroundColor: colors.background },
           isTablet
             ? // iPad: floating left-side panel. Apple Maps idiom — the
               // map breathes full-bleed and the controls park in a
@@ -1647,7 +1655,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             style={styles.dragHandleHitArea}
             {...panResponder.panHandlers}
           >
-            <View style={styles.dragHandle} />
+            <View style={[styles.dragHandle, colors.mode === "dark" && { backgroundColor: colors.inkLine }]} />
           </View>
         )}
 
@@ -1724,7 +1732,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                   selector it sits right against, instead of doubling
                   as a section label for the white CTA. */}
               <TouchableOpacity
-                style={styles.createRideButton}
+                style={[styles.createRideButton, colors.mode === "dark" && { backgroundColor: colors.surface }]}
                 onPress={() => {
                   // Posting a ride requires an authenticated student.
                   if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) return;
@@ -1749,7 +1757,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                   router.navigate(appHref("CreateRide"));
                 }}
               >
-                <Text style={styles.createRideButtonText}>
+                <Text style={[styles.createRideButtonText, { color: colors.textPrimary }]}>
                   {isGuest ? "Post a ride" : "Create Ride"}
                 </Text>
               </TouchableOpacity>
@@ -1785,7 +1793,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               ) : (
                 <>
                   <View style={styles.createRideText}>
-                    <Text style={styles.sectionTitle}>Where'd you like to go?</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Where'd you like to go?</Text>
                   </View>
 
                   <RideDetailsSelector

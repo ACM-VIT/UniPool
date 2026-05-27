@@ -3,9 +3,11 @@ import { TouchableOpacity, Image } from "react-native";
 import { useRouter } from "expo-router";
 import styles from "./ChevronBack.styles";
 import { ChevronBackProps } from "./ChevronBack.types";
+import { useThemeColors } from "../../contexts/ThemeContext";
 
 const ChevronBack: React.FC<ChevronBackProps> = ({ onPress, style }) => {
   const router = useRouter();
+  const colors = useThemeColors();
 
   const handlePress = () => {
     if (onPress) {
@@ -33,7 +35,11 @@ const ChevronBack: React.FC<ChevronBackProps> = ({ onPress, style }) => {
     >
       <Image
         source={require("../../assets/arrow-square-left.png")}
-        style={styles.icon}
+        // Tint the chevron asset to the active palette's primary text
+        // colour so it stays readable on either canvas (forest in
+        // light, warm off-white in dark). Native PNG asset is forest;
+        // without the tint it disappears against the dark canvas.
+        style={[styles.icon, { tintColor: colors.textPrimary }]}
         resizeMode="contain"
       />
     </TouchableOpacity>

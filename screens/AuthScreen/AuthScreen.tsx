@@ -8,16 +8,21 @@ import {
   AppleAuthProvider,
   signInWithCredential,
 } from "@react-native-firebase/auth";
-let appleAuth: any = null;
-if (Platform.OS === "ios") {
-  appleAuth = require("@invertase/react-native-apple-authentication").appleAuth;
-}
+// Apple Sign-In via Expo's wrapper around AuthenticationServices. The
+// older @invertase/react-native-apple-authentication library has known
+// reliability issues on iPad / iPadOS 26 — App Review reproduces them
+// as a "Sign Up Not Completed" sheet — so we go through the Expo path
+// which uses the system framework directly. `isAvailableAsync` lets us
+// hide the button on devices that genuinely don't support it (older
+// hardware, restricted accounts) instead of surfacing a cryptic failure.
+import * as AppleAuthentication from "expo-apple-authentication";
 import LottieView from "lottie-react-native";
 import Svg, { Path } from "react-native-svg";
 import { useRouter } from "expo-router";
 import styles from "./AuthScreen.styles";
 import { useApi } from "../../utils/ApiUtil";
 import AppColors from "../../design_systems/colors";
+import { useThemeColors } from "../../contexts/ThemeContext";
 import BrandedAlert from "../../components/BrandedAlert";
 import ChevronBack from "../../components/ChevronBack";
 import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
@@ -31,6 +36,7 @@ const AuthScreen: React.FC = () => {
   const routeParams = useDecodedLocalSearchParams<{ returnTo?: AppRouteTarget }>();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
   const returnTo = routeParams.returnTo;
 
   const navigateAfterAuth = useCallback(() => {
@@ -121,24 +127,54 @@ const AuthScreen: React.FC = () => {
   };
 
   const handleAppleSignIn = async () => {
-    if (Platform.OS !== "ios" || !appleAuth) return;
+    if (Platform.OS !== "ios") return;
     if (isSigningIn) return;
-    setIsSigningIn(true);
 
+    // Guard against environments where Apple's framework reports the
+    // capability isn't available (older devices, child accounts,
+    // managed devices, MDM lockouts). Surface a specific message
+    // instead of letting Apple's "Sign Up Not Completed" sheet appear.
+    const available = await AppleAuthentication.isAvailableAsync();
+    if (!available) {
+      BrandedAlert.alert(
+        "Apple Sign-In unavailable",
+        "Sign in with Apple isn't available on this device or account. Try signing in with Google instead.",
+      );
+      return;
+    }
+
+    setIsSigningIn(true);
     try {
-      const resp = await appleAuth.performRequest({
-        requestedOperation: appleAuth.Operation.LOGIN,
-        requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
       });
 
-      if (!resp.identityToken) throw new Error("Apple Sign-In failed - no identity token returned");
-      const { identityToken, nonce } = resp;
-      const appleCredential = AppleAuthProvider.credential(identityToken, nonce);
+      if (!credential.identityToken) {
+        throw new Error("Apple didn't return an identity token. Try again.");
+      }
+
+      // AppleAuthProvider.credential accepts an undefined nonce —
+      // Firebase verifies the JWT signature against Apple's public
+      // keys regardless. We never set a custom nonce on the Apple
+      // request, so passing the response field through would be a
+      // no-op (the field is always undefined for expo's wrapper).
+      const appleCredential = AppleAuthProvider.credential(credential.identityToken);
       const result = await signInWithCredential(getAuth(), appleCredential);
       // Same logic as Google above — no redundant force refresh.
       await routeAfterAuth(result.user);
     } catch (error: any) {
-      if (error.code === "ERR_REQUEST_CANCELED") return;
+      // expo-apple-authentication uses ERR_REQUEST_CANCELED on iOS;
+      // keep the legacy code too for any older builds that linger.
+      if (
+        error?.code === "ERR_REQUEST_CANCELED" ||
+        error?.code === "ERR_CANCELED" ||
+        error?.code === "ERR_REQUEST_UNKNOWN"
+      ) {
+        return;
+      }
       const message = error instanceof Error ? error.message : "An unknown error occurred";
       BrandedAlert.alert("Apple Sign-In Failed", message);
     } finally {
@@ -149,8 +185,8 @@ const AuthScreen: React.FC = () => {
   const canGoBack = router.canGoBack();
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) + 4 }, tabletContentStyle]}>
-      <StatusBar barStyle="dark-content" backgroundColor={AppColors.primaryLightGreen} />
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 4 }, tabletContentStyle]}>
+      <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.statusBarBackground} />
       <View style={styles.topRow}>
         {canGoBack ? (
           <ChevronBack onPress={() => router.back()} />
@@ -161,21 +197,21 @@ const AuthScreen: React.FC = () => {
             the app uses for the UniPool name (splash, brand strip,
             chat brand chips). NunitoSans here read as a generic
             heading instead of the wordmark. */}
-        <Text style={styles.wordmark} allowFontScaling={false}>UniPool</Text>
+        <Text style={[styles.wordmark, { color: colors.brandText }]} allowFontScaling={false}>UniPool</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <View style={styles.heroBlock}>
-        <Text style={styles.greeting}>Welcome.</Text>
-        <Text style={styles.subtext}>Sign in to find a ride, share a seat, and split the fare with people taking your route.</Text>
+        <Text style={[styles.greeting, { color: colors.textPrimary }]}>Welcome.</Text>
+        <Text style={[styles.subtext, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Sign in to find a ride, share a seat, and split the fare with people taking your route.</Text>
         <View style={styles.lottieContainer}>
           <LottieView source={require("../../assets/artboard.json")} autoPlay loop style={styles.lottieAnimation} />
           {/* Hide the Lottielab free-tier watermark stamped on the artboard. */}
-          <View style={styles.watermarkHide} pointerEvents="none" />
+          <View style={[styles.watermarkHide, { backgroundColor: colors.background }]} pointerEvents="none" />
         </View>
       </View>
 
-      <View style={styles.authBlock}>
+      <View style={[styles.authBlock, { backgroundColor: colors.navFill }]}>
         {/* No "CONTINUE WITH" label — the button labels already say
             "Sign in with Apple / Google", so a separate eyebrow was
             redundant chrome. */}
@@ -224,17 +260,17 @@ const AuthScreen: React.FC = () => {
         </TouchableOpacity>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>
+          <Text style={[styles.footerText, { color: colors.navIconInactive }, colors.mode === "dark" && { opacity: 1 }]}>
             By continuing, you agree to UniPool's{" "}
             <Text
-              style={styles.footerLink}
+              style={[styles.footerLink, { color: colors.navIconInactive }]}
               onPress={() => router.navigate(appHref("TermsOfServiceScreen"))}
             >
               Terms
             </Text>{" "}
             and{" "}
             <Text
-              style={styles.footerLink}
+              style={[styles.footerLink, { color: colors.navIconInactive }]}
               onPress={() => router.navigate(appHref("PrivacyPolicyScreen"))}
             >
               Privacy Policy

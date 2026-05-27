@@ -18,6 +18,7 @@ import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
 import { useAuthGate } from '../../contexts/AuthGate';
 import { useUser } from '../../contexts/UserContext';
+import { useThemeColors } from '../../contexts/ThemeContext';
 import { appHref, useDecodedLocalSearchParams } from '../../navigation/routes';
 import { seatsAvailableLabel } from '../../utils/seatMath';
 import { useTabletContentStyle } from "../../utils/responsive";
@@ -290,6 +291,7 @@ type RootStackParamList = {
 
 const AvailableRideScreenSelected: React.FC = () => {
   const router = useRouter();
+  const colors = useThemeColors();
   const tabletContentStyle = useTabletContentStyle();
   const routeParams = useDecodedLocalSearchParams<{ ride?: any }>();
   const { apiUtil } = useApi();
@@ -689,12 +691,12 @@ const AvailableRideScreenSelected: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, tabletContentStyle]}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
+      <View style={[styles.header, { backgroundColor: colors.background }]}>
         <BrandInfo />
       </View>
 
-      <View style={styles.navigationRow}>
+      <View style={[styles.navigationRow, { backgroundColor: colors.background }]}>
         <View style={styles.navigationLeft}>
           <TouchableOpacity
             style={styles.backButton}
@@ -706,7 +708,7 @@ const AvailableRideScreenSelected: React.FC = () => {
               orphan chevron in its own row. Sits next to the back
               control like the rest of the app's secondary screens
               (Booking Details, Ride Management, etc.). */}
-          <Text style={styles.navigationTitle}>Ride details</Text>
+          <Text style={[styles.navigationTitle, { color: colors.textPrimary }]}>Ride details</Text>
         </View>
         {/* No right-side action — this screen is the *preview* for
             booking someone else's ride. Sharing lives on the card
@@ -714,8 +716,8 @@ const AvailableRideScreenSelected: React.FC = () => {
       </View>
 
       <View style={styles.mainContent}>
-        <View style={styles.combinedContainer}>
-          <View style={styles.rideCard}>
+        <View style={[styles.combinedContainer, { backgroundColor: colors.navFill }]}>
+          <View style={[styles.rideCard, { backgroundColor: colors.navFill }]}>
             <View style={styles.routeSection}>
               <View style={styles.routeDetails}>
                 <View style={styles.locationContainer}>
@@ -824,7 +826,7 @@ const AvailableRideScreenSelected: React.FC = () => {
         </View>
       </View>
 
-      <View style={styles.bottomContainer}>
+      <View style={[styles.bottomContainer, { backgroundColor: colors.background }]}>
         {/* Bottom action zone — branches on the server-computed
             viewer_state instead of the old "isHost && hasBooking &&
             status === 'pending'" chain. One field in → one CTA out. */}
@@ -836,13 +838,13 @@ const AvailableRideScreenSelected: React.FC = () => {
 
           if (state === "host") {
             return (
-              <View style={styles.viewerNoticeWrap}>
-                <Text style={styles.viewerNoticeTitle}>You're hosting this ride</Text>
+              <View style={[styles.viewerNoticeWrap, { backgroundColor: colors.navFill }]}>
+                <Text style={[styles.viewerNoticeTitle, { color: colors.navIconInactive }]}>You're hosting this ride</Text>
                 <TouchableOpacity
-                  style={styles.viewerNoticeBtn}
+                  style={[styles.viewerNoticeBtn, { backgroundColor: colors.primary }]}
                   onPress={() => router.navigate(appHref("RideDetailsScreen", { rideId: ride.id }))}
                 >
-                  <Text style={styles.viewerNoticeBtnText}>Manage</Text>
+                  <Text style={[styles.viewerNoticeBtnText, { color: colors.textOnAccent }]}>Manage</Text>
                 </TouchableOpacity>
               </View>
             );
@@ -856,13 +858,13 @@ const AvailableRideScreenSelected: React.FC = () => {
           }
           if (state === "confirmed_passenger") {
             return (
-              <View style={styles.viewerNoticeWrap}>
-                <Text style={styles.viewerNoticeTitle}>Your seat is confirmed</Text>
+              <View style={[styles.viewerNoticeWrap, { backgroundColor: colors.navFill }]}>
+                <Text style={[styles.viewerNoticeTitle, { color: colors.navIconInactive }]}>Your seat is confirmed</Text>
                 <TouchableOpacity
-                  style={styles.viewerNoticeBtn}
+                  style={[styles.viewerNoticeBtn, { backgroundColor: colors.primary }]}
                   onPress={() => router.navigate(appHref("RideDetailsScreen", { rideId: ride.id }))}
                 >
-                  <Text style={styles.viewerNoticeBtnText}>View booking</Text>
+                  <Text style={[styles.viewerNoticeBtnText, { color: colors.textOnAccent }]}>View booking</Text>
                 </TouchableOpacity>
               </View>
             );
@@ -871,16 +873,16 @@ const AvailableRideScreenSelected: React.FC = () => {
           // redirect to RideDetailsScreen alongside pending.)
           if (state === "full") {
             return (
-              <View style={styles.viewerNoticeWrap}>
-                <Text style={styles.viewerNoticeTitle}>This ride is full</Text>
-                <Text style={styles.viewerNoticeSub}>All seats have been taken.</Text>
+              <View style={[styles.viewerNoticeWrap, { backgroundColor: colors.navFill }]}>
+                <Text style={[styles.viewerNoticeTitle, { color: colors.navIconInactive }]}>This ride is full</Text>
+                <Text style={[styles.viewerNoticeSub, { color: colors.navIconActive }]}>All seats have been taken.</Text>
               </View>
             );
           }
           if (state === "past") {
             return (
-              <View style={styles.viewerNoticeWrap}>
-                <Text style={styles.viewerNoticeTitle}>Trip completed</Text>
+              <View style={[styles.viewerNoticeWrap, { backgroundColor: colors.navFill }]}>
+                <Text style={[styles.viewerNoticeTitle, { color: colors.navIconInactive }]}>Trip completed</Text>
               </View>
             );
           }

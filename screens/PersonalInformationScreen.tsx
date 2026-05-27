@@ -21,6 +21,7 @@ import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/PressableScale";
 import SheetShell from "../components/SheetShell";
 import { useTabletContentStyle } from "../utils/responsive";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 interface User {
   name: string;
@@ -54,6 +55,7 @@ const PersonalInformationScreen: React.FC = () => {
   const router = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const { apiUtil } = useApi();
+  const colors = useThemeColors();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,8 +79,10 @@ const PersonalInformationScreen: React.FC = () => {
     fetchUser().finally(() => setLoading(false));
   }, [fetchUser]);
 
+  const isDark = colors.mode === "dark";
+
   if (loading) return (
-    <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+    <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }, isDark && { backgroundColor: colors.background }]}>
       <LoadingComponent />
     </View>
   );
@@ -91,29 +95,29 @@ const PersonalInformationScreen: React.FC = () => {
           <TouchableOpacity onPress={() => router.back()}>
             <ChevronBack />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{title}</Text>
+          <Text style={[styles.headerTitle, isDark && { color: colors.textPrimary }]}>{title}</Text>
         </View>
       </View>
     </>
   );
 
   if (error) return (
-    <View style={[styles.container, tabletContentStyle]}>
+    <View style={[styles.container, tabletContentStyle, isDark && { backgroundColor: colors.background }]}>
       {header('Personal Information')}
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={[styles.errorText, isDark && { color: colors.destructive }]}>{error}</Text>
       </View>
     </View>
   );
 
   if (!user) return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
       {header('Personal Information')}
       <View style={{ alignItems: 'center', paddingHorizontal: 28, paddingTop: 36 }}>
         <Text style={{
           fontFamily: 'NunitoSans_800ExtraBold',
           fontSize: 22,
-          color: AppColors.secondaryDarkGreen,
+          color: isDark ? colors.textPrimary : AppColors.secondaryDarkGreen,
           letterSpacing: -0.4,
         }}>
           Nothing here yet
@@ -125,24 +129,24 @@ const PersonalInformationScreen: React.FC = () => {
   const verified = !!user.is_email_verified;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
       {header('Personal Information')}
 
       <View style={styles.newSection}>
-        <View style={styles.menuContainer}>
-          <View style={styles.menuItem}>
-            <Text style={[styles.menuItemText, { flex: 1 }]}>Name</Text>
-            <Text style={[styles.menuItemText, { flex: 2, flexWrap: 'wrap', textAlign: 'right' }]}>{user.name}</Text>
+        <View style={[styles.menuContainer, isDark && { backgroundColor: colors.surface }]}>
+          <View style={[styles.menuItem, isDark && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}>
+            <Text style={[styles.menuItemText, { flex: 1 }, isDark && { color: colors.textOnDark }]}>Name</Text>
+            <Text style={[styles.menuItemText, { flex: 2, flexWrap: 'wrap', textAlign: 'right' }, isDark && { color: colors.textOnDark }]}>{user.name}</Text>
           </View>
 
           {/* Email row is now purely informational — the sign-in
               identity isn't what we're verifying, the user's
               academic affiliation is. The Verify CTA lives on the
               Institute row below. */}
-          <View style={styles.menuItem}>
-            <Text style={[styles.menuItemText, { flex: 1 }]}>Email</Text>
+          <View style={[styles.menuItem, isDark && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}>
+            <Text style={[styles.menuItemText, { flex: 1 }, isDark && { color: colors.textOnDark }]}>Email</Text>
             <Text
-              style={[styles.menuItemText, { flex: 2, flexWrap: 'wrap', textAlign: 'right' }]}
+              style={[styles.menuItemText, { flex: 2, flexWrap: 'wrap', textAlign: 'right' }, isDark && { color: colors.textOnDark }]}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
@@ -150,14 +154,14 @@ const PersonalInformationScreen: React.FC = () => {
             </Text>
           </View>
 
-          <View style={styles.menuItem}>
-            <Text style={[styles.menuItemText, { flex: 1 }]}>Contact</Text>
-            <Text style={[styles.menuItemText, { flex: 2, flexWrap: 'wrap', textAlign: 'right' }]}>{user.contact_number}</Text>
+          <View style={[styles.menuItem, isDark && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}>
+            <Text style={[styles.menuItemText, { flex: 1 }, isDark && { color: colors.textOnDark }]}>Contact</Text>
+            <Text style={[styles.menuItemText, { flex: 2, flexWrap: 'wrap', textAlign: 'right' }, isDark && { color: colors.textOnDark }]}>{user.contact_number}</Text>
           </View>
           {user.gender ? (
-            <View style={styles.menuItem}>
-              <Text style={[styles.menuItemText, { flex: 1 }]}>Gender</Text>
-              <Text style={[styles.menuItemText, { flex: 2, flexWrap: 'wrap', textAlign: 'right' }]}>{user.gender}</Text>
+            <View style={[styles.menuItem, isDark && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}>
+              <Text style={[styles.menuItemText, { flex: 1 }, isDark && { color: colors.textOnDark }]}>Gender</Text>
+              <Text style={[styles.menuItemText, { flex: 2, flexWrap: 'wrap', textAlign: 'right' }, isDark && { color: colors.textOnDark }]}>{user.gender}</Text>
             </View>
           ) : null}
 
@@ -167,7 +171,7 @@ const PersonalInformationScreen: React.FC = () => {
                 · verified only (rare)        → green check, "Verified"
                 · unverified                  → tappable Verify pill */}
           <TouchableOpacity
-            style={styles.menuItem}
+            style={[styles.menuItem, isDark && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}
             activeOpacity={verified ? 1 : 0.7}
             disabled={verified}
             onPress={() => {
@@ -176,12 +180,12 @@ const PersonalInformationScreen: React.FC = () => {
               setVerifyOpen(true);
             }}
           >
-            <Text style={[styles.menuItemText, { flex: 1 }]}>Institute</Text>
+            <Text style={[styles.menuItemText, { flex: 1 }, isDark && { color: colors.textOnDark }]}>Institute</Text>
             <View style={{ flex: 2, alignItems: 'flex-end' }}>
               {verified ? (
                 <>
                   <Text
-                    style={[styles.menuItemText, { textAlign: 'right' }]}
+                    style={[styles.menuItemText, { textAlign: 'right' }, isDark && { color: colors.textOnDark }]}
                     numberOfLines={2}
                     ellipsizeMode="tail"
                   >
@@ -207,6 +211,7 @@ const PersonalInformationScreen: React.FC = () => {
                     style={[
                       styles.menuItemText,
                       { textAlign: 'right', opacity: 0.55 },
+                      isDark && { color: colors.textTertiary, opacity: 1 },
                     ]}
                   >
                     Not verified
@@ -223,14 +228,18 @@ const PersonalInformationScreen: React.FC = () => {
               Empty state reads "Add UPI ID →" so the affordance is
               obvious; filled state shows the saved value. */}
           <TouchableOpacity
-            style={[styles.menuItem, { borderBottomWidth: 0 }]}
+            style={[
+              styles.menuItem,
+              { borderBottomWidth: 0 },
+              isDark && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle },
+            ]}
             activeOpacity={0.7}
             onPress={() => {
               haptic('selection');
               setUpiOpen(true);
             }}
           >
-            <Text style={[styles.menuItemText, { flex: 1 }]}>UPI ID</Text>
+            <Text style={[styles.menuItemText, { flex: 1 }, isDark && { color: colors.textOnDark }]}>UPI ID</Text>
             <Text
               style={[
                 styles.menuItemText,
@@ -238,6 +247,10 @@ const PersonalInformationScreen: React.FC = () => {
                   flex: 2,
                   textAlign: 'right',
                   opacity: user.upi_vpa ? 1 : 0.55,
+                },
+                isDark && {
+                  opacity: 1,
+                  color: user.upi_vpa ? colors.textOnDark : colors.textTertiary,
                 },
               ]}
               numberOfLines={1}
@@ -287,6 +300,8 @@ type UpiEditSheetProps = {
 
 const UpiEditSheet: React.FC<UpiEditSheetProps> = ({ visible, initialValue, onDismiss, onSaved }) => {
   const { apiUtil } = useApi();
+  const colors = useThemeColors();
+  const isDark = colors.mode === "dark";
   const [draft, setDraft] = useState(initialValue);
   const [busy, setBusy] = useState(false);
 
@@ -322,39 +337,39 @@ const UpiEditSheet: React.FC<UpiEditSheetProps> = ({ visible, initialValue, onDi
 
   return (
     <SheetShell visible={visible} onDismiss={onDismiss} busy={busy}>
-      <Text style={ui.sheetTitle}>UPI ID</Text>
-      <Text style={ui.sheetBody}>
+      <Text style={[ui.sheetTitle, isDark && { color: colors.textPrimary }]}>UPI ID</Text>
+      <Text style={[ui.sheetBody, isDark && { color: colors.textSecondary, opacity: 1 }]}>
         Passengers can tap a Pay button after the trip to send your fare via UPI.
         Leave blank to keep collecting cash.
       </Text>
 
       <View style={ui.inputWrap}>
-        <Text style={ui.inputLabel}>Your UPI ID</Text>
+        <Text style={[ui.inputLabel, isDark && { color: colors.textTertiary, opacity: 1 }]}>Your UPI ID</Text>
         <TextInput
           value={draft}
           onChangeText={setDraft}
           placeholder="yourname@bank"
-          placeholderTextColor={AppColors.inkMuted}
+          placeholderTextColor={isDark ? colors.textTertiary : AppColors.inkMuted}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
-          style={ui.input}
+          style={[ui.input, isDark && { backgroundColor: colors.surfaceInset, borderColor: colors.inkSoft, color: colors.textPrimary }]}
           maxLength={120}
           editable={!busy}
         />
-        <Text style={ui.inputHint}>e.g. yash@upi, 9999999999@paytm</Text>
+        <Text style={[ui.inputHint, isDark && { color: colors.textTertiary, opacity: 1 }]}>e.g. yash@upi, 9999999999@paytm</Text>
       </View>
 
       <TouchableOpacity
         activeOpacity={0.85}
         disabled={busy}
         onPress={save}
-        style={[ui.primaryBtn, busy && { opacity: 0.6 }]}
+        style={[ui.primaryBtn, isDark && { backgroundColor: colors.navFill }, busy && { opacity: 0.6 }]}
       >
         {busy ? (
-          <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
+          <ActivityIndicator size="small" color={isDark ? colors.navIconInactive : AppColors.primaryLightGreen} accessibilityLabel="Loading" />
         ) : (
-          <Text style={ui.primaryBtnText}>Save UPI ID</Text>
+          <Text style={[ui.primaryBtnText, isDark && { color: colors.navIconInactive }]}>Save UPI ID</Text>
         )}
       </TouchableOpacity>
 
@@ -367,7 +382,7 @@ const UpiEditSheet: React.FC<UpiEditSheetProps> = ({ visible, initialValue, onDi
           }}
           style={ui.linkBtn}
         >
-          <Text style={ui.linkBtnText}>Clear UPI ID</Text>
+          <Text style={[ui.linkBtnText, isDark && { color: colors.textSecondary, opacity: 1 }]}>Clear UPI ID</Text>
         </TouchableOpacity>
       ) : null}
     </SheetShell>
@@ -405,6 +420,8 @@ type PickedInstitute = {
 
 const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEmail, onDismiss, onVerified }) => {
   const { apiUtil } = useApi();
+  const colors = useThemeColors();
+  const isDark = colors.mode === "dark";
   const [step, setStep] = useState<VerifyStep>('pick');
   const [picked, setPicked] = useState<PickedInstitute | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -483,14 +500,14 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
   const renderInstituteResult = React.useCallback<ListRenderItem<PickedInstitute>>(
     ({ item: inst }) => (
       <TouchableOpacity
-        style={ui.resultRow}
+        style={[ui.resultRow, isDark && { borderBottomColor: colors.inkSubtle }]}
         activeOpacity={0.7}
         onPress={() => pickInstitute(inst)}
       >
-        <Text style={ui.resultName} numberOfLines={2}>
+        <Text style={[ui.resultName, isDark && { color: colors.textPrimary }]} numberOfLines={2}>
           {inst.name}
         </Text>
-        <Text style={ui.resultMeta} numberOfLines={1}>
+        <Text style={[ui.resultMeta, isDark && { color: colors.textTertiary, opacity: 1 }]} numberOfLines={1}>
           {[
             inst.country,
             inst.domains.slice(0, 2).map((d) => `@${d}`).join(' · '),
@@ -500,7 +517,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
         </Text>
       </TouchableOpacity>
     ),
-    [pickInstitute],
+    [pickInstitute, colors, isDark],
   );
 
   const instituteKeyExtractor = React.useCallback((inst: PickedInstitute) => inst.id, []);
@@ -585,17 +602,17 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
     <SheetShell visible={visible} onDismiss={onDismiss} busy={busy}>
       {step === 'pick' ? (
         <>
-          <Text style={ui.sheetTitle}>Pick your university</Text>
+          <Text style={[ui.sheetTitle, isDark && { color: colors.textPrimary }]}>Pick your university</Text>
 
           <View style={ui.inputWrap}>
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder="University name or email domain"
-              placeholderTextColor={AppColors.inkMuted}
+              placeholderTextColor={isDark ? colors.textTertiary : AppColors.inkMuted}
               autoCapitalize="none"
               autoCorrect={false}
-              style={ui.input}
+              style={[ui.input, isDark && { backgroundColor: colors.surfaceInset, borderColor: colors.inkSoft, color: colors.textPrimary }]}
               autoFocus
             />
           </View>
@@ -607,9 +624,9 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
           <View style={ui.resultsWrap}>
             {searchQuery.trim().length < 2 ? null
             : searching ? (
-              <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} style={{ marginTop: 12 }} accessibilityLabel="Loading" />
+              <ActivityIndicator size="small" color={isDark ? colors.textPrimary : AppColors.secondaryDarkGreen} style={{ marginTop: 12 }} accessibilityLabel="Loading" />
             ) : searchResults.length === 0 ? (
-              <Text style={ui.resultsHint}>
+              <Text style={[ui.resultsHint, isDark && { color: colors.textTertiary, opacity: 1 }]}>
                 No matches. Try the full school name or your email's
                 domain (the part after the @).
               </Text>
@@ -619,7 +636,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
                 keyExtractor={instituteKeyExtractor}
                 renderItem={renderInstituteResult}
                 keyboardShouldPersistTaps="handled"
-                style={ui.resultsScroll}
+                style={[ui.resultsScroll, isDark && { backgroundColor: colors.surfaceInset }]}
                 showsVerticalScrollIndicator={false}
                 initialNumToRender={6}
                 maxToRenderPerBatch={6}
@@ -631,7 +648,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
         </>
       ) : step === 'email' ? (
         <>
-          <Text style={ui.sheetTitle}>Your student email</Text>
+          <Text style={[ui.sheetTitle, isDark && { color: colors.textPrimary }]}>Your student email</Text>
           <View style={ui.institutePill}>
             <Text style={ui.institutePillText} numberOfLines={1}>
               {picked?.name}
@@ -643,11 +660,11 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
               value={email}
               onChangeText={setEmail}
               placeholder={picked?.domains?.[0] ? `you@${picked.domains[0]}` : 'you@university.edu'}
-              placeholderTextColor={AppColors.inkMuted}
+              placeholderTextColor={isDark ? colors.textTertiary : AppColors.inkMuted}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
-              style={ui.input}
+              style={[ui.input, isDark && { backgroundColor: colors.surfaceInset, borderColor: colors.inkSoft, color: colors.textPrimary }]}
               maxLength={120}
               editable={!busy}
               autoFocus
@@ -658,12 +675,12 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             activeOpacity={0.85}
             disabled={busy}
             onPress={sendCode}
-            style={[ui.primaryBtn, busy && { opacity: 0.6 }]}
+            style={[ui.primaryBtn, isDark && { backgroundColor: colors.navFill }, busy && { opacity: 0.6 }]}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
+              <ActivityIndicator size="small" color={isDark ? colors.navIconInactive : AppColors.primaryLightGreen} accessibilityLabel="Loading" />
             ) : (
-              <Text style={ui.primaryBtnText}>Send verification link</Text>
+              <Text style={[ui.primaryBtnText, isDark && { color: colors.navIconInactive }]}>Send verification link</Text>
             )}
           </TouchableOpacity>
 
@@ -673,29 +690,29 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             onPress={() => setStep('pick')}
             style={ui.linkBtn}
           >
-            <Text style={ui.linkBtnText}>Change university</Text>
+            <Text style={[ui.linkBtnText, isDark && { color: colors.textSecondary, opacity: 1 }]}>Change university</Text>
           </TouchableOpacity>
         </>
       ) : (
         <>
-          <Text style={ui.sheetTitle}>Check your inbox</Text>
-          <Text style={ui.sheetBody}>
+          <Text style={[ui.sheetTitle, isDark && { color: colors.textPrimary }]}>Check your inbox</Text>
+          <Text style={[ui.sheetBody, isDark && { color: colors.textSecondary, opacity: 1 }]}>
             Sent to{' '}
-            <Text style={{ color: AppColors.secondaryDarkGreen, fontFamily: 'NunitoSans_800ExtraBold' }}>
+            <Text style={{ color: isDark ? colors.textPrimary : AppColors.secondaryDarkGreen, fontFamily: 'NunitoSans_800ExtraBold' }}>
               {email}
             </Text>
             .
           </Text>
 
           <View style={ui.inputWrap}>
-            <Text style={ui.inputLabel}>Verification code</Text>
+            <Text style={[ui.inputLabel, isDark && { color: colors.textTertiary, opacity: 1 }]}>Verification code</Text>
             <TextInput
               value={code}
               onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
               placeholder="123456"
-              placeholderTextColor={AppColors.inkMuted}
+              placeholderTextColor={isDark ? colors.textTertiary : AppColors.inkMuted}
               keyboardType="number-pad"
-              style={[ui.input, ui.inputCode]}
+              style={[ui.input, ui.inputCode, isDark && { backgroundColor: colors.surfaceInset, borderColor: colors.inkSoft, color: colors.textPrimary }]}
               maxLength={6}
               editable={!busy}
               autoFocus
@@ -706,12 +723,12 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             activeOpacity={0.85}
             disabled={busy || code.length !== 6}
             onPress={submitCode}
-            style={[ui.primaryBtn, (busy || code.length !== 6) && { opacity: 0.4 }]}
+            style={[ui.primaryBtn, isDark && { backgroundColor: colors.navFill }, (busy || code.length !== 6) && { opacity: 0.4 }]}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
+              <ActivityIndicator size="small" color={isDark ? colors.navIconInactive : AppColors.primaryLightGreen} accessibilityLabel="Loading" />
             ) : (
-              <Text style={ui.primaryBtnText}>Verify with code</Text>
+              <Text style={[ui.primaryBtnText, isDark && { color: colors.navIconInactive }]}>Verify with code</Text>
             )}
           </TouchableOpacity>
 
@@ -722,7 +739,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
               onPress={() => setStep('email')}
               style={ui.linkBtn}
             >
-              <Text style={ui.linkBtnText}>Change email</Text>
+              <Text style={[ui.linkBtnText, isDark && { color: colors.textSecondary, opacity: 1 }]}>Change email</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -731,7 +748,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
               onPress={sendCode}
               style={ui.linkBtn}
             >
-              <Text style={[ui.linkBtnText, resendIn > 0 && { opacity: 0.4 }]}>
+              <Text style={[ui.linkBtnText, isDark && { color: colors.textSecondary, opacity: 1 }, resendIn > 0 && { opacity: 0.4 }]}>
                 {resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend'}
               </Text>
             </TouchableOpacity>
