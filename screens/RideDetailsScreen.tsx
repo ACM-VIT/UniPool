@@ -1545,11 +1545,18 @@ const RideDetailsScreen: React.FC = () => {
                     Share your ride so users can request a seat.
                   </Text>
                   <TouchableOpacity
-                    style={[styles.shareEmptyBtn, { backgroundColor: colors.navFill }]}
+                    style={[
+                      styles.shareEmptyBtn,
+                      // Light: forest pill + lime text (historical
+                      // module-scope). Dark: lime brand splash + forest
+                      // ink, same Accept-button pattern that powers
+                      // every primary CTA across the app.
+                      { backgroundColor: colors.mode === "dark" ? colors.primary : colors.navFill },
+                    ]}
                     activeOpacity={0.85}
                     onPress={() => setShareSheetOpen(true)}
                   >
-                    <Text style={[styles.shareEmptyBtnText, colors.mode === "dark" && { color: colors.textOnDark }]}>Share ride</Text>
+                    <Text style={[styles.shareEmptyBtnText, colors.mode === "dark" && { color: colors.textOnAccent }]}>Share ride</Text>
                   </TouchableOpacity>
                 </View>
               );

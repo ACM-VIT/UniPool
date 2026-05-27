@@ -364,12 +364,12 @@ const UpiEditSheet: React.FC<UpiEditSheetProps> = ({ visible, initialValue, onDi
         activeOpacity={0.85}
         disabled={busy}
         onPress={save}
-        style={[ui.primaryBtn, isDark && { backgroundColor: colors.navFill }, busy && { opacity: 0.6 }]}
+        style={[ui.primaryBtn, isDark && { backgroundColor: colors.primary }, busy && { opacity: 0.6 }]}
       >
         {busy ? (
-          <ActivityIndicator size="small" color={isDark ? colors.navIconInactive : AppColors.primaryLightGreen} accessibilityLabel="Loading" />
+          <ActivityIndicator size="small" color={isDark ? colors.textOnAccent : AppColors.primaryLightGreen} accessibilityLabel="Loading" />
         ) : (
-          <Text style={[ui.primaryBtnText, isDark && { color: colors.navIconInactive }]}>Save UPI ID</Text>
+          <Text style={[ui.primaryBtnText, isDark && { color: colors.textOnAccent }]}>Save UPI ID</Text>
         )}
       </TouchableOpacity>
 
@@ -675,12 +675,12 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             activeOpacity={0.85}
             disabled={busy}
             onPress={sendCode}
-            style={[ui.primaryBtn, isDark && { backgroundColor: colors.navFill }, busy && { opacity: 0.6 }]}
+            style={[ui.primaryBtn, isDark && { backgroundColor: colors.primary }, busy && { opacity: 0.6 }]}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={isDark ? colors.navIconInactive : AppColors.primaryLightGreen} accessibilityLabel="Loading" />
+              <ActivityIndicator size="small" color={isDark ? colors.textOnAccent : AppColors.primaryLightGreen} accessibilityLabel="Loading" />
             ) : (
-              <Text style={[ui.primaryBtnText, isDark && { color: colors.navIconInactive }]}>Send verification link</Text>
+              <Text style={[ui.primaryBtnText, isDark && { color: colors.textOnAccent }]}>Send verification link</Text>
             )}
           </TouchableOpacity>
 
@@ -723,12 +723,12 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             activeOpacity={0.85}
             disabled={busy || code.length !== 6}
             onPress={submitCode}
-            style={[ui.primaryBtn, isDark && { backgroundColor: colors.navFill }, (busy || code.length !== 6) && { opacity: 0.4 }]}
+            style={[ui.primaryBtn, isDark && { backgroundColor: colors.primary }, (busy || code.length !== 6) && { opacity: 0.4 }]}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={isDark ? colors.navIconInactive : AppColors.primaryLightGreen} accessibilityLabel="Loading" />
+              <ActivityIndicator size="small" color={isDark ? colors.textOnAccent : AppColors.primaryLightGreen} accessibilityLabel="Loading" />
             ) : (
-              <Text style={[ui.primaryBtnText, isDark && { color: colors.navIconInactive }]}>Verify with code</Text>
+              <Text style={[ui.primaryBtnText, isDark && { color: colors.textOnAccent }]}>Verify with code</Text>
             )}
           </TouchableOpacity>
 

@@ -172,11 +172,21 @@ const PostTripRatingScreen: React.FC = () => {
           {error || "This trip isn't open for ratings yet."}
         </Text>
         <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: colors.navFill, marginTop: 24 }]}
+          style={[
+            styles.primaryBtn,
+            {
+              // Light: forest pill + lime label (navFill / navIconInactive
+              // resolve to the historical values). Dark: lime brand splash
+              // + forest ink, mirroring the Accept-button pattern used by
+              // every primary CTA elsewhere so the chrome doesn't go grey.
+              backgroundColor: colors.mode === "dark" ? colors.primary : colors.navFill,
+              marginTop: 24,
+            },
+          ]}
           activeOpacity={0.85}
           onPress={() => router.back()}
         >
-          <Text style={[styles.primaryBtnText, { color: colors.navIconInactive }]}>Got it</Text>
+          <Text style={[styles.primaryBtnText, { color: colors.mode === "dark" ? colors.textOnAccent : colors.navIconInactive }]}>Got it</Text>
         </TouchableOpacity>
       </View>
     );
@@ -201,7 +211,7 @@ const PostTripRatingScreen: React.FC = () => {
           style={[
             styles.primaryBtn,
             {
-              backgroundColor: colors.navFill,
+              backgroundColor: colors.mode === "dark" ? colors.primary : colors.navFill,
               marginTop: 24,
               alignSelf: "stretch",
               maxWidth: 360,
@@ -211,7 +221,7 @@ const PostTripRatingScreen: React.FC = () => {
           activeOpacity={0.85}
           onPress={() => router.back()}
         >
-          <Text style={[styles.primaryBtnText, { color: colors.navIconInactive }]}>Done</Text>
+          <Text style={[styles.primaryBtnText, { color: colors.mode === "dark" ? colors.textOnAccent : colors.navIconInactive }]}>Done</Text>
         </TouchableOpacity>
       </View>
     );
@@ -287,7 +297,7 @@ const PostTripRatingScreen: React.FC = () => {
           <TouchableOpacity
             style={[
               styles.primaryBtn,
-              { backgroundColor: colors.navFill },
+              { backgroundColor: colors.mode === "dark" ? colors.primary : colors.navFill },
               styles.submitInline,
               (!allRated || submitting) && styles.primaryBtnDisabled,
             ]}
@@ -296,9 +306,9 @@ const PostTripRatingScreen: React.FC = () => {
             onPress={submit}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color={colors.navIconInactive} accessibilityLabel="Loading" />
+              <ActivityIndicator size="small" color={colors.mode === "dark" ? colors.textOnAccent : colors.navIconInactive} accessibilityLabel="Loading" />
             ) : (
-              <Text style={[styles.primaryBtnText, { color: colors.navIconInactive }]}>Submit</Text>
+              <Text style={[styles.primaryBtnText, { color: colors.mode === "dark" ? colors.textOnAccent : colors.navIconInactive }]}>Submit</Text>
             )}
           </TouchableOpacity>
         </ScrollView>

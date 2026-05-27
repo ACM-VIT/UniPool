@@ -10,6 +10,7 @@ import {
   Marker as MapLibreMarker,
 } from "@maplibre/maplibre-react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 /**
  * Coords for a single ride preview. Kept open-typed because callers
@@ -432,6 +433,7 @@ const DestinationDot: React.FC<{ visible: boolean }> = ({ visible }) => {
  * the `data` prop every frame doesn't tax the bridge.
  */
 const RoutePreviewLayer: React.FC<Props> = ({ ride, bounds, onTapDestination }) => {
+  const colors = useThemeColors();
   const [progress, setProgress] = useState(0);
   // After the draw-in completes, a slow line-width pulse runs
   // forever so the dots feel alive rather than freezing in place.
@@ -565,7 +567,14 @@ const RoutePreviewLayer: React.FC<Props> = ({ ride, bounds, onTapDestination }) 
               "line-join": "round",
             }}
             paint={{
-              "line-color": AppColors.secondaryDarkGreen,
+              // Forest dots on the light map; off-white dots on the
+              // dark map. Forest disappears into the dark tile set,
+              // so swap to cream-on-charcoal so the dotted route
+              // reads cleanly against either canvas. The lime halo
+              // above stays in both modes — it's the brand accent.
+              "line-color": colors.mode === "dark"
+                ? AppColors.basicWhite
+                : AppColors.secondaryDarkGreen,
               // Round dots with breathing room. The dasharray is in
               // line-widths, so [0.4, 1.8] reads as "tiny dot then a
               // gap nearly twice the line width". With line-cap round

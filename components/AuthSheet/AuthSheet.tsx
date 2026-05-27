@@ -21,6 +21,13 @@ import type { RootStackParamList } from "../../navigation/RootStackParamList";
 import { appHref } from "../../navigation/routes";
 import BrandedAlert from "../BrandedAlert";
 import { haptic } from "../PressableScale";
+import {
+  isAuthenticationRedirectError,
+  isProviderCollisionError,
+  isSignupRequiredError,
+  prepareAppleFirebaseUser,
+  rollbackFirebaseSession,
+} from "../../utils/authFlow";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -51,12 +58,15 @@ type SigningProvider = "apple" | "google" | null;
 const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) => {
   const colors = useThemeColors();
   const { apiUtil } = useApi();
-  // Primary CTA (Apple). In light it's the forest slab; in dark we
-  // promote it to the lime brand splash and re-tint the label to
-  // forest ink so the high-contrast button doesn't read as a black
-  // hole on the charcoal sheet.
-  const primaryCtaBg = colors.mode === "dark" ? colors.primary : colors.textPrimary;
-  const primaryCtaText = colors.mode === "dark" ? colors.textOnAccent : colors.textOnDark;
+  // Apple HIG — the Sign in with Apple button must use one of Apple's
+  // approved colour pairings (black-on-white, white-on-black, white-
+  // on-white-with-outline). We can't tint it lime, forest, or any
+  // brand colour without violating the guideline. So the button is
+  // black in light mode (white glyph + label) and white in dark mode
+  // (black glyph + label). Same Apple-issued mark, just swapped for
+  // canvas contrast.
+  const primaryCtaBg = colors.mode === "dark" ? AppColors.basicWhite : AppColors.basicBlack;
+  const primaryCtaText = colors.mode === "dark" ? AppColors.basicBlack : AppColors.basicWhite;
   // Track which provider is mid-flow so only that button shows the spinner.
   // (Both buttons showing "Signing in…" simultaneously confused users — they
   // weren't sure which provider was actually authenticating.)
@@ -124,7 +134,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
     requestAnimationFrame(onDismiss);
   };
 
-  const handleSuccess = async (firebaseUser: any) => {
+  const handleSuccess = async (firebaseUser: any, provider?: "apple" | "google") => {
     try {
       await apiUtil.getForUserUncached("/user/details?summary=1", firebaseUser);
       // Existing user — drop them at the gated destination.
@@ -134,13 +144,19 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
         routeFromSheet(appHref("HomeScreen"));
       }
     } catch (err: any) {
-      if (err.response?.status === 404) {
+      if (isSignupRequiredError(err)) {
         // New user — they still need profile completion. Send them to
         // SignUp full-screen (one-time onboarding step) carrying returnTo.
         routeFromSheet(appHref("SignUpScreen", {
           newUser: err.response?.data?.newUser || null,
           returnTo,
         }));
+      } else if (isAuthenticationRedirectError(err)) {
+        await rollbackFirebaseSession(apiUtil, provider);
+        BrandedAlert.alert(
+          "Couldn't finish sign-in",
+          err.response?.data?.error || "We couldn't verify this sign-in with UniPool. Please try again.",
+        );
       } else {
         BrandedAlert.alert("Couldn't finish sign-in", err.message || "Try again in a moment.");
       }
@@ -165,10 +181,18 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
       // redundant ~500-800ms network round-trip on Android. Using
       // the returned credential user (rather than the global auth
       // singleton) still avoids the race the comment described.
-      await handleSuccess(result.user);
+      await handleSuccess(result.user, "google");
     } catch (error: any) {
       const code = error?.code;
       if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
+      if (isProviderCollisionError(error)) {
+        await rollbackFirebaseSession(apiUtil, "google");
+        BrandedAlert.alert(
+          "Use your existing sign-in",
+          "That email is already attached to another sign-in method. Sign in with the method you used before for this UniPool account.",
+        );
+        return;
+      }
       BrandedAlert.alert("Couldn't sign you in", error?.message || "Try again in a moment.");
     } finally {
       setSigningIn(null);
@@ -207,14 +231,22 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
       // to forward.
       const cred = AppleAuthProvider.credential(credential.identityToken);
       const result = await signInWithCredential(getAuth(), cred);
-      // No redundant force refresh — see Google path above.
-      await handleSuccess(result.user);
+      await prepareAppleFirebaseUser(apiUtil, result.user, credential.fullName);
+      await handleSuccess(result.user, "apple");
     } catch (error: any) {
       if (
         error?.code === "ERR_REQUEST_CANCELED" ||
         error?.code === "ERR_CANCELED" ||
         error?.code === "ERR_REQUEST_UNKNOWN"
       ) {
+        return;
+      }
+      if (isProviderCollisionError(error)) {
+        await rollbackFirebaseSession(apiUtil, "apple");
+        BrandedAlert.alert(
+          "Use your existing sign-in",
+          "That email is already attached to another sign-in method. Sign in with the method you used before for this UniPool account.",
+        );
         return;
       }
       BrandedAlert.alert("Couldn't sign you in", error?.message || "Try again in a moment.");

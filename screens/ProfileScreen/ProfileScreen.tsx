@@ -15,6 +15,11 @@ import { appHref } from "../../navigation/routes";
 import { useUser } from "../../contexts/UserContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import type { ThemePreference } from "../../design_systems/palettes";
+import {
+  isAuthenticationRedirectError,
+  isSignupRequiredError,
+  rollbackFirebaseSession,
+} from "../../utils/authFlow";
 
 const DEBUG_PROFILE =
   typeof __DEV__ !== "undefined" &&
@@ -171,14 +176,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       setUserData(response.user);
       debugLog("User data fetched successfully:", response);
     } catch (error: any) {
-      if (error?.message === "AUTHENTICATION_REDIRECT") {
-        debugLog("Authentication redirect in ProfileScreen - not showing error");
+      if (isAuthenticationRedirectError(error)) {
+        debugLog("Authentication redirect in ProfileScreen - clearing stale session");
+        await rollbackFirebaseSession(apiUtil);
+        router.replace(appHref("HomeScreen"));
         return;
       }
       
-      if (error?.response?.status === 404 && 
-          error?.response?.data?.message === "User not found in database, signup required") {
-        debugLog("User not found in database - redirect to signup handled by ApiUtil");
+      if (isSignupRequiredError(error)) {
+        debugLog("User not found in database - redirecting to signup");
+        router.replace(appHref("SignUpScreen", {
+          newUser: error.response?.data?.newUser || null,
+          returnTo: { screen: "ProfileScreen" },
+        }));
         return;
       }
       
@@ -191,7 +201,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     } finally {
       setLoading(false);
     }
-  }, [apiUtil, contextUser]);
+  }, [apiUtil, contextUser, router]);
 
   useEffect(() => {
     return () => {
@@ -594,9 +604,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
 
   if (error || !userData) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: themeColors.background }]}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>
+          <Text style={[styles.errorText, { color: themeColors.destructive }]}>
             {error || "Unable to load profile data"}
           </Text>
         </View>

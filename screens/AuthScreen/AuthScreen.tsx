@@ -28,13 +28,27 @@ import ChevronBack from "../../components/ChevronBack";
 import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import type { AppRouteTarget } from "../../navigation/routes";
 import { useTabletContentStyle } from "../../utils/responsive";
+import {
+  isAuthenticationRedirectError,
+  isProviderCollisionError,
+  isSignupRequiredError,
+  prepareAppleFirebaseUser,
+  rollbackFirebaseSession,
+} from "../../utils/authFlow";
+
+type SigningProvider = "apple" | "google" | null;
 
 const AuthScreen: React.FC = () => {
   const { apiUtil } = useApi();
   const router = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const routeParams = useDecodedLocalSearchParams<{ returnTo?: AppRouteTarget }>();
-  const [isSigningIn, setIsSigningIn] = useState(false);
+  // Track which provider is mid-flow so only that button shows the
+  // spinner. A single boolean here was painting the Google button as
+  // "Signing in…" the moment a user tapped Apple, which made it look
+  // like the wrong provider was authenticating.
+  const [signingIn, setSigningIn] = useState<SigningProvider>(null);
+  const isSigningIn = signingIn !== null;
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const returnTo = routeParams.returnTo;
@@ -66,11 +80,13 @@ const AuthScreen: React.FC = () => {
           // the post-signup flow ends up at the action that gated
           // them. NEVER sign out here — that would tear down the
           // Firebase session before the route changes.
-          if (err.response?.status === 404) {
+          if (isSignupRequiredError(err)) {
             router.replace(appHref("SignUpScreen", {
               newUser: err.response?.data?.newUser || null,
               returnTo,
             }));
+          } else if (isAuthenticationRedirectError(err)) {
+            await rollbackFirebaseSession(apiUtil);
           }
         }
       }
@@ -78,18 +94,24 @@ const AuthScreen: React.FC = () => {
     checkExistingAuth();
   }, [apiUtil, navigateAfterAuth, router, returnTo]);
 
-  const routeAfterAuth = async (firebaseUser: any) => {
+  const routeAfterAuth = async (firebaseUser: any, provider?: "apple" | "google") => {
     try {
       await apiUtil.getForUserUncached("/user/details?summary=1", firebaseUser);
       navigateAfterAuth();
     } catch (err: any) {
-      if (err.response?.status === 404) {
+      if (isSignupRequiredError(err)) {
         router.replace(appHref("SignUpScreen", {
           newUser: err.response?.data?.newUser || null,
           returnTo,
         }));
       } else if (err.response?.status === 400) {
         BrandedAlert.alert("Hmm, something's off", err.response?.data?.message || "Try that again in a moment.");
+      } else if (isAuthenticationRedirectError(err)) {
+        await rollbackFirebaseSession(apiUtil, provider);
+        BrandedAlert.alert(
+          "Couldn't finish sign-in",
+          err.response?.data?.error || "We couldn't verify this sign-in with UniPool. Please try again.",
+        );
       } else {
         BrandedAlert.alert("Couldn't sign you in", err.message || "Try again in a moment.");
       }
@@ -98,7 +120,7 @@ const AuthScreen: React.FC = () => {
 
   const handleGoogleSignIn = async () => {
     if (isSigningIn) return;
-    setIsSigningIn(true);
+    setSigningIn("google");
 
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
@@ -115,14 +137,22 @@ const AuthScreen: React.FC = () => {
       // forced refresh here was costing ~500-800ms on Android for
       // no benefit; ApiUtil reads the cached token on the very next
       // request anyway.
-      await routeAfterAuth(result.user);
+      await routeAfterAuth(result.user, "google");
     } catch (error: any) {
       const code = error?.code;
       if (code === "SIGN_IN_CANCELLED" || code === "12501") return;
+      if (isProviderCollisionError(error)) {
+        await rollbackFirebaseSession(apiUtil, "google");
+        BrandedAlert.alert(
+          "Use your existing sign-in",
+          "That email is already attached to another sign-in method. Sign in with the method you used before for this UniPool account.",
+        );
+        return;
+      }
       const message = error instanceof Error ? error.message : "An unknown error occurred";
       BrandedAlert.alert("Sign-In Failed", message);
     } finally {
-      setIsSigningIn(false);
+      setSigningIn(null);
     }
   };
 
@@ -143,7 +173,7 @@ const AuthScreen: React.FC = () => {
       return;
     }
 
-    setIsSigningIn(true);
+    setSigningIn("apple");
     try {
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
@@ -163,8 +193,8 @@ const AuthScreen: React.FC = () => {
       // no-op (the field is always undefined for expo's wrapper).
       const appleCredential = AppleAuthProvider.credential(credential.identityToken);
       const result = await signInWithCredential(getAuth(), appleCredential);
-      // Same logic as Google above — no redundant force refresh.
-      await routeAfterAuth(result.user);
+      await prepareAppleFirebaseUser(apiUtil, result.user, credential.fullName);
+      await routeAfterAuth(result.user, "apple");
     } catch (error: any) {
       // expo-apple-authentication uses ERR_REQUEST_CANCELED on iOS;
       // keep the legacy code too for any older builds that linger.
@@ -175,10 +205,18 @@ const AuthScreen: React.FC = () => {
       ) {
         return;
       }
+      if (isProviderCollisionError(error)) {
+        await rollbackFirebaseSession(apiUtil, "apple");
+        BrandedAlert.alert(
+          "Use your existing sign-in",
+          "That email is already attached to another sign-in method. Sign in with the method you used before for this UniPool account.",
+        );
+        return;
+      }
       const message = error instanceof Error ? error.message : "An unknown error occurred";
       BrandedAlert.alert("Apple Sign-In Failed", message);
     } finally {
-      setIsSigningIn(false);
+      setSigningIn(null);
     }
   };
 
@@ -224,12 +262,18 @@ const AuthScreen: React.FC = () => {
             activeOpacity={0.85}
           >
             <View style={styles.iconWrap}>
-              {/* Apple HIG: white glyph on a black button. */}
-              <Svg width={18} height={20} viewBox="0 0 384 512" fill={AppColors.basicWhite}>
-                <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
-              </Svg>
+              {signingIn === "apple" ? (
+                <ActivityIndicator size="small" color={AppColors.basicWhite} accessibilityLabel="Loading" />
+              ) : (
+                // Apple HIG: white glyph on a black button.
+                <Svg width={18} height={20} viewBox="0 0 384 512" fill={AppColors.basicWhite}>
+                  <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+                </Svg>
+              )}
             </View>
-            <Text style={styles.appleButtonText}>Sign in with Apple</Text>
+            <Text style={styles.appleButtonText}>
+              {signingIn === "apple" ? "Signing in…" : "Sign in with Apple"}
+            </Text>
           </TouchableOpacity>
         )}
 
@@ -240,7 +284,7 @@ const AuthScreen: React.FC = () => {
           activeOpacity={0.85}
         >
           <View style={styles.iconWrap}>
-            {isSigningIn ? (
+            {signingIn === "google" ? (
               <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} accessibilityLabel="Loading" />
             ) : (
               // Google G — inline SVG with brand colors. PNG version
@@ -255,7 +299,7 @@ const AuthScreen: React.FC = () => {
             )}
           </View>
           <Text style={styles.googleButtonText}>
-            {isSigningIn ? "Signing in…" : "Sign in with Google"}
+            {signingIn === "google" ? "Signing in…" : "Sign in with Google"}
           </Text>
         </TouchableOpacity>
 

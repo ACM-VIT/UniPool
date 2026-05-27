@@ -200,11 +200,18 @@ const ShareRideSheet: React.FC<Props> = ({
           </View>
 
           <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: colors.navFill }]}
+            style={[
+              styles.primaryBtn,
+              // Light: forest pill (module-scope). Dark: lime brand
+              // splash — matches the Accept button pattern used
+              // across the app so the primary CTA reads loud and
+              // clear on the charcoal sheet.
+              colors.mode === "dark" && { backgroundColor: colors.primary },
+            ]}
             activeOpacity={0.85}
             onPress={handleNativeShare}
           >
-            <Text style={[styles.primaryBtnText, colors.mode === "dark" && { color: colors.navIconActive }]}>Share link</Text>
+            <Text style={[styles.primaryBtnText, colors.mode === "dark" && { color: colors.textOnAccent }]}>Share link</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

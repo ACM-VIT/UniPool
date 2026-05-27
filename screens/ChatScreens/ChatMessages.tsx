@@ -440,7 +440,7 @@ const processBackendMessage = (backendMsg: any, currentUserId: string): ChatMess
   };
 };
 
-const MessageStatus: React.FC<{ status?: ChatMessage['status'] }> = React.memo(({ status }) => {
+const MessageStatus: React.FC<{ status?: ChatMessage['status']; darkOnLime?: boolean }> = React.memo(({ status, darkOnLime }) => {
   let sym = '✓';
   let statusStyle: StyleProp<TextStyle> = chatMessagesStyles.messageStatusDefault;
   switch (status) {
@@ -462,7 +462,14 @@ const MessageStatus: React.FC<{ status?: ChatMessage['status'] }> = React.memo((
       statusStyle = chatMessagesStyles.messageStatusFailed;
       break;
   }
-  return <Text style={statusStyle}>{sym}</Text>;
+  // Dark mode + outgoing bubble (lime bg): the default grey + seen
+  // forest both read poorly against the brand splash. Force a
+  // forest-tone with strong opacity so the checkmark stays legible.
+  const override =
+    darkOnLime && status !== 'failed'
+      ? { color: status === 'seen' ? '#0F0F12' : 'rgba(15,15,18,0.75)' }
+      : null;
+  return <Text style={[statusStyle, override]}>{sym}</Text>;
 });
 
 const ChatMessageBubble = React.memo(function ChatMessageBubble({
@@ -525,12 +532,20 @@ const ChatMessageBubble = React.memo(function ChatMessageBubble({
         <Text
           style={[
             me ? chatMessagesStyles.messageTimeSent : chatMessagesStyles.messageTime,
-            isDark && { color: colors.textTertiary },
+            // Dark mode: incoming bubble sits on charcoal surface so a
+            // cream-tertiary tone reads; outgoing bubble sits on the
+            // lime brand splash so a FOREST tone reads (cream on lime
+            // washes out). Light mode keeps the historical metadata
+            // colours baked into the module-scope style.
+            isDark && {
+              color: me ? "rgba(15,15,18,0.75)" : colors.textTertiary,
+              opacity: 1,
+            },
           ]}
         >
           {message.timeLabel || formatChatTime(message.timestamp)}
         </Text>
-        {me ? <MessageStatus status={message.status} /> : null}
+        {me ? <MessageStatus status={message.status} darkOnLime={isDark} /> : null}
       </View>
     </View>
   );
@@ -1939,10 +1954,25 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   }, [loadOlderMessages]);
   const renderChatRow = useCallback(({ item }: { item: ChatRow }) => {
     if (item.kind === 'sep') {
+      // Day pill: light mode keeps the historical forest-tint pill +
+      // forest text. Dark mode uses a cream-tinted pill so "YESTERDAY"
+      // reads against the charcoal canvas — the forest-at-10% pill
+      // was invisible on dark, and the forest text was unreadable.
+      const isDark = colors.mode === "dark";
       return (
         <View style={chatMessagesStyles.dateSeparatorWrap}>
-          <View style={chatMessagesStyles.dateSeparatorPill}>
-            <Text style={chatMessagesStyles.dateSeparatorText}>
+          <View
+            style={[
+              chatMessagesStyles.dateSeparatorPill,
+              isDark && { backgroundColor: colors.inkSoft },
+            ]}
+          >
+            <Text
+              style={[
+                chatMessagesStyles.dateSeparatorText,
+                isDark && { color: colors.textSecondary, opacity: 1 },
+              ]}
+            >
               {item.label}
             </Text>
           </View>

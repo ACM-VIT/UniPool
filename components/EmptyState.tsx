@@ -131,10 +131,14 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         <TouchableOpacity
           style={[
             styles.cta,
-            // CTA fill becomes the navFill so it stays as a forest
-            // pill in light (unchanged from before) and as a raised
-            // charcoal chip in dark.
-            { backgroundColor: colors.navFill },
+            // Light: forest pill + lime label (the historical brand
+            // pairing — module-scope handles it). Dark: lime pill +
+            // forest ink, mirroring the PassengerProfileSheet Accept
+            // button so primary CTAs share one recognisable
+            // affordance across the app. The previous navFill +
+            // 45%-opacity cream label read as a near-invisible chip
+            // on the charcoal canvas.
+            colors.mode === "dark" && { backgroundColor: colors.primary },
           ]}
           onPress={onPressCta}
           activeOpacity={0.85}
@@ -142,10 +146,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
           <Text
             style={[
               styles.ctaLabel,
-              // Label sits on the navFill so it reaches for
-              // navIconActive — historical lime label on forest in
-              // light, off-white on charcoal in dark.
-              { color: colors.navIconInactive },
+              colors.mode === "dark" && { color: colors.textOnAccent },
             ]}
           >
             {ctaLabel}

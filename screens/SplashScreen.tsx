@@ -23,11 +23,24 @@ const { width: screenWidth } = Dimensions.get("window");
 const SplashScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
+  const isDark = colors.mode === "dark";
 
-  // Scale the wordmark to the device. iPhone Pro ~430 → ~92pt;
-  // smaller phones drop to ~78pt so "UniPool" never overflows.
-  const wordmarkSize = Math.min(Math.round(screenWidth * 0.22), 104);
-  const lineHeight = Math.round(wordmarkSize * 1.0);
+  // Scale the wordmark to the device. iPhone Pro ~430 → ~88pt;
+  // smaller phones drop proportionally. The previous 1.0× lineHeight
+  // was clipping the descender on "i" and the ascender on "l" with
+  // Trap-Bold, which is why the wordmark sometimes rendered as
+  // "Un" / "Poo" on dark. Generous lineHeight + 0 letterspacing
+  // fixes that.
+  const wordmarkSize = Math.min(Math.round(screenWidth * 0.20), 92);
+  const wordmarkLineHeight = Math.round(wordmarkSize * 1.18);
+
+  // Light mode: historical dual-line "Uni / Pool" with white "oo"
+  // wheels on lime — the brand pattern that gave the product its
+  // visual signature. Dark mode: same dual-line layout, cream
+  // letters with the "oo" still as the brightest pop (lime, the
+  // brand splash). Same brand idea, just the canvas swap.
+  const letterColor = colors.brandText;
+  const wheelsColor = isDark ? colors.primary : AppColors.basicWhite;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -35,25 +48,40 @@ const SplashScreen: React.FC = () => {
         <Text
           style={[
             styles.wordmark,
-            { fontSize: wordmarkSize, lineHeight },
+            { fontSize: wordmarkSize, lineHeight: wordmarkLineHeight, color: letterColor },
           ]}
           allowFontScaling={false}
         >
-          <Text style={[styles.wordmarkDark, { color: colors.brandText }]}>Uni</Text>
+          Uni
         </Text>
+        {/* The outer Text carries the default colour for "P" and "l".
+            Nested <Text> only overrides the "oo" wheels. Previously
+            we wrapped EACH letter in its own <Text> with an explicit
+            colour — on iOS, certain nested colour-span sequences fail
+            to paint the trailing narrow glyph ("l"), which is why the
+            wordmark rendered as "Poo". Inheriting colour from the
+            outer Text and only overriding the centre two letters is
+            the simplest fix and matches React Native's documented
+            Text-nesting model. */}
         <Text
           style={[
             styles.wordmark,
-            { fontSize: wordmarkSize, lineHeight },
+            { fontSize: wordmarkSize, lineHeight: wordmarkLineHeight, color: letterColor },
           ]}
           allowFontScaling={false}
         >
-          <Text style={[styles.wordmarkDark, { color: colors.brandText }]}>P</Text>
-          <Text style={[styles.wordmarkWheels, colors.mode === "dark" && { color: colors.surface }]}>oo</Text>
-          <Text style={[styles.wordmarkDark, { color: colors.brandText }]}>l</Text>
+          P<Text style={{ color: wheelsColor }}>oo</Text>l
         </Text>
 
-        <Text style={[styles.tagline, { color: colors.textPrimary, opacity: 0.7 }]} allowFontScaling={false}>
+        <Text
+          style={[
+            styles.tagline,
+            isDark
+              ? { color: colors.textSecondary }
+              : { color: AppColors.secondaryDarkGreen, opacity: 0.7 },
+          ]}
+          allowFontScaling={false}
+        >
           Share. Commute. Save.
         </Text>
       </View>
@@ -64,9 +92,17 @@ const SplashScreen: React.FC = () => {
           { paddingBottom: Math.max(insets.bottom, 18) + 8 },
         ]}
       >
-        <Text style={[styles.footerText, { color: colors.textPrimary, opacity: 0.65 }]} allowFontScaling={false}>
+        <Text
+          style={[
+            styles.footerText,
+            isDark
+              ? { color: colors.textTertiary }
+              : { color: AppColors.secondaryDarkGreen, opacity: 0.65 },
+          ]}
+          allowFontScaling={false}
+        >
           Made with{" "}
-          <Text style={[styles.heart, { color: colors.textPrimary, opacity: 0.9 }]}>♥</Text>
+          <Text style={[styles.heart, { color: isDark ? colors.primary : AppColors.secondaryDarkGreen }]}>♥</Text>
           {"  "}by ACM-VIT
         </Text>
       </View>
@@ -91,18 +127,13 @@ const styles = StyleSheet.create({
   },
   wordmark: {
     fontFamily: "Trap-Bold",
-    letterSpacing: -2,
+    // Relaxed letterspacing — the previous -2 was squeezing narrow
+    // glyphs ("i", "l") into their neighbours and they were getting
+    // clipped at certain font sizes on certain devices.
+    letterSpacing: -0.5,
     textAlign: "center",
     // Synthetic-bold off — `Trap-Bold` is already a weighted face.
     fontWeight: Platform.OS === "ios" ? "400" : "normal",
-  },
-  wordmarkDark: {
-    color: AppColors.secondaryDarkGreen,
-  },
-  // The two "oo" wheels. White on lime stays high-contrast and
-  // hints at carpool wheels without dropping the brand surface.
-  wordmarkWheels: {
-    color: AppColors.basicWhite,
   },
   tagline: {
     marginTop: 14,
