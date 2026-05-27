@@ -11,6 +11,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { passengerInfoStyles } from './ChatScreen.styles';
 import { PassengerInfoScreenProps, User } from './ChatScreen.types';
 import AppColors from '../../design_systems/colors';
+import { useThemeColors } from '../../contexts/ThemeContext';
 import BrandInfo from '../../components/BrandInfo';
 import LoadingComponent from '../../components/LoadingComponent';
 import SmileyGlyph from '../../components/SmileyGlyph';
@@ -33,22 +34,24 @@ const PassengerRow = React.memo(function PassengerRow({
   passenger: User;
   onPress: (passenger: User) => void;
 }) {
+  const rowColors = useThemeColors();
   const handlePress = useCallback(() => {
     onPress(passenger);
   }, [onPress, passenger]);
 
   return (
     <TouchableOpacity
-      style={passengerInfoStyles.destinationItem}
+      style={[passengerInfoStyles.destinationItem, { backgroundColor: rowColors.navFill }]}
       onPress={handlePress}
     >
-      <Text style={passengerInfoStyles.destinationText}>{passenger.name}</Text>
+      <Text style={[passengerInfoStyles.destinationText, { color: rowColors.navIconActive }]}>{passenger.name}</Text>
     </TouchableOpacity>
   );
 });
 
 const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVariant">> = ({ setNavBarVariant }) => {
   const router = useRouter();
+  const colors = useThemeColors();
   const tabletContentStyle = useTabletContentStyle();
   const [passengers, setPassengers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,22 +148,22 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
   const renderHeader = useCallback(() => (
     <>
         <View style={passengerInfoStyles.chatHeader}>
-          <Text style={passengerInfoStyles.chatTitle}>Chat</Text>
+          <Text style={[passengerInfoStyles.chatTitle, { color: colors.textPrimary }]}>Chat</Text>
         </View>
 
         <View style={passengerInfoStyles.toggleContainer}>
-          <TouchableOpacity 
-            style={passengerInfoStyles.toggleButtonInactive}
+          <TouchableOpacity
+            style={[passengerInfoStyles.toggleButtonInactive, { borderColor: colors.navFill }]}
             onPress={() => router.navigate(appHref("TripsListScreen"))}
           >
-            <Text style={passengerInfoStyles.toggleTextInactive}>Trips</Text>
+            <Text style={[passengerInfoStyles.toggleTextInactive, { color: colors.textPrimary }]}>Trips</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={passengerInfoStyles.toggleButtonActive}>
-            <Text style={passengerInfoStyles.toggleTextActive}>Passenger</Text>
+          <TouchableOpacity style={[passengerInfoStyles.toggleButtonActive, { backgroundColor: colors.navFill, borderColor: colors.navFill }]}>
+            <Text style={[passengerInfoStyles.toggleTextActive, { color: colors.navIconInactive }]}>Passenger</Text>
           </TouchableOpacity>
         </View>
     </>
-  ), [router]);
+  ), [router, colors]);
 
   const renderEmpty = useCallback(() => {
     if (loading) {
@@ -179,20 +182,20 @@ const PassengerInfoScreen: React.FC<Pick<PassengerInfoScreenProps, "setNavBarVar
               <View style={{ marginBottom: 20 }}>
                 <SmileyGlyph size={120} />
               </View>
-              <Text style={{ fontFamily: 'NunitoSans_800ExtraBold', fontSize: 20, color: AppColors.secondaryDarkGreen, textAlign: 'center', marginBottom: 6, letterSpacing: -0.3 }}>
+              <Text style={{ fontFamily: 'NunitoSans_800ExtraBold', fontSize: 20, color: colors.textPrimary, textAlign: 'center', marginBottom: 6, letterSpacing: -0.3 }}>
                 No co-riders yet
               </Text>
-              <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 15, lineHeight: 22, color: AppColors.secondaryDarkGreen, opacity: 0.65, textAlign: 'center' }}>
+              <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 15, lineHeight: 22, color: colors.textSecondary, textAlign: 'center' }}>
                 When you share a ride, the people you've travelled with show up here for direct messages.
               </Text>
       </View>
     );
-  }, [loading]);
+  }, [loading, colors]);
 
   return (
-    <View style={[passengerInfoStyles.container, tabletContentStyle]}>
-      <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
-      <View style={styles.brandInfoHeaderRow}>
+    <View style={[passengerInfoStyles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
+      <StatusBar backgroundColor={colors.statusBarBackground} barStyle={colors.statusBarStyle} />
+      <View style={[styles.brandInfoHeaderRow, { backgroundColor: colors.background }]}>
         <BrandInfo />
       </View>
 

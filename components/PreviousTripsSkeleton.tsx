@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 /**
  * Minimal placeholder for the home "Your trips" carousel. Previous
@@ -10,6 +11,7 @@ import { Animated, Easing, StyleSheet, View } from "react-native";
  * jump much when content arrives.
  */
 const PreviousTripsSkeleton: React.FC = () => {
+  const colors = useThemeColors();
   const pulse = useRef(new Animated.Value(0.55)).current;
 
   useEffect(() => {
@@ -35,8 +37,18 @@ const PreviousTripsSkeleton: React.FC = () => {
 
   return (
     <View style={styles.wrap}>
-      <Animated.View style={[styles.barLong, { opacity: pulse }]} />
-      <Animated.View style={[styles.barShort, { opacity: pulse }]} />
+      <Animated.View
+        style={[
+          styles.barLong,
+          { opacity: pulse, backgroundColor: colors.inkSoft },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.barShort,
+          { opacity: pulse, backgroundColor: colors.inkSubtle },
+        ]}
+      />
     </View>
   );
 };

@@ -11,11 +11,13 @@ import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import RideCard from "../../components/RideCard";
 import RideCardSkeleton from "../../components/RideCardSkeleton";
 import MatchInsightsShelf, { MatchSignal } from "../../components/MatchInsightsShelf";
+import { DarkEmptyGlyph } from "../../components/EmptyState";
 import AppColors from "../../design_systems/colors";
 
 import { useApi } from "../../utils/ApiUtil";
 import { useAuthGate } from "../../contexts/AuthGate";
 import { useUser } from "../../contexts/UserContext";
+import { useThemeColors } from "../../contexts/ThemeContext";
 import bottomNavItems from "../../data/BottomNavigationItems";
 import styles from "./AvailableRideScreens.styles";
 import BrandedAlert from "../../components/BrandedAlert";
@@ -169,6 +171,11 @@ const AvailableRideResultRow = React.memo(function AvailableRideResultRow({
   const { ride, isBestMatch } = item;
   const startLabels = useMemo(() => formatRideStart(ride.start_time), [ride.start_time]);
   const hostRating = formatHostRating(ride);
+  // Theme-aware text colors for the under-card host + distance row.
+  // Module-scope `styles.hostName` etc. bake forest ink that would
+  // disappear against the dark canvas; the inline overrides below
+  // swap to the active palette's primary / secondary text tones.
+  const colors = useThemeColors();
 
   return (
     <View style={styles.rideCardWrapper}>
@@ -213,23 +220,23 @@ const AvailableRideResultRow = React.memo(function AvailableRideResultRow({
 
       <View style={styles.rideEnhancements}>
         <View style={styles.hostLine}>
-          <Text style={styles.hostName}>
+          <Text style={[styles.hostName, { color: colors.textPrimary }]}>
             Hosted by {ride.host_user_name}
           </Text>
           {hostRating ? (
-            <Text style={styles.hostRating}>
+            <Text style={[styles.hostRating, colors.mode === "dark" && { color: colors.textSecondary }]}>
               ★ {hostRating}
             </Text>
           ) : null}
         </View>
         <View style={styles.distanceInfo}>
           {ride.start_distance ? (
-            <Text style={styles.distanceText}>
+            <Text style={[styles.distanceText, colors.mode === "dark" && { color: colors.textSecondary }]}>
               {formatDistance(ride.start_distance)} from pickup
             </Text>
           ) : null}
           {ride.end_distance ? (
-            <Text style={styles.distanceText}>
+            <Text style={[styles.distanceText, colors.mode === "dark" && { color: colors.textSecondary }]}>
               {formatDistance(ride.end_distance)} from drop-off
             </Text>
           ) : null}
@@ -256,6 +263,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const [isFocused, setIsFocused] = useState(true);
   const { apiUtil } = useApi();
   const { isGuest, requireAuth } = useAuthGate();
+  const colors = useThemeColors();
   // Real device safe-area inset. The styles previously used a
   // hardcoded `paddingTop: 35` on the rides header, which clipped
   // the brand wordmark + back chevron under the Android status bar
@@ -671,9 +679,9 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.selectorModalContainer}>
-        <View style={styles.selectorModalContent}>
+        <View style={[styles.selectorModalContent, colors.mode === "dark" && { backgroundColor: colors.surfaceElevated }]}>
           <View style={styles.selectorHeader}>
-            <Text style={styles.selectorTitle}>{title}</Text>
+            <Text style={[styles.selectorTitle, colors.mode === "dark" && { color: colors.textPrimary }]}>{title}</Text>
             <TouchableOpacity onPress={onClose} style={styles.selectorCloseButton}>
               <Text style={styles.selectorCloseButtonText}>✕</Text>
             </TouchableOpacity>
@@ -740,36 +748,42 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
 
     return (
       <View style={styles.noRidesContainer}>
-        <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-          <Image
-            source={require('../../assets/no-rides-emoji.png')}
-            style={{
-              marginTop: 16,
-              width: Math.min(Dimensions.get('window').width * 0.45, 200),
-              height: Math.min(Dimensions.get('window').width * 0.45, 200),
-              resizeMode: 'contain',
-            }}
-          />
+        <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: 8, marginTop: 16 }}>
+          {colors.mode === 'dark' ? (
+            // Dark mode: theme-aware SVG glyph instead of the
+            // lime-tile PNG (which shouts on a charcoal canvas).
+            <DarkEmptyGlyph
+              size={Math.min(Dimensions.get('window').width * 0.45, 200)}
+              colors={colors}
+            />
+          ) : (
+            <Image
+              source={require('../../assets/no-rides-emoji.png')}
+              style={{
+                width: Math.min(Dimensions.get('window').width * 0.45, 200),
+                height: Math.min(Dimensions.get('window').width * 0.45, 200),
+                resizeMode: 'contain',
+              }}
+            />
+          )}
         </View>
-        <Text style={{ fontFamily: 'NunitoSans_800ExtraBold', fontSize: 22, color: AppColors.secondaryDarkGreen, letterSpacing: -0.4, textAlign: 'center', marginBottom: 6 }}>
+        <Text style={{ fontFamily: 'NunitoSans_800ExtraBold', fontSize: 22, color: colors.textPrimary, letterSpacing: -0.4, textAlign: 'center', marginBottom: 6 }}>
           No rides on this route yet
         </Text>
-        <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 15, lineHeight: 22, color: AppColors.secondaryDarkGreen, opacity: 0.7, textAlign: 'center', marginBottom: 24, paddingHorizontal: 16 }}>
+        <Text style={{ fontFamily: 'NunitoSans_400Regular', fontSize: 15, lineHeight: 22, color: colors.textSecondary, textAlign: 'center', marginBottom: 24, paddingHorizontal: 16 }}>
           Try a wider time window, or post your own ride and let others jump in.
         </Text>
         <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
           <TouchableOpacity
-            style={[styles.adjustFiltersButton, { backgroundColor: AppColors.secondaryDarkGreen }]}
+            style={[styles.adjustFiltersButton, { backgroundColor: colors.navFill }]}
             onPress={() => setShowFilters(true)}
           >
-            <Text style={[styles.adjustFiltersButtonText, { color: AppColors.primaryLightGreen, fontFamily: 'NunitoSans_800ExtraBold' }]}>Adjust filters</Text>
+            <Text style={[styles.adjustFiltersButtonText, { color: colors.navIconInactive, fontFamily: 'NunitoSans_800ExtraBold' }]}>Adjust filters</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.adjustFiltersButton,
-              {
-                backgroundColor: AppColors.cardSurface,
-              },
+              { backgroundColor: colors.mode === "dark" ? colors.primary : AppColors.cardSurface },
             ]}
             onPress={() => {
               const createTarget = {
@@ -786,7 +800,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
               router.navigate(appHref("CreateRide", createTarget.params as any));
             }}
           >
-            <Text style={[styles.adjustFiltersButtonText, { color: AppColors.secondaryDarkGreen, fontFamily: 'NunitoSans_800ExtraBold' }]}>Post a ride</Text>
+            <Text style={[styles.adjustFiltersButtonText, { color: colors.textOnAccent, fontFamily: 'NunitoSans_800ExtraBold' }]}>Post a ride</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -801,6 +815,10 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     router,
     toCoordinates,
     toLocation,
+    // Re-render the empty state's text/CTA colors when the theme
+    // changes — without this the useMemo would cache the JSX with
+    // the previous palette's colours captured at first build.
+    colors,
   ]);
 
   const renderFilterModal = () => (
@@ -811,14 +829,14 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       onRequestClose={() => setShowFilters(false)}
     >
       <View style={styles.filterModalContainer}>
-        <View style={styles.filterModalContent}>
+        <View style={[styles.filterModalContent, colors.mode === "dark" && { backgroundColor: colors.surfaceElevated }]}>
           <View style={styles.filterHeader}>
-            <Text style={styles.filterTitle}>Search Filters</Text>
+            <Text style={[styles.filterTitle, colors.mode === "dark" && { color: colors.textPrimary }]}>Search Filters</Text>
             <TouchableOpacity
               onPress={() => setShowFilters(false)}
               style={styles.filterCloseButton}
             >
-              <Text style={styles.filterCloseButtonText}>✕</Text>
+              <Text style={[styles.filterCloseButtonText, colors.mode === "dark" && { color: colors.textPrimary }]}>✕</Text>
             </TouchableOpacity>
           </View>
 
@@ -1040,7 +1058,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   );
 
   return (
-    <View style={[styles.container, tabletContentStyle]}>
+    <View style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
       {/* `BrandInfo` already handles its own safe-area padding
           internally (Platform-aware, uses `useSafeAreaInsets`), so
           DON'T add another `paddingTop` on this absolute wrapper or
@@ -1053,11 +1071,11 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
           hardcoded `paddingTop: 35` was too short on tall-status-bar
           Pixels and clipped the back chevron + "X rides found"
           count behind the wordmark. */}
-      <View style={styles.brandInfoHeaderRow}>
+      <View style={[styles.brandInfoHeaderRow, { backgroundColor: colors.background }]}>
         <BrandInfo />
       </View>
 
-      <View style={[styles.ridesHeaderRow, { paddingTop: insets.top + 44 }]}>
+      <View style={[styles.ridesHeaderRow, { paddingTop: insets.top + 44, backgroundColor: colors.background }]}>
         <View style={styles.ridesHeaderLeft}>
           <TouchableOpacity
             style={styles.backButton}
@@ -1066,11 +1084,11 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
             <ChevronBack />
           </TouchableOpacity>
           <View>
-            <Text style={styles.ridesCountText}>
+            <Text style={[styles.ridesCountText, { color: colors.textPrimary }]}>
               {loading ? "Searching..." : `${rides.length} rides found`}
             </Text>
             {searchMeta && (
-              <Text style={styles.searchMetaText}>
+              <Text style={[styles.searchMetaText, { color: colors.textSecondary }]}>
                 Sorted {getSortLabel()}
               </Text>
             )}
@@ -1094,7 +1112,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         ListEmptyComponent={renderEmptyResults}
         contentContainerStyle={[
           styles.contentContainer,
-          { backgroundColor: AppColors.primaryLightGreen },
+          { backgroundColor: colors.background },
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={

@@ -1,6 +1,6 @@
 import "react-native-gesture-handler";
 import * as Notifications from "expo-notifications";
-import { StatusBar, StyleSheet, Text, TextInput } from "react-native";
+import { StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AppShell from "../components/AppShell";
@@ -8,8 +8,8 @@ import { AuthGateProvider } from "../contexts/AuthGate";
 import { ErrorProvider } from "../contexts/ErrorContext";
 import { LocationProvider } from "../contexts/location-context";
 import { UserProvider } from "../contexts/UserContext";
+import { ThemeProvider, useThemeColors } from "../contexts/ThemeContext";
 import { ApiProvider } from "../utils/ApiUtil";
-import AppColors from "../design_systems/colors";
 import { isNotificationForActiveChat } from "../utils/activeChatRegistry";
 
 Notifications.setNotificationHandler({
@@ -64,34 +64,50 @@ const inputWithDefaults = TextInput as typeof TextInput & { defaultProps?: Recor
 inputWithDefaults.defaultProps = inputWithDefaults.defaultProps || {};
 inputWithDefaults.defaultProps.maxFontSizeMultiplier = 1.3;
 
+// Inner shell sits BELOW ThemeProvider so it can read the active
+// palette and tint the root canvas + StatusBar accordingly. Keeps the
+// theme-aware chrome in one place — every screen below paints into
+// the canvas this layer establishes.
+const ThemedRoot: React.FC = () => {
+  const colors = useThemeColors();
+  return (
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      {/* StatusBar mirrors the active theme. Light mode: lime canvas
+          + dark icons. Dark mode: deep forest canvas + light icons.
+          Re-renders on theme toggle without a remount. */}
+      <StatusBar
+        backgroundColor={colors.statusBarBackground}
+        barStyle={colors.statusBarStyle}
+      />
+      <AppShell />
+    </View>
+  );
+};
+
 export default function RootLayout() {
   return (
     <SafeAreaProvider style={styles.root}>
       <GestureHandlerRootView style={styles.root}>
-        {/* StatusBar matches the lime canvas the home sheet sits on —
-            previously hardcoded to `#A8D8A8`, a mint that drifted from
-            the brand and read as a different app behind the system
-            chrome on Android. `barStyle="dark-content"` keeps icons
-            readable on the lime fill. */}
-        <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
-        <ErrorProvider>
-          <ApiProvider>
-            <AuthGateProvider>
-              {/* `UserProvider` hydrates `/user/details` ONCE per
-                  auth-state change and exposes the result via
-                  `useUser()`. Sits inside AuthGate so it can react
-                  to sign-in / sign-out, and inside Api so it has the
-                  apiUtil to make the call. Migrated callers read
-                  from context (sync); the ones that genuinely need
-                  fresh data after a write call `refresh()`. */}
-              <UserProvider>
-                <LocationProvider>
-                  <AppShell />
-                </LocationProvider>
-              </UserProvider>
-            </AuthGateProvider>
-          </ApiProvider>
-        </ErrorProvider>
+        <ThemeProvider>
+          <ErrorProvider>
+            <ApiProvider>
+              <AuthGateProvider>
+                {/* `UserProvider` hydrates `/user/details` ONCE per
+                    auth-state change and exposes the result via
+                    `useUser()`. Sits inside AuthGate so it can react
+                    to sign-in / sign-out, and inside Api so it has the
+                    apiUtil to make the call. Migrated callers read
+                    from context (sync); the ones that genuinely need
+                    fresh data after a write call `refresh()`. */}
+                <UserProvider>
+                  <LocationProvider>
+                    <ThemedRoot />
+                  </LocationProvider>
+                </UserProvider>
+              </AuthGateProvider>
+            </ApiProvider>
+          </ErrorProvider>
+        </ThemeProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );
@@ -100,6 +116,5 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: AppColors.primaryLightGreen,
   },
 });

@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { COUNTRIES, Country, flagFor } from "../data/countries";
 import { haptic } from "./PressableScale";
 
@@ -48,6 +49,7 @@ type Props = {
  * sheet so the app's modal language stays consistent.
  */
 const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDismiss }) => {
+  const colors = useThemeColors();
   const [query, setQuery] = useState("");
   const translateY = useRef(new Animated.Value(SHEET_OFFSCREEN)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
@@ -140,7 +142,7 @@ const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDis
           style={{
             width: "100%",
             maxWidth: 540,
-            backgroundColor: AppColors.basicWhite,
+            backgroundColor: colors.surfaceElevated,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
             paddingHorizontal: 22,
@@ -155,41 +157,41 @@ const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDis
             elevation: 18,
           }}
         >
-          <View style={styles.grabHandle} />
+          <View style={[styles.grabHandle, colors.mode === "dark" && { backgroundColor: colors.inkLine }]} />
 
           <TouchableOpacity
             onPress={onDismiss}
             activeOpacity={0.6}
-            style={styles.closeBtn}
+            style={[styles.closeBtn, { backgroundColor: colors.inkSubtle }]}
           >
             <Svg width={14} height={14} viewBox="0 0 16 16">
               <Path
                 d="M3 3 L 13 13 M13 3 L 3 13"
-                stroke={AppColors.secondaryDarkGreen}
+                stroke={colors.textPrimary}
                 strokeWidth={2.2}
                 strokeLinecap="round"
               />
             </Svg>
           </TouchableOpacity>
 
-          <Text style={styles.title}>Pick your country</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Pick your country</Text>
 
-          <View style={styles.searchWrap}>
+          <View style={[styles.searchWrap, colors.mode === "dark" && { backgroundColor: colors.surfaceInset }]}>
             <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" style={{ opacity: 0.5 }}>
               <Path
                 d="M21 21l-4.35-4.35M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z"
-                stroke={AppColors.secondaryDarkGreen}
+                stroke={colors.textPrimary}
                 strokeWidth={2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
             </Svg>
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: colors.textPrimary }]}
               value={query}
               onChangeText={setQuery}
               placeholder="Search by name or code"
-              placeholderTextColor="rgba(38,59,51,0.40)"
+              placeholderTextColor={colors.textTertiary}
               autoCorrect={false}
               autoCapitalize="none"
             />
@@ -204,22 +206,22 @@ const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDis
               const selected = item.code === selectedCode;
               return (
                 <TouchableOpacity
-                  style={[styles.row, selected && styles.rowSelected]}
+                  style={[styles.row, selected && { backgroundColor: "rgba(181,215,80,0.20)" }]}
                   activeOpacity={0.7}
                   onPress={() => handlePick(item)}
                 >
                   <Text style={styles.flag}>{flagFor(item.code)}</Text>
-                  <Text style={styles.name} numberOfLines={1}>
+                  <Text style={[styles.name, { color: colors.textPrimary }]} numberOfLines={1}>
                     {item.name}
                   </Text>
-                  <Text style={[styles.dial, selected && styles.dialSelected]}>
+                  <Text style={[styles.dial, { color: colors.textSecondary }, selected && { color: colors.textPrimary, fontFamily: "NunitoSans_800ExtraBold" as const }]}>
                     +{item.dial}
                   </Text>
                 </TouchableOpacity>
               );
             }}
             ListEmptyComponent={
-              <Text style={styles.emptyHint}>No countries match "{query}".</Text>
+              <Text style={[styles.emptyHint, { color: colors.textSecondary }]}>No countries match "{query}".</Text>
             }
           />
         </Animated.View>

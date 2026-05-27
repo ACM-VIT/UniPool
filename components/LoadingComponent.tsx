@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import LottieView from "lottie-react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 type LoadingComponentProps = {
   /**
@@ -17,15 +18,30 @@ type LoadingComponentProps = {
 };
 
 const LoadingComponent: React.FC<LoadingComponentProps> = ({ label, overlay = false }) => {
+  const colors = useThemeColors();
+  // Dark-mode overlay: warm-charcoal with the same ~94% opacity so it
+  // still hints the screen behind without painting it lime in dark.
+  const overlayBg =
+    colors.mode === "dark" ? "rgba(15,15,18,0.94)" : "rgba(181,215,80,0.94)";
   return (
-    <View style={[styles.container, overlay && styles.overlay]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background },
+        overlay && [styles.overlay, { backgroundColor: overlayBg }],
+      ]}
+    >
       <LottieView
         source={require("../assets/loader.json")}
         autoPlay
         loop
         style={styles.lottie}
       />
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? (
+        <Text style={[styles.label, { color: colors.textSecondary }]}>
+          {label}
+        </Text>
+      ) : null}
     </View>
   );
 };

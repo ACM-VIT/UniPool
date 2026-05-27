@@ -12,6 +12,7 @@ import { PanGestureHandler, State } from "react-native-gesture-handler";
 import LottieView from "lottie-react-native";
 import { Home, X } from "lucide-react-native";
 import AppColors from "../../design_systems/colors";
+import { useThemeColors } from "../../contexts/ThemeContext";
 
 export interface ErrorComponentProps {
   title?: string;
@@ -42,6 +43,7 @@ const ErrorComponent: React.FC<ErrorComponentProps> = ({
   animationSize = "medium",
   customAnimation,
 }) => {
+  const colors = useThemeColors();
   const translateY = React.useRef(new Animated.Value(height)).current;
   const gestureTranslateY = React.useRef(new Animated.Value(0)).current;
 
@@ -99,9 +101,10 @@ const ErrorComponent: React.FC<ErrorComponentProps> = ({
     right: animW * 0.01,
     width: animW * 0.27,
     height: animH * 0.1,
-    // Cover for the Lottie watermark — has to match the sheet surface
-    // colour or it shows up as a patch. Sheet is now lime.
-    backgroundColor: AppColors.primaryLightGreen,
+    // Cover for the Lottie watermark — must match the sheet surface.
+    // In dark mode override to surfaceElevated; light mode uses the
+    // module-scope `content.backgroundColor` (lime) unchanged.
+    ...(colors.mode === "dark" ? { backgroundColor: colors.surfaceElevated } : {}),
   };
 
   return (
@@ -109,13 +112,14 @@ const ErrorComponent: React.FC<ErrorComponentProps> = ({
       <Animated.View
         style={[
           styles.content,
+          colors.mode === "dark" && { backgroundColor: colors.surfaceElevated },
           { transform: [{ translateY: Animated.add(translateY, gestureTranslateY) }] },
         ]}
       >
-        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+        <TouchableOpacity style={[styles.closeButton, { backgroundColor: colors.navFill }]} onPress={onClose}>
           <X
             size={Math.min(width, height) * 0.06}
-            color={AppColors.primaryLightGreen}
+            color={colors.navIconInactive}
           />
         </TouchableOpacity>
 
@@ -124,12 +128,12 @@ const ErrorComponent: React.FC<ErrorComponentProps> = ({
           onHandlerStateChange={onHandlerStateChange}
         >
           <Animated.View style={styles.dragHandleArea}>
-            <View style={styles.dragHandle} />
+            <View style={[styles.dragHandle, { backgroundColor: colors.inkLine }]} />
           </Animated.View>
         </PanGestureHandler>
 
         <View style={styles.textContainer}>
-          <Text style={styles.title}>{title}</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
         </View>
 
         <View style={styles.animationContainer}>
@@ -146,18 +150,24 @@ const ErrorComponent: React.FC<ErrorComponentProps> = ({
         </View>
 
         <View style={styles.messageContainer}>
-          <Text style={styles.message}>{message}</Text>
+          <Text style={[styles.message, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>{message}</Text>
         </View>
 
         <View style={styles.buttonsContainer}>
           {showHomeButton && onGoHome && (
-            <TouchableOpacity style={styles.homeButton} onPress={onGoHome}>
+            <TouchableOpacity
+              style={[
+                styles.homeButton,
+                { backgroundColor: colors.mode === "dark" ? colors.primary : colors.textPrimary },
+              ]}
+              onPress={onGoHome}
+            >
               <Home
                 size={Math.min(width, height) * 0.05}
-                color={AppColors.primaryLightGreen}
+                color={colors.mode === "dark" ? colors.textOnAccent : colors.primary}
                 style={styles.buttonIcon}
               />
-              <Text style={styles.homeButtonText}>Go Home</Text>
+              <Text style={[styles.homeButtonText, { color: colors.mode === "dark" ? colors.textOnAccent : colors.primary }]}>Go Home</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -203,7 +213,8 @@ const styles = StyleSheet.create({
   dragHandle: {
     width: Math.min(width, height) * 0.15,
     height: height * 0.008,
-    backgroundColor: AppColors.basicBlack,
+    // Base color only; override inline with colors.inkLine at render.
+    backgroundColor: "rgba(38,59,51,0.30)",
     borderRadius: 3,
     alignSelf: "center",
     opacity: 0.3,

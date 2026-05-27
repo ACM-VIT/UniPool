@@ -11,6 +11,7 @@ import {
   Easing,
 } from "react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import BrandedAlert from "./BrandedAlert";
 import SheetShell, { sheetUi } from "./SheetShell";
 import { haptic } from "./PressableScale";
@@ -58,6 +59,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
   onDismiss,
   onVerified,
 }) => {
+  const colors = useThemeColors();
   const { apiUtil } = useApi();
   const [step, setStep] = useState<VerifyStep>("pick");
   const [picked, setPicked] = useState<PickedInstitute | null>(null);
@@ -130,21 +132,21 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
   const renderInstituteResult = useCallback<ListRenderItem<PickedInstitute>>(
     ({ item: inst }) => (
       <TouchableOpacity
-        style={styles.resultRow}
+        style={[styles.resultRow, colors.mode === "dark" && { borderBottomColor: colors.inkSubtle }]}
         activeOpacity={0.7}
         onPress={() => pickInstitute(inst)}
       >
-        <Text style={styles.resultName} numberOfLines={2}>
+        <Text style={[styles.resultName, { color: colors.textPrimary }]} numberOfLines={2}>
           {inst.name}
         </Text>
-        <Text style={styles.resultMeta} numberOfLines={1}>
+        <Text style={[styles.resultMeta, colors.mode === "dark" && { color: colors.textTertiary }]} numberOfLines={1}>
           {[inst.country, inst.domains.slice(0, 2).map((d) => `@${d}`).join(" · ")]
             .filter(Boolean)
             .join(" · ")}
         </Text>
       </TouchableOpacity>
     ),
-    [pickInstitute],
+    [pickInstitute, colors],
   );
 
   const instituteKeyExtractor = useCallback((inst: PickedInstitute) => inst.id, []);
@@ -305,14 +307,14 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder="University name or email domain"
-              placeholderTextColor={AppColors.inkMuted}
+              placeholderTextColor={colors.textTertiary}
               // Universities are usually proper nouns OR lowercase email
               // domains — disabling auto-capitalisation lets users type
               // "vitstudent" or "iitb" without the system uppercasing
               // the first letter and breaking the match.
               autoCapitalize="none"
               autoCorrect={false}
-              style={sheetUi.input}
+              style={[sheetUi.input, { color: colors.textPrimary }]}
               autoFocus
             />
           </View>
@@ -322,7 +324,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
             : searching ? (
               <SearchSkeleton />
             ) : searchResults.length === 0 ? (
-              <Text style={styles.resultsHint}>
+              <Text style={[styles.resultsHint, colors.mode === "dark" && { color: colors.textSecondary }]}>
                 No matches. Try the full school name or your email's
                 domain (the part after the @).
               </Text>
@@ -332,7 +334,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
                 keyExtractor={instituteKeyExtractor}
                 renderItem={renderInstituteResult}
                 keyboardShouldPersistTaps="handled"
-                style={styles.resultsScroll}
+                style={[styles.resultsScroll, colors.mode === "dark" && { backgroundColor: colors.surfaceInset, borderRadius: 14 }]}
                 showsVerticalScrollIndicator={false}
                 initialNumToRender={6}
                 maxToRenderPerBatch={6}
@@ -345,8 +347,8 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
       ) : step === "email" ? (
         <>
           <Text style={sheetUi.sheetTitle}>Your student email</Text>
-          <View style={styles.institutePill}>
-            <Text style={styles.institutePillText} numberOfLines={1}>
+          <View style={[styles.institutePill, { backgroundColor: colors.primary }]}>
+            <Text style={[styles.institutePillText, { color: colors.textOnAccent }]} numberOfLines={1}>
               {picked?.name}
             </Text>
           </View>
@@ -356,7 +358,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
               value={email}
               onChangeText={(raw) => setEmail(sanitizeEmail(raw))}
               placeholder={picked?.domains?.[0] ? `you@${picked.domains[0]}` : "you@university.edu"}
-              placeholderTextColor={AppColors.inkMuted}
+              placeholderTextColor={colors.textTertiary}
               autoCapitalize="none"
               autoCorrect={false}
               // Tell the keyboard this is an email field so QuickType
@@ -366,7 +368,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
               textContentType="emailAddress"
               autoComplete="email"
               keyboardType="email-address"
-              style={sheetUi.input}
+              style={[sheetUi.input, { color: colors.textPrimary }]}
               maxLength={120}
               editable={!busy}
               autoFocus
@@ -380,7 +382,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
             style={[sheetUi.primaryBtn, busy && { opacity: 0.6 }]}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
+              <ActivityIndicator size="small" color={colors.primary} accessibilityLabel="Loading" />
             ) : (
               <Text style={sheetUi.primaryBtnText}>Send verification link</Text>
             )}
@@ -400,7 +402,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
           <Text style={sheetUi.sheetTitle}>Check your inbox</Text>
           <Text style={sheetUi.sheetBody}>
             Sent to{" "}
-            <Text style={{ color: AppColors.secondaryDarkGreen, fontFamily: "NunitoSans_800ExtraBold" }}>
+            <Text style={{ color: colors.textPrimary, fontFamily: "NunitoSans_800ExtraBold" }}>
               {email}
             </Text>
             .
@@ -412,9 +414,15 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
               value={code}
               onChangeText={(t) => setCode(t.replace(/\D/g, "").slice(0, 6))}
               placeholder="123456"
-              placeholderTextColor={AppColors.inkMuted}
+              placeholderTextColor={colors.textTertiary}
               keyboardType="number-pad"
-              style={[sheetUi.input, sheetUi.inputCode]}
+              // OTP-style cell: recessed surface bg + primary text.
+              style={[
+                sheetUi.input,
+                sheetUi.inputCode,
+                { color: colors.textPrimary },
+                colors.mode === "dark" && { backgroundColor: colors.surfaceInset },
+              ]}
               maxLength={6}
               editable={!busy}
               autoFocus
@@ -428,7 +436,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
             style={[sheetUi.primaryBtn, (busy || code.length !== 6) && { opacity: 0.4 }]}
           >
             {busy ? (
-              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
+              <ActivityIndicator size="small" color={colors.primary} accessibilityLabel="Loading" />
             ) : (
               <Text style={sheetUi.primaryBtnText}>Verify with code</Text>
             )}
@@ -469,6 +477,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
  * doesn't jump when data lands.
  */
 const SearchSkeleton: React.FC = () => {
+  const skColors = useThemeColors();
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -499,13 +508,13 @@ const SearchSkeleton: React.FC = () => {
   const rows = ["78%", "62%", "84%", "55%"];
 
   return (
-    <View style={skeletonStyles.container}>
+    <View style={[skeletonStyles.container, { backgroundColor: skColors.surfaceInset }]}>
       {rows.map((w, i) => (
-        <View key={i} style={skeletonStyles.row}>
+        <View key={i} style={[skeletonStyles.row, { borderBottomColor: skColors.inkSubtle }]}>
           <Animated.View
-            style={[skeletonStyles.nameBar, { width: w as any, opacity }]}
+            style={[skeletonStyles.nameBar, { width: w as any, opacity, backgroundColor: skColors.inkSoft }]}
           />
-          <Animated.View style={[skeletonStyles.metaBar, { opacity }]} />
+          <Animated.View style={[skeletonStyles.metaBar, { opacity, backgroundColor: skColors.inkSubtle }]} />
         </View>
       ))}
     </View>

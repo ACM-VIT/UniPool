@@ -9,6 +9,7 @@ import {
   Easing,
 } from "react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "./BrandedAlert";
 import { haptic } from "./PressableScale";
@@ -78,6 +79,7 @@ const PaymentMarkerCard: React.FC<{
   apiUtil: ReturnType<typeof useApi>["apiUtil"];
   onAcked?: () => void;
 }> = ({ amount, passengerName, bookingID, viewerIsHost, apiUtil, onAcked }) => {
+  const colors = useThemeColors();
   // `pendingAck` keeps optimistic UI honest. Once the host taps a
   // button we hide both buttons and show a busy spinner; the
   // inbound payment_ack socket push lands shortly after and the
@@ -137,48 +139,81 @@ const PaymentMarkerCard: React.FC<{
 
   return (
     <Animated.View style={[styles.cardWrap, { opacity, transform: [{ scale }] }]}>
-      <View style={styles.card}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.surfaceElevated, borderColor: colors.inkSubtle },
+        ]}
+      >
         {/* Hero amount, like an Apple Pay card. The kicker label
             sits above so the eye reads "payment, ₹250" in one
             glance instead of having to parse a sentence. */}
-        <Text style={styles.cardKicker}>Payment marked</Text>
+        <Text style={[styles.cardKicker, { color: colors.textTertiary }]}>Payment marked</Text>
         <View style={styles.amountRow}>
-          <Text style={styles.amountCurrency}>₹</Text>
-          <Text style={styles.amountValue}>{amount}</Text>
+          <Text style={[styles.amountCurrency, { color: colors.textPrimary }]}>₹</Text>
+          <Text style={[styles.amountValue, { color: colors.textPrimary }]}>{amount}</Text>
         </View>
-        <Text style={styles.cardSub}>
+        <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
           {passengerName} says they've paid
         </Text>
 
-        <View style={styles.divider} />
+        <View style={[styles.divider, { backgroundColor: colors.inkSubtle }]} />
 
         {viewerIsHost ? (
           pendingAck ? (
             <View style={styles.actionsBusy}>
-              <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} />
-              <Text style={styles.actionsBusyText}>
+              <ActivityIndicator size="small" color={colors.textPrimary} />
+              <Text style={[styles.actionsBusyText, { color: colors.textSecondary }]}>
                 {pendingAck === "received" ? "Confirming…" : "Flagging…"}
               </Text>
             </View>
           ) : (
             <View style={styles.actionsRow}>
               <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnSecondary]}
+                style={[
+                  styles.actionBtn,
+                  styles.actionBtnSecondary,
+                  { borderColor: colors.inkLine },
+                ]}
                 activeOpacity={0.85}
                 onPress={() => ack("missing")}
                 accessibilityLabel="Didn't receive payment"
               >
-                <Text style={[styles.actionBtnText, styles.actionBtnTextSecondary]}>
+                <Text
+                  style={[
+                    styles.actionBtnText,
+                    styles.actionBtnTextSecondary,
+                    { color: colors.textPrimary },
+                  ]}
+                >
                   Didn't receive
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnPrimary]}
+                style={[
+                  styles.actionBtn,
+                  styles.actionBtnPrimary,
+                  // Forest in light → lime in dark. textOnAccent flips
+                  // so the label stays legible either way.
+                  {
+                    backgroundColor:
+                      colors.mode === "dark" ? colors.primary : colors.textPrimary,
+                  },
+                ]}
                 activeOpacity={0.85}
                 onPress={() => ack("received")}
                 accessibilityLabel="Confirm payment received"
               >
-                <Text style={[styles.actionBtnText, styles.actionBtnTextPrimary]}>
+                <Text
+                  style={[
+                    styles.actionBtnText,
+                    styles.actionBtnTextPrimary,
+                    {
+                      color:
+                        colors.mode === "dark" ? colors.textOnAccent : colors.primary,
+                    },
+                  ]}
+                >
                   Confirm received
                 </Text>
               </TouchableOpacity>
@@ -188,7 +223,9 @@ const PaymentMarkerCard: React.FC<{
           // Non-host viewer — passenger themselves or another
           // accepted rider. Just an awaiting-ack note; the host
           // owns the action.
-          <Text style={styles.waitingFootnote}>Waiting for host to confirm…</Text>
+          <Text style={[styles.waitingFootnote, { color: colors.textTertiary }]}>
+            Waiting for host to confirm…
+          </Text>
         )}
       </View>
     </Animated.View>
@@ -198,6 +235,7 @@ const PaymentMarkerCard: React.FC<{
 // --- payment_ack ----------------------------------------------------
 
 const PaymentAckLine: React.FC<{ ack: string; text: string }> = ({ ack, text }) => {
+  const colors = useThemeColors();
   const received = ack === "received";
 
   // Same gentle entrance as the marker card — keeps the chat feeling
@@ -223,19 +261,42 @@ const PaymentAckLine: React.FC<{ ack: string; text: string }> = ({ ack, text }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Brand-tinted pill in light mode (lime / coral wash); softer
+  // neutral tint in dark mode so the accent reads as the glyph
+  // circle, not the whole pill.
+  const pillTint = received
+    ? colors.mode === "dark"
+      ? "rgba(200,230,100,0.16)"
+      : "rgba(181,215,80,0.28)"
+    : colors.mode === "dark"
+    ? "rgba(255,107,91,0.16)"
+    : "rgba(210,68,50,0.14)";
+  // Light mode keeps the historical brand pairing — forest glyph
+  // for "received," brand coral for "missing." Dark mode swaps in
+  // the palette tokens so the glyph and text read against the
+  // charcoal canvas.
+  const glyphBg = received
+    ? (colors.mode === "dark" ? colors.success : AppColors.secondaryDarkGreen)
+    : (colors.mode === "dark" ? colors.destructive : "#D24432");
+  const textColor = received
+    ? colors.textPrimary
+    : (colors.mode === "dark" ? colors.destructive : "#A8281A");
+
   return (
     <Animated.View style={[styles.ackWrap, { opacity, transform: [{ translateY }] }]}>
-      <View style={[styles.ackPill, received ? styles.ackPillSuccess : styles.ackPillWarning]}>
+      <View style={[styles.ackPill, { backgroundColor: pillTint }]}>
         <View
           style={[
             styles.ackGlyphCircle,
-            received ? styles.ackGlyphCircleSuccess : styles.ackGlyphCircleWarning,
+            { backgroundColor: glyphBg },
           ]}
         >
-          <Text style={styles.ackGlyphText}>{received ? "✓" : "!"}</Text>
+          <Text style={[styles.ackGlyphText, { color: received ? colors.textOnAccent : "#FFFFFF" }]}>
+            {received ? "✓" : "!"}
+          </Text>
         </View>
         <Text
-          style={[styles.ackText, received ? styles.ackTextSuccess : styles.ackTextWarning]}
+          style={[styles.ackText, { color: textColor }]}
           numberOfLines={2}
         >
           {text}

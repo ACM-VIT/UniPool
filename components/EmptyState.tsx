@@ -7,7 +7,43 @@ import {
   StyleSheet,
   ImageSourcePropType,
 } from "react-native";
+import Svg, { Circle, Path } from "react-native-svg";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
+import type { Palette } from "../design_systems/palettes";
+
+/**
+ * Theme-aware sad-face glyph used in place of the baked lime-tile
+ * PNGs (no-rides-emoji, sad, etc.) when dark mode is active.
+ * The PNGs carry a hardcoded lime background that shouts on the
+ * dark canvas; this SVG paints into whichever palette is active so
+ * the empty state stays a calm brand reference instead of a
+ * bright lime square.
+ */
+export const DarkEmptyGlyph: React.FC<{ size: number; colors: Palette }> = ({ size, colors }) => (
+  <View style={{ width: size, height: size }}>
+    <Svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      {/* Subtle backdrop circle in the active surface tone — sits
+          quietly on the canvas instead of competing with it. */}
+      <Circle cx={50} cy={50} r={46} fill={colors.surface} />
+      {/* Outline ring + face strokes in the active primary text
+          colour so the glyph carries the palette voice without
+          re-introducing lime as a fill. */}
+      <Circle cx={50} cy={50} r={42} stroke={colors.textPrimary} strokeWidth={3.5} />
+      {/* Eyes — small dots that read across the smile/sad family. */}
+      <Circle cx={36} cy={42} r={3.2} fill={colors.textPrimary} />
+      <Circle cx={64} cy={42} r={3.2} fill={colors.textPrimary} />
+      {/* Frown — single arc, gentle dip. */}
+      <Path
+        d="M34 68 Q50 56 66 68"
+        stroke={colors.textPrimary}
+        strokeWidth={3.5}
+        strokeLinecap="round"
+        fill="none"
+      />
+    </Svg>
+  </View>
+);
 
 /**
  * Shared "no data" surface used wherever a list or section has
@@ -54,6 +90,11 @@ const EmptyState: React.FC<EmptyStateProps> = ({
   compact = false,
   topAlign = false,
 }) => {
+  // Theme-aware text + CTA so empty states are readable on both
+  // the lime canvas (light) and the charcoal canvas (dark). Module-
+  // scope styles still carry layout + typography; inline overrides
+  // below swap the colour tokens to whichever palette is active.
+  const colors = useThemeColors();
   return (
     <View
       style={[
@@ -64,6 +105,15 @@ const EmptyState: React.FC<EmptyStateProps> = ({
     >
       {glyph ? (
         <View style={{ marginBottom: 18 }}>{glyph}</View>
+      ) : colors.mode === "dark" && image ? (
+        // Dark mode swaps every lime-tile PNG (no-rides-emoji, sad,
+        // happy-emoji, cool-emoji, smiling-emoji) for the
+        // theme-aware DarkEmptyGlyph — the brand voice in dark mode
+        // shouldn't be a bright lime square; this glyph reads as a
+        // calm tonal echo of the canvas.
+        <View style={{ marginBottom: 18 }}>
+          <DarkEmptyGlyph size={imageSize} colors={colors} />
+        </View>
       ) : image ? (
         <Image
           source={image}
@@ -71,15 +121,35 @@ const EmptyState: React.FC<EmptyStateProps> = ({
           resizeMode="contain"
         />
       ) : null}
-      <Text style={styles.title}>{title}</Text>
-      {body ? <Text style={styles.body}>{body}</Text> : null}
+      <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+      {body ? (
+        <Text style={[styles.body, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
+          {body}
+        </Text>
+      ) : null}
       {ctaLabel && onPressCta ? (
         <TouchableOpacity
-          style={styles.cta}
+          style={[
+            styles.cta,
+            // CTA fill becomes the navFill so it stays as a forest
+            // pill in light (unchanged from before) and as a raised
+            // charcoal chip in dark.
+            { backgroundColor: colors.navFill },
+          ]}
           onPress={onPressCta}
           activeOpacity={0.85}
         >
-          <Text style={styles.ctaLabel}>{ctaLabel}</Text>
+          <Text
+            style={[
+              styles.ctaLabel,
+              // Label sits on the navFill so it reaches for
+              // navIconActive — historical lime label on forest in
+              // light, off-white on charcoal in dark.
+              { color: colors.navIconInactive },
+            ]}
+          >
+            {ctaLabel}
+          </Text>
         </TouchableOpacity>
       ) : null}
     </View>

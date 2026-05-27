@@ -11,7 +11,9 @@ import {
   Platform,
 } from "react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { displayRideLocation } from "../utils/LocationService";
+import type { Palette } from "../design_systems/palettes";
 
 export type ClusteredRide = {
   id: string;
@@ -101,23 +103,27 @@ type DestinationGroupRowProps = {
   group: DestinationGroup;
   isLast: boolean;
   onPickRide: (ride: ClusteredRide) => void;
+  colors: Palette;
 };
 
 const DestinationGroupRow = React.memo(function DestinationGroupRow({
   group,
   isLast,
   onPickRide,
+  colors,
 }: DestinationGroupRowProps) {
   return (
     <View style={[styles.group, isLast && styles.groupLast]}>
       {/* Destination header — bold name, price + ride count
           as a quiet caption on the right. */}
       <View style={styles.groupHeader}>
-        <Text style={styles.groupDest} numberOfLines={1}>
+        <Text style={[styles.groupDest, { color: colors.textPrimary }]} numberOfLines={1}>
           {shorten(group.destination)}
         </Text>
         <View style={styles.groupMeta}>
-          <Text style={styles.groupPrice}>₹{group.cheapestPrice}</Text>
+          <Text style={[styles.groupPrice, colors.mode === "dark" && { color: colors.textPrimary, opacity: 0.85 }]}>
+            ₹{group.cheapestPrice}
+          </Text>
         </View>
       </View>
 
@@ -133,16 +139,18 @@ const DestinationGroupRow = React.memo(function DestinationGroupRow({
             onPress={() => onPickRide(ride)}
             style={[
               styles.chip,
+              { backgroundColor: colors.surface },
               ride.isFull && styles.chipFull,
             ]}
           >
-            <Text style={styles.chipDay}>{ride.chipDay}</Text>
-            <Text style={styles.chipTime}>{ride.chipTime}</Text>
-            <View style={styles.chipDivider} />
+            <Text style={[styles.chipDay, colors.mode === "dark" && { color: colors.textTertiary }]}>{ride.chipDay}</Text>
+            <Text style={[styles.chipTime, { color: colors.textPrimary }]}>{ride.chipTime}</Text>
+            <View style={[styles.chipDivider, colors.mode === "dark" && { backgroundColor: colors.inkSubtle }]} />
             <Text
               style={[
                 styles.chipSeats,
-                ride.isFull && styles.chipSeatsFull,
+                colors.mode === "dark" && { color: colors.textSecondary },
+                ride.isFull && [styles.chipSeatsFull, colors.mode === "dark" && { color: colors.destructive, opacity: 1 }],
               ]}
             >
               {ride.isFull
@@ -175,6 +183,12 @@ const RideClusterSheet: React.FC<Props> = ({
   rides,
   onPickRide,
 }) => {
+  const colors = useThemeColors();
+  // Sheet inherits the lime canvas in light to match the existing brand
+  // surface; switches to elevated charcoal in dark.
+  // colors.background = lime (#B5D750) in light, near-black in dark.
+  // We want lime in light and surfaceElevated in dark.
+  const sheetBg = colors.mode === "dark" ? colors.surfaceElevated : colors.background;
   const groups = React.useMemo<DestinationGroup[]>(() => {
     const byDest = new Map<string, DestinationGroup>();
     for (const r of rides) {
@@ -220,9 +234,10 @@ const RideClusterSheet: React.FC<Props> = ({
         group={item}
         isLast={index === groups.length - 1}
         onPickRide={onPickRide}
+        colors={colors}
       />
     ),
-    [groups.length, onPickRide],
+    [groups.length, onPickRide, colors],
   );
 
   const keyExtractor = React.useCallback((group: DestinationGroup) => group.destination, []);
@@ -241,28 +256,28 @@ const RideClusterSheet: React.FC<Props> = ({
           ScrollView's panning. */}
       <View style={styles.modalRoot}>
         <Pressable style={styles.scrimTop} onPress={onClose} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { backgroundColor: sheetBg }]}>
           {/* Top bar — grip centered, Done text-button anchored
               top-right. Tap-outside-to-dismiss still works, but the
               Done button gives users an explicit, tappable exit that
               doesn't require reaching for the scrim. */}
           <View style={styles.topBar}>
-            <View style={styles.grip} />
+            <View style={[styles.grip, colors.mode === "dark" && { backgroundColor: colors.inkLine }]} />
             <TouchableOpacity
               onPress={onClose}
               style={styles.doneBtn}
               hitSlop={10}
               activeOpacity={0.6}
             >
-              <Text style={styles.doneBtnText}>Done</Text>
+              <Text style={[styles.doneBtnText, { color: colors.textSecondary }]}>Done</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.headerBlock}>
-            <Text style={styles.eyebrow}>
+            <Text style={[styles.eyebrow, { color: colors.textSecondary }]}>
               {rides.length} {rides.length === 1 ? "ride" : "rides"} leaving from
             </Text>
-            <Text style={styles.title} numberOfLines={2}>
+            <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>
               {shorten(pickup, 48)}
             </Text>
           </View>

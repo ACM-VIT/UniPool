@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Linking, Platform } from "react-native";
 import { useFocusEffect } from "expo-router";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "./BrandedAlert";
 import RouteStack from "./RouteStack";
@@ -55,6 +56,7 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
   cardFromState,
   appStateResolved,
 }) => {
+  const colors = useThemeColors();
   const { apiUtil } = useApi();
   const [card, setCard] = useState<TripCard | null>(null);
   const [busy, setBusy] = useState(false);
@@ -165,7 +167,14 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
   return (
     <TouchableOpacity
       activeOpacity={0.85}
-      style={[styles.card, compact && styles.cardCompact]}
+      style={[
+        styles.card,
+        // navFill keeps the forest surface in light AND swaps to
+        // raised charcoal in dark — matches the rest of the dark
+        // surface system without re-introducing green in dark mode.
+        { backgroundColor: colors.navFill },
+        compact && styles.cardCompact,
+      ]}
       onPress={() => onPressOpen?.(card.ride_id)}
     >
       <RouteStack
@@ -176,7 +185,7 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
       />
 
       <View style={styles.metaRow}>
-        <Text style={styles.metaText}>
+        <Text style={[styles.metaText, colors.mode === "dark" && { color: colors.textOnDark }]}>
           {card.stage === "upcoming" ? `with ${hostFirst} · ${tripDate}` : `${tripDate} · with ${hostFirst}`}
         </Text>
       </View>
@@ -184,12 +193,12 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
       {showPayBtn ? (
         <View style={styles.actionRow}>
           <TouchableOpacity
-            style={styles.payBtn}
+            style={[styles.payBtn, { backgroundColor: colors.primary }]}
             disabled={busy}
             onPress={onPay}
             activeOpacity={0.85}
           >
-            <Text style={styles.payBtnText}>
+            <Text style={[styles.payBtnText, { color: colors.textOnAccent }]}>
               Pay {hostFirst} ₹{card.total_price}
             </Text>
           </TouchableOpacity>
@@ -203,7 +212,7 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
             hitSlop={10}
             style={styles.dismissLinkWrap}
           >
-            <Text style={styles.dismissLink}>Trip didn't happen</Text>
+            <Text style={[styles.dismissLink, colors.mode === "dark" && { color: colors.textOnDark }]}>Trip didn't happen</Text>
           </TouchableOpacity>
         </View>
       ) : null}

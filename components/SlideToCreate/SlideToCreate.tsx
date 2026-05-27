@@ -10,6 +10,7 @@ import { PanGestureHandler, State } from "react-native-gesture-handler";
 import { UniversalSliderProps } from "./SlideToCreate.types";
 import styles from "./SlideToCreate.styles";
 import AppColors from "../../design_systems/colors";
+import { useThemeColors } from "../../contexts/ThemeContext";
 
 const UniversalSlider: React.FC<UniversalSliderProps> = ({
   onSlideComplete,
@@ -25,32 +26,67 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
   sliderStyle,
   textStyle,
   sliderButtonStyle,
-  backgroundColor = AppColors.primaryLightGreen,
-  borderColor = AppColors.secondaryDarkGreen,
-  sliderButtonColor = AppColors.secondaryDarkGreen,
-  textColor = AppColors.basicBlack,
-  iconTintColor = AppColors.primaryLightGreen,
+  // Light-mode defaults match the historical brand pairing (lime track,
+  // forest thumb, black text). The hook below re-paints these only
+  // when the consumer hasn't passed an explicit override AND we're in
+  // dark mode — so callers that intentionally style the slider (e.g.
+  // the secondary "decline" sliders) still win.
+  backgroundColor,
+  borderColor,
+  sliderButtonColor,
+  textColor,
+  iconTintColor,
   holdAtEnd = false,
 }) => {
+  const colors = useThemeColors();
   const [sliderWidth, setSliderWidth] = useState(0);
   const translateX = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(1)).current;
   const [isSliding, setIsSliding] = useState(false);
 
+  // Theme-aware defaults — only used when the caller doesn't pass
+  // an explicit prop.
+  //
+  // Light mode: historical brand pairing — lime track, forest thumb,
+  // forest text. The slider IS the brand action moment.
+  //
+  // Dark mode: lime track shouts against the charcoal canvas and
+  // pulls the eye away from everything else on screen, which is
+  // the opposite of the calm dark palette we're going for. Switch
+  // the defaults to a raised-charcoal track (navFill) with the lime
+  // surfacing only on the thumb + thumb glyph — same Spotify-green-
+  // on-dark-grey pattern the rest of the dark palette uses for
+  // brand splashes.
+  const isDark = colors.mode === "dark";
+  const resolvedBg =
+    backgroundColor ?? (isDark ? colors.navFill : AppColors.primaryLightGreen);
+  // Light mode: keep the historical forest border (= textPrimary).
+  // Dark mode: the bright cream border read as a "white box" framing
+  // the slider — switch to a subtle hairline that's barely there so
+  // the track blends with the canvas.
+  const resolvedBorder =
+    borderColor ?? (isDark ? "rgba(237,236,231,0.10)" : colors.textPrimary);
+  const resolvedButton =
+    sliderButtonColor ?? (isDark ? colors.primary : colors.textPrimary);
+  const resolvedText =
+    textColor ?? (isDark ? colors.textPrimary : colors.textOnAccent);
+  const resolvedIconTint =
+    iconTintColor ?? (isDark ? colors.textOnAccent : colors.primary);
+
   const dynamicStyles = {
     container: {
-      backgroundColor,
-      borderColor,
+      backgroundColor: resolvedBg,
+      borderColor: resolvedBorder,
     },
     sliderButton: {
-      backgroundColor: sliderButtonColor,
+      backgroundColor: resolvedButton,
     },
     text: {
-      color: textColor,
+      color: resolvedText,
     },
     loadingContainer: {
-      backgroundColor,
-      borderColor,
+      backgroundColor: resolvedBg,
+      borderColor: resolvedBorder,
     },
   };
 
@@ -162,13 +198,13 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
   if (isLoading) {
     return (
       <View style={[
-        styles.loadingContainer, 
+        styles.loadingContainer,
         dynamicStyles.loadingContainer,
         containerStyle
       ]}>
-        <ActivityIndicator size="large" color={sliderButtonColor} accessibilityLabel="Loading" />
+        <ActivityIndicator size="large" color={resolvedButton} accessibilityLabel="Loading" />
         <Text style={[
-          styles.loadingText, 
+          styles.loadingText,
           dynamicStyles.text,
           textStyle
         ]}>

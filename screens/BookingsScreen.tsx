@@ -21,6 +21,7 @@ import { useUser } from "../contexts/UserContext";
 import LoadingComponent from "../components/LoadingComponent";
 import { appHref } from "../navigation/routes";
 import { useTabletContentStyle } from "../utils/responsive";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 interface RawRide {
   id?: string;
@@ -108,6 +109,7 @@ const BookingsScreen: React.FC = () => {
   const { requireAuth } = useAuthGate();
   const { user: viewerUser } = useUser();
   const { apiUtil } = useApi();
+  const colors = useThemeColors();
   const [trips, setTrips] = useState<TripItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -344,7 +346,7 @@ const BookingsScreen: React.FC = () => {
         <Text
           style={{
             fontSize: 20,
-            color: AppColors.secondaryDarkGreen,
+            color: colors.textPrimary,
             fontFamily: "NunitoSans_800ExtraBold",
             letterSpacing: -0.3,
             marginBottom: 6,
@@ -356,8 +358,8 @@ const BookingsScreen: React.FC = () => {
           style={{
             fontSize: 14,
             lineHeight: 21,
-            color: AppColors.secondaryDarkGreen,
-            opacity: 0.65,
+            color: colors.textSecondary,
+            opacity: 1,
             textAlign: "center",
             fontFamily: "NunitoSans_400Regular",
             marginBottom: 20,
@@ -369,7 +371,7 @@ const BookingsScreen: React.FC = () => {
           onPress={cfg.onPress}
           activeOpacity={0.85}
           style={{
-            backgroundColor: AppColors.primaryLightGreen,
+            backgroundColor: colors.primary,
             paddingVertical: 12,
             paddingHorizontal: 24,
             borderRadius: 12,
@@ -377,7 +379,7 @@ const BookingsScreen: React.FC = () => {
         >
           <Text
             style={{
-              color: AppColors.secondaryDarkGreen,
+              color: colors.textOnAccent,
               fontFamily: "NunitoSans_700Bold",
               fontSize: 14,
             }}
@@ -387,7 +389,7 @@ const BookingsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
     );
-  }, [requireAuth, router, tab]);
+  }, [requireAuth, router, tab, colors]);
 
   const renderTab = useCallback((key: Tab, label: string, count: number) => {
     const active = tab === key;
@@ -400,9 +402,13 @@ const BookingsScreen: React.FC = () => {
           paddingVertical: 10,
           paddingHorizontal: 14,
           borderRadius: 999,
-          // Active tab = forest pill on the lime canvas (inverse for
-          // strong contrast). Inactive tabs sit transparent.
-          backgroundColor: active ? AppColors.secondaryDarkGreen : "transparent",
+          // Light: forest pill + lime label (historical). Dark: lime pill +
+          // forest ink. Inactive in light reverts to transparent (the
+          // historical "no chip" look); dark uses inkSubtle so the inactive
+          // tab has some presence on the charcoal canvas.
+          backgroundColor: colors.mode === "dark"
+            ? (active ? colors.primary : colors.inkSubtle)
+            : (active ? AppColors.secondaryDarkGreen : "transparent"),
           flexDirection: "row",
           alignItems: "center",
         }}
@@ -411,7 +417,9 @@ const BookingsScreen: React.FC = () => {
           style={{
             fontFamily: "NunitoSans_700Bold",
             fontSize: 14,
-            color: active ? AppColors.primaryLightGreen : AppColors.inkStrong,
+            color: colors.mode === "dark"
+              ? (active ? colors.textOnAccent : colors.textSecondary)
+              : (active ? AppColors.primaryLightGreen : AppColors.inkStrong),
             letterSpacing: -0.1,
           }}
         >
@@ -424,14 +432,18 @@ const BookingsScreen: React.FC = () => {
               paddingHorizontal: 7,
               paddingVertical: 1,
               borderRadius: 999,
-              backgroundColor: active ? AppColors.primaryLightGreen : AppColors.cardSurface,
+              backgroundColor: colors.mode === "dark"
+                ? (active ? colors.textOnAccent : colors.surface)
+                : (active ? AppColors.primaryLightGreen : AppColors.cardSurface),
             }}
           >
             <Text
               style={{
                 fontFamily: "NunitoSans_700Bold",
                 fontSize: 11,
-                color: AppColors.secondaryDarkGreen,
+                color: colors.mode === "dark"
+                  ? (active ? colors.primary : colors.textSecondary)
+                  : AppColors.secondaryDarkGreen,
               }}
             >
               {count}
@@ -440,7 +452,7 @@ const BookingsScreen: React.FC = () => {
         ) : null}
       </TouchableOpacity>
     );
-  }, [requireAuth, router, tab]);
+  }, [colors, tab]);
 
   const listHeader = useMemo(() => (
     <>
@@ -473,7 +485,7 @@ const BookingsScreen: React.FC = () => {
       {error ? (
         <View
           style={{
-            backgroundColor: AppColors.cardSurface,
+            backgroundColor: colors.surface,
             borderRadius: 12,
             padding: 14,
             marginBottom: 14,
@@ -481,7 +493,7 @@ const BookingsScreen: React.FC = () => {
         >
           <Text
             style={{
-              color: AppColors.basicRed,
+              color: colors.destructive,
               fontFamily: "NunitoSans_600SemiBold",
               fontSize: 14,
               textAlign: "center",
@@ -492,11 +504,11 @@ const BookingsScreen: React.FC = () => {
         </View>
       ) : null}
     </>
-  ), [counts.hosting, counts.past, counts.upcoming, error, navigateToChat, navigateToRide, renderTab, upNext]);
+  ), [colors, counts.hosting, counts.past, counts.upcoming, error, navigateToChat, navigateToRide, renderTab, upNext]);
 
   if (loading) {
     return (
-      <View style={[styles.container, tabletContentStyle]}>
+      <View style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
         <View style={styles.brandInfoHeaderRow}>
           <BrandInfo />
         </View>
@@ -505,7 +517,7 @@ const BookingsScreen: React.FC = () => {
             <TouchableOpacity onPress={() => router.back()}>
               <ChevronBack />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Your trips</Text>
+            <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Your trips</Text>
           </View>
         </View>
         <LoadingComponent label="Pulling your trips…" />
@@ -514,7 +526,7 @@ const BookingsScreen: React.FC = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.brandInfoHeaderRow}>
         <BrandInfo />
       </View>
@@ -523,7 +535,7 @@ const BookingsScreen: React.FC = () => {
           <TouchableOpacity onPress={() => router.back()}>
             <ChevronBack />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Your trips</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Your trips</Text>
         </View>
       </View>
 

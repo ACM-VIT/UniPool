@@ -9,12 +9,13 @@ import {
   signInWithCredential,
 } from "@react-native-firebase/auth";
 import { router } from "expo-router";
-let appleAuth: any = null;
-if (Platform.OS === "ios") {
-  appleAuth = require("@invertase/react-native-apple-authentication").appleAuth;
-}
+// Apple Sign-In via Expo's wrapper around AuthenticationServices —
+// more reliable on iPad / iPadOS 26 than the older invertase library
+// that produces a generic "Sign Up Not Completed" sheet during review.
+import * as AppleAuthentication from "expo-apple-authentication";
 
 import AppColors from "../../design_systems/colors";
+import { useThemeColors } from "../../contexts/ThemeContext";
 import { useApi } from "../../utils/ApiUtil";
 import type { RootStackParamList } from "../../navigation/RootStackParamList";
 import { appHref } from "../../navigation/routes";
@@ -48,7 +49,14 @@ type Props = {
 type SigningProvider = "apple" | "google" | null;
 
 const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) => {
+  const colors = useThemeColors();
   const { apiUtil } = useApi();
+  // Primary CTA (Apple). In light it's the forest slab; in dark we
+  // promote it to the lime brand splash and re-tint the label to
+  // forest ink so the high-contrast button doesn't read as a black
+  // hole on the charcoal sheet.
+  const primaryCtaBg = colors.mode === "dark" ? colors.primary : colors.textPrimary;
+  const primaryCtaText = colors.mode === "dark" ? colors.textOnAccent : colors.textOnDark;
   // Track which provider is mid-flow so only that button shows the spinner.
   // (Both buttons showing "Signing in…" simultaneously confused users — they
   // weren't sure which provider was actually authenticating.)
@@ -168,20 +176,47 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
   };
 
   const handleApple = async () => {
-    if (Platform.OS !== "ios" || !appleAuth || isSigningIn) return;
+    if (Platform.OS !== "ios" || isSigningIn) return;
+
+    // Apple Sign-In can be unavailable on iPad, restricted accounts,
+    // and managed devices. Show a specific message instead of letting
+    // Apple's own "Sign Up Not Completed" sheet surface.
+    const available = await AppleAuthentication.isAvailableAsync();
+    if (!available) {
+      BrandedAlert.alert(
+        "Apple Sign-In unavailable",
+        "Sign in with Apple isn't available on this device or account. Try signing in with Google instead.",
+      );
+      return;
+    }
+
     setSigningIn("apple");
     try {
-      const resp = await appleAuth.performRequest({
-        requestedOperation: appleAuth.Operation.LOGIN,
-        requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
       });
-      if (!resp.identityToken) throw new Error("Apple sign-in didn't return a token");
-      const cred = AppleAuthProvider.credential(resp.identityToken, resp.nonce);
+      if (!credential.identityToken) {
+        throw new Error("Apple didn't return an identity token. Try again.");
+      }
+      // Firebase accepts the credential without a custom nonce — the
+      // JWT signature itself is verified against Apple's published
+      // keys. We never set a nonce on the request, so there's nothing
+      // to forward.
+      const cred = AppleAuthProvider.credential(credential.identityToken);
       const result = await signInWithCredential(getAuth(), cred);
       // No redundant force refresh — see Google path above.
       await handleSuccess(result.user);
     } catch (error: any) {
-      if (error?.code === "ERR_REQUEST_CANCELED") return;
+      if (
+        error?.code === "ERR_REQUEST_CANCELED" ||
+        error?.code === "ERR_CANCELED" ||
+        error?.code === "ERR_REQUEST_UNKNOWN"
+      ) {
+        return;
+      }
       BrandedAlert.alert("Couldn't sign you in", error?.message || "Try again in a moment.");
     } finally {
       setSigningIn(null);
@@ -231,7 +266,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
             // because parent width is already ≤540. Above it the
             // sheet centres in the wider iPad canvas.
             maxWidth: 540,
-            backgroundColor: AppColors.basicWhite,
+            backgroundColor: colors.surfaceElevated,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
             paddingHorizontal: 24,
@@ -246,12 +281,12 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
           }}
         >
         {/* Grab handle */}
-        <View style={{ alignSelf: "center", width: 44, height: 5, borderRadius: 3, backgroundColor: "rgba(38,59,51,0.18)", marginBottom: 18 }} />
+        <View style={{ alignSelf: "center", width: 44, height: 5, borderRadius: 3, backgroundColor: colors.inkLine, marginBottom: 18 }} />
 
         {/* Close action — top right */}
-        <TouchableOpacity onPress={onDismiss} disabled={isSigningIn} activeOpacity={0.6} style={{ position: "absolute", top: 22, right: 18, width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(38,59,51,0.08)", alignItems: "center", justifyContent: "center", zIndex: 4 }}>
+        <TouchableOpacity onPress={onDismiss} disabled={isSigningIn} activeOpacity={0.6} style={{ position: "absolute", top: 22, right: 18, width: 36, height: 36, borderRadius: 18, backgroundColor: colors.inkSubtle, alignItems: "center", justifyContent: "center", zIndex: 4 }}>
           <Svg width={14} height={14} viewBox="0 0 16 16">
-            <Path d="M3 3 L 13 13 M13 3 L 3 13" stroke={AppColors.secondaryDarkGreen} strokeWidth={2.2} strokeLinecap="round" />
+            <Path d="M3 3 L 13 13 M13 3 L 3 13" stroke={colors.textPrimary} strokeWidth={2.2} strokeLinecap="round" />
           </Svg>
         </TouchableOpacity>
 
@@ -259,10 +294,15 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
             doesn't slide up empty for a beat before the words land.
             The slide-up itself is the entry animation. */}
         <View style={{ marginBottom: 26, paddingRight: 44 }}>
-          <Text style={{ fontFamily: "NunitoSans_800ExtraBold", fontSize: 28, color: AppColors.secondaryDarkGreen, letterSpacing: -0.6, lineHeight: 34 }}>
+          <Text style={{ fontFamily: "NunitoSans_800ExtraBold", fontSize: 28, color: colors.textPrimary, letterSpacing: -0.6, lineHeight: 34 }}>
             Sign in to UniPool
           </Text>
-          <Text style={{ fontFamily: "NunitoSans_400Regular", fontSize: 15, lineHeight: 22, color: AppColors.secondaryDarkGreen, opacity: 0.62, marginTop: 6 }}>
+          <Text style={[
+            { fontFamily: "NunitoSans_400Regular", fontSize: 15, lineHeight: 22, marginTop: 6 },
+            colors.mode === "dark"
+              ? { color: colors.textSecondary }
+              : { color: AppColors.secondaryDarkGreen, opacity: 0.62 },
+          ]}>
             {reason ? `Sign in ${reason}.` : "Hop on to find student rides going your way."}
           </Text>
         </View>
@@ -270,25 +310,27 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
         <View>
         {Platform.OS === "ios" && (
           <TouchableOpacity
-            style={{ height: 56, borderRadius: 14, backgroundColor: AppColors.secondaryDarkGreen, flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 12, opacity: signingIn === "google" ? 0.4 : 1, shadowColor: AppColors.basicBlack, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 2 }}
+            style={{ height: 56, borderRadius: 14, backgroundColor: primaryCtaBg, flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 12, opacity: signingIn === "google" ? 0.4 : 1, shadowColor: AppColors.basicBlack, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 2 }}
             onPress={handleApple}
             disabled={isSigningIn}
             activeOpacity={0.85}
           >
             {signingIn === "apple" ? (
-              <ActivityIndicator size="small" color={AppColors.basicWhite} />
+              <ActivityIndicator size="small" color={primaryCtaText} />
             ) : (
-              <Svg width={18} height={20} viewBox="0 0 384 512" fill={AppColors.basicWhite}>
+              <Svg width={18} height={20} viewBox="0 0 384 512" fill={primaryCtaText}>
                 <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
               </Svg>
             )}
-            <Text style={{ fontFamily: "NunitoSans_700Bold", fontSize: 17, color: AppColors.basicWhite, marginLeft: 10, letterSpacing: 0.2 }}>
+            <Text style={{ fontFamily: "NunitoSans_700Bold", fontSize: 17, color: primaryCtaText, marginLeft: 10, letterSpacing: 0.2 }}>
               {signingIn === "apple" ? "Signing in…" : "Continue with Apple"}
             </Text>
           </TouchableOpacity>
         )}
 
-        {/* Google — white surface + 4-colour "G" per Google's brand spec. */}
+        {/* Google — kept white per Google brand spec in both modes
+            (their brand requires this surface). Border softens so it
+            still reads as a distinct chip on the dark sheet. */}
         <TouchableOpacity
           style={{ height: 56, borderRadius: 14, backgroundColor: AppColors.basicWhite, borderWidth: 1, borderColor: "rgba(38,59,51,0.14)", flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 22, opacity: signingIn === "apple" ? 0.4 : 1, shadowColor: AppColors.basicBlack, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1 }}
           onPress={handleGoogle}
@@ -305,13 +347,20 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
               <Path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
             </Svg>
           )}
+          {/* Label stays forest because the Google card surface stays
+              white (their brand) — high contrast in both themes. */}
           <Text style={{ fontFamily: "NunitoSans_700Bold", fontSize: 17, color: AppColors.secondaryDarkGreen, marginLeft: 10, letterSpacing: 0.2 }}>
             {signingIn === "google" ? "Signing in…" : "Continue with Google"}
           </Text>
         </TouchableOpacity>
 
         {/* Footer T&C — terse so the sheet stays compact */}
-        <Text style={{ fontFamily: "NunitoSans_400Regular", fontSize: 11.5, lineHeight: 17, color: AppColors.secondaryDarkGreen, opacity: 0.5, textAlign: "center" }}>
+        <Text style={[
+          { fontFamily: "NunitoSans_400Regular", fontSize: 11.5, lineHeight: 17, textAlign: "center" },
+          colors.mode === "dark"
+            ? { color: colors.textTertiary }
+            : { color: AppColors.secondaryDarkGreen, opacity: 0.5 },
+        ]}>
           By continuing you agree to our{" "}
           <Text
             style={{ fontFamily: "NunitoSans_600SemiBold", textDecorationLine: "underline" }}

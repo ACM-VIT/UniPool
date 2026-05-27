@@ -7,6 +7,7 @@ import {
   Image,
 } from "react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import RouteStack from "./RouteStack";
 
 interface RideDetails {
@@ -36,6 +37,7 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
   onPress,
   onOpenChat,
 }) => {
+  const colors = useThemeColors();
   // Locations often contain commas (e.g. "Assam, India") which break the
   // old "FROM to TO" sentence-style format into mush. Render as a two-row
   // origin / destination block with the standard outline/filled dot
@@ -47,7 +49,11 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
   });
 
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity
+      style={[styles.container, { backgroundColor: colors.navFill }]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
       {/* Canonical RouteStack idiom — single source of truth for the
           start → end visual across every card surface in the app. */}
       <View style={styles.routeBlock}>
@@ -59,7 +65,22 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.dateText}>{dateLabel}</Text>
+        {/* Dark mode: date text + chat icon read in cream/off-white
+            on the charcoal card so the card carries the same tonal
+            family as the From/To picker and RouteStack — no lime
+            accents scattered through the footer. Light mode: keep
+            the historical lime so the design is bit-for-bit
+            preserved on the brand canvas. */}
+        <Text
+          style={[
+            styles.dateText,
+            colors.mode === "dark"
+              ? { color: colors.textOnDark, opacity: 0.65 }
+              : { color: colors.primary },
+          ]}
+        >
+          {dateLabel}
+        </Text>
         <View style={styles.footerRight}>
           {onOpenChat ? (
             <TouchableOpacity
@@ -72,13 +93,21 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
             >
               <Image
                 source={require("../assets/message-icon.png")}
-                style={styles.chatIcon}
+                style={[
+                  styles.chatIcon,
+                  {
+                    tintColor:
+                      colors.mode === "dark" ? colors.textOnDark : colors.primary,
+                  },
+                ]}
                 resizeMode="contain"
               />
             </TouchableOpacity>
           ) : null}
-          <View style={styles.pricePill}>
-            <Text style={styles.priceText}>₹{trip.total_price}</Text>
+          <View style={[styles.pricePill, { backgroundColor: colors.primary }]}>
+            <Text style={[styles.priceText, { color: colors.textOnAccent }]}>
+              ₹{trip.total_price}
+            </Text>
           </View>
         </View>
       </View>

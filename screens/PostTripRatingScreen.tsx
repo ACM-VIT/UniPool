@@ -18,6 +18,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import Svg, { Path } from "react-native-svg";
 import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/PressableScale";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
@@ -65,6 +66,7 @@ const PostTripRatingScreen: React.FC = () => {
   const { apiUtil } = useApi();
   const params = useDecodedLocalSearchParams<{ rideId?: string }>();
   const rideId = params.rideId || "";
+  const colors = useThemeColors();
 
   const [loading, setLoading] = useState(true);
   const [eligibility, setEligibility] = useState<Eligibility | null>(null);
@@ -156,25 +158,25 @@ const PostTripRatingScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} accessibilityLabel="Loading" />
+      <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="small" color={colors.textPrimary} accessibilityLabel="Loading" />
       </View>
     );
   }
 
   if (error || !eligibility) {
     return (
-      <View style={[styles.container, styles.center, { padding: 24 }]}>
-        <Text style={styles.heading}>Nothing to rate here</Text>
-        <Text style={[styles.body, { textAlign: "center", marginTop: 8 }]}>
+      <View style={[styles.container, styles.center, { backgroundColor: colors.background, padding: 24 }]}>
+        <Text style={[styles.heading, { color: colors.textPrimary }]}>Nothing to rate here</Text>
+        <Text style={[styles.body, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }, { textAlign: "center", marginTop: 8 }]}>
           {error || "This trip isn't open for ratings yet."}
         </Text>
         <TouchableOpacity
-          style={[styles.primaryBtn, { marginTop: 24 }]}
+          style={[styles.primaryBtn, { backgroundColor: colors.navFill, marginTop: 24 }]}
           activeOpacity={0.85}
           onPress={() => router.back()}
         >
-          <Text style={styles.primaryBtnText}>Got it</Text>
+          <Text style={[styles.primaryBtnText, { color: colors.navIconInactive }]}>Got it</Text>
         </TouchableOpacity>
       </View>
     );
@@ -182,9 +184,9 @@ const PostTripRatingScreen: React.FC = () => {
 
   if (!eligibility.eligible || eligibility.targets.length === 0) {
     return (
-      <View style={[styles.container, styles.center, { padding: 24 }]}>
-        <Text style={styles.heading}>All set</Text>
-        <Text style={[styles.body, { textAlign: "center", marginTop: 8 }]}>
+      <View style={[styles.container, styles.center, { backgroundColor: colors.background, padding: 24 }]}>
+        <Text style={[styles.heading, { color: colors.textPrimary }]}>All set</Text>
+        <Text style={[styles.body, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }, { textAlign: "center", marginTop: 8 }]}>
           {new Date(eligibility.opens_at) > new Date()
             ? `Ratings open ${formatRelativeFromNow(eligibility.opens_at)}.`
             : "You've already rated everyone on this trip."}
@@ -199,6 +201,7 @@ const PostTripRatingScreen: React.FC = () => {
           style={[
             styles.primaryBtn,
             {
+              backgroundColor: colors.navFill,
               marginTop: 24,
               alignSelf: "stretch",
               maxWidth: 360,
@@ -208,14 +211,14 @@ const PostTripRatingScreen: React.FC = () => {
           activeOpacity={0.85}
           onPress={() => router.back()}
         >
-          <Text style={styles.primaryBtnText}>Done</Text>
+          <Text style={[styles.primaryBtnText, { color: colors.navIconInactive }]}>Done</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, tabletContentStyle]}>
+    <View style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
       <KeyboardAvoidingView
         // `padding` on both platforms — the previous Android
         // `height` setting shrank the KAV but kept the Submit
@@ -245,21 +248,21 @@ const PostTripRatingScreen: React.FC = () => {
               to be and disconnected the two visually. Now they read
               as one toolbar: title left, close right. */}
           <View style={styles.topRow}>
-            <Text style={styles.heading}>How was the ride?</Text>
+            <Text style={[styles.heading, { color: colors.textPrimary }]}>How was the ride?</Text>
             <TouchableOpacity
               onPress={() => router.back()}
               activeOpacity={0.7}
-              style={styles.closeBtn}
+              style={[styles.closeBtn, { backgroundColor: colors.inkSubtle }]}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessibilityLabel="Close"
             >
               <Svg width={14} height={14} viewBox="0 0 16 16">
-                <Path d="M3 3 L 13 13 M13 3 L 3 13" stroke={AppColors.secondaryDarkGreen} strokeWidth={2.2} strokeLinecap="round" />
+                <Path d="M3 3 L 13 13 M13 3 L 3 13" stroke={colors.textPrimary} strokeWidth={2.2} strokeLinecap="round" />
               </Svg>
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.routeLine} numberOfLines={2}>
+          <Text style={[styles.routeLine, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]} numberOfLines={2}>
             {displayRideLocation(eligibility.start_location)} to {displayRideLocation(eligibility.end_location)}
           </Text>
 
@@ -284,6 +287,7 @@ const PostTripRatingScreen: React.FC = () => {
           <TouchableOpacity
             style={[
               styles.primaryBtn,
+              { backgroundColor: colors.navFill },
               styles.submitInline,
               (!allRated || submitting) && styles.primaryBtnDisabled,
             ]}
@@ -292,9 +296,9 @@ const PostTripRatingScreen: React.FC = () => {
             onPress={submit}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color={AppColors.primaryLightGreen} accessibilityLabel="Loading" />
+              <ActivityIndicator size="small" color={colors.navIconInactive} accessibilityLabel="Loading" />
             ) : (
-              <Text style={styles.primaryBtnText}>Submit</Text>
+              <Text style={[styles.primaryBtnText, { color: colors.navIconInactive }]}>Submit</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -318,28 +322,29 @@ type RatingCardProps = {
 };
 
 const RatingCard: React.FC<RatingCardProps> = ({ target, draft, onChange }) => {
+  const colors = useThemeColors();
   const setStars = (n: number) => {
     haptic("light");
     onChange({ ...draft, stars: n });
   };
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
       <View style={styles.cardHeader}>
         {target.profile_picture_url ? (
           <Image source={{ uri: target.profile_picture_url }} style={styles.avatar} />
         ) : (
-          <View style={[styles.avatar, styles.avatarFallback]}>
-            <Text style={styles.avatarInitial}>
+          <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.navFill }]}>
+            <Text style={[styles.avatarInitial, { color: colors.navIconInactive }]}>
               {(target.name?.[0] || "?").toUpperCase()}
             </Text>
           </View>
         )}
         <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.cardName} numberOfLines={1}>
+          <Text style={[styles.cardName, { color: colors.textPrimary }]} numberOfLines={1}>
             {target.name}
           </Text>
-          <Text style={styles.cardRole}>
+          <Text style={[styles.cardRole, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
             {target.role === "host" ? "Your host" : "Rode with you"}
           </Text>
         </View>
@@ -353,11 +358,11 @@ const RatingCard: React.FC<RatingCardProps> = ({ target, draft, onChange }) => {
 
       {draft.stars > 0 ? (
         <TextInput
-          style={styles.commentInput}
+          style={[styles.commentInput, { color: colors.textPrimary }, colors.mode === "dark" && { backgroundColor: colors.surfaceInset }]}
           value={draft.comment}
           onChangeText={(t) => onChange({ ...draft, comment: t })}
           placeholder="Optional: one quick line (240 chars)"
-          placeholderTextColor="rgba(38,59,51,0.40)"
+          placeholderTextColor={colors.textTertiary}
           maxLength={240}
           multiline
         />
@@ -367,6 +372,7 @@ const RatingCard: React.FC<RatingCardProps> = ({ target, draft, onChange }) => {
 };
 
 const StarTap: React.FC<{ active: boolean; onPress: () => void }> = ({ active, onPress }) => {
+  const colors = useThemeColors();
   const scale = useRef(new Animated.Value(active ? 1 : 0.85)).current;
   useEffect(() => {
     Animated.spring(scale, {
@@ -383,8 +389,8 @@ const StarTap: React.FC<{ active: boolean; onPress: () => void }> = ({ active, o
         <Svg width={36} height={36} viewBox="0 0 24 24" fill="none">
           <Path
             d="M12 2 L 14.6 8.5 L 21.5 9.1 L 16.3 13.6 L 17.9 20.4 L 12 16.8 L 6.1 20.4 L 7.7 13.6 L 2.5 9.1 L 9.4 8.5 Z"
-            fill={active ? AppColors.secondaryDarkGreen : "transparent"}
-            stroke={AppColors.secondaryDarkGreen}
+            fill={active ? colors.textPrimary : "transparent"}
+            stroke={colors.textPrimary}
             strokeWidth={1.8}
             strokeLinejoin="round"
           />

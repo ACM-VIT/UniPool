@@ -6,6 +6,7 @@ import {
   View,
 } from "react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { haptic } from "./PressableScale";
 import { displayRideLocation } from "../utils/LocationService";
 import SheetShell from "./SheetShell";
@@ -44,6 +45,12 @@ type Props = {
  * cleanly without a separate close gesture.
  */
 const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
+  const colors = useThemeColors();
+  // Forest pin in light → bright off-white in dark (avoids dark-on-dark).
+  const pinColor = colors.mode === "dark" ? colors.textPrimary : colors.textPrimary;
+  // CTA: forest+lime in light; lime+forest-ink in dark (brand splash).
+  const ctaBg = colors.mode === "dark" ? colors.primary : colors.textPrimary;
+  const ctaText = colors.mode === "dark" ? colors.textOnAccent : colors.primary;
   const shortStart = useMemo(() => shorten(ride?.start_location || ""), [ride?.start_location]);
   const shortEnd = useMemo(() => shorten(ride?.end_location || ""), [ride?.end_location]);
 
@@ -75,15 +82,15 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
           component family. */}
       <View style={styles.route}>
         <View style={styles.pinCol}>
-          <View style={styles.pinFilled} />
-          <View style={styles.pinConnector} />
-          <View style={styles.pinOutline} />
+          <View style={[styles.pinFilled, { backgroundColor: pinColor }]} />
+          <View style={[styles.pinConnector, { backgroundColor: pinColor }]} />
+          <View style={[styles.pinOutline, { borderColor: pinColor }]} />
         </View>
         <View style={styles.routeText}>
-          <Text style={styles.startLabel} numberOfLines={1}>
+          <Text style={[styles.startLabel, { color: colors.textSecondary }]} numberOfLines={1}>
             {shortStart}
           </Text>
-          <Text style={styles.endLabel} numberOfLines={1}>
+          <Text style={[styles.endLabel, { color: colors.textPrimary }]} numberOfLines={1}>
             {shortEnd}
           </Text>
         </View>
@@ -93,12 +100,12 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
           Single hairline separator above to band it apart from
           the route block without resorting to a full divider. */}
       {(timeLabel || ride?.total_price != null) ? (
-        <View style={styles.metaRow}>
-          <Text style={styles.metaLeft} numberOfLines={1}>
+        <View style={[styles.metaRow, { borderTopColor: colors.inkSubtle }]}>
+          <Text style={[styles.metaLeft, { color: colors.textSecondary }]} numberOfLines={1}>
             {timeLabel}
           </Text>
           {ride?.total_price != null ? (
-            <Text style={styles.metaRight}>₹{ride.total_price}</Text>
+            <Text style={[styles.metaRight, { color: colors.textPrimary }]}>₹{ride.total_price}</Text>
           ) : null}
         </View>
       ) : null}
@@ -107,12 +114,13 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
         onPress={handleOpen}
         style={({ pressed }) => [
           styles.cta,
+          { backgroundColor: ctaBg },
           pressed && { opacity: 0.9 },
         ]}
         accessibilityRole="button"
         accessibilityLabel={`View ride to ${shortEnd}`}
       >
-        <Text style={styles.ctaText}>View ride</Text>
+        <Text style={[styles.ctaText, { color: ctaText }]}>View ride</Text>
       </Pressable>
     </SheetShell>
   );

@@ -13,6 +13,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useApi } from "../utils/ApiUtil";
 import { useUser } from "../contexts/UserContext";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import ChevronBack from '../components/ChevronBack/ChevronBack';
 import HomeBack from '../components/HomeBack';
 import SlideToCreate from '../components/SlideToCreate/SlideToCreate';
@@ -443,6 +444,7 @@ type ViewerState =
   | "past";
 
 const RideDetailsScreen: React.FC = () => {
+  const colors = useThemeColors();
   const router = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const tabletScrollContentStyle = useTabletScrollContentStyle();
@@ -1344,17 +1346,17 @@ const RideDetailsScreen: React.FC = () => {
 
   if (error || !rideData) {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.background }]}>
           <BrandInfo />
         </View>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error || "Ride not found"}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
+          <Text style={[styles.errorText, { color: colors.textPrimary }]}>{error || "Ride not found"}</Text>
+          <TouchableOpacity
+            style={[styles.retryButton, { backgroundColor: colors.navFill }]}
             onPress={() => router.back()}
           >
-            <Text style={styles.retryButtonText}>Go Back</Text>
+            <Text style={[styles.retryButtonText, colors.mode === "dark" && { color: colors.textOnDark }]}>Go Back</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1364,12 +1366,12 @@ const RideDetailsScreen: React.FC = () => {
   if (isHost) {
   const rideOver = isRideOver(rideData?.start_time);
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.background }]}>
           <BrandInfo />
         </View>
 
-        <View style={styles.navigationRow}>
+        <View style={[styles.navigationRow, { backgroundColor: colors.background }]}>
           {backToHome ? (
             <HomeBack style={styles.backButton} />
           ) : (
@@ -1380,7 +1382,7 @@ const RideDetailsScreen: React.FC = () => {
               <ChevronBack />
             </TouchableOpacity>
           )}
-          <Text style={styles.headerTitle}>Ride Management</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Ride Management</Text>
           {/* Share pill — opens the QR + native share sheet. Anchored
               top-right of the management header so it reads as a
               persistent action on the host's ride rather than buried
@@ -1392,13 +1394,13 @@ const RideDetailsScreen: React.FC = () => {
               paddingHorizontal: 16,
               paddingVertical: 8,
               borderRadius: 999,
-              backgroundColor: AppColors.secondaryDarkGreen,
+              backgroundColor: colors.navFill,
             }}
             activeOpacity={0.85}
           >
             <Text
               style={{
-                color: AppColors.primaryLightGreen,
+                color: colors.mode === "dark" ? colors.textOnDark : AppColors.primaryLightGreen,
                 fontFamily: "NunitoSans_800ExtraBold",
                 fontSize: 13,
                 letterSpacing: 0.3,
@@ -1536,18 +1538,18 @@ const RideDetailsScreen: React.FC = () => {
             if (noOneJoinedYet) {
               return (
                 <View style={styles.shareEmptyWrap}>
-                  <Text style={styles.shareEmptyTitle}>
+                  <Text style={[styles.shareEmptyTitle, { color: colors.textPrimary }]}>
                     No one's joined yet
                   </Text>
-                  <Text style={styles.shareEmptyBody}>
+                  <Text style={[styles.shareEmptyBody, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
                     Share your ride so users can request a seat.
                   </Text>
                   <TouchableOpacity
-                    style={styles.shareEmptyBtn}
+                    style={[styles.shareEmptyBtn, { backgroundColor: colors.navFill }]}
                     activeOpacity={0.85}
                     onPress={() => setShareSheetOpen(true)}
                   >
-                    <Text style={styles.shareEmptyBtnText}>Share ride</Text>
+                    <Text style={[styles.shareEmptyBtnText, colors.mode === "dark" && { color: colors.textOnDark }]}>Share ride</Text>
                   </TouchableOpacity>
                 </View>
               );
@@ -1561,7 +1563,7 @@ const RideDetailsScreen: React.FC = () => {
             </View>
           ) : bookingError ? (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{bookingError}</Text>
+              <Text style={[styles.errorText, { color: colors.textPrimary }]}>{bookingError}</Text>
             </View>
           ) : requests.length === 0 ? (
             // Host-booking entry isn't injected yet — race during the
@@ -1639,10 +1641,10 @@ const RideDetailsScreen: React.FC = () => {
                       // typography + thumb carry the danger cue on
                       // their own.
                       sliderIcon={showSlide === "accept" ? require("../assets/slide.png") : require("../assets/red-slider.png")}
-                      backgroundColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : AppColors.basicWhite}
-                      sliderButtonColor={showSlide === "accept" ? AppColors.basicWhite : AppColors.destructive}
-                      textColor={showSlide === "accept" ? AppColors.basicWhite : AppColors.destructive}
-                      borderColor={showSlide === "accept" ? AppColors.secondaryDarkGreen : AppColors.basicWhite}
+                      backgroundColor={showSlide === "accept" ? colors.navFill : colors.surfaceElevated}
+                      sliderButtonColor={showSlide === "accept" ? colors.navIconActive : colors.destructive}
+                      textColor={showSlide === "accept" ? colors.navIconActive : colors.destructive}
+                      borderColor={showSlide === "accept" ? colors.navFill : colors.surfaceElevated}
                       // Slot in as a same-size row replacement (no extra
                       // vertical margin, matching 16pt corner radius
                       // and 60pt height).
@@ -1683,7 +1685,7 @@ const RideDetailsScreen: React.FC = () => {
 
               if (req.request_status === "pending") {
                 return (
-                  <View key={req.id || idx} style={styles.pendingRequestCard}>
+                  <View key={req.id || idx} style={[styles.pendingRequestCard, { backgroundColor: colors.navFill }]}>
                     {/* Name takes the flex space; right cluster carries
                         the actions: View opens the profile sheet,
                         Reject/Accept drop the row into the slider
@@ -1760,7 +1762,7 @@ const RideDetailsScreen: React.FC = () => {
               return (
                 <View
                   key={req.id || idx}
-                  style={styles.confirmedPassengerCard}
+                  style={[styles.confirmedPassengerCard, { backgroundColor: colors.navFill }]}
                 >
                   <Text style={styles.passengerName} numberOfLines={1}>
                     {displayName}
@@ -1798,7 +1800,7 @@ const RideDetailsScreen: React.FC = () => {
           )}
         </ScrollView>
 
-        <View style={styles.bottomContainer}>
+        <View style={[styles.bottomContainer, { backgroundColor: colors.background }]}>
           {/* Primary chat affordance for the host. Hidden while the
               ride has no accepted passengers — the group chat would
               be a room of one and "Open trip chat" reads like a
@@ -1808,11 +1810,11 @@ const RideDetailsScreen: React.FC = () => {
             <TouchableOpacity
               onPress={openRideChat}
               activeOpacity={0.85}
-              style={styles.tripChatPill}
+              style={[styles.tripChatPill, { backgroundColor: colors.navFill }]}
               accessibilityLabel="Open trip chat"
             >
               <ChatBubbleGlyph />
-              <Text style={styles.tripChatPillText}>Open trip chat</Text>
+              <Text style={[styles.tripChatPillText, colors.mode === "dark" && { color: colors.textOnDark }]}>Open trip chat</Text>
             </TouchableOpacity>
           ) : null}
           {!rideOver ? (
@@ -1829,14 +1831,14 @@ const RideDetailsScreen: React.FC = () => {
               // the red typography + thumb carry the danger signal
               // on their own.
               sliderIcon={require("../assets/red-slider.png")}
-              backgroundColor={AppColors.basicWhite}
-              borderColor={AppColors.basicWhite}
-              sliderButtonColor={AppColors.destructive}
-              textColor={AppColors.destructive}
+              backgroundColor={colors.surfaceElevated}
+              borderColor={colors.surfaceElevated}
+              sliderButtonColor={colors.destructive}
+              textColor={colors.destructive}
             />
           ) : (
-            <View style={styles.rideOverBanner}>
-              <Text style={styles.rideOverText}>This ride is over</Text>
+            <View style={[styles.rideOverBanner, { backgroundColor: colors.navFill }]}>
+              <Text style={[styles.rideOverText, { color: colors.navIconInactive }]}>This ride is over</Text>
             </View>
           )}
         </View>
@@ -1846,12 +1848,12 @@ const RideDetailsScreen: React.FC = () => {
 
   // NON-HOST VIEW - Ride Details (similar to AvailableRideScreenSelected)
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.background }]}>
         <BrandInfo />
       </View>
 
-      <View style={styles.navigationRow}>
+      <View style={[styles.navigationRow, { backgroundColor: colors.background }]}>
         <View style={styles.navigationLeft}>
           {backToHome ? (
             <HomeBack style={styles.backButton} />
@@ -1864,7 +1866,7 @@ const RideDetailsScreen: React.FC = () => {
             </TouchableOpacity>
           )}
         </View>
-        <Text style={styles.headerTitle}>Booking Details</Text>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Booking Details</Text>
         {/* Share pill — visible to passengers too, not just hosts.
             Same sheet as the host-side button (QR + native share). */}
         <TouchableOpacity
@@ -1874,13 +1876,13 @@ const RideDetailsScreen: React.FC = () => {
             paddingHorizontal: 16,
             paddingVertical: 8,
             borderRadius: 999,
-            backgroundColor: AppColors.secondaryDarkGreen,
+            backgroundColor: colors.navFill,
           }}
           activeOpacity={0.85}
         >
           <Text
             style={{
-              color: AppColors.primaryLightGreen,
+              color: colors.mode === "dark" ? colors.textOnDark : AppColors.primaryLightGreen,
               fontFamily: "NunitoSans_800ExtraBold",
               fontSize: 13,
               letterSpacing: 0.3,
@@ -1914,7 +1916,7 @@ const RideDetailsScreen: React.FC = () => {
           <Text style={{
             fontSize: 26,
             fontFamily: "NunitoSans_800ExtraBold",
-            color: AppColors.secondaryDarkGreen,
+            color: colors.textPrimary,
             letterSpacing: -0.5,
             textAlign: "center",
             marginBottom: 10
@@ -1925,8 +1927,7 @@ const RideDetailsScreen: React.FC = () => {
             fontSize: 15,
             lineHeight: 22,
             fontFamily: "NunitoSans_400Regular",
-            color: AppColors.secondaryDarkGreen,
-            opacity: 0.7,
+            color: colors.textSecondary,
             textAlign: "center",
             marginBottom: 28,
             paddingHorizontal: 12,
@@ -1947,7 +1948,7 @@ const RideDetailsScreen: React.FC = () => {
               activeOpacity={0.88}
               style={{
                 alignSelf: "stretch",
-                backgroundColor: AppColors.secondaryDarkGreen,
+                backgroundColor: colors.navFill,
                 paddingVertical: 16,
                 borderRadius: 16,
                 alignItems: "center",
@@ -1981,7 +1982,7 @@ const RideDetailsScreen: React.FC = () => {
               }}
             >
               <Text style={{
-                color: AppColors.primaryLightGreen,
+                color: colors.mode === "dark" ? colors.textOnDark : AppColors.primaryLightGreen,
                 fontSize: 16,
                 fontFamily: "NunitoSans_800ExtraBold",
                 letterSpacing: 0.2,
@@ -1997,9 +1998,9 @@ const RideDetailsScreen: React.FC = () => {
                 flex: 1,
                 backgroundColor: userBookingStatus === 'pending'
                   ? "transparent"
-                  : AppColors.secondaryDarkGreen,
+                  : colors.navFill,
                 borderWidth: userBookingStatus === 'pending' ? 1.5 : 0,
-                borderColor: AppColors.secondaryDarkGreen,
+                borderColor: colors.textPrimary,
                 paddingVertical: 14,
                 borderRadius: 14,
                 alignItems: "center",
@@ -2013,8 +2014,8 @@ const RideDetailsScreen: React.FC = () => {
             >
               <Text style={{
                 color: userBookingStatus === 'pending'
-                  ? AppColors.secondaryDarkGreen
-                  : AppColors.primaryLightGreen,
+                  ? colors.textPrimary
+                  : (colors.mode === "dark" ? colors.textOnDark : AppColors.primaryLightGreen),
                 fontSize: 15,
                 fontFamily: "NunitoSans_800ExtraBold",
                 letterSpacing: 0.2,
@@ -2025,7 +2026,7 @@ const RideDetailsScreen: React.FC = () => {
             <TouchableOpacity
               style={{
                 flex: 1,
-                backgroundColor: "rgba(38,59,51,0.10)",
+                backgroundColor: colors.inkSoft,
                 paddingVertical: 14,
                 borderRadius: 14,
                 alignItems: "center",
@@ -2034,7 +2035,7 @@ const RideDetailsScreen: React.FC = () => {
               disabled={isActionLoading}
             >
               <Text style={{
-                color: AppColors.secondaryDarkGreen,
+                color: colors.textPrimary,
                 fontSize: 15,
                 fontFamily: "NunitoSans_700Bold",
                 letterSpacing: 0.2,
@@ -2062,8 +2063,12 @@ const RideDetailsScreen: React.FC = () => {
           )} */}
 
           <View style={styles.mainContent}>
-            <View style={styles.combinedContainer}>
-              <View style={styles.rideCard}>
+            <View style={[
+              styles.combinedContainer,
+              { backgroundColor: colors.navFill },
+              colors.mode === "dark" && { borderWidth: 1, borderColor: "rgba(237,236,231,0.08)" },
+            ]}>
+              <View style={[styles.rideCard, { backgroundColor: colors.navFill }]}>
                 <View style={styles.routeSection}>
                   <View style={styles.routeDetails}>
                     <View style={styles.locationContainer}>
@@ -2142,7 +2147,7 @@ const RideDetailsScreen: React.FC = () => {
             </View>
           </View>
 
-          <View style={styles.bottomActionsContainer}>
+          <View style={[styles.bottomActionsContainer, { backgroundColor: colors.background }]}>
             {!isRideOver(rideData.start_time) ? (
               <>
                 {/* Primary chat affordance. Gated on the server's
@@ -2155,11 +2160,11 @@ const RideDetailsScreen: React.FC = () => {
                   <TouchableOpacity
                     onPress={openRideChat}
                     activeOpacity={0.85}
-                    style={styles.tripChatPill}
+                    style={[styles.tripChatPill, { backgroundColor: colors.navFill }]}
                     accessibilityLabel="Open trip chat"
                   >
                     <ChatBubbleGlyph />
-                    <Text style={styles.tripChatPillText}>Open trip chat</Text>
+                    <Text style={[styles.tripChatPillText, colors.mode === "dark" && { color: colors.textOnDark }]}>Open trip chat</Text>
                   </TouchableOpacity>
                 ) : null}
                 {/* Slider is driven by the server's `viewer_actions`
@@ -2182,10 +2187,10 @@ const RideDetailsScreen: React.FC = () => {
                     }
                     disabled={isActionLoading}
                     sliderIcon={require("../assets/slide.png")}
-                    backgroundColor={AppColors.secondaryDarkGreen}
-                    borderColor={AppColors.secondaryDarkGreen}
-                    sliderButtonColor={AppColors.primaryLightGreen}
-                    textColor={AppColors.primaryLightGreen}
+                    backgroundColor={colors.navFill}
+                    borderColor={colors.navFill}
+                    sliderButtonColor={colors.primary}
+                    textColor={colors.navIconInactive}
                   />
                 ) : viewerActions.can_cancel_booking ? (
                   <SlideToCreate
@@ -2202,8 +2207,8 @@ const RideDetailsScreen: React.FC = () => {
 
               </>
             ) : (
-              <View style={styles.rideOverBanner}>
-                <Text style={styles.rideOverText}>This ride is over</Text>
+              <View style={[styles.rideOverBanner, { backgroundColor: colors.navFill }]}>
+                <Text style={[styles.rideOverText, { color: colors.navIconInactive }]}>This ride is over</Text>
               </View>
             )}
           </View>

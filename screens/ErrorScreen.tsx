@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { appHref } from "../navigation/routes";
 import { useTabletContentStyle } from "../utils/responsive";
 
@@ -18,30 +19,31 @@ const win = Dimensions.get("window");
 const ErrorScreen: React.FC = () => {
   const router = useRouter();
   const tabletContentStyle = useTabletContentStyle();
+  const colors = useThemeColors();
   const goBack = () => {
     if (router.canGoBack()) router.back();
     else router.replace(appHref("HomeScreen"));
   };
 
   return (
-    <SafeAreaView style={[styles.container, tabletContentStyle]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
       <View style={styles.heroPanel}>
         <Image
           style={styles.imageStyle}
           source={require("../assets/Traffic-Cone.png")}
         />
       </View>
-      <View style={styles.body}>
-        <Text style={styles.headerText}>Traffic's tangled.</Text>
-        <Text style={styles.subText}>
+      <View style={[styles.body, { backgroundColor: colors.navFill }]}>
+        <Text style={[styles.headerText, { color: colors.textOnDark }]}>Traffic's tangled.</Text>
+        <Text style={[styles.subText, { color: colors.navIconInactive }, colors.mode === "dark" && { opacity: 1 }]}>
           Something went sideways. Head back and give it another go.
         </Text>
         <TouchableOpacity
-          style={styles.cta}
+          style={[styles.cta, { backgroundColor: colors.primary }]}
           activeOpacity={0.85}
           onPress={goBack}
         >
-          <Text style={styles.ctaText}>Try again</Text>
+          <Text style={[styles.ctaText, { color: colors.textOnAccent }]}>Try again</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

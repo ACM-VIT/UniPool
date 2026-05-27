@@ -22,7 +22,8 @@ import DateTimePicker, {
 } from "@expo/ui/community/datetime-picker";
 import { format } from "date-fns";
 import AppColors from "../design_systems/colors";
-import { 
+import { useThemeColors } from "../contexts/ThemeContext";
+import {
   searchLocationsWithFallback,
   getInstantLocationResults,
   getPopularLocations, 
@@ -154,6 +155,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   initialDate,
   manualSubmit = false,
 }) => {
+  const colors = useThemeColors();
   const { apiUtil } = require('../utils/ApiUtil').useApi();
   const [defaultStartAddress, setDefaultStartAddress] = useState<string>("");
   
@@ -497,44 +499,100 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       case "loading":
         return (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={AppColors.basicWhite} accessibilityLabel="Loading" />
-            <Text style={styles.loadingText}>Loading nearby places...</Text>
+            <ActivityIndicator size="small" color={colors.textPrimary} accessibilityLabel="Loading" />
+            <Text style={[styles.loadingText, { color: colors.textPrimary }]}>
+              Loading nearby places...
+            </Text>
           </View>
         );
       case "section":
-        return <Text style={styles.sectionHeader}>{item.title}</Text>;
+        return (
+          <Text
+            style={[
+              styles.sectionHeader,
+              colors.mode === "dark" && { color: colors.textSecondary },
+            ]}
+          >
+            {item.title}
+          </Text>
+        );
       case "popular":
         return (
           <TouchableOpacity
-            style={styles.locationItem}
+            // Light mode: transparent row on the forest sheet, with
+            // the historical white pin glyph + white text — exactly
+            // how the picker shipped before the dark-mode work.
+            // Dark mode: surface chip with no pin glyph (the asset
+            // renders as a thin vertical sliver that reads as noise
+            // when there's no lime accent bar next to it).
+            style={[
+              styles.locationItem,
+              colors.mode === "dark" && {
+                backgroundColor: colors.surface,
+                borderBottomColor: colors.inkSubtle,
+                borderLeftWidth: 0,
+              },
+            ]}
             onPress={() =>
               handleLocationSelect(item.label, showFromDropdown, item.location)
             }
           >
-            <Image
-              source={require("../assets/location-pin.png")}
-              style={styles.locationIcon}
-            />
-            <Text style={styles.locationText}>{item.label}</Text>
+            {colors.mode === "dark" ? null : (
+              <Image
+                source={require("../assets/location-pin.png")}
+                style={styles.locationIcon}
+              />
+            )}
+            <Text
+              style={[
+                styles.locationText,
+                colors.mode === "dark" && { color: colors.textPrimary },
+              ]}
+            >
+              {item.label}
+            </Text>
           </TouchableOpacity>
         );
       case "search":
         return (
           <TouchableOpacity
-            style={styles.locationItem}
+            // Light: historical transparent row on forest sheet with
+            // white text. Dark: cream tile on the dark modal.
+            style={[
+              styles.locationItem,
+              colors.mode === "dark" && {
+                backgroundColor: colors.surface,
+                borderBottomColor: colors.inkSubtle,
+                borderLeftWidth: 0,
+              },
+            ]}
             onPress={() =>
               handleLocationSelect(formatLocationName(item.result), showFromDropdown, item.result)
             }
           >
-            <Image
-              source={require("../assets/location-pin.png")}
-              style={styles.locationIcon}
-            />
+            {colors.mode === "dark" ? null : (
+              <Image
+                source={require("../assets/location-pin.png")}
+                style={styles.locationIcon}
+              />
+            )}
             <View style={styles.searchResultContent}>
-              <Text style={styles.locationText} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.locationText,
+                  colors.mode === "dark" && { color: colors.textPrimary },
+                ]}
+                numberOfLines={1}
+              >
                 {item.result.name || item.result.display_name.split(',')[0]}
               </Text>
-              <Text style={styles.locationSubtext} numberOfLines={2}>
+              <Text
+                style={[
+                  styles.locationSubtext,
+                  colors.mode === "dark" && { color: colors.textTertiary },
+                ]}
+                numberOfLines={2}
+              >
                 {item.result.display_name}
               </Text>
             </View>
@@ -543,10 +601,20 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       case "noResults":
         return (
           <View style={styles.noResultsContainer}>
-            <Text style={styles.noResultsText}>
+            <Text
+              style={[
+                styles.noResultsText,
+                colors.mode === "dark" && { color: colors.textSecondary },
+              ]}
+            >
               No locations found for "{item.query}"
             </Text>
-            <Text style={styles.noResultsSubtext}>
+            <Text
+              style={[
+                styles.noResultsSubtext,
+                colors.mode === "dark" && { color: colors.textTertiary },
+              ]}
+            >
               Try a different search term or check your spelling
             </Text>
           </View>
@@ -554,7 +622,12 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       case "hint":
         return (
           <View style={styles.hintContainer}>
-            <Text style={styles.hintText}>
+            <Text
+              style={[
+                styles.hintText,
+                colors.mode === "dark" && { color: colors.textSecondary },
+              ]}
+            >
               Type more characters to search for locations...
             </Text>
           </View>
@@ -562,7 +635,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       default:
         return null;
     }
-  }, [handleLocationSelect, showFromDropdown]);
+  }, [handleLocationSelect, showFromDropdown, colors]);
 
   const locationRowKeyExtractor = useCallback((item: LocationPickerRow) => item.id, []);
 
@@ -922,22 +995,47 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     return 30;
   };
 
+  // All theme overrides below are gated on `isDark`. Light mode
+  // reads the historical lime/forest pairing verbatim so the picker
+  // looks bit-for-bit identical to what shipped before dark mode.
+  // Only the dark branch swaps to neutral cream tones.
+  const isDark = colors.mode === "dark";
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.navFill }]}>
       <View style={styles.locationsWrapper}>
-        <View style={styles.routeConnector} pointerEvents="none" />
+        <View
+          style={[
+            styles.routeConnector,
+            // Dark mode: neutral cream connector. Light mode: keep
+            // the historical half-opacity lime hairline from the
+            // module-scope style.
+            isDark && { backgroundColor: colors.textOnDark, opacity: 0.35 },
+          ]}
+          pointerEvents="none"
+        />
         <TouchableOpacity
-          style={styles.inputContainer}
+          // Drop the bright white hairline below the From row IN DARK
+          // MODE only. Light mode keeps the historical 8%-white
+          // bottom border baked into `inputContainer`.
+          style={[styles.inputContainer, isDark && { borderBottomWidth: 0 }]}
           onPress={() => handleLocationSelectorOpen(true)}
         >
           <View style={styles.inputContent}>
-            <View style={styles.routeDotOutline} />
-            {/* Muted lime placeholder when empty (matches `label`),
-                bright lime 700Bold when filled (matches the date
-                label). No clear-X — the whole row is tappable, so a
-                second clear control was redundant chrome. */}
+            <View
+              style={[
+                styles.routeDotOutline,
+                // Dark mode: cream outline; light mode: historical lime.
+                isDark && { borderColor: colors.textOnDark },
+              ]}
+            />
             <Text
-              style={fromLocation ? styles.selectedText : styles.label}
+              style={[
+                fromLocation ? styles.selectedText : styles.label,
+                // Dark mode: filled = cream / empty = same colour at
+                // 0.55 opacity. Light mode keeps the historical lime
+                // label / lime selectedText untouched.
+                isDark && { color: colors.textOnDark, opacity: fromLocation ? 1 : 0.55 },
+              ]}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
@@ -946,33 +1044,52 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.switchIconContainer}
+        <TouchableOpacity
+          // Swap button: dark mode drops the lime fill and uses a
+          // hairline-outlined pill so the affordance reads as a
+          // tertiary control next to the picker's neutral palette.
+          // Light mode keeps the historical lime-filled circle.
+          style={[
+            styles.switchIconContainer,
+            isDark
+              ? {
+                  backgroundColor: "transparent",
+                  borderWidth: 1,
+                  borderColor: colors.textOnDark,
+                  opacity: 0.65,
+                }
+              : { backgroundColor: colors.primary },
+          ]}
           onPress={handleLocationSwap}
         >
           <Image
             source={require("../assets/switch-1.png")}
-            style={styles.switchIcon}
+            style={[
+              styles.switchIcon,
+              { tintColor: isDark ? colors.textOnDark : colors.textOnAccent },
+            ]}
           />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.inputContainer, { borderBottomWidth: 0 }]}
+          style={[styles.inputContainer, isDark && { borderBottomWidth: 0 }]}
           onPress={() => handleLocationSelectorOpen(false)}
         >
           <View style={styles.inputContent}>
-            {/* Navigation glyph for the destination — same iconography
-                RouteStack uses on every ride card / trip card / chat
-                trip header. The filled lime dot we used here before
-                was the only "to" indicator in the app that didn't
-                match. */}
             <Image
               source={require("../assets/navigation-2.png")}
-              style={styles.routeArrow}
+              // Dark mode: cream tint. Light mode: historical lime.
+              style={[
+                styles.routeArrow,
+                { tintColor: isDark ? colors.textOnDark : colors.primary },
+              ]}
               resizeMode="contain"
             />
             <Text
-              style={toLocation ? styles.selectedText : styles.label}
+              style={[
+                toLocation ? styles.selectedText : styles.label,
+                isDark && { color: colors.textOnDark, opacity: toLocation ? 1 : 0.55 },
+              ]}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
@@ -987,16 +1104,49 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           <View style={styles.inputContent}>
             <Image
               source={require("../assets/calendar-icon.png")}
-              style={styles.icon}
+              // Dark mode: cream calendar icon to match the route
+              // stack above. Light mode: historical lime tint.
+              style={[
+                styles.icon,
+                { tintColor: isDark ? colors.textOnDark : colors.primary },
+              ]}
             />
             <View style={styles.dateTextContainer}>
               {selectedDate ? (
                 <>
-                  <Text style={styles.selectedDateLabel}>{format(selectedDate, "EEE d MMM yyyy")}</Text>
-                  <Text style={styles.selectedDateText}>{format(selectedDate, "h:mm a")}</Text>
+                  <Text
+                    style={[
+                      styles.selectedDateLabel,
+                      // Dark: cream label; light: historical lime.
+                      { color: isDark ? colors.textOnDark : colors.primary },
+                    ]}
+                  >
+                    {format(selectedDate, "EEE d MMM yyyy")}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.selectedDateText,
+                      // Dark: cream at 0.65; light: keep historical
+                      // off-white text (was textOnDark = #FFFFFF).
+                      isDark
+                        ? { color: colors.textOnDark, opacity: 0.65 }
+                        : { color: colors.textOnDark },
+                    ]}
+                  >
+                    {format(selectedDate, "h:mm a")}
+                  </Text>
                 </>
               ) : (
-                <Text style={styles.label}>When</Text>
+                <Text
+                  style={[
+                    styles.label,
+                    isDark
+                      ? { color: colors.textOnDark, opacity: 0.55 }
+                      : { color: colors.primary },
+                  ]}
+                >
+                  When
+                </Text>
               )}
             </View>
           </View>
@@ -1026,11 +1176,15 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           }}
           style={[
             styles.manualSubmitBtn,
+            // surface (cream / charcoal) reads as a quiet card against
+            // either canvas while the inkSubtle border keeps the chip
+            // distinct from neighbouring surfaces.
+            { backgroundColor: colors.surface, borderColor: colors.inkSubtle },
             (!fromLocation || !toLocation) && styles.manualSubmitBtnDisabled,
           ]}
           accessibilityLabel="Search rides"
         >
-          <Text style={styles.manualSubmitBtnText}>
+          <Text style={[styles.manualSubmitBtnText, { color: colors.textPrimary }]}>
             {!fromLocation || !toLocation
               ? "Pick a from and to"
               : "Search rides"}
@@ -1043,28 +1197,39 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         transparent
         animationType="slide"
       >
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           style={styles.modalContainer}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
+          <View style={[styles.modalContent, colors.mode === "dark" && { backgroundColor: colors.surfaceElevated }]}>
+            <Text
+              style={[
+                styles.modalTitle,
+                // Dark only — light keeps the historical lime title
+                // (= primaryLightGreen) painted on the forest sheet
+                // from the module-scope style.
+                colors.mode === "dark" && { color: colors.textPrimary },
+              ]}
+            >
               Select {showFromDropdown ? "From" : "To"} Location
             </Text>
-            
-            <View style={styles.searchContainer}>
+
+            <View style={[styles.searchContainer, colors.mode === "dark" && { backgroundColor: colors.surfaceInset, borderColor: colors.inkLine }]}>
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, colors.mode === "dark" && { color: colors.textPrimary, backgroundColor: colors.surfaceInset }]}
                 placeholder="Search for a location..."
-                placeholderTextColor={AppColors.basicWhite + "80"}
+                // Light keeps the historical white-at-low-opacity
+                // placeholder on the black search bar; dark uses
+                // tertiary cream.
+                placeholderTextColor={colors.mode === "dark" ? colors.textTertiary : "rgba(255,255,255,0.45)"}
                 value={searchQuery}
                 onChangeText={handleSearchInput}
                 autoFocus={true}
               />
               {isSearching && (
-                <ActivityIndicator 
-                  size="small" 
-                  color={AppColors.basicWhite} 
+                <ActivityIndicator
+                  size="small"
+                  color={colors.textPrimary}
                   style={styles.searchLoader}
                 accessibilityLabel="Loading"
                 />
@@ -1088,7 +1253,14 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             </View>
 
             <TouchableOpacity
-              style={styles.closeButton}
+              style={[
+                styles.closeButton,
+                // Dark mode: surfaceInset + line border so the close
+                // pill sits as a calm tertiary chip on the dark
+                // modal. Light mode keeps the historical forest
+                // pill from the module-scope style.
+                colors.mode === "dark" && { backgroundColor: colors.surfaceInset, borderColor: colors.inkLine },
+              ]}
               onPress={() => {
                 setShowFromDropdown(false);
                 setShowToDropdown(false);
@@ -1104,7 +1276,16 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                 searchRequestRef.current += 1;
               }}
             >
-              <Text style={styles.closeButtonText}>Close</Text>
+              <Text
+                style={[
+                  styles.closeButtonText,
+                  // Dark only — light keeps the historical lime
+                  // label from the module-scope style.
+                  colors.mode === "dark" && { color: colors.textPrimary },
+                ]}
+              >
+                Close
+              </Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -1118,7 +1299,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           display="default"
           minimumDate={pickerMode === "date" ? new Date() : undefined}
           onChange={handleAndroidPickerChange}
-          accentColor={AppColors.primaryLightGreen}
+          accentColor={colors.primary}
           positiveButton={{ label: "Done" }}
           negativeButton={{ label: "Cancel" }}
         />
@@ -1131,17 +1312,17 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           animationType="slide"
         >
           <View style={styles.dateTimeModalContainer}>
-            <View style={styles.dateTimeModalContent}>
-              <View style={styles.dateTimeHeader}>
+            <View style={[styles.dateTimeModalContent, { backgroundColor: colors.navFill }]}>
+              <View style={[styles.dateTimeHeader, { borderBottomColor: colors.inkSoft }]}>
                 <TouchableOpacity onPress={handleDateTimeCancel}>
-                  <Text style={styles.dateTimeButtonText}>Cancel</Text>
+                  <Text style={[styles.dateTimeButtonText, { color: colors.primary }]}>Cancel</Text>
                 </TouchableOpacity>
-                <Text style={styles.dateTimeTitle}>Select Date & Time</Text>
+                <Text style={[styles.dateTimeTitle, { color: colors.primary }]}>Select Date & Time</Text>
                 <TouchableOpacity onPress={handleDateTimeConfirm}>
-                  <Text style={styles.dateTimeButtonText}>Done</Text>
+                  <Text style={[styles.dateTimeButtonText, { color: colors.primary }]}>Done</Text>
                 </TouchableOpacity>
               </View>
-              
+
               <View style={styles.dateTimePickerContainer}>
                 <DateTimePicker
                   value={tempDate || selectedDate || getInitialDate()}
@@ -1153,18 +1334,18 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                     }
                   }}
                   minimumDate={new Date()}
-                  // The modal sits on the forest dark surface, so
-                  // `themeVariant="dark"` flips the iOS wheel into
-                  // the matching dark appearance.
+                  // themeVariant mirrors the nav-fill surface: in
+                  // light that is forest (dark), in dark it is raised
+                  // charcoal (also dark). Always "dark" here.
                   themeVariant="dark"
-                  accentColor={AppColors.primaryLightGreen}
+                  accentColor={colors.primary}
                   style={styles.dateTimePicker}
                 />
               </View>
-              
-              <View style={styles.quickSelectContainer}>
+
+              <View style={[styles.quickSelectContainer, { borderTopColor: colors.inkSoft }]}>
                 <TouchableOpacity
-                  style={styles.quickSelectButton}
+                  style={[styles.quickSelectButton, { borderColor: colors.primary }]}
                   onPress={() => {
                     const today = new Date();
                     today.setHours(today.getHours() + 1);
@@ -1173,10 +1354,10 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                     setTempDate(today);
                   }}
                 >
-                  <Text style={styles.quickSelectText}>Today</Text>
+                  <Text style={[styles.quickSelectText, { color: colors.primary }]}>Today</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.quickSelectButton}
+                  style={[styles.quickSelectButton, { borderColor: colors.primary }]}
                   onPress={() => {
                     const tomorrow = new Date();
                     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -1185,7 +1366,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                     setTempDate(tomorrow);
                   }}
                 >
-                  <Text style={styles.quickSelectText}>Tomorrow</Text>
+                  <Text style={[styles.quickSelectText, { color: colors.primary }]}>Tomorrow</Text>
                 </TouchableOpacity>
               </View>
             </View>

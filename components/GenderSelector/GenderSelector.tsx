@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { GenderSelectorProps } from "./GenderSelector.types";
 import styles from "./GenderSelector.styles";
+import { useThemeColors } from "../../contexts/ThemeContext";
 
 const options = [
   ["Male", "Female"],
@@ -9,6 +10,7 @@ const options = [
 
 
 const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange }) => {
+  const colors = useThemeColors();
   return (
     <View style={styles.container}>
       {options.map((row, rowIndex) => (
@@ -18,10 +20,20 @@ const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange }) => {
             return (
               <TouchableOpacity
                 key={index}
-                style={[styles.button, isSelected && styles.selectedButton]}
+                style={[
+                  styles.button,
+                  { backgroundColor: colors.navFill },
+                  isSelected && { backgroundColor: colors.surfaceElevated },
+                ]}
                 onPress={() => onChange(option)}
               >
-                <Text style={[styles.text, isSelected && styles.selectedText]}>
+                <Text style={[
+                  styles.text,
+                  { color: colors.navIconInactive },
+                  isSelected && (colors.mode === "dark"
+                    ? { color: colors.textPrimary }
+                    : styles.selectedText),
+                ]}>
                   {option}
                 </Text>
               </TouchableOpacity>

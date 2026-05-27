@@ -4,11 +4,13 @@ import { useRouter } from "expo-router";
 import styles from "./RideCreatedScreen.styles";
 import { appHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import { useTabletContentStyle } from "../../utils/responsive";
+import { useThemeColors } from "../../contexts/ThemeContext";
 
 const RideCreatedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }> = (props) => {
   const router = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const params = useDecodedLocalSearchParams<{ rideId?: string }>();
+  const colors = useThemeColors();
 
   useEffect(() => {
     if (props.setNavBarVariant) {
@@ -40,7 +42,7 @@ const RideCreatedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }>
   }, [props.setNavBarVariant, router, params?.rideId]);
 
   return (
-    <View style={[styles.container, tabletContentStyle]}>
+    <View style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
       <Image source={require("../../assets/create.png")} style={styles.create} resizeMode="contain" />
     </View>
   );

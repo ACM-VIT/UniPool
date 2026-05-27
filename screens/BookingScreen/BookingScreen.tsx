@@ -21,6 +21,7 @@ import RideCard from "../../components/RideCard";
 import EmptyState from "../../components/EmptyState";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuthGate } from "../../contexts/AuthGate";
+import { useThemeColors } from "../../contexts/ThemeContext";
 import { appHref } from "../../navigation/routes";
 
 export interface RideData {
@@ -118,6 +119,7 @@ const BookingScreen: React.FC = () => {
   const router = useRouter();
   const { requireAuth } = useAuthGate();
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
   // iPad-only: phone-shape centred column so the empty state and
   // tab pills sit in a digestible width instead of floating in
   // 1032pt of lime canvas. Hook returns null on phones — mobile
@@ -361,8 +363,11 @@ const BookingScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar backgroundColor={AppColors.primaryLightGreen} barStyle="dark-content" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar
+        backgroundColor={colors.statusBarBackground}
+        barStyle={colors.statusBarStyle}
+      />
 
       {/* Plane rendered first so it sits *behind* everything — list
           cards float over it. Wrapper's bottom edge = navbar's top
@@ -398,7 +403,7 @@ const BookingScreen: React.FC = () => {
       {/* Header — title only. Mobbin pattern across Uber, Bolt,
           inDrive: bold title, no help copy, tabs do the explaining. */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 4 }]}>
-        <Text style={styles.headerTitle}>Your trips</Text>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Your trips</Text>
       </View>
 
       {/* Tab pills — three buckets with counts. */}
@@ -409,7 +414,16 @@ const BookingScreen: React.FC = () => {
           return (
             <TouchableOpacity
               key={key}
-              style={[styles.tabBtn, active && styles.tabBtnActive]}
+              style={[
+                styles.tabBtn,
+                // Inactive pill: faint hairline tint. Light mode
+                // resolves to the historical rgba(38,59,51,0.08)
+                // (forest at 8% on the lime canvas — barely there);
+                // dark mode resolves to the white-ish inkSubtle for
+                // the same "barely there" feel against charcoal.
+                !active && { backgroundColor: colors.inkSubtle },
+                active && styles.tabBtnActive,
+              ]}
               activeOpacity={0.8}
               onPress={() => {
                 // Mark the user as having explicitly chosen a tab so
@@ -418,7 +432,15 @@ const BookingScreen: React.FC = () => {
                 setTab(key);
               }}
             >
-              <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
+              <Text
+                style={[
+                  styles.tabText,
+                  !active && { color: colors.textPrimary },
+                  active && styles.tabTextActive,
+                ]}
+              >
+                {label}
+              </Text>
               {counts[key] > 0 ? (
                 <View style={[styles.tabBadge, active && styles.tabBadgeActive]}>
                   <Text style={[styles.tabBadgeText, active && styles.tabBadgeTextActive]}>

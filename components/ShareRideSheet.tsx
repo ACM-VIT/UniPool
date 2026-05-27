@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import RouteStack from "./RouteStack";
 import { displayRideLocation } from "../utils/LocationService";
 
@@ -73,20 +74,21 @@ const formatShareTime = (iso: string): string => {
  * perforation read even harder — they're absolutely positioned
  * lime circles that bleed into the cream card edge.
  */
-const Perforation: React.FC = () => {
+const Perforation: React.FC<{ sheetBackground: string }> = ({ sheetBackground }) => {
   const dashes = Array.from({ length: 18 }, (_, i) => i);
   return (
     <View style={styles.perfRow}>
-      {/* Left scoop — a small lime circle clipped half-off the
+      {/* Left scoop — a small circle clipped half-off the
           card's left edge, giving the eye a real "stub torn off
-          here" cue. */}
-      <View style={styles.scoopLeft} />
+          here" cue. Matches the sheet background so it reads as a
+          real notch cut out of the card. */}
+      <View style={[styles.scoopLeft, { backgroundColor: sheetBackground }]} />
       <View style={styles.dashesWrap}>
         {dashes.map((i) => (
           <View key={i} style={styles.dash} />
         ))}
       </View>
-      <View style={styles.scoopRight} />
+      <View style={[styles.scoopRight, { backgroundColor: sheetBackground }]} />
     </View>
   );
 };
@@ -112,6 +114,7 @@ const ShareRideSheet: React.FC<Props> = ({
   endLocation,
   startTime,
 }) => {
+  const colors = useThemeColors();
   const deeplink = `${SHARE_HOST}/ride/${rideId}`;
   const dateLabel = useMemo(() => formatShareDate(startTime), [startTime]);
   const timeLabel = useMemo(() => formatShareTime(startTime), [startTime]);
@@ -145,32 +148,36 @@ const ShareRideSheet: React.FC<Props> = ({
       onRequestClose={onClose}
     >
       <Pressable style={styles.scrim} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
-          <View style={styles.grip} />
+        <Pressable style={[styles.sheet, colors.mode === "dark" && { backgroundColor: colors.surfaceElevated }]} onPress={() => {}}>
+          {/* Grip handle: light = rgba(38,59,51,0.30) from module styles,
+              dark = colors.inkLine (rgba warm-white 18%). Override here
+              because the module-scope `grip` style hardcodes a forest
+              rgba that reads as near-invisible on dark canvas. */}
+          <View style={[styles.grip, colors.mode === "dark" && { backgroundColor: colors.inkLine }]} />
 
-          <Text style={styles.title}>Share this ride</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Share this ride</Text>
+          <Text style={[styles.subtitle, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
             Scan the code or send the link to a classmate.
           </Text>
 
-          {/* Boarding-pass card — single cream surface holds the QR
-              on top + the perforation + the route stub at the
-              bottom. One object instead of three. */}
-          <View style={styles.ticketCard}>
+          {/* Boarding-pass card — single surface holds the QR on top +
+              the perforation + the route stub at the bottom. */}
+          <View style={[styles.ticketCard, { backgroundColor: colors.surface }]}>
             <View style={styles.qrZone}>
               <QRCode
                 value={deeplink}
                 size={188}
-                color={AppColors.secondaryDarkGreen}
-                backgroundColor={AppColors.cardSurface}
+                color={colors.textPrimary}
+                backgroundColor={colors.surface}
               />
               {/* Small wordmark below the QR — brands the ticket
-                  without needing a logo asset, and keeps the
-                  cream zone feeling intentional instead of empty. */}
-              <Text style={styles.qrBrand}>UniPool</Text>
+                  without needing a logo asset. */}
+              <Text style={[styles.qrBrand, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>UniPool</Text>
             </View>
 
-            <Perforation />
+            {/* Scoop background must match the sheet canvas so they read
+                as real notches cut out of the card. */}
+            <Perforation sheetBackground={colors.mode === "dark" ? colors.surfaceElevated : AppColors.primaryLightGreen} />
 
             <View style={styles.stubZone}>
               {/* Canonical RouteStack — pin → dashed → arrow. */}
@@ -179,12 +186,12 @@ const ShareRideSheet: React.FC<Props> = ({
                 start={startLocation}
                 end={endLocation}
                 numberOfLines={1}
-                textStyle={styles.routePoint}
+                textStyle={[styles.routePoint, { color: colors.textPrimary }]}
               />
 
               {/* When line — sits below the route as a quieter caption. */}
               <View style={styles.whenRow}>
-                <Text style={styles.whenText}>
+                <Text style={[styles.whenText, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
                   {dateLabel}
                   {timeLabel ? ` · ${timeLabel}` : ""}
                 </Text>
@@ -193,11 +200,11 @@ const ShareRideSheet: React.FC<Props> = ({
           </View>
 
           <TouchableOpacity
-            style={styles.primaryBtn}
+            style={[styles.primaryBtn, { backgroundColor: colors.navFill }]}
             activeOpacity={0.85}
             onPress={handleNativeShare}
           >
-            <Text style={styles.primaryBtnText}>Share link</Text>
+            <Text style={[styles.primaryBtnText, colors.mode === "dark" && { color: colors.navIconActive }]}>Share link</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -205,7 +212,7 @@ const ShareRideSheet: React.FC<Props> = ({
             activeOpacity={0.7}
             onPress={onClose}
           >
-            <Text style={styles.secondaryBtnText}>Done</Text>
+            <Text style={[styles.secondaryBtnText, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Done</Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>

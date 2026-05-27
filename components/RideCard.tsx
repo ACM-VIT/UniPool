@@ -19,6 +19,7 @@ const sofaIcon = require("../assets/sofa.png");
 // so the visual vocabulary stays consistent across the booking flow.
 const calendarIcon = require("../assets/calendar.png");
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import ShareRideSheet from "./ShareRideSheet";
 import RouteStack from "./RouteStack";
 
@@ -223,6 +224,7 @@ const RideCard: React.FC<RideCardProps> = ({
   shareable = false,
   startTimeIso,
 }) => {
+  const colors = useThemeColors();
   const handleSelect = () => {
     onSelect(id);
   };
@@ -246,13 +248,31 @@ const RideCard: React.FC<RideCardProps> = ({
     return require("../assets/UFO.png");
   };
 
-  // Background priority: selected (forest) > same-gender female (blush)
-  // > pending (grey, applied via cardPending below) > default (white).
+  // Background priority: selected (theme-defined highlight) >
+  // same-gender female (blush) > pending (grey, via cardPending
+  // below) > default (themed surface — cream in light, raised
+  // charcoal in dark). `cardSelected` resolves to the historical
+  // #1e4620 forest in light (unchanged from before the theme
+  // refactor) and to the lime accent in dark (where the lime IS
+  // the brand splash). `cardSelectedText` follows in lockstep.
+  // In light mode the unselected card is white (#ffffff per the
+  // historical unselectedCard style). `colors.surface` is cream
+  // (#FFFDF4) which differs — use surface only in dark mode.
   const baseBackground = isSelected
-    ? AppColors.secondaryDarkGreen
+    ? colors.cardSelected
     : isSameGenderFemale
     ? "#FCE4EC"
-    : AppColors.basicWhite;
+    : (colors.mode === "dark" ? colors.surface : "#ffffff");
+
+  const contentColor = isSelected ? colors.cardSelectedText : colors.textPrimary;
+
+  // Dark-mode selected cards get a hairline cream border for
+  // definition — without it the raised-charcoal fill blends into the
+  // near-black canvas and the card barely reads as elevated. Light
+  // mode keeps the borderless forest tile as historically.
+  const darkSelectedBorder = colors.mode === "dark" && isSelected
+    ? { borderWidth: 1, borderColor: "rgba(237,236,231,0.08)" }
+    : null;
 
   return (
     <TouchableOpacity
@@ -263,6 +283,7 @@ const RideCard: React.FC<RideCardProps> = ({
         // Pending booking: dim the whole card so it visually
         // recedes vs. confirmed trips, but keep it tappable.
         isPending && styles.cardPending,
+        darkSelectedBorder,
       ]}
       onPress={handleSelect}
       onLongPress={handleLongPress}
@@ -300,14 +321,20 @@ const RideCard: React.FC<RideCardProps> = ({
               style={[
                 styles.timeIcon,
                 {
-                  tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
+                  tintColor: contentColor,
                   width: getIconSize(14, 16, 16),
                   height: getIconSize(14, 16, 16),
                 },
               ]}
               resizeMode="contain"
             />
-            <Text style={[styles.detailText, isSelected ? styles.selectedDetailText : styles.unselectedDetailText]}>
+            <Text
+              style={[
+                styles.detailText,
+                isSelected ? styles.selectedDetailText : styles.unselectedDetailText,
+                { color: contentColor },
+              ]}
+            >
               {formatTime(time)}
             </Text>
           </View>
@@ -317,14 +344,20 @@ const RideCard: React.FC<RideCardProps> = ({
               style={[
                 styles.priceIcon,
                 {
-                  tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
+                  tintColor: contentColor,
                   width: getIconSize(14, 16, 16),
                   height: getIconSize(14, 16, 16),
                 },
               ]}
               resizeMode="contain"
             />
-            <Text style={[styles.detailText, isSelected ? styles.selectedDetailText : styles.unselectedDetailText]}>
+            <Text
+              style={[
+                styles.detailText,
+                isSelected ? styles.selectedDetailText : styles.unselectedDetailText,
+                { color: contentColor },
+              ]}
+            >
               {price} pp
             </Text>
           </View>
@@ -345,16 +378,20 @@ const RideCard: React.FC<RideCardProps> = ({
                 style={[
                   styles.smallIcon,
                   {
-                    tintColor: isSelected
-                      ? AppColors.primaryLightGreen
-                      : AppColors.secondaryDarkGreen,
+                    tintColor: contentColor,
                     width: getIconSize(14, 16, 16),
                     height: getIconSize(14, 16, 16),
                   },
                 ]}
                 resizeMode="contain"
               />
-              <Text style={[styles.seatsText, isSelected ? styles.selectedText : styles.unselectedText]}>
+              <Text
+                style={[
+                  styles.seatsText,
+                  isSelected ? styles.selectedText : styles.unselectedText,
+                  { color: contentColor },
+                ]}
+              >
                 {date}
               </Text>
             </>
@@ -367,14 +404,20 @@ const RideCard: React.FC<RideCardProps> = ({
             style={[
               styles.smallIcon,
               {
-                tintColor: isSelected ? AppColors.primaryLightGreen : AppColors.secondaryDarkGreen,
+                tintColor: contentColor,
                 width: getIconSize(16, 18, 18),
                 height: getIconSize(16, 18, 18),
               },
             ]}
             resizeMode="contain"
           />
-          <Text style={[styles.seatsText, isSelected ? styles.selectedText : styles.unselectedText]}>
+          <Text
+            style={[
+              styles.seatsText,
+              isSelected ? styles.selectedText : styles.unselectedText,
+              { color: contentColor },
+            ]}
+          >
             {seatsAvailable} seat{parseInt(seatsAvailable.split("/")[0]) !== 1 ? "s" : ""} available
           </Text>
         </View>

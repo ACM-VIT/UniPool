@@ -9,6 +9,7 @@ import {
   Layer as MapLibreLayer,
 } from "@maplibre/maplibre-react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 // `TripPreviewMap` — modular, non-interactive map that shows the
 // route between two coordinates (A→B). Lifted out of HomeScreen's
@@ -39,9 +40,11 @@ type Props = {
 };
 
 // Same tile stack as HomeScreen — OpenFreeMap's donation-funded
-// liberty style. Single source of truth for the brand's map look:
-// when we switch tile providers, we change it in one place.
-const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+// liberty (light) and dark styles. The component picks one based
+// on the active theme so the trip-preview map matches the
+// surrounding canvas in both modes.
+const MAP_STYLE_URL_LIGHT = "https://tiles.openfreemap.org/styles/liberty";
+const MAP_STYLE_URL_DARK = "https://tiles.openfreemap.org/styles/dark";
 const MIN_LINE_DELTA = 0.000001;
 
 const isValidCoord = (coord: Coord) =>
@@ -79,6 +82,7 @@ const buildLineString = (
 };
 
 const TripPreviewMap: React.FC<Props> = ({ start, end, routePoints, style }) => {
+  const themeColors = useThemeColors();
   // Frame the route via `bounds` instead of a single center+zoom so
   // MapLibre handles aspect-ratio padding for us. The earlier
   // center+zoom impl computed zoom off latitudinal span only, which
@@ -137,7 +141,7 @@ const TripPreviewMap: React.FC<Props> = ({ start, end, routePoints, style }) => 
     <View style={[styles.mapWrap, style]} pointerEvents="none">
       <MapLibreMap
         style={styles.map}
-        mapStyle={MAP_STYLE_URL}
+        mapStyle={themeColors.mode === "dark" ? MAP_STYLE_URL_DARK : MAP_STYLE_URL_LIGHT}
         // MapLibre ornaments off — same posture as HomeScreen. The
         // surrounding card carries its own context (start / end
         // labels, time, fare), so the map doesn't need a compass,

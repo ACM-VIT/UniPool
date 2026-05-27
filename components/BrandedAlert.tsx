@@ -10,6 +10,7 @@ import {
   Platform,
 } from "react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { haptic } from "./PressableScale";
 
 /**
@@ -110,6 +111,12 @@ export default BrandedAlert;
  * calls and renders the modal.
  */
 export const BrandedAlertHost: React.FC = () => {
+  // BrandedAlertHost is mounted inside <AppShell />, which sits below
+  // <ThemeProvider /> in `app/_layout.tsx`. That means the static
+  // `BrandedAlert.show()` callsites paint the modal in whichever
+  // palette is currently active, with no need to thread theme through
+  // the dispatcher.
+  const colors = useThemeColors();
   const [visible, setVisible] = useState(false);
   const [opts, setOpts] = useState<AlertOptions | null>(null);
   const scale = useRef(new Animated.Value(0.9)).current;
@@ -201,11 +208,22 @@ export const BrandedAlertHost: React.FC = () => {
         <Animated.View
           style={[
             styles.card,
+            // In dark mode paint to `surfaceElevated` (raised charcoal)
+            // so the alert floats above the deep canvas. In light mode the
+            // module-scope `card.backgroundColor` (lime) already matches
+            // the historical value — no override needed.
+            colors.mode === "dark" && { backgroundColor: colors.surfaceElevated },
             { opacity, transform: [{ scale }] },
           ]}
         >
-          <Text style={styles.title}>{opts.title}</Text>
-          {opts.body ? <Text style={styles.body}>{opts.body}</Text> : null}
+          <Text style={[styles.title, { color: colors.textPrimary }]}>
+            {opts.title}
+          </Text>
+          {opts.body ? (
+            <Text style={[styles.body, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
+              {opts.body}
+            </Text>
+          ) : null}
 
           <View
             style={[
@@ -213,37 +231,67 @@ export const BrandedAlertHost: React.FC = () => {
               buttons.length === 1 && styles.buttonRowSingle,
             ]}
           >
-            {buttons.map((btn, i) => (
-              <TouchableOpacity
-                key={`${btn.label}-${i}`}
-                style={[
-                  styles.btn,
-                  btn.style === "primary" && styles.btnPrimary,
-                  btn.style === "destructive" && styles.btnDestructive,
-                  btn.style === "cancel" && styles.btnCancel,
-                  // No explicit style → default to cancel for the
-                  // first button and primary for subsequent ones,
-                  // matching `Alert.alert`'s convention.
-                  !btn.style && i === 0 && styles.btnCancel,
-                  !btn.style && i > 0 && styles.btnPrimary,
-                ]}
-                onPress={() => onButtonPress(btn)}
-                activeOpacity={0.85}
-              >
-                <Text
+            {buttons.map((btn, i) => {
+              // Resolve the button's effective intent once so the
+              // text-color and pill-fill overrides agree on what
+              // kind of button this is. Empty `style` mirrors
+              // `Alert.alert`'s convention: cancel for the first
+              // button, primary for subsequent ones.
+              const effectiveStyle: AlertButtonStyle =
+                btn.style ?? (i === 0 ? "cancel" : "primary");
+
+              // In light, module-scope styles already have the right
+              // colors (lime on forest for primary, forest for cancel,
+              // white on coral for destructive). In dark we override
+              // to theme tokens.
+              const labelColor =
+                effectiveStyle === "destructive"
+                  ? (colors.mode === "dark" ? colors.destructive : AppColors.basicWhite)
+                  : effectiveStyle === "cancel"
+                    ? (colors.mode === "dark" ? colors.textSecondary : colors.textPrimary)
+                    : colors.primary;
+
+              return (
+                <TouchableOpacity
+                  key={`${btn.label}-${i}`}
                   style={[
-                    styles.btnLabel,
-                    btn.style === "primary" && styles.btnLabelPrimary,
-                    btn.style === "destructive" && styles.btnLabelDestructive,
-                    btn.style === "cancel" && styles.btnLabelCancel,
-                    !btn.style && i === 0 && styles.btnLabelCancel,
-                    !btn.style && i > 0 && styles.btnLabelPrimary,
+                    styles.btn,
+                    btn.style === "primary" && styles.btnPrimary,
+                    btn.style === "destructive" && styles.btnDestructive,
+                    btn.style === "cancel" && styles.btnCancel,
+                    !btn.style && i === 0 && styles.btnCancel,
+                    !btn.style && i > 0 && styles.btnPrimary,
+                    // Cancel-style buttons get a translucent fill in
+                    // dark mode. In light mode the module-scope
+                    // `btnCancel.backgroundColor = "rgba(38,59,51,0.10)"`
+                    // already matches the historical value.
+                    effectiveStyle === "cancel" && colors.mode === "dark" && {
+                      backgroundColor: colors.inkSoft,
+                    },
                   ]}
+                  onPress={() => onButtonPress(btn)}
+                  activeOpacity={0.85}
                 >
-                  {btn.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.btnLabel,
+                      btn.style === "primary" && styles.btnLabelPrimary,
+                      btn.style === "destructive" && styles.btnLabelDestructive,
+                      btn.style === "cancel" && styles.btnLabelCancel,
+                      !btn.style && i === 0 && styles.btnLabelCancel,
+                      !btn.style && i > 0 && styles.btnLabelPrimary,
+                      // Theme-aware override — wins over the
+                      // module-scope hex so the alert text reads
+                      // correctly in dark mode without restyling
+                      // the filled button shapes.
+                      { color: labelColor },
+                    ]}
+                  >
+                    {btn.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </Animated.View>
       </Animated.View>

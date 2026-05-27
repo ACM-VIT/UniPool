@@ -14,6 +14,7 @@ import {
   Image,
 } from "react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 export type PassengerProfile = {
   id: string;
@@ -73,6 +74,7 @@ const PassengerProfileSheet: React.FC<Props> = ({
   onMessage,
   actionLoading,
 }) => {
+  const colors = useThemeColors();
   const [amount, setAmount] = React.useState("");
 
   // Reset amount each time the sheet opens for a new passenger.
@@ -140,15 +142,20 @@ const PassengerProfileSheet: React.FC<Props> = ({
   const isPending = passenger.request_status === "pending";
   const isAccepted = passenger.request_status === "accepted";
 
+  // In dark mode the sheet uses the elevated charcoal background and
+  // the original "deep" treatment (forest squares, lime pills) maps
+  // to primary-on-charcoal so the eye still finds the brand accents.
+  const accentBg = colors.mode === "dark" ? colors.primary : colors.textPrimary;
+  const accentText = colors.mode === "dark" ? colors.textOnAccent : colors.primary;
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalRoot}>
         <Pressable style={styles.scrimTop} onPress={onClose} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, colors.mode === "dark" && { backgroundColor: colors.surfaceElevated }]}>
           <View style={styles.topBar}>
-            <View style={styles.grip} />
+            <View style={[styles.grip, colors.mode === "dark" && { backgroundColor: colors.inkLine }]} />
             <TouchableOpacity onPress={onClose} style={styles.doneBtn} hitSlop={10} activeOpacity={0.6}>
-              <Text style={styles.doneBtnText}>Done</Text>
+              <Text style={[styles.doneBtnText, colors.mode === "dark" && { color: colors.textSecondary }]}>Done</Text>
             </TouchableOpacity>
           </View>
 
@@ -162,29 +169,29 @@ const PassengerProfileSheet: React.FC<Props> = ({
                 — the host already knows from the row they tapped, and
                 another pill in the sheet header was noisy. */}
             <View style={styles.headerBlock}>
-              <View style={styles.avatar}>
+              <View style={[styles.avatar, { backgroundColor: accentBg }]}>
                 {passenger.profile_picture_url ? (
                   <Image
                     source={{ uri: passenger.profile_picture_url }}
                     style={styles.avatarImg}
                   />
                 ) : (
-                  <Text style={styles.avatarInitial}>{initial}</Text>
+                  <Text style={[styles.avatarInitial, { color: accentText }]}>{initial}</Text>
                 )}
               </View>
               <View style={styles.headerText}>
                 <View style={styles.nameRow}>
-                  <Text style={styles.name} numberOfLines={1}>
+                  <Text style={[styles.name, { color: colors.textPrimary }]} numberOfLines={1}>
                     {passenger.name || "Unknown"}
                   </Text>
                   {passenger.is_verified ? (
-                    <View style={styles.verifiedDot}>
-                      <Text style={styles.verifiedGlyph}>✓</Text>
+                    <View style={[styles.verifiedDot, { backgroundColor: accentBg }]}>
+                      <Text style={[styles.verifiedGlyph, { color: accentText }]}>✓</Text>
                     </View>
                   ) : null}
                 </View>
                 {passenger.institute_name ? (
-                  <Text style={styles.institute} numberOfLines={1}>
+                  <Text style={[styles.institute, colors.mode === "dark" && { color: colors.textSecondary }]} numberOfLines={1}>
                     {passenger.institute_name}
                   </Text>
                 ) : null}
@@ -193,10 +200,12 @@ const PassengerProfileSheet: React.FC<Props> = ({
 
             {/* Contact strip — phone with call / SMS shortcuts */}
             {passenger.contact_number ? (
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Phone</Text>
+              <View style={[styles.section, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.sectionLabel, colors.mode === "dark" && { color: colors.textTertiary }]}>Phone</Text>
                 <View style={styles.contactRow}>
-                  <Text style={styles.contactValue}>{passenger.contact_number}</Text>
+                  <Text style={[styles.contactValue, { color: colors.textPrimary }]}>
+                    {passenger.contact_number}
+                  </Text>
                   <View style={styles.contactActions}>
                     {/* Chat button only for PENDING requesters — they
                         aren't in the group chat yet, so a DM is the
@@ -209,15 +218,19 @@ const PassengerProfileSheet: React.FC<Props> = ({
                     {passenger.request_status === "pending" ? (
                       <TouchableOpacity
                         onPress={handleMessage}
-                        style={styles.contactBtn}
+                        style={[styles.contactBtn, { backgroundColor: colors.inkSubtle }]}
                         activeOpacity={0.85}
                         accessibilityLabel={`Direct message ${firstName}`}
                       >
-                        <Text style={styles.contactBtnText}>DM</Text>
+                        <Text style={[styles.contactBtnText, { color: colors.textPrimary }]}>DM</Text>
                       </TouchableOpacity>
                     ) : null}
-                    <TouchableOpacity onPress={handleCall} style={[styles.contactBtn, styles.contactBtnPrimary]} activeOpacity={0.85}>
-                      <Text style={[styles.contactBtnText, styles.contactBtnTextPrimary]}>Call</Text>
+                    <TouchableOpacity
+                      onPress={handleCall}
+                      style={[styles.contactBtn, styles.contactBtnPrimary, { backgroundColor: accentBg }]}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.contactBtnText, styles.contactBtnTextPrimary, { color: accentText }]}>Call</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -225,30 +238,36 @@ const PassengerProfileSheet: React.FC<Props> = ({
             ) : null}
 
             {/* Pay strip — UPI deeplink with optional amount */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Pay {firstName}</Text>
+            <View style={[styles.section, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.sectionLabel, colors.mode === "dark" && { color: colors.textTertiary }]}>
+                Pay {firstName}
+              </Text>
               {passenger.upi_vpa ? (
                 <>
-                  <Text style={styles.upiVpa}>{passenger.upi_vpa}</Text>
+                  <Text style={[styles.upiVpa, { color: colors.textPrimary }]}>{passenger.upi_vpa}</Text>
                   <View style={styles.payRow}>
-                    <View style={styles.amountInputWrap}>
-                      <Text style={styles.amountCurrency}>₹</Text>
+                    <View style={[styles.amountInputWrap, colors.mode === "dark" && { backgroundColor: colors.surfaceInset }]}>
+                      <Text style={[styles.amountCurrency, { color: colors.textSecondary }]}>₹</Text>
                       <TextInput
-                        style={styles.amountInput}
+                        style={[styles.amountInput, { color: colors.textPrimary }]}
                         value={amount}
                         onChangeText={(t) => setAmount(t.replace(/[^0-9.]/g, ""))}
                         placeholder="Amount (optional)"
-                        placeholderTextColor="rgba(38,59,51,0.45)"
+                        placeholderTextColor={colors.textTertiary}
                         keyboardType="decimal-pad"
                       />
                     </View>
-                    <TouchableOpacity onPress={handlePay} style={styles.payBtn} activeOpacity={0.85}>
-                      <Text style={styles.payBtnText}>Pay with UPI</Text>
+                    <TouchableOpacity
+                      onPress={handlePay}
+                      style={[styles.payBtn, { backgroundColor: accentBg }]}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.payBtnText, { color: accentText }]}>Pay with UPI</Text>
                     </TouchableOpacity>
                   </View>
                 </>
               ) : (
-                <Text style={styles.upiEmpty}>
+                <Text style={[styles.upiEmpty, { color: colors.textSecondary }]}>
                   {firstName} hasn't added a UPI ID yet.
                 </Text>
               )}
@@ -256,8 +275,8 @@ const PassengerProfileSheet: React.FC<Props> = ({
 
             {/* Host actions — Accept / Reject for pending; Remove for accepted */}
             {(isPending && (onAccept || onReject)) || (isAccepted && onRemove) ? (
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Decision</Text>
+              <View style={[styles.section, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.sectionLabel, colors.mode === "dark" && { color: colors.textTertiary }]}>Decision</Text>
                 {isPending ? (
                   <View style={styles.hostActionRow}>
                     <TouchableOpacity
@@ -269,12 +288,16 @@ const PassengerProfileSheet: React.FC<Props> = ({
                       activeOpacity={0.85}
                       disabled={!!actionLoading}
                     >
-                      <Text style={styles.hostActionRejectText}>
+                      <Text style={[styles.hostActionRejectText, { color: colors.destructive }]}>
                         {actionLoading === "reject" ? "Rejecting…" : "Reject"}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.hostActionAccept, !!actionLoading && styles.hostActionDisabled]}
+                      style={[
+                        styles.hostActionAccept,
+                        { backgroundColor: accentBg },
+                        !!actionLoading && styles.hostActionDisabled,
+                      ]}
                       onPress={() => {
                         if (actionLoading) return;
                         onAccept?.();
@@ -282,7 +305,7 @@ const PassengerProfileSheet: React.FC<Props> = ({
                       activeOpacity={0.85}
                       disabled={!!actionLoading}
                     >
-                      <Text style={styles.hostActionAcceptText}>
+                      <Text style={[styles.hostActionAcceptText, { color: accentText }]}>
                         {actionLoading === "accept" ? "Accepting…" : "Accept"}
                       </Text>
                     </TouchableOpacity>
@@ -298,7 +321,7 @@ const PassengerProfileSheet: React.FC<Props> = ({
                     activeOpacity={0.85}
                     disabled={!!actionLoading}
                   >
-                    <Text style={styles.removeBtnText}>
+                    <Text style={[styles.removeBtnText, { color: colors.destructive }]}>
                       {actionLoading === "remove" ? "Removing…" : `Remove ${firstName}`}
                     </Text>
                   </TouchableOpacity>

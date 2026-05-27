@@ -7,6 +7,7 @@ import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
 import { useUser } from "../contexts/UserContext";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import LoadingComponent from "./LoadingComponent";
 import PreviousTripsSkeleton from "./PreviousTripsSkeleton";
 import type { HomeRide } from "../utils/AppStateService";
@@ -32,6 +33,7 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
     ridesFromState,
     appStateResolved,
 }) => {
+    const colors = useThemeColors();
     const router = useRouter();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [rideData, setRideData] = useState<UserRideData[]>([]);
@@ -138,6 +140,10 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
 
     const renderPaginationDots = () => {
         const totalItems = displayedRides.length;
+        // Dot tint follows the canvas: forest ink dim on lime in light,
+        // bright on-canvas ink in dark. inkLine ≈ historical 30% alpha.
+        const dotInactive = { backgroundColor: colors.inkLine };
+        const dotActive = { backgroundColor: colors.textPrimary };
 
         if (totalItems <= maxDots) {
             // If we have 5 or fewer items, show all dots
@@ -148,9 +154,8 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
                         key={index}
                         style={[
                             styles.paginationDot,
-                            currentIndex === index
-                                ? styles.paginationDotActive
-                                : null,
+                            dotInactive,
+                            currentIndex === index ? [styles.paginationDotActive, dotActive] : null,
                         ]}
                     />
                 ));
@@ -178,9 +183,8 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
                         key={dotIndex}
                         style={[
                             styles.paginationDot,
-                            currentIndex === dotIndex
-                                ? styles.paginationDotActive
-                                : null,
+                            dotInactive,
+                            currentIndex === dotIndex ? [styles.paginationDotActive, dotActive] : null,
                         ]}
                     />
                 );
@@ -227,7 +231,7 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
     return (
         <View style={styles.section}>
             <View style={styles.yourTripsSection}>
-                <Text style={styles.sectionTitle}>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
                     {isGuest ? "Recent trips" : "Your trips"}
                 </Text>
             </View>

@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import { haptic } from "./PressableScale";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -57,6 +58,7 @@ const SheetShell: React.FC<Props> = ({
   surfaceColor,
   children,
 }) => {
+  const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
@@ -179,7 +181,7 @@ const SheetShell: React.FC<Props> = ({
             style={{
               width: "100%",
               maxWidth: 540,
-              backgroundColor: surfaceColor ?? AppColors.basicWhite,
+              backgroundColor: surfaceColor ?? colors.surfaceElevated,
               borderTopLeftRadius: 28,
               borderTopRightRadius: 28,
               paddingHorizontal: 24,
@@ -205,7 +207,7 @@ const SheetShell: React.FC<Props> = ({
                 width: 44,
                 height: 5,
                 borderRadius: 3,
-                backgroundColor: "rgba(38,59,51,0.18)",
+                backgroundColor: colors.inkLine,
                 marginBottom: 18,
               }}
             />
@@ -225,7 +227,7 @@ const SheetShell: React.FC<Props> = ({
                   width: 36,
                   height: 36,
                   borderRadius: 18,
-                  backgroundColor: "rgba(38,59,51,0.08)",
+                  backgroundColor: colors.inkSubtle,
                   alignItems: "center",
                   justifyContent: "center",
                   zIndex: 4,
@@ -234,7 +236,7 @@ const SheetShell: React.FC<Props> = ({
                 <Svg width={14} height={14} viewBox="0 0 16 16">
                   <Path
                     d="M3 3 L 13 13 M13 3 L 3 13"
-                    stroke={AppColors.secondaryDarkGreen}
+                    stroke={colors.textPrimary}
                     strokeWidth={2.2}
                     strokeLinecap="round"
                   />
@@ -258,6 +260,16 @@ const fill = { position: "absolute" as const, top: 0, left: 0, right: 0, bottom:
  * Shared style tokens for sheet content (title, body, inputs,
  * buttons, OTP-style code field). Exported so individual sheets
  * can compose them without re-defining the brand surface.
+ *
+ * THEME MIGRATION NOTE: this object is a module-scope literal and
+ * therefore captures the LIGHT palette colours at import time. It is
+ * consumed as `sheetUi.X` in several files (CreateRide,
+ * ChatMessages, VerifyAcademicSheet, ...) so converting it to a
+ * `sheetUi(colors)` factory would force a multi-file rewrite. For
+ * now it's intentionally left frozen — the SheetShell *chrome*
+ * (background, handle, close X) above is fully theme-aware, and
+ * individual sheets should inline-override the relevant text/input
+ * colours with `useThemeColors()` if they need dark-mode fidelity.
  */
 export const sheetUi = {
   sheetTitle: {

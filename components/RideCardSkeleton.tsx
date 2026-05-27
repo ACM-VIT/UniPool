@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, View, ViewStyle } from "react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 // Minimal list placeholder used while ride rows are loading.
 //
@@ -20,6 +21,7 @@ type Props = {
 };
 
 const RideCardSkeleton: React.FC<Props> = ({ style }) => {
+  const colors = useThemeColors();
   const pulse = useRef(new Animated.Value(0.55)).current;
 
   useEffect(() => {
@@ -45,8 +47,18 @@ const RideCardSkeleton: React.FC<Props> = ({ style }) => {
 
   return (
     <View style={[styles.row, style]}>
-      <Animated.View style={[styles.barLong, { opacity: pulse }]} />
-      <Animated.View style={[styles.barShort, { opacity: pulse }]} />
+      <Animated.View
+        style={[
+          styles.barLong,
+          { opacity: pulse, backgroundColor: colors.inkSoft },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.barShort,
+          { opacity: pulse, backgroundColor: colors.inkSubtle },
+        ]}
+      />
     </View>
   );
 };

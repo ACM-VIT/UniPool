@@ -19,6 +19,7 @@ import ChevronBack from "../components/ChevronBack";
 import profileStyles from "./ProfileScreen/ProfileScreen.styles";
 import { useTabletContentStyle } from "../utils/responsive";
 import { displayRideLocation } from "../utils/LocationService";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 type Ride = {
   ride_id?: string;
@@ -78,6 +79,7 @@ const TripHistoryScreen: React.FC = () => {
   const tabletContentStyle = useTabletContentStyle();
   const insets = useSafeAreaInsets();
   const { apiUtil } = useApi();
+  const colors = useThemeColors();
 
   const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,7 +147,7 @@ const TripHistoryScreen: React.FC = () => {
   const renderTrip = useCallback(({ item }: { item: TripHistoryRow }) => {
     const needsRating = item.actions?.can_rate === true;
     return (
-      <View style={styles.row}>
+      <View style={[styles.row, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
         <TouchableOpacity
           activeOpacity={0.7}
           style={styles.rowMain}
@@ -153,17 +155,17 @@ const TripHistoryScreen: React.FC = () => {
             router.navigate(appHref("RideDetailsScreen", { rideId: item.stableId }))
           }
         >
-          <Text style={styles.route} numberOfLines={2}>
+          <Text style={[styles.route, { color: colors.textPrimary }]} numberOfLines={2}>
             {item.routeLabel}
           </Text>
-          <Text style={styles.meta}>
+          <Text style={[styles.meta, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
             {item.whenLabel} · {item.roleLabel}
             {item.total_price ? ` · ₹${item.total_price}` : ""}
           </Text>
         </TouchableOpacity>
         {needsRating ? (
           <TouchableOpacity
-            style={styles.rateBtn}
+            style={[styles.rateBtn, colors.mode === "dark" && { backgroundColor: colors.primary }]}
             activeOpacity={0.85}
             onPress={() =>
               router.navigate(
@@ -171,32 +173,32 @@ const TripHistoryScreen: React.FC = () => {
               )
             }
           >
-            <Text style={styles.rateBtnText}>Rate</Text>
+            <Text style={[styles.rateBtnText, colors.mode === "dark" && { color: colors.textOnAccent }]}>Rate</Text>
           </TouchableOpacity>
         ) : null}
       </View>
     );
-  }, [router]);
+  }, [router, colors]);
 
   return (
-    <View style={[profileStyles.container, tabletContentStyle]}>
+    <View style={[profileStyles.container, tabletContentStyle, { backgroundColor: colors.background }]}>
       <View style={profileStyles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={profileStyles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity onPress={() => router.back()}>
             <ChevronBack />
           </TouchableOpacity>
-          <Text style={profileStyles.headerTitle}>Trip history</Text>
+          <Text style={[profileStyles.headerTitle, { color: colors.textPrimary }]}>Trip history</Text>
         </View>
       </View>
 
       {loading ? (
         <View style={[styles.center, { flex: 1 }]}>
-          <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} accessibilityLabel="Loading" />
+          <ActivityIndicator size="small" color={colors.textPrimary} accessibilityLabel="Loading" />
         </View>
       ) : error ? (
         <View style={[styles.center, { flex: 1, paddingHorizontal: 24 }]}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={[styles.errorText, { color: colors.textSecondary, opacity: 1 }]}>{error}</Text>
         </View>
       ) : pastRides.length === 0 ? (
         <EmptyState
@@ -224,7 +226,7 @@ const TripHistoryScreen: React.FC = () => {
                 setRefreshing(true);
                 load(true);
               }}
-              tintColor={AppColors.secondaryDarkGreen}
+              tintColor={colors.textPrimary}
             />
           }
         />

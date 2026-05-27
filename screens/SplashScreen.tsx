@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, Dimensions, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -21,6 +22,7 @@ const { width: screenWidth } = Dimensions.get("window");
  */
 const SplashScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
 
   // Scale the wordmark to the device. iPhone Pro ~430 → ~92pt;
   // smaller phones drop to ~78pt so "UniPool" never overflows.
@@ -28,7 +30,7 @@ const SplashScreen: React.FC = () => {
   const lineHeight = Math.round(wordmarkSize * 1.0);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.center}>
         <Text
           style={[
@@ -37,7 +39,7 @@ const SplashScreen: React.FC = () => {
           ]}
           allowFontScaling={false}
         >
-          <Text style={styles.wordmarkDark}>Uni</Text>
+          <Text style={[styles.wordmarkDark, { color: colors.brandText }]}>Uni</Text>
         </Text>
         <Text
           style={[
@@ -46,12 +48,12 @@ const SplashScreen: React.FC = () => {
           ]}
           allowFontScaling={false}
         >
-          <Text style={styles.wordmarkDark}>P</Text>
-          <Text style={styles.wordmarkWheels}>oo</Text>
-          <Text style={styles.wordmarkDark}>l</Text>
+          <Text style={[styles.wordmarkDark, { color: colors.brandText }]}>P</Text>
+          <Text style={[styles.wordmarkWheels, colors.mode === "dark" && { color: colors.surface }]}>oo</Text>
+          <Text style={[styles.wordmarkDark, { color: colors.brandText }]}>l</Text>
         </Text>
 
-        <Text style={styles.tagline} allowFontScaling={false}>
+        <Text style={[styles.tagline, { color: colors.textPrimary, opacity: 0.7 }]} allowFontScaling={false}>
           Share. Commute. Save.
         </Text>
       </View>
@@ -62,9 +64,9 @@ const SplashScreen: React.FC = () => {
           { paddingBottom: Math.max(insets.bottom, 18) + 8 },
         ]}
       >
-        <Text style={styles.footerText} allowFontScaling={false}>
+        <Text style={[styles.footerText, { color: colors.textPrimary, opacity: 0.65 }]} allowFontScaling={false}>
           Made with{" "}
-          <Text style={styles.heart}>♥</Text>
+          <Text style={[styles.heart, { color: colors.textPrimary, opacity: 0.9 }]}>♥</Text>
           {"  "}by ACM-VIT
         </Text>
       </View>

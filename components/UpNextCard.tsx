@@ -1,6 +1,7 @@
 import React, { memo, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 
 type Props = {
   origin: string;
@@ -42,23 +43,37 @@ const UpNextCard = memo(function UpNextCard({
   onChat,
   onOpen,
 }: Props) {
+  const colors = useThemeColors();
   const countdown = useMemo(() => humanCountdown(startTime), [startTime]);
   const dateLabel = useMemo(() => formatDateLabel(startTime), [startTime]);
 
   return (
-    <TouchableOpacity activeOpacity={0.92} onPress={onOpen} style={styles.card}>
+    <TouchableOpacity
+      activeOpacity={0.92}
+      onPress={onOpen}
+      // Forest surface in light, raised charcoal in dark — same
+      // navFill swap as ActiveTripCard so the "Up Next" hero stays
+      // visually grounded against either canvas.
+      style={[styles.card, { backgroundColor: colors.navFill }]}
+    >
       <View style={styles.headerRow}>
         <View style={styles.label}>
           <View style={styles.pulse} />
-          <Text style={styles.labelText}>UP NEXT</Text>
+          <Text style={[styles.labelText, { color: colors.primary }]}>UP NEXT</Text>
         </View>
-        <Text style={styles.countdownText}>{countdown}</Text>
+        <Text style={[styles.countdownText, { color: colors.textOnDark }]}>
+          {countdown}
+        </Text>
       </View>
 
       <View style={styles.routeBlock}>
         <View style={styles.routeRow}>
-          <View style={[styles.routeDot, { borderColor: AppColors.primaryLightGreen }]} />
-          <Text style={styles.routeText} numberOfLines={1} ellipsizeMode="tail">
+          <View style={[styles.routeDot, { borderColor: colors.primary }]} />
+          <Text
+            style={[styles.routeText, { color: colors.textOnDark }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {origin}
           </Text>
         </View>
@@ -74,19 +89,25 @@ const UpNextCard = memo(function UpNextCard({
               read as the navigation arrow. */}
           <Image
             source={require("../assets/navigation-2.png")}
-            style={styles.routeArrow}
+            style={[styles.routeArrow, { tintColor: colors.primary }]}
             resizeMode="contain"
           />
-          <Text style={styles.routeText} numberOfLines={1} ellipsizeMode="tail">
+          <Text
+            style={[styles.routeText, { color: colors.textOnDark }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {destination}
           </Text>
         </View>
       </View>
 
       <View style={styles.metaRow}>
-        <Text style={styles.metaText}>{dateLabel}</Text>
+        <Text style={[styles.metaText, { color: colors.textOnDark, opacity: 0.7 }]}>
+          {dateLabel}
+        </Text>
         {hostName ? (
-          <Text style={styles.metaText}>
+          <Text style={[styles.metaText, { color: colors.textOnDark, opacity: 0.7 }]}>
             {isHost ? "You're hosting" : `Hosted by ${firstName(hostName)}`}
           </Text>
         ) : null}
@@ -98,14 +119,22 @@ const UpNextCard = memo(function UpNextCard({
           activeOpacity={0.85}
           onPress={onChat}
         >
-          <Text style={styles.actionBtnGhostText}>Open chat</Text>
+          <Text style={[styles.actionBtnGhostText, { color: colors.textOnDark }]}>
+            Open chat
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionBtn, styles.actionBtnFilled]}
+          style={[
+            styles.actionBtn,
+            styles.actionBtnFilled,
+            { backgroundColor: colors.primary },
+          ]}
           activeOpacity={0.85}
           onPress={onOpen}
         >
-          <Text style={styles.actionBtnFilledText}>View ride</Text>
+          <Text style={[styles.actionBtnFilledText, { color: colors.textOnAccent }]}>
+            View ride
+          </Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>

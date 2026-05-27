@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import AppColors from "../design_systems/colors";
+import { useThemeColors } from "../contexts/ThemeContext";
 import SlideToCreate from "../components/SlideToCreate";
 import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
@@ -47,6 +48,11 @@ const CreateRide: React.FC = () => {
   const tabletContentStyle = useTabletContentStyle();
   const { apiUtil } = useApi();
   const { requireAuth } = useAuthGate();
+  // Theme-aware canvas + title text. Module-scope styles still bake
+  // the lime canvas (light) at module load; inline override below
+  // swaps to the active palette so the form sits on the right
+  // backdrop in either mode.
+  const themeColors = useThemeColors();
 
   // Hand-off from AvailableRideScreen's empty state — when nobody is
   // running this route, the user can tap "Post a ride" and we
@@ -647,7 +653,7 @@ const CreateRide: React.FC = () => {
     // Ride" title on Android). `edges={["top", "left", "right"]}`
     // skips the bottom inset — the slider already sits inside the
     // home-indicator zone with its own padding.
-    <SafeAreaView style={[styles.container, tabletContentStyle]} edges={["top", "left", "right", "bottom"]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }, tabletContentStyle]} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.headerRowWithTitle}>
         <TouchableOpacity
           style={styles.backButton}
@@ -655,10 +661,10 @@ const CreateRide: React.FC = () => {
         >
           <Image
             source={require("../assets/arrow-square-left.png")}
-            style={styles.backIcon}
+            style={[styles.backIcon, { tintColor: themeColors.textPrimary }]}
           />
         </TouchableOpacity>
-        <Text style={styles.title}>Create a Ride</Text>
+        <Text style={[styles.title, { color: themeColors.textPrimary }]}>Create a Ride</Text>
       </View>
 
       {/* Main form. Sized to fit on one viewport — the heavy fare
@@ -701,60 +707,147 @@ const CreateRide: React.FC = () => {
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => setShowFareSheet(true)}
-          style={styles.fareSummaryCard}
+          // navFill resolves to forest (#263B33) in light — unchanged
+          // from history — and to a raised neutral charcoal (#1F1F25)
+          // in dark, dropping the green tint that would otherwise
+          // pull the form cards toward "brand on dark" rather than
+          // a calm dark mode.
+          style={[styles.fareSummaryCard, { backgroundColor: themeColors.navFill }]}
         >
           <View style={styles.fareSummaryTopRow}>
             <View style={styles.fareSummaryCol}>
-              <Text style={styles.fareSummaryColLabel}>Per seat</Text>
+              <Text
+                style={[
+                  styles.fareSummaryColLabel,
+                  // Dark mode: drop the lime label tint and use a
+                  // cream secondary tone so the fare card reads as
+                  // one neutral tonal family — light keeps history.
+                  themeColors.mode === "dark" && { color: themeColors.textOnDark, opacity: 0.65 },
+                ]}
+              >
+                Per seat
+              </Text>
               <Text style={styles.fareSummaryColValue}>
                 ₹{effectivePerSeat}
               </Text>
             </View>
-            <View style={styles.fareSummaryDivider} />
+            <View
+              style={[
+                styles.fareSummaryDivider,
+                // Dark: divider switches from lime hairline to a
+                // cream hairline so it doesn't shout between the
+                // two values.
+                themeColors.mode === "dark" && { backgroundColor: themeColors.textOnDark, opacity: 0.12 },
+              ]}
+            />
             <View style={styles.fareSummaryCol}>
-              <Text style={styles.fareSummaryColLabel}>Trip total</Text>
+              <Text
+                style={[
+                  styles.fareSummaryColLabel,
+                  themeColors.mode === "dark" && { color: themeColors.textOnDark, opacity: 0.65 },
+                ]}
+              >
+                Trip total
+              </Text>
               <Text style={styles.fareSummaryColValue}>
                 ₹{displayTotal}
               </Text>
             </View>
-            <Text style={styles.fareSummaryChevron}>›</Text>
+            <Text
+              style={[
+                styles.fareSummaryChevron,
+                themeColors.mode === "dark" && { color: themeColors.textOnDark, opacity: 0.45 },
+              ]}
+            >
+              ›
+            </Text>
           </View>
-          <View style={styles.fareSummaryFooter}>
-            <Text style={styles.fareSummaryFooterText}>
+          <View
+            style={[
+              styles.fareSummaryFooter,
+              themeColors.mode === "dark" && { borderTopColor: "rgba(237,236,231,0.10)" },
+            ]}
+          >
+            <Text
+              style={[
+                styles.fareSummaryFooterText,
+                themeColors.mode === "dark" && { color: themeColors.textOnDark, opacity: 0.65 },
+              ]}
+            >
               {splitMode === "per_seat"
                 ? `Per-seat fare · ${totalSeats} seat${totalSeats === 1 ? "" : "s"}`
                 : splitMode === "total"
                 ? `Split equally · ${totalSeats} seat${totalSeats === 1 ? "" : "s"}`
                 : `Unequal split · ${totalSeats} seat${totalSeats === 1 ? "" : "s"}`}
             </Text>
-            <Text style={styles.fareSummaryEditHint}>Tap to edit</Text>
+            <Text
+              style={[
+                styles.fareSummaryEditHint,
+                themeColors.mode === "dark" && { color: themeColors.textOnDark, opacity: 0.4 },
+              ]}
+            >
+              Tap to edit
+            </Text>
           </View>
         </TouchableOpacity>
 
-        <Text style={styles.label}>
+        <Text style={[styles.label, { color: themeColors.textPrimary }]}>
           Total seats{" "}
-          <Text style={styles.labelHint}>(including you)</Text>
+          <Text style={[styles.labelHint, { color: themeColors.textSecondary }]}>(including you)</Text>
         </Text>
-        <View style={styles.stepperCard}>
+        <View style={[styles.stepperCard, { backgroundColor: themeColors.navFill }]}>
           <TouchableOpacity
             onPress={decreaseSeats}
-            style={styles.stepperBtn}
+            // Dark mode: stepper button drops the bright lime fill
+            // for a subtle neutral chip so it reads as a quiet
+            // tertiary control on the dark card. Light keeps the
+            // historical lime button with forest "−" / "+".
+            style={[
+              styles.stepperBtn,
+              themeColors.mode === "dark" && {
+                backgroundColor: "rgba(237,236,231,0.10)",
+              },
+            ]}
             activeOpacity={0.7}
           >
-            <Text style={styles.stepperBtnText}>−</Text>
+            <Text
+              style={[
+                styles.stepperBtnText,
+                themeColors.mode === "dark" && { color: themeColors.textOnDark },
+              ]}
+            >
+              −
+            </Text>
           </TouchableOpacity>
           <View style={styles.stepperValueWrap}>
             <Text style={styles.stepperValue}>{totalSeats}</Text>
-            <Text style={styles.stepperUnit}>
+            <Text
+              style={[
+                styles.stepperUnit,
+                themeColors.mode === "dark" && { color: themeColors.textOnDark, opacity: 0.55 },
+              ]}
+            >
               {totalSeats === 1 ? "seat" : "seats"}
             </Text>
           </View>
           <TouchableOpacity
             onPress={increaseSeats}
-            style={styles.stepperBtn}
+            style={[
+              styles.stepperBtn,
+              themeColors.mode === "dark" && {
+                backgroundColor: "rgba(237,236,231,0.10)",
+              },
+            ]}
             activeOpacity={0.7}
           >
-            <Text style={styles.stepperBtnText}>+</Text>
+            <Text
+              style={[
+                styles.stepperBtnText,
+                themeColors.mode === "dark" && { color: themeColors.textOnDark },
+              ]}
+            >
+              +
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -837,6 +930,10 @@ const CreateRide: React.FC = () => {
       <Animated.View
         style={[
           styles.bottomDock,
+          // Match canvas so the slider dock blends into the page in
+          // both modes — module-scope bakes the lime canvas which
+          // sticks out as a bright band in dark mode.
+          { backgroundColor: themeColors.background, borderTopColor: themeColors.inkSubtle },
           { transform: [{ translateX: sliderShake }] },
         ]}
       >
@@ -868,8 +965,26 @@ const CreateRide: React.FC = () => {
         visible={showFareSheet}
         onDismiss={() => setShowFareSheet(false)}
       >
-        <Text style={[sheetUi.sheetTitle, { marginBottom: 4 }]}>Fare</Text>
-        <Text style={sheetUi.sheetBody}>
+        {/* Dark mode: theme the sheet title + body so they're
+            readable on the dark sheet surface — module-scope styles
+            bake forest text which disappears against the dark
+            canvas. Light mode reads the module-scope styles
+            verbatim. */}
+        <Text
+          style={[
+            sheetUi.sheetTitle,
+            { marginBottom: 4 },
+            themeColors.mode === "dark" && { color: themeColors.textPrimary },
+          ]}
+        >
+          Fare
+        </Text>
+        <Text
+          style={[
+            sheetUi.sheetBody,
+            themeColors.mode === "dark" && { color: themeColors.textSecondary, opacity: 1 },
+          ]}
+        >
           Pick how you want to set the price.
         </Text>
 
@@ -883,11 +998,31 @@ const CreateRide: React.FC = () => {
             return (
               <TouchableOpacity
                 key={opt.key}
-                style={[styles.sheetModeChip, active && styles.sheetModeChipActive]}
+                // Dark mode: active chip becomes a lime-bordered cream
+                // pill so it reads as the selected mode without
+                // flooding the sheet with forest+lime brand cues.
+                // Inactive chips drop to a subtle outline. Light
+                // mode keeps the historical pairing.
+                style={[
+                  styles.sheetModeChip,
+                  active && styles.sheetModeChipActive,
+                  themeColors.mode === "dark" && {
+                    borderColor: themeColors.inkLine,
+                    backgroundColor: active ? themeColors.primary : "transparent",
+                  },
+                ]}
                 onPress={() => switchSplitMode(opt.key)}
                 activeOpacity={0.85}
               >
-                <Text style={[styles.sheetModeChipText, active && styles.sheetModeChipTextActive]}>
+                <Text
+                  style={[
+                    styles.sheetModeChipText,
+                    active && styles.sheetModeChipTextActive,
+                    themeColors.mode === "dark" && {
+                      color: active ? themeColors.textOnAccent : themeColors.textPrimary,
+                    },
+                  ]}
+                >
                   {opt.label}
                 </Text>
               </TouchableOpacity>
@@ -902,14 +1037,26 @@ const CreateRide: React.FC = () => {
         <View style={styles.sheetModeBody}>
         {splitMode === "per_seat" && (
           <>
-            <View style={styles.stepperCard}>
+            <View style={[styles.stepperCard, { backgroundColor: themeColors.navFill }]}>
               <TouchableOpacity
                 onPress={decreaseCost}
-                style={styles.stepperBtn}
+                style={[
+                  styles.stepperBtn,
+                  themeColors.mode === "dark" && {
+                    backgroundColor: "rgba(237,236,231,0.10)",
+                  },
+                ]}
                 disabled={isEditingCost}
                 activeOpacity={0.7}
               >
-                <Text style={styles.stepperBtnText}>−</Text>
+                <Text
+                  style={[
+                    styles.stepperBtnText,
+                    themeColors.mode === "dark" && { color: themeColors.textOnDark },
+                  ]}
+                >
+                  −
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.stepperValueWrap}
@@ -917,7 +1064,14 @@ const CreateRide: React.FC = () => {
                 activeOpacity={0.7}
                 disabled={isEditingCost}
               >
-                <Text style={styles.stepperCurrency}>₹</Text>
+                <Text
+                  style={[
+                    styles.stepperCurrency,
+                    themeColors.mode === "dark" && { color: themeColors.textOnDark, opacity: 0.65 },
+                  ]}
+                >
+                  ₹
+                </Text>
                 {isEditingCost ? (
                   <TextInput
                     ref={costInputRef}
@@ -938,14 +1092,31 @@ const CreateRide: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={increaseCost}
-                style={styles.stepperBtn}
+                style={[
+                  styles.stepperBtn,
+                  themeColors.mode === "dark" && {
+                    backgroundColor: "rgba(237,236,231,0.10)",
+                  },
+                ]}
                 disabled={isEditingCost}
                 activeOpacity={0.7}
               >
-                <Text style={styles.stepperBtnText}>+</Text>
+                <Text
+                  style={[
+                    styles.stepperBtnText,
+                    themeColors.mode === "dark" && { color: themeColors.textOnDark },
+                  ]}
+                >
+                  +
+                </Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.fieldHint}>
+            <Text
+              style={[
+                styles.fieldHint,
+                themeColors.mode === "dark" && { color: themeColors.textOnDark, opacity: 0.55 },
+              ]}
+            >
               What each rider pays you · ₹{displayTotal} total for {totalSeats}{" "}
               seat{totalSeats === 1 ? "" : "s"}.
             </Text>
@@ -954,14 +1125,26 @@ const CreateRide: React.FC = () => {
 
         {splitMode === "total" && (
           <>
-            <View style={styles.stepperCard}>
+            <View style={[styles.stepperCard, { backgroundColor: themeColors.navFill }]}>
               <TouchableOpacity
                 onPress={decreaseTotal}
-                style={styles.stepperBtn}
+                style={[
+                  styles.stepperBtn,
+                  themeColors.mode === "dark" && {
+                    backgroundColor: "rgba(237,236,231,0.10)",
+                  },
+                ]}
                 disabled={isEditingTotal}
                 activeOpacity={0.7}
               >
-                <Text style={styles.stepperBtnText}>−</Text>
+                <Text
+                  style={[
+                    styles.stepperBtnText,
+                    themeColors.mode === "dark" && { color: themeColors.textOnDark },
+                  ]}
+                >
+                  −
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.stepperValueWrap}
@@ -969,7 +1152,14 @@ const CreateRide: React.FC = () => {
                 activeOpacity={0.7}
                 disabled={isEditingTotal}
               >
-                <Text style={styles.stepperCurrency}>₹</Text>
+                <Text
+                  style={[
+                    styles.stepperCurrency,
+                    themeColors.mode === "dark" && { color: themeColors.textOnDark, opacity: 0.65 },
+                  ]}
+                >
+                  ₹
+                </Text>
                 {isEditingTotal ? (
                   <TextInput
                     ref={totalInputRef}
@@ -990,14 +1180,31 @@ const CreateRide: React.FC = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={increaseTotal}
-                style={styles.stepperBtn}
+                style={[
+                  styles.stepperBtn,
+                  themeColors.mode === "dark" && {
+                    backgroundColor: "rgba(237,236,231,0.10)",
+                  },
+                ]}
                 disabled={isEditingTotal}
                 activeOpacity={0.7}
               >
-                <Text style={styles.stepperBtnText}>+</Text>
+                <Text
+                  style={[
+                    styles.stepperBtnText,
+                    themeColors.mode === "dark" && { color: themeColors.textOnDark },
+                  ]}
+                >
+                  +
+                </Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.fieldHint}>
+            <Text
+              style={[
+                styles.fieldHint,
+                themeColors.mode === "dark" && { color: themeColors.textOnDark, opacity: 0.55 },
+              ]}
+            >
               Split equally across {totalSeats}{" "}
               seat{totalSeats === 1 ? "" : "s"} · ₹{effectivePerSeat} each.
             </Text>
@@ -1072,7 +1279,12 @@ const CreateRide: React.FC = () => {
                 })}
               </View>
             </ScrollView>
-            <Text style={styles.fieldHint}>
+            <Text
+              style={[
+                styles.fieldHint,
+                themeColors.mode === "dark" && { color: themeColors.textOnDark, opacity: 0.55 },
+              ]}
+            >
               Total ₹{displayTotal} · average ₹{effectivePerSeat}/seat.
             </Text>
           </>
@@ -1080,11 +1292,26 @@ const CreateRide: React.FC = () => {
         </View>
 
         <TouchableOpacity
-          style={styles.sheetDoneBtn}
+          // Dark mode: Done CTA uses the lime accent fill + forest
+          // ink — the one brand splash on the sheet, mirroring the
+          // pattern used by the Slide-to-create thumb elsewhere.
+          // Light mode keeps the historical forest fill + lime
+          // label from the module-scope style.
+          style={[
+            styles.sheetDoneBtn,
+            themeColors.mode === "dark" && { backgroundColor: themeColors.primary },
+          ]}
           activeOpacity={0.85}
           onPress={() => setShowFareSheet(false)}
         >
-          <Text style={styles.sheetDoneBtnText}>Done</Text>
+          <Text
+            style={[
+              styles.sheetDoneBtnText,
+              themeColors.mode === "dark" && { color: themeColors.textOnAccent },
+            ]}
+          >
+            Done
+          </Text>
         </TouchableOpacity>
       </SheetShell>
     </SafeAreaView>

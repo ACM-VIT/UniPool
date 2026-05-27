@@ -4,10 +4,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import styles from "./BrandInfo.styles";
 import { BrandInfoProps } from "./BrandInfo.types";
 import { useLocationInfo } from "../../contexts/location-context";
+import { useThemeColors } from "../../contexts/ThemeContext";
 
 const BrandInfo: React.FC<BrandInfoProps> = ({ style }) => {
   const { loading, locationText, pincode, error } = useLocationInfo();
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
 
   // Show the location strip only when we have a real, resolved
   // address. Permission-denied / fetching / unknown states collapse
@@ -48,24 +50,29 @@ const BrandInfo: React.FC<BrandInfoProps> = ({ style }) => {
         <View style={styles.leftSection}>
           <Image
             source={require("../../assets/beep-beep-location.png")}
-            style={styles.icon}
+            style={[styles.icon, { tintColor: colors.brandText }]}
             resizeMode="contain"
           />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text
-              style={styles.locationText}
+              style={[styles.locationText, { color: colors.brandText }]}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
               {locationText}
             </Text>
-            <Text style={styles.pincodeText} numberOfLines={1}>
+            <Text
+              style={[styles.pincodeText, { color: colors.brandText, opacity: 0.6 }]}
+              numberOfLines={1}
+            >
               {pincode || " "}
             </Text>
           </View>
         </View>
       ) : null}
-      <Text style={styles.brandText} numberOfLines={1}>UniPool</Text>
+      <Text style={[styles.brandText, { color: colors.brandText }]} numberOfLines={1}>
+        UniPool
+      </Text>
     </View>
   );
 };
