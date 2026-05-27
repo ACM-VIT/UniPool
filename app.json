@@ -6,7 +6,7 @@
     "version": "2.0.8",
     "orientation": "portrait",
     "icon": "./assets/icon2.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash-screen.png",
       "resizeMode": "cover",
@@ -99,16 +99,33 @@
           "image": "./assets/splash-screen.png",
           "resizeMode": "cover",
           "imageWidth": 220,
+          "dark": {
+            "backgroundColor": "#0F0F12",
+            "image": "./assets/splash-screen-dark.png",
+            "resizeMode": "cover",
+            "imageWidth": 220
+          },
           "android": {
             "backgroundColor": "#B5D750",
             "image": "./assets/icon2.png",
             "resizeMode": "contain",
-            "imageWidth": 220
+            "imageWidth": 220,
+            "dark": {
+              "backgroundColor": "#0F0F12",
+              "image": "./assets/icon2-dark.png",
+              "resizeMode": "contain",
+              "imageWidth": 220
+            }
           },
           "ios": {
             "backgroundColor": "#B5D750",
             "image": "./assets/splash-screen.png",
-            "resizeMode": "cover"
+            "resizeMode": "cover",
+            "dark": {
+              "backgroundColor": "#0F0F12",
+              "image": "./assets/splash-screen-dark.png",
+              "resizeMode": "cover"
+            }
           }
         }
       ],
