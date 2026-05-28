@@ -3,8 +3,9 @@ import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dime
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import DateTimePicker, {
+  DateTimePickerAndroid,
   type DateTimePickerEvent,
-} from "@expo/ui/community/datetime-picker";
+} from "@react-native-community/datetimepicker";
 
 import BrandInfo from "../../components/BrandInfo";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";
@@ -569,32 +570,22 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
 
   const selectedFilterDate = filters.date ? parseFilterDate(filters.date) : new Date();
 
-  // Android mounts Expo UI's drop-in DateTimePicker long enough to
-  // surface the native calendar dialog and commits on its own confirm
-  // button — no buffer needed; we write through to `filters` directly
-  // from `onChange` once Android returns a selection.
-  const onAndroidDatePick = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    // Android emits an event when the user dismisses; check `type` so
-    // tapping Cancel doesn't silently overwrite the filter with the
-    // current `value`.
-    if (event.type !== "set" || !selectedDate) return;
-    setFilters((current) => ({ ...current, date: formatDateParam(selectedDate) }));
-  };
-
-  // iOS picks land in the buffer only. The modal sheet's Done button
-  // commits, Cancel discards.
-  const onIosSpinnerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
-    if (selectedDate) setTempPickerDate(selectedDate);
-  };
-
   const openDatePicker = () => {
     if (Platform.OS === "android") {
-      setShowDatePicker(true);
+      DateTimePickerAndroid.open({
+        value: selectedFilterDate,
+        mode: "date",
+        minimumDate: new Date(),
+        onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+          if (event.type !== "set" || !selectedDate) return;
+          setFilters((current) => ({
+            ...current,
+            date: formatDateParam(selectedDate),
+          }));
+        },
+      });
       return;
     }
-    // Seed the buffer with whatever is currently committed so the
-    // spinner doesn't jump to today the moment the modal opens.
     setTempPickerDate(selectedFilterDate);
     setShowDatePicker(true);
   };
@@ -974,27 +965,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         (value) => setFilters({...filters, radius: value})
       )}
 
-      {Platform.OS === "android" && showDatePicker && (
-        <DateTimePicker
-          key={`available-filter-date-${selectedFilterDate.getTime()}`}
-          value={selectedFilterDate}
-          mode="date"
-          display="default"
-          minimumDate={new Date()}
-          onChange={onAndroidDatePick}
-          accentColor={AppColors.primaryLightGreen}
-          positiveButton={{ label: "Done" }}
-          negativeButton={{ label: "Cancel" }}
-        />
-      )}
-
-      {/* iOS date picker as a bottom modal sheet on the forest surface.
-          Spinner display with `themeVariant="dark"` matches the rest of
-          the modal chrome (forest fill, lime accents). Pattern mirrors
-          the date-time picker in RideDetailsSelector so the app speaks
-          one language for time input. Android mounts Expo UI's native
-          dialog replacement above instead. */}
-      {Platform.OS === "ios" && (
+      {Platform.OS === "ios" && showDatePicker && (
         <Modal
           visible={showDatePicker}
           transparent
@@ -1019,7 +990,9 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                   mode="date"
                   display="spinner"
                   minimumDate={new Date()}
-                  onChange={onIosSpinnerChange}
+                  onChange={(_event, selectedDate?: Date) => {
+                    if (selectedDate) setTempPickerDate(selectedDate);
+                  }}
                   themeVariant="dark"
                   accentColor={AppColors.primaryLightGreen}
                   style={styles.dateModalPicker}

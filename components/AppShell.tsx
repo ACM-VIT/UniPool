@@ -774,9 +774,9 @@ const AppShell = () => {
   useEffect(() => {
     if (!isBootstrapping && initialRoute && (!pathname || pathname === "/")) {
       if (locationDetour === "LocationPermissionScreen") {
-        // Send the user through the radar screen first; LocationPermissionScreen
-        // reads `returnTo` and lands them on their real destination
-        // after Allow / Not now.
+        // Send the user through the permissions screen first;
+        // LocationPermissionScreen reads `returnTo` and lands them
+        // on their real destination after the native prompts.
         router.replace(
           appHref("LocationPermissionScreen", {
             returnTo: { screen: initialRoute },

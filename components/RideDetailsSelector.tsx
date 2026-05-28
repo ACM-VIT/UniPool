@@ -18,8 +18,9 @@ import {
   Platform,
 } from "react-native";
 import DateTimePicker, {
-  type DateTimePickerEvent as AndroidDateTimePickerEvent,
-} from "@expo/ui/community/datetime-picker";
+  DateTimePickerAndroid,
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { format } from "date-fns";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
@@ -678,119 +679,25 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
   };
 
-  const handleDateTimeChange = (event: any, selected?: Date) => {
-    if (selected) {
-      if (DEBUG_RIDE_SELECTOR) console.log('Date/time changed to:', selected);
-      setSelectedDate(selected);
-      setTempDate(selected);
-      
-      if (pickerMode === "date") {
-        setPickerMode("time");
-      } else {
-        setShowDateTimePicker(false);
-        setPickerMode("date");
-        
-        if (fromLocation && toLocation && selected) {
-          if (DEBUG_RIDE_SELECTOR) console.log('Submitting with updated date:', selected);
-          submitRideDetails(fromLocation, toLocation, selected, fromCoordinates ?? undefined, toCoordinates ?? undefined);
-        }
-      }
-    } else {
-      setShowDateTimePicker(false);
-      setPickerMode("date");
-    }
-  };
-
   const handleDateFieldClick = () => {
-    if (Platform.OS === "ios" || FORCE_IOS_PICKER_UI) {
-      if (DEBUG_RIDE_SELECTOR) console.log('Opening iOS-style picker modal');
-      const initialDate = selectedDate || getInitialDate();
-      setTempDate(initialDate);
-      setPickerMode("date");
-      pickerModeRef.current = "date";
-      setShowDateTimePicker(true);
-    } else {
-      if (DEBUG_RIDE_SELECTOR) console.log('Opening native Android picker');
-      setPickerMode("date");
-      pickerModeRef.current = "date";
-      const initialDate = selectedDate || getInitialDate();
-      setSelectedDate(initialDate);
-      setTempDate(initialDate);
-      setShowDateTimePicker(true);
-    }
-  };
-
-   const handleAndroidPickerChange = (
-    event: AndroidDateTimePickerEvent,
-    date?: Date
-  ) => {
-    if (FORCE_IOS_PICKER_UI || Platform.OS !== "android") {
-      if (DEBUG_RIDE_SELECTOR) console.log('Ignoring Android picker event - iOS UI forced or non-Android platform');
+    const initialDate = selectedDate || getInitialDate();
+    setTempDate(initialDate);
+    setPickerMode("date");
+    pickerModeRef.current = "date";
+    if (Platform.OS === "android" && !FORCE_IOS_PICKER_UI) {
+      openAndroidDatePicker(initialDate);
       return;
     }
-    
-    if (event.type === "dismissed") {
-      setShowDateTimePicker(false);
-      if (pickerModeRef.current === "time") {
-        const finalDate = selectedDate || getInitialDate();
-        if (DEBUG_RIDE_SELECTOR) console.log('Time picker dismissed, using current date:', finalDate);
-        setPickerMode("date");
-        pickerModeRef.current = "date";
-        if (fromLocation && toLocation && finalDate) {
-          if (DEBUG_RIDE_SELECTOR) console.log('Submitting Android ride details after time dismissal:', finalDate);
-          submitRideDetails(
-            fromLocation,
-            toLocation,
-            finalDate,
-            fromCoordinates ?? undefined,
-            toCoordinates ?? undefined
-          );
-        }
-      } else {
-        setPickerMode("date");
-        pickerModeRef.current = "date";
-      }
-      return;
-    }
-    
-    const current = date || selectedDate || getInitialDate();
-    if (DEBUG_RIDE_SELECTOR) console.log('Android picker changed:', current, 'mode:', pickerModeRef.current);
-
-    if (pickerModeRef.current === "date") {
-      if (DEBUG_RIDE_SELECTOR) console.log('Date selected, updating state and opening time picker');
-      setSelectedDate(current);
-      setTempDate(current);
-      setPickerMode("time");
-      pickerModeRef.current = "time";
-    } else if (pickerModeRef.current === "time") {
-      if (DEBUG_RIDE_SELECTOR) console.log('Final Android date/time selected:', current);
-      setSelectedDate(current);
-      setTempDate(current);
-      setShowDateTimePicker(false);
-      setPickerMode("date");
-      pickerModeRef.current = "date";
-      if (fromLocation && toLocation && current) {
-        if (DEBUG_RIDE_SELECTOR) console.log('Submitting Android ride details with date:', current);
-        submitRideDetails(
-          fromLocation,
-          toLocation,
-          current,
-          fromCoordinates ?? undefined,
-          toCoordinates ?? undefined
-        );
-      }
-    }
+    setShowDateTimePicker(true);
   };
 
-  const handleDateTimeConfirm = () => {
-    const finalDate = tempDate || selectedDate || getInitialDate();
-    if (DEBUG_RIDE_SELECTOR) console.log('iOS date/time confirmed:', finalDate);
+  const commitSelectedDateTime = (finalDate: Date) => {
     setSelectedDate(finalDate);
     setShowDateTimePicker(false);
     setPickerMode("date");
-    
+
     if (fromLocation && toLocation && finalDate) {
-      if (DEBUG_RIDE_SELECTOR) console.log('Submitting iOS ride details with date:', finalDate);
+      if (DEBUG_RIDE_SELECTOR) console.log('Submitting ride details with date:', finalDate);
       submitRideDetails(
         fromLocation,
         toLocation,
@@ -799,6 +706,52 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         toCoordinates ?? undefined
       );
     }
+  };
+
+  const openAndroidTimePicker = (datePart: Date) => {
+    DateTimePickerAndroid.open({
+      value: datePart,
+      mode: "time",
+      is24Hour: false,
+      onChange: (event: DateTimePickerEvent, pickedTime?: Date) => {
+        setShowDateTimePicker(false);
+        setPickerMode("date");
+        pickerModeRef.current = "date";
+        if (event.type !== "set" || !pickedTime) return;
+        const finalDate = new Date(datePart);
+        finalDate.setHours(pickedTime.getHours(), pickedTime.getMinutes(), 0, 0);
+        commitSelectedDateTime(finalDate < new Date() ? getInitialDate() : finalDate);
+      },
+    });
+  };
+
+  const openAndroidDatePicker = (initialDate: Date) => {
+    setShowDateTimePicker(true);
+    DateTimePickerAndroid.open({
+      value: initialDate,
+      mode: "date",
+      minimumDate: new Date(),
+      onChange: (event: DateTimePickerEvent, pickedDate?: Date) => {
+        if (event.type !== "set" || !pickedDate) {
+          setShowDateTimePicker(false);
+          setPickerMode("date");
+          pickerModeRef.current = "date";
+          return;
+        }
+        const dateWithCurrentTime = new Date(pickedDate);
+        dateWithCurrentTime.setHours(initialDate.getHours(), initialDate.getMinutes(), 0, 0);
+        setTempDate(dateWithCurrentTime);
+        setPickerMode("time");
+        pickerModeRef.current = "time";
+        openAndroidTimePicker(dateWithCurrentTime);
+      },
+    });
+  };
+
+  const handleDateTimeConfirm = () => {
+    const finalDate = tempDate || selectedDate || getInitialDate();
+    if (DEBUG_RIDE_SELECTOR) console.log('iOS date/time confirmed:', finalDate);
+    commitSelectedDateTime(finalDate);
   };
 
   const handleDateTimeCancel = () => {
@@ -1291,25 +1244,12 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         </KeyboardAvoidingView>
       </Modal>
 
-      {Platform.OS === 'android' && !FORCE_IOS_PICKER_UI && showDateTimePicker && (
-        <DateTimePicker
-          key={`ride-details-${pickerMode}-${(tempDate || selectedDate || getInitialDate()).getTime()}`}
-          value={tempDate || selectedDate || getInitialDate()}
-          mode={pickerMode}
-          display="default"
-          minimumDate={pickerMode === "date" ? new Date() : undefined}
-          onChange={handleAndroidPickerChange}
-          accentColor={colors.primary}
-          positiveButton={{ label: "Done" }}
-          negativeButton={{ label: "Cancel" }}
-        />
-      )}
-
-      {(Platform.OS === 'ios' || FORCE_IOS_PICKER_UI) && (
+      {(Platform.OS === "ios" || FORCE_IOS_PICKER_UI) && showDateTimePicker && (
         <Modal
           visible={showDateTimePicker}
           transparent
           animationType="slide"
+          onRequestClose={handleDateTimeCancel}
         >
           <View style={styles.dateTimeModalContainer}>
             <View style={[styles.dateTimeModalContent, { backgroundColor: colors.navFill }]}>
@@ -1328,15 +1268,10 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                   value={tempDate || selectedDate || getInitialDate()}
                   mode="datetime"
                   display="spinner"
-                  onChange={(event, date) => {
-                    if (date) {
-                      setTempDate(date);
-                    }
-                  }}
                   minimumDate={new Date()}
-                  // themeVariant mirrors the nav-fill surface: in
-                  // light that is forest (dark), in dark it is raised
-                  // charcoal (also dark). Always "dark" here.
+                  onChange={(_event, date) => {
+                    if (date) setTempDate(date);
+                  }}
                   themeVariant="dark"
                   accentColor={colors.primary}
                   style={styles.dateTimePicker}

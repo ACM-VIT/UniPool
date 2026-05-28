@@ -105,25 +105,33 @@ const SignUpScreen: React.FC = () => {
 
   const isValid = useMemo(() => {
     if (!phoneValid) return false;
-    const yn = parseInt(yob, 10);
-    if (isNaN(yn) || yn < 1900 || yn > new Date().getFullYear()) return false;
-    if (!gender) return false;
+    const yobText = yob.trim();
+    if (yobText.length > 0) {
+      const yn = parseInt(yobText, 10);
+      if (isNaN(yn) || yn < 1900 || yn > new Date().getFullYear()) return false;
+    }
     return true;
-  }, [phoneValid, yob, gender]);
+  }, [phoneValid, yob]);
 
   // Submit /user once. Idempotent against re-tapping: if the user
   // row already exists, the backend returns 409 which we treat as
   // success.
   const submitProfile = async (): Promise<boolean> => {
     if (profileSubmitted) return true;
-    const yobNum = parseInt(yob, 10);
     const e164 = `+${country.dial}${phoneDigits}`;
+    const yobText = yob.trim();
+    const yobNum = yobText.length > 0 ? parseInt(yobText, 10) : undefined;
+    const profilePayload: {
+      contact_number: string;
+      gender?: string;
+      yob?: number;
+    } = {
+      contact_number: e164,
+    };
+    if (gender) profilePayload.gender = gender;
+    if (typeof yobNum === "number" && !isNaN(yobNum)) profilePayload.yob = yobNum;
     try {
-      await apiUtil.post("/user", {
-        contact_number: e164,
-        gender,
-        yob: yobNum,
-      });
+      await apiUtil.post("/user", profilePayload);
       setProfileSubmitted(true);
       return true;
     } catch (error: any) {
@@ -176,7 +184,7 @@ const SignUpScreen: React.FC = () => {
     if (!isValid) {
       BrandedAlert.alert(
         "Fill the basics first",
-        "Add your phone, year of birth, and gender so we can finish setting up your account.",
+        "Add your phone number so we can finish setting up your account.",
       );
       return;
     }
@@ -295,7 +303,9 @@ const SignUpScreen: React.FC = () => {
             />
           </View>
 
-          <Text style={[styles.fieldLabel, colors.mode === "dark" && { color: colors.textPrimary, opacity: 1 }]}>Year of birth</Text>
+          <Text style={[styles.fieldLabel, colors.mode === "dark" && { color: colors.textPrimary, opacity: 1 }]}>
+            Year of birth <Text style={[styles.fieldLabelMuted, { color: colors.textTertiary }]}>(Optional)</Text>
+          </Text>
           <View style={[styles.inputWrap, { backgroundColor: colors.navFill }, focused === "yob" && styles.inputWrapFocused]}>
             <TextInput
               style={[styles.input, { color: colors.navIconActive }]}
@@ -310,7 +320,9 @@ const SignUpScreen: React.FC = () => {
             />
           </View>
 
-          <Text style={[styles.fieldLabel, colors.mode === "dark" && { color: colors.textPrimary, opacity: 1 }]}>Gender</Text>
+          <Text style={[styles.fieldLabel, colors.mode === "dark" && { color: colors.textPrimary, opacity: 1 }]}>
+            Gender <Text style={[styles.fieldLabelMuted, { color: colors.textTertiary }]}>(Optional)</Text>
+          </Text>
           <View style={styles.genderRow}>
             {["Male", "Female"].map((g) => {
               const selected = gender === g;

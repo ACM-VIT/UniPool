@@ -40,6 +40,9 @@ module.exports = () => {
 
   return {
     ...config,
+    plugins: Array.from(
+      new Set([...(config.plugins || []), "@react-native-community/datetimepicker"])
+    ),
     android: {
       ...config.android,
       config: {

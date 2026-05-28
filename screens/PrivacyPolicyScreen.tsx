@@ -59,8 +59,8 @@ const PrivacyPolicyScreen: React.FC = () => {
           • Name (from your Google or Apple account){'\n'}
           • Email address{'\n'}
           • Phone number{'\n'}
-          • Year of birth{'\n'}
-          • Gender{'\n'}
+          • Year of birth (optional){'\n'}
+          • Gender (optional){'\n'}
           • Profile picture (if provided)
         </Text>
 
