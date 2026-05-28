@@ -18,7 +18,6 @@ import {
 } from 'react-native';
 import type { StyleProp, TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Host as ExpoHost, TextInput as ExpoTextInput, useNativeState } from "@expo/ui";
 import { useFocusEffect, useRouter } from "expo-router";
 import { chatMessagesStyles } from './ChatScreen.styles';
 import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
@@ -573,7 +572,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   // null on phones so the mobile chat is untouched.
   const tabletContentStyle = useTabletContentStyle();
 
-  const messageDraft = useNativeState("");
+  const [messageDraft, setMessageDraft] = useState("");
   const [hasMessageDraft, setHasMessageDraft] = useState(false);
   const [userUuid, setUserUuid] = useState<string | null>(() => chatParams.userId ?? null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -918,13 +917,14 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     setHasMessageDraft(hasDraft);
   };
   const handleComposerTextChange = (text: string) => {
+    setMessageDraft(text);
     const hasDraft = text.trim().length > 0;
     setComposerDraftPresence(hasDraft);
     if (hasDraft) handleTypingStart();
     else handleTypingStop();
   };
   const clearComposerDraft = () => {
-    messageDraft.value = "";
+    setMessageDraft("");
     setComposerDraftPresence(false);
   };
 
@@ -1383,7 +1383,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
 
   const sendMessage = (override?: string) => {
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
-    const text = (override ?? messageDraft.value).trim();
+    const text = (override ?? messageDraft).trim();
     if (!userUuid || !chatId || !text) return;
 
     handleTypingStop();
@@ -2379,27 +2379,27 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         ) : null}
         <View style={[chatMessagesStyles.typingBarContainer, colors.mode === "dark" && { backgroundColor: colors.surfaceElevated }]}>
           <View style={chatMessagesStyles.typingBarInputSlot}>
-            <ExpoHost matchContents={{ vertical: true }} style={{ width: "100%" }}>
-              <ExpoTextInput
-                style={{ width: "100%", paddingVertical: 8 }}
-                textStyle={{
-                  color: colors.textPrimary,
-                  fontSize: 15,
-                  fontFamily: "NunitoSans_600SemiBold",
-                }}
-                placeholder="Message"
-                placeholderTextColor={colors.textTertiary}
-                value={messageDraft}
-                onChangeText={handleComposerTextChange}
-                onBlur={handleTypingStop}
-                onSubmitEditing={(text) => {
-                  handleTypingStop();
-                  text.trim() && sendMessage(text);
-                }}
-                returnKeyType="send"
-                autoCorrect
-              />
-            </ExpoHost>
+            <TextInput
+              style={{
+                width: "100%",
+                paddingVertical: 8,
+                color: colors.textPrimary,
+                fontSize: 15,
+                fontFamily: "NunitoSans_600SemiBold",
+              }}
+              placeholder="Message"
+              placeholderTextColor={colors.textTertiary}
+              value={messageDraft}
+              onChangeText={handleComposerTextChange}
+              onBlur={handleTypingStop}
+              onSubmitEditing={(event) => {
+                const text = event.nativeEvent.text;
+                handleTypingStop();
+                text.trim() && sendMessage(text);
+              }}
+              returnKeyType="send"
+              autoCorrect
+            />
           </View>
           <TouchableOpacity onPress={() => sendMessage()} style={chatMessagesStyles.typingBarIconContainer}>
             {/* Paper-plane on the lime send button. Forest stroke +

@@ -54,3 +54,6 @@ android/app/my-upload-key.keystore
 
 .env.ota
 .asc
+ios/asc-metadata/*
+ios/asc-metadata/app-info/en-GB.json
+ios/asc-metadata/app-info/en-GB.json

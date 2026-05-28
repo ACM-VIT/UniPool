@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Image, ScrollView, TouchableOpacity, Platform, StatusBar, Share, Linking } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { ProfileScreenProps } from "./ProfileScreen.types";
-import BrandInfo from "../../components/BrandInfo";
 import styles from "./ProfileScreen.styles";
 import AppColors from "../../design_systems/colors";
 import LoadingComponent from "../../components/LoadingComponent";
@@ -127,6 +127,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   // overrides below let the canvas + text adapt to whichever
   // palette is active without rewriting every style block.
   const { colors: themeColors } = useTheme();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -616,12 +617,28 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <View style={styles.brandInfoHeaderRow}>
-        <BrandInfo />
-      </View>
-
-      <View style={[styles.headerRow, tabletContentStyle]}>
-        <Text style={[styles.headerTitle, { color: themeColors.textPrimary }]}>Profile</Text>
+      {/* Header — matches the Chats tab pattern: no BrandInfo wordmark
+          above, just a bold 34pt title that consumes its own top safe-
+          area inset. The 24pt + BrandInfo combo was the older Settings
+          chrome; the inbox-style header reads as a single confident
+          stop instead of a two-row stack. */}
+      <View
+        style={[
+          { paddingHorizontal: 22, paddingTop: Math.max(insets.top, 16) + 10, paddingBottom: 14 },
+          tabletContentStyle,
+        ]}
+      >
+        <Text
+          style={{
+            fontFamily: "NunitoSans_800ExtraBold",
+            fontSize: 34,
+            lineHeight: 38,
+            letterSpacing: -0.9,
+            color: themeColors.textPrimary,
+          }}
+        >
+          Profile
+        </Text>
       </View>
 
       <ScrollView
@@ -685,11 +702,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
             AsyncStorage; ThemedRoot re-renders the canvas + StatusBar
             on the next frame so the switch feels instant. "System"
             mirrors the OS-level preference and live-updates if the
-            user toggles it in Settings while the app is open. */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: themeColors.textPrimary }]}>Appearance</Text>
-          <AppearanceSegmented />
-        </View>
+            user toggles it in Settings while the app is open.
+            ⚠️ Temporarily hidden for the 2.0.8 / 2.0.9 release while
+            dark mode is held back. The component + ThemeContext stay
+            wired up so re-enabling is just deleting the `false &&`. */}
+        {false && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: themeColors.textPrimary }]}>Appearance</Text>
+            <AppearanceSegmented />
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: themeColors.textPrimary }]}>More</Text>

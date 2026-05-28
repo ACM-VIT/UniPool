@@ -57,8 +57,22 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function resolveMode(preference: ThemePreference, system: ThemeMode): ThemeMode {
-  if (preference === "light" || preference === "dark") return preference;
-  return system;
+  // Dark mode is temporarily disabled for the 2.0.8 / 2.0.9 release.
+  // All theme infrastructure stays intact — `useThemeColors`, the
+  // gated `colors.mode === "dark"` overrides, the persisted user
+  // preference, the system listener — but the resolver always returns
+  // `"light"` so consumers paint the light palette regardless of what
+  // the user picked or what iOS reports.
+  //
+  // To re-enable: replace the body of this function with the commented
+  // block below.
+  //
+  //   if (preference === "light" || preference === "dark") return preference;
+  //   return system;
+  //
+  void preference;
+  void system;
+  return "light";
 }
 
 function normalizeSystem(scheme: ColorSchemeName | null | undefined): ThemeMode {

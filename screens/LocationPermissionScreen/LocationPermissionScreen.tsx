@@ -31,8 +31,8 @@ import {
 } from "../../utils/permissionsPrompt";
 
 // Persisted flag — once the user has seen the combined location +
-// notifications permission sheet (whether they tapped Allow access or
-// Not now), we don't show it unprompted again. Read by AppShell.
+// notifications permission flow, we don't show it unprompted again.
+// Read by AppShell.
 export { HAS_SEEN_PERMISSIONS_PROMPT_KEY };
 
 /**
@@ -48,16 +48,13 @@ export { HAS_SEEN_PERMISSIONS_PROMPT_KEY };
  *
  *   [hero brand illustration]
  *   "One quick thing"
- *   "Allow location + notifications so we can show ride pins near
- *    you and ping you when a seat opens up."
- *   [Allow access primary CTA]
- *   [Not now secondary]
+ *   "Location helps us show ride pins near you..."
+ *   [Continue primary CTA]
  *
- * Behaviour is unchanged from the previous screen: preflight
- * check skips the sheet if location is already granted, both
- * permission prompts fire sequentially on Allow, the
- * permissions-prompt-seen flag persists either way, and the user
- * is returned to `returnTo` or HomeScreen on exit.
+ * Preflight check skips the sheet if location is already granted,
+ * both permission prompts fire sequentially on Continue, the
+ * permissions-prompt-seen flag persists after the native prompts,
+ * and the user is returned to `returnTo` or HomeScreen on exit.
  */
 const LocationPermissionScreen: React.FC = () => {
   const router = useRouter();
@@ -67,10 +64,10 @@ const LocationPermissionScreen: React.FC = () => {
   const { refreshLocation } = useLocationInfo();
   const colors = useThemeColors();
   const [checkingPermissions, setCheckingPermissions] = useState(true);
-  // True from the first Allow tap until the chain finishes navigating.
+  // True from the first Continue tap until the chain finishes navigating.
   // Without this the button stays tappable while the native prompts +
   // FCM round-trip are in flight, and users spam-tap thinking
-  // nothing happened — each tap then queues another handleAllow()
+  // nothing happened — each tap then queues another permission flow
   // and the screen feels broken.
   const [busy, setBusy] = useState(false);
 
@@ -120,9 +117,7 @@ const LocationPermissionScreen: React.FC = () => {
     };
   }, [markSeenAndLeave]);
 
-  const goHome = markSeenAndLeave;
-
-  const handleAllow = async () => {
+  const handleContinue = async () => {
     // Re-entrancy guard. Without this, tapping the button a second
     // time while the chain below is still in flight kicks off a
     // parallel chain — each one shows the native prompt again
@@ -231,8 +226,9 @@ const LocationPermissionScreen: React.FC = () => {
         <View style={styles.copy}>
           <Text style={[styles.headline, { color: colors.textPrimary }]}>One quick thing.</Text>
           <Text style={[styles.subhead, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
-            Allow location and notifications so we can show ride pins
-            near you and ping you the moment a seat opens up.
+            Location helps us show ride pins near you. Notifications let
+            us tell you when a seat opens up. You can choose what to
+            share in the next system prompts.
           </Text>
         </View>
 
@@ -240,10 +236,10 @@ const LocationPermissionScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.primaryBtn, { backgroundColor: colors.navFill }, busy && { opacity: 0.7 }]}
             activeOpacity={0.88}
-            onPress={handleAllow}
+            onPress={handleContinue}
             disabled={busy}
             accessibilityRole="button"
-            accessibilityLabel="Allow location and notification access"
+            accessibilityLabel="Continue to location and notification permissions"
             accessibilityState={{ busy, disabled: busy }}
           >
             {busy ? (
@@ -253,19 +249,8 @@ const LocationPermissionScreen: React.FC = () => {
                 accessibilityLabel="Requesting permissions"
               />
             ) : (
-              <Text style={[styles.primaryBtnText, { color: colors.navIconInactive }]}>Allow access</Text>
+              <Text style={[styles.primaryBtnText, { color: colors.navIconInactive }]}>Continue</Text>
             )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.secondaryBtn, busy && { opacity: 0.4 }]}
-            activeOpacity={0.7}
-            onPress={goHome}
-            disabled={busy}
-            accessibilityRole="button"
-            accessibilityLabel="Skip permissions for now"
-            hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
-          >
-            <Text style={[styles.secondaryBtnText, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Not now</Text>
           </TouchableOpacity>
         </View>
       </View>
