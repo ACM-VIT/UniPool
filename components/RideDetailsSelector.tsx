@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/safeAsyncStorage';
 import { X } from "lucide-react-native";
 import {
   View,

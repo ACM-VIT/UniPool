@@ -1,0 +1,7 @@
+{
+  "_comment": "Native runtime fingerprints of each shipped native build, per runtime version. scripts/publish-ota.sh refuses to publish a JS OTA whose computed native fingerprint does not match the shipped build for that runtime version. This is the safeguard against the JS<->native skew that black-screened 2.0.10 over OTA (a stale node_modules produced a 2.x AsyncStorage bundle that the 3.x native build could not load). Regenerate with: npx expo-updates fingerprint:generate --platform <ios|android>, and update this file whenever you ship a new native build.",
+  "2.0.11": {
+    "ios": "035465c561d61652ee76d2ba17bf2266e8ec71fd",
+    "android": "37d12917262a08fd466f89401d3647bbb5e7de20"
+  }
+}

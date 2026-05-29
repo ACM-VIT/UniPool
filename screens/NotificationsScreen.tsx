@@ -126,7 +126,7 @@ const NotificationsScreen: React.FC = () => {
         >
           {Object.entries(sections).map(([sectionTitle, items]) => (
             <View style={styles.section} key={sectionTitle}>
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{sectionTitle}</Text>
+              <Text style={[styles.sectionTitle, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>{sectionTitle}</Text>
               <View style={[
                 styles.menuContainer,
                 colors.mode === "dark" && { backgroundColor: colors.surface, borderColor: colors.inkSubtle },
@@ -152,7 +152,7 @@ const NotificationsScreen: React.FC = () => {
                         true: colors.primary,
                       }}
                       thumbColor={prefs[item.key]
-                        ? (colors.mode === "dark" ? colors.textOnAccent : AppColors.primaryLightGreen)
+                        ? (colors.mode === "dark" ? colors.textOnAccent : AppColors.basicWhite)
                         : (colors.mode === "dark" ? colors.surfaceElevated : AppColors.basicWhite)}
                       ios_backgroundColor={colors.inkSoft}
                       style={styles.switch}
@@ -191,47 +191,62 @@ const styles = StyleSheet.create({
     marginBottom: height * 0.025,
   },
   sectionTitle: {
-    fontSize: width * 0.046,
+    // Quiet mile-marker above each card — matches the Profile / Home
+    // section titles (14pt forest @ 0.7), not an oversized headline.
+    fontSize: 14,
     fontWeight: "600",
-    color: AppColors.basicBlack,
+    color: AppColors.secondaryDarkGreen,
     fontFamily: "NunitoSans_600SemiBold",
-    marginBottom: height * 0.015,
+    marginBottom: height * 0.01,
+    marginLeft: 2,
+    letterSpacing: -0.05,
+    opacity: 0.7,
   },
   menuContainer: {
-    backgroundColor: AppColors.primaryLightGreen,
-    borderRadius: width * 0.046,
-    borderWidth: 1,
-    borderColor: AppColors.secondaryDarkGreen,
+    // Forest card floating on the lime canvas — matches the Profile /
+    // Account Settings menu cards. Was a lime card on the lime
+    // background, so it vanished into the canvas behind a hairline.
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: width * 0.04,
     marginBottom: height * 0.03,
     overflow: "hidden",
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
   },
   settingItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: width * 0.041,
-    paddingVertical: height * 0.0175,
-    backgroundColor: AppColors.primaryLightGreen,
-    borderBottomWidth: 0.5,
-    borderBottomColor: AppColors.secondaryDarkGreen,
+    paddingHorizontal: width * 0.045,
+    paddingVertical: height * 0.018,
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderBottomWidth: 1,
+    // Light hairline between rows on the forest card — matches the
+    // Profile menu row separators.
+    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   settingTextContainer: {
     flex: 1,
     marginRight: width * 0.051,
   },
   settingTitle: {
-    fontSize: width * 0.041,
+    fontSize: width * 0.042,
     fontWeight: "600",
-    color: AppColors.secondaryDarkGreen,
+    color: AppColors.basicWhite,
     marginBottom: height * 0.005,
     fontFamily: "NunitoSans_600SemiBold",
   },
   settingDescription: {
-    fontSize: width * 0.035,
-    color: AppColors.secondaryDarkGreen,
+    fontSize: width * 0.034,
+    // Soft lime secondary text on the forest card — the app's standard
+    // "secondary on forest" pairing (cf. Profile stat labels).
+    color: AppColors.primaryLightGreen,
     fontFamily: "NunitoSans_400Regular",
-    opacity: 0.75,
-    lineHeight: width * 0.041,
+    opacity: 0.7,
+    lineHeight: width * 0.046,
   },
   switch: {
     transform: [{ scaleX: 1.2 }, { scaleY: 1.2 }],

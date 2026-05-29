@@ -47,6 +47,50 @@ echo "==> upload url:      $OTA_UPLOAD_URL"
 echo "==> message:         ${MESSAGE:-(none)}"
 echo
 
+# --- Native-compatibility guard ---------------------------------------
+# Refuse to ship a JS OTA whose native fingerprint does not match the
+# native build currently shipped for this runtime version. This is the
+# safeguard against the JS<->native skew that black-screened 2.0.10:
+# a stale node_modules produced a 2.x AsyncStorage bundle that the 3.x
+# native build could not load, crashing every device to a black screen.
+# Record fingerprints with each native release in ota-fingerprints.json
+# (npx expo-updates fingerprint:generate --platform <ios|android>).
+fp_hash() {
+  npx expo-updates fingerprint:generate --platform "$1" 2>/dev/null \
+    | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(d).hash||'')}catch(e){}})"
+}
+FP_FILE="ota-fingerprints.json"
+if [[ -f "$FP_FILE" ]]; then
+  EXPECTED_IOS=$(node -e "try{process.stdout.write((require('./$FP_FILE')['$RUNTIME_VERSION']||{}).ios||'')}catch(e){}")
+  EXPECTED_ANDROID=$(node -e "try{process.stdout.write((require('./$FP_FILE')['$RUNTIME_VERSION']||{}).android||'')}catch(e){}")
+  if [[ -z "$EXPECTED_IOS" || -z "$EXPECTED_ANDROID" ]]; then
+    echo "ERROR: no recorded native fingerprint for runtime $RUNTIME_VERSION in $FP_FILE." >&2
+    echo "       Ship a native build for $RUNTIME_VERSION and record its fingerprints" >&2
+    echo "       before publishing an OTA for it." >&2
+    exit 1
+  fi
+  echo "==> verifying JS bundle is native-compatible with the shipped $RUNTIME_VERSION build"
+  ACTUAL_IOS=$(fp_hash ios)
+  ACTUAL_ANDROID=$(fp_hash android)
+  if [[ "$ACTUAL_IOS" != "$EXPECTED_IOS" || "$ACTUAL_ANDROID" != "$EXPECTED_ANDROID" ]]; then
+    echo "ERROR: native fingerprint mismatch for runtime $RUNTIME_VERSION." >&2
+    echo "  ios:     expected $EXPECTED_IOS  got ${ACTUAL_IOS:-<none>}" >&2
+    echo "  android: expected $EXPECTED_ANDROID  got ${ACTUAL_ANDROID:-<none>}" >&2
+    echo >&2
+    echo "  Your native dependencies changed since the shipped $RUNTIME_VERSION build," >&2
+    echo "  so this JS bundle is NOT safe to OTA onto those devices (it would crash," >&2
+    echo "  the way the AsyncStorage 2.x/3.x skew black-screened 2.0.10)." >&2
+    echo "  Bump the version, ship a new native build, record its fingerprints in" >&2
+    echo "  $FP_FILE, then publish." >&2
+    exit 1
+  fi
+  echo "==> native fingerprint OK (ios=$ACTUAL_IOS android=$ACTUAL_ANDROID)"
+  echo
+else
+  echo "WARNING: $FP_FILE not found; skipping native-compatibility guard." >&2
+  echo
+fi
+
 if [[ -d dist ]]; then
   echo "==> removing previous dist/"
   rm -rf dist
