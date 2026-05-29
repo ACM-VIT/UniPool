@@ -8,7 +8,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorage from "../../utils/safeAsyncStorage";
 import { useRouter } from "expo-router";
 import styles, { SLIDE_WIDTH, HERO_SIZE } from "./OnboardingScreen.styles";
 import AppColors from "../../design_systems/colors";

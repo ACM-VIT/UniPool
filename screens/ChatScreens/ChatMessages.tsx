@@ -9,12 +9,14 @@ import {
   TextInput,
   Modal,
   Switch,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Animated,
   Easing,
   AppState,
+  Dimensions,
 } from 'react-native';
 import type { StyleProp, TextStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -571,6 +573,28 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   // instead of stretching across 1032pt of lime canvas. Hook returns
   // null on phones so the mobile chat is untouched.
   const tabletContentStyle = useTabletContentStyle();
+
+  // iOS keyboard height, tracked manually. The previous
+  // KeyboardAvoidingView (behavior="padding") over-lifted the composer
+  // — it left a ~keyboard-sized gap between the input pill and the
+  // keyboard instead of sitting flush. Tracking the frame ourselves and
+  // padding the composer-stack container by exactly that height puts the
+  // input right on top of the keyboard. Android keeps the KAV path.
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const onFrame = (e: { endCoordinates: { screenY: number } }) => {
+      const h = Math.max(0, Dimensions.get("window").height - e.endCoordinates.screenY);
+      setKeyboardHeight(h);
+    };
+    const showSub = Keyboard.addListener("keyboardWillChangeFrame", onFrame);
+    const hideSub = Keyboard.addListener("keyboardWillHide", () => setKeyboardHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+  const keyboardOpen = keyboardHeight > 0;
 
   const [messageDraft, setMessageDraft] = useState("");
   const [hasMessageDraft, setHasMessageDraft] = useState(false);
@@ -2031,7 +2055,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         <View style={chatMessagesStyles.safetyNoticeWrap}>
           <View style={[chatMessagesStyles.safetyNoticeCard, colors.mode === "dark" && { backgroundColor: colors.surface, borderColor: colors.inkSubtle }]}>
             <Text style={[chatMessagesStyles.safetyNoticeTitle, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
-              Be kind, ride safe
+              Be nice, ride safe
             </Text>
             <Text style={[chatMessagesStyles.safetyNoticeBody, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
               Keep payments, OTPs and personal IDs out of chat. UniPool is
@@ -2061,6 +2085,15 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     userUuid,
     viewerIsHostForPayment,
   ]);
+
+  // Composer keyboard wrapper. iOS uses a plain padded View driven by
+  // the tracked keyboard height (KAV over-lifted, leaving a gap above
+  // the keyboard); Android keeps the KeyboardAvoidingView.
+  const ComposerWrap: any = Platform.OS === "ios" ? View : KeyboardAvoidingView;
+  const composerWrapProps: any =
+    Platform.OS === "ios"
+      ? { style: { flex: 1, paddingBottom: keyboardHeight } }
+      : { style: { flex: 1 }, behavior: "padding", keyboardVerticalOffset: 0 };
 
   return (
     <View style={[chatMessagesStyles.container, { flex: 1, backgroundColor: colors.background }, tabletContentStyle]}>
@@ -2251,11 +2284,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           the keyboard, the input sits just above the keyboard, and
           the existing scroll position (bottom by default) is
           preserved. */}
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.select({ ios: 'padding', android: 'padding' })}
-        keyboardVerticalOffset={Platform.select({ ios: 80, android: 0 })}
-      >
+      <ComposerWrap {...composerWrapProps}>
       {isLoadingInitial ? (
         // Suspense skeleton — three ghost bubbles alternating sides,
         // pulsing via opacity. Reads as "the chat exists, just give it
@@ -2377,18 +2406,38 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             </ScrollView>
           </View>
         ) : null}
-        <View style={[chatMessagesStyles.typingBarContainer, colors.mode === "dark" && { backgroundColor: colors.surfaceElevated }]}>
+        <View style={[
+          chatMessagesStyles.typingBarContainer,
+          colors.mode === "dark" && { backgroundColor: colors.surfaceElevated },
+          // The 22pt bottom margin is the home-indicator gap for the
+          // keyboard-CLOSED state. With the keyboard open the composer
+          // is already lifted to sit on the keyboard, so collapse the
+          // margin to a tight 6pt instead of leaving a fat gap.
+          keyboardOpen && Platform.OS === "ios" && { marginBottom: 6 },
+        ]}>
           <View style={chatMessagesStyles.typingBarInputSlot}>
             <TextInput
               style={{
                 width: "100%",
                 paddingVertical: 8,
-                color: colors.textPrimary,
+                // The composer pill is the forest `secondaryDarkGreen`
+                // in light mode and the raised charcoal `surfaceElevated`
+                // in dark. Either way the surface is dark, so the typed
+                // text needs a LIGHT colour. `textPrimary` is forest in
+                // light mode — forest-on-forest left the text invisible
+                // (the user could see a cursor but not what they typed).
+                // Use cream-on-dark in both modes.
+                color: colors.mode === "dark" ? colors.textPrimary : colors.textOnDark,
                 fontSize: 15,
                 fontFamily: "NunitoSans_600SemiBold",
               }}
+              // Brand cursor + selection tint. Without this the cursor
+              // and the highlight behind selected text render in the
+              // iOS system blue, which reads as an off-brand teal smear
+              // over the forest pill.
+              selectionColor={colors.primary}
               placeholder="Message"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={colors.mode === "dark" ? colors.textTertiary : "rgba(255,255,255,0.5)"}
               value={messageDraft}
               onChangeText={handleComposerTextChange}
               onBlur={handleTypingStop}
@@ -2417,7 +2466,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           </TouchableOpacity>
         </View>
       </>
-      </KeyboardAvoidingView>
+      </ComposerWrap>
 
       {renderSettingsModal()}
       {renderReportSheet()}

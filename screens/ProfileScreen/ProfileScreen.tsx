@@ -140,6 +140,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   const tabletScrollContentStyle = useTabletScrollContentStyle();
   const screenActiveRef = useRef(true);
   const hasFocusedOnceRef = useRef(false);
+  // True from just before the native share sheet opens until a short
+  // beat after it closes. The OS (iOS UIActivityViewController and the
+  // Android chooser alike) delivers the dismissal tap to whatever view
+  // sits under the finger, which lands on a Profile menu row and fires
+  // its navigation. renderMenuItem's onPress checks this to swallow
+  // that stray "ghost tap".
+  const shareGuardRef = useRef(false);
   const { user: contextUser, loading: contextUserLoading } = useUser();
 
   const showProfileError = useCallback((message: string) => {
@@ -354,6 +361,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   };
 
   const openShareDialog = async () => {
+    // Hold the ghost-tap guard from before the sheet appears until a
+    // short beat after it resolves, so the dismissal tap can't fall
+    // through to a menu row (see shareGuardRef). Covers both possible
+    // orderings: the stray onPress firing before OR after Share.share
+    // resolves.
+    shareGuardRef.current = true;
     try {
       await Share.share({
         message: 'Check out UniPool by ACM-VIT: https://acmvit.in',
@@ -363,6 +376,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     } catch (error) {
       console.warn('[ProfileScreen] share failed', error);
       showProfileError('Unable to open share sheet.');
+    } finally {
+      setTimeout(() => {
+        shareGuardRef.current = false;
+      }, 600);
     }
   };
 
@@ -391,7 +408,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
             debugLog("User confirmed logout");
             try {
               const { getAuth, signOut } = await import('@react-native-firebase/auth');
-              const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+              const { default: AsyncStorage } = await import('../../utils/safeAsyncStorage');
 
               debugLog("Starting logout process...");
               const auth = getAuth();
@@ -510,6 +527,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
         key={item.id}
         style={itemStyle}
         onPress={() => {
+          // Ignore the stray tap the OS delivers to the row underneath
+          // when the native share sheet is dismissed (iOS + Android).
+          if (shareGuardRef.current) return;
           debugLog(`Menu item pressed: ${item.title} (${item.id})`);
           if (item.onPress) {
             item.onPress();

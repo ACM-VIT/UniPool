@@ -35,7 +35,7 @@ const AccountSettingsScreen: React.FC = () => {
             setLoading(true);
             try {
               await apiUtil.delete('/user/delete');
-              const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
+              const { default: AsyncStorage } = await import('../utils/safeAsyncStorage');
               const { getAuth, signOut } = await import('@react-native-firebase/auth');
               try {
                 const auth = getAuth();

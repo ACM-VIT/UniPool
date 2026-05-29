@@ -4,6 +4,7 @@ import {
   Modal,
   Animated,
   Easing,
+  Keyboard,
   KeyboardAvoidingView,
   LayoutChangeEvent,
   Platform,
@@ -63,6 +64,37 @@ const SheetShell: React.FC<Props> = ({
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
   const [modalHeight, setModalHeight] = useState(initialModalHeight);
+  // iOS keyboard height, tracked manually. We deliberately do NOT use
+  // KeyboardAvoidingView on iOS: a KAV with `behavior="padding"` inside
+  // a transparent Modal double-counts the keyboard frame, which shoved
+  // the bottom sheet ~a full keyboard-height too high (content ended up
+  // clipped under the status bar when returning from another app with
+  // the keyboard re-opening). Tracking the height ourselves and padding
+  // the flex-end container by exactly that much lifts the sheet to sit
+  // flush on the keyboard, once. Android keeps the KeyboardAvoidingView
+  // (`behavior="height"`) because its transparent Modal sits over an
+  // OS-resized window and that path already behaves.
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const onFrame = (e: { endCoordinates: { screenY: number } }) => {
+      const h = Math.max(0, SCREEN_HEIGHT - e.endCoordinates.screenY);
+      setKeyboardHeight(h);
+    };
+    const showSub = Keyboard.addListener("keyboardWillChangeFrame", onFrame);
+    const hideSub = Keyboard.addListener("keyboardWillHide", () => setKeyboardHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // Reset the tracked keyboard height whenever the sheet closes so a
+  // stale value can't offset the next open.
+  useEffect(() => {
+    if (!visible) setKeyboardHeight(0);
+  }, [visible]);
 
   const handleModalLayout = useCallback((event: LayoutChangeEvent) => {
     const nextHeight = event.nativeEvent.layout.height;
@@ -80,7 +112,14 @@ const SheetShell: React.FC<Props> = ({
   // top inset because its Modal/KAV path does preserve that context.
   const sheetMaxHeight =
     Math.max(
-      modalHeight - (Platform.OS === "ios" ? insets.top : 0) - SHEET_TOP_GAP,
+      modalHeight
+        - (Platform.OS === "ios" ? insets.top : 0)
+        // On iOS the flex-end container is padded by the keyboard
+        // height, so the space available to the card is the screen
+        // minus the keyboard. Subtract it so tall content caps to the
+        // visible area above the keyboard instead of overflowing up.
+        - (Platform.OS === "ios" ? keyboardHeight : 0)
+        - SHEET_TOP_GAP,
       MIN_MEASURED_HEIGHT,
     );
 
@@ -138,6 +177,77 @@ const SheetShell: React.FC<Props> = ({
 
   const canDismiss = dismissible && !busy;
 
+  // The bottom-sheet card. Extracted so it can be dropped into either
+  // the iOS padded container or the Android KeyboardAvoidingView
+  // without duplicating the markup.
+  const sheetCard = (
+    <Animated.View
+      style={{
+        width: "100%",
+        maxWidth: 540,
+        backgroundColor: surfaceColor ?? colors.surfaceElevated,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        paddingHorizontal: 24,
+        // Plain 14pt top padding. With statusBarTranslucent OFF on
+        // Android, the Modal sits below the system chrome on its own,
+        // so we don't need to push the content down ourselves.
+        paddingTop: 14,
+        paddingBottom: Platform.OS === "ios" ? 36 : 24,
+        transform: [{ translateY }],
+        shadowColor: AppColors.basicBlack,
+        shadowOffset: { width: 0, height: -8 },
+        shadowOpacity: 0.22,
+        shadowRadius: 28,
+        elevation: 18,
+        maxHeight: sheetMaxHeight,
+      }}
+    >
+      {/* Grab handle */}
+      <View
+        style={{
+          alignSelf: "center",
+          width: 44,
+          height: 5,
+          borderRadius: 3,
+          backgroundColor: colors.inkLine,
+          marginBottom: 18,
+        }}
+      />
+
+      {dismissible ? (
+        <TouchableOpacity
+          onPress={() => canDismiss && onDismiss()}
+          disabled={!canDismiss}
+          activeOpacity={0.6}
+          style={{
+            position: "absolute",
+            top: 22,
+            right: 18,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: colors.inkSubtle,
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 4,
+          }}
+        >
+          <Svg width={14} height={14} viewBox="0 0 16 16">
+            <Path
+              d="M3 3 L 13 13 M13 3 L 3 13"
+              stroke={colors.textPrimary}
+              strokeWidth={2.2}
+              strokeLinecap="round"
+            />
+          </Svg>
+        </TouchableOpacity>
+      ) : null}
+
+      {children}
+    </Animated.View>
+  );
+
   return (
     <Modal
       visible={visible}
@@ -160,93 +270,42 @@ const SheetShell: React.FC<Props> = ({
       </Animated.View>
 
       <View style={fill} pointerEvents="box-none">
-        <KeyboardAvoidingView
-          // `behavior="height"` on Android (not `undefined`) because a
-          // transparent Modal sits above the OS-resized window. We then
-          // measure this KAV after it shrinks and cap the bottom sheet to
-          // that measured space, so oversized content cannot push the
-          // title/handle above the visible modal area.
-          //
-          // `alignItems: 'center'` centres the inner sheet card under
-          // its `maxWidth: 540`, so on iPad the sheet reads as a
-          // phone-shape surface instead of spanning the entire
-          // tablet canvas. On phones the maxWidth is wider than the
-          // window so this is a no-op for the existing layout.
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1, justifyContent: "flex-end", alignItems: "center" }}
-          pointerEvents="box-none"
-          onLayout={handleModalLayout}
-        >
-          <Animated.View
+        {Platform.OS === "ios" ? (
+          // iOS: plain flex-end container padded by the tracked keyboard
+          // height. No KeyboardAvoidingView — see the keyboardHeight
+          // comment above for why the KAV double-counted here.
+          <View
             style={{
-              width: "100%",
-              maxWidth: 540,
-              backgroundColor: surfaceColor ?? colors.surfaceElevated,
-              borderTopLeftRadius: 28,
-              borderTopRightRadius: 28,
-              paddingHorizontal: 24,
-              // Plain 14pt top padding. With statusBarTranslucent OFF on
-              // Android, the Modal sits below the system chrome on its
-              // own, so we don't need to push the content down ourselves
-              // any more.
-              paddingTop: 14,
-              paddingBottom: Platform.OS === "ios" ? 36 : 24,
-              transform: [{ translateY }],
-              shadowColor: AppColors.basicBlack,
-              shadowOffset: { width: 0, height: -8 },
-              shadowOpacity: 0.22,
-              shadowRadius: 28,
-              elevation: 18,
-              maxHeight: sheetMaxHeight,
+              flex: 1,
+              justifyContent: "flex-end",
+              alignItems: "center",
+              paddingBottom: keyboardHeight,
             }}
+            pointerEvents="box-none"
+            onLayout={handleModalLayout}
           >
-            {/* Grab handle */}
-            <View
-              style={{
-                alignSelf: "center",
-                width: 44,
-                height: 5,
-                borderRadius: 3,
-                backgroundColor: colors.inkLine,
-                marginBottom: 18,
-              }}
-            />
-
-            {dismissible ? (
-              <TouchableOpacity
-                onPress={() => canDismiss && onDismiss()}
-                disabled={!canDismiss}
-                activeOpacity={0.6}
-                style={{
-                  position: "absolute",
-                  // Plain 22pt offset — paired with the 14pt paddingTop
-                  // above. No Android special-case since the Modal sits
-                  // below the status bar now (statusBarTranslucent off).
-                  top: 22,
-                  right: 18,
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor: colors.inkSubtle,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  zIndex: 4,
-                }}
-              >
-                <Svg width={14} height={14} viewBox="0 0 16 16">
-                  <Path
-                    d="M3 3 L 13 13 M13 3 L 3 13"
-                    stroke={colors.textPrimary}
-                    strokeWidth={2.2}
-                    strokeLinecap="round"
-                  />
-                </Svg>
-              </TouchableOpacity>
-            ) : null}
-
-            {children}
-          </Animated.View>
-        </KeyboardAvoidingView>
+            {sheetCard}
+          </View>
+        ) : (
+          <KeyboardAvoidingView
+            // `behavior="height"` on Android because a transparent Modal
+            // sits above the OS-resized window. We measure this KAV after
+            // it shrinks and cap the bottom sheet to that space, so
+            // oversized content cannot push the title/handle above the
+            // visible modal area.
+            //
+            // `alignItems: 'center'` centres the inner sheet card under
+            // its `maxWidth: 540`, so on iPad the sheet reads as a
+            // phone-shape surface instead of spanning the entire tablet
+            // canvas.
+            behavior="height"
+            style={{ flex: 1, justifyContent: "flex-end", alignItems: "center" }}
+            pointerEvents="box-none"
+            onLayout={handleModalLayout}
+          >
+            {sheetCard}
+          </KeyboardAvoidingView>
+        )}
       </View>
     </Modal>
   );

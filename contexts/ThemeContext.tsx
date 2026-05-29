@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import { Appearance, ColorSchemeName, StyleSheet } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorage from "../utils/safeAsyncStorage";
 import { palettes, Palette, ThemeMode, ThemePreference } from "../design_systems/palettes";
 
 /**

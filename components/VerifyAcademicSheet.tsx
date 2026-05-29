@@ -306,7 +306,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="University name or email domain"
+              placeholder="University name or domain"
               placeholderTextColor={colors.textTertiary}
               // Universities are usually proper nouns OR lowercase email
               // domains — disabling auto-capitalisation lets users type

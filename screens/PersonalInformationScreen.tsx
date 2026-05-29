@@ -608,7 +608,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="University name or email domain"
+              placeholder="University name or domain"
               placeholderTextColor={isDark ? colors.textTertiary : AppColors.inkMuted}
               autoCapitalize="none"
               autoCorrect={false}

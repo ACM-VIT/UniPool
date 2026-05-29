@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/safeAsyncStorage';
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Modal, Image, FlatList, ListRenderItem } from "react-native";
 import { X } from "lucide-react-native";
