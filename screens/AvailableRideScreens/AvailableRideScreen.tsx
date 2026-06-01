@@ -25,6 +25,7 @@ import BrandedAlert from "../../components/BrandedAlert";
 import { appHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import { seatsAvailableLabel } from "../../utils/seatMath";
 import { useTabletContentStyle } from "../../utils/responsive";
+import { createDateTimeFormatter } from "../../utils/rideTime";
 
 interface AvailableRideScreenProps {
   setNavBarVariant: (variant: 0 | 1 | 2) => void;
@@ -106,23 +107,16 @@ const formatFilterDateLabel = (value: string) => {
   });
 };
 
-let rideTimeFormatter: Intl.DateTimeFormat | null = null;
-  try {
-    rideTimeFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    rideTimeFormatter = null;
-  }
+const rideTimeFormatter = createDateTimeFormatter(undefined, {
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
-let rideDateFormatter: Intl.DateTimeFormat | null = null;
-  try {
-    rideDateFormatter = new Intl.DateTimeFormat("en-GB", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-    });
-  } catch {
-    rideDateFormatter = null;
-  }
+const rideDateFormatter = createDateTimeFormatter("en-GB", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
 
 const formatRideStart = (iso: string) => {
   const date = new Date(iso);

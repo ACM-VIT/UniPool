@@ -8,6 +8,22 @@ const parseRideStartTimeMs = (value?: string | null): number | null => {
   return Number.isFinite(ms) ? ms : null;
 };
 
+/**
+ * Builds an Intl.DateTimeFormat, returning null instead of throwing on
+ * environments where the locale/options are unsupported. Lets call sites keep
+ * a `const` formatter without an IIFE try/catch.
+ */
+export const createDateTimeFormatter = (
+  locales?: string | string[],
+  options?: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat | null => {
+  try {
+    return new Intl.DateTimeFormat(locales, options);
+  } catch {
+    return null;
+  }
+};
+
 export const isRideUpcomingAt = (
   startTime?: string | null,
   nowMs: number = Date.now(),

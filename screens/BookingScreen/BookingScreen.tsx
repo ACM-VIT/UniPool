@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTabletContentStyle } from "../../utils/responsive";
 import { seatsAvailableLabel } from "../../utils/seatMath";
+import { createDateTimeFormatter } from "../../utils/rideTime";
 import styles from "./BookingScreen.styles";
 import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
@@ -68,15 +69,10 @@ type RideRow = RideData & {
   hasPendingRating: boolean;
 };
 
-let bookingDateFormatter: Intl.DateTimeFormat | null = null;
-  try {
-    bookingDateFormatter = new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "short",
-    });
-  } catch {
-    bookingDateFormatter = null;
-  }
+const bookingDateFormatter = createDateTimeFormatter("en-GB", {
+  day: "2-digit",
+  month: "short",
+});
 
 const formatHHMM = (iso: string): string => {
   try {
