@@ -115,51 +115,47 @@ type Props = {
   setNavBarVariant?: (variant: 0 | 1 | 2) => void;
 };
 
-const chatListTimeFormatter = (() => {
+let chatListTimeFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    chatListTimeFormatter = new Intl.DateTimeFormat(undefined, {
       hour: "2-digit",
       minute: "2-digit",
     });
   } catch {
-    return null;
+    chatListTimeFormatter = null;
   }
-})();
 
-const chatListShortDateFormatter = (() => {
+let chatListShortDateFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    chatListShortDateFormatter = new Intl.DateTimeFormat(undefined, {
       day: "2-digit",
       month: "short",
     });
   } catch {
-    return null;
+    chatListShortDateFormatter = null;
   }
-})();
 
-const chatListTripDateFormatter = (() => {
+let chatListTripDateFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    chatListTripDateFormatter = new Intl.DateTimeFormat(undefined, {
       weekday: "short",
       month: "short",
       day: "numeric",
     });
   } catch {
-    return null;
+    chatListTripDateFormatter = null;
   }
-})();
 
-const chatListTripTimeFormatter = (() => {
+let chatListTripTimeFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    chatListTripTimeFormatter = new Intl.DateTimeFormat(undefined, {
       hour: "2-digit",
       minute: "2-digit",
       hourCycle: "h23",
     });
   } catch {
-    return null;
+    chatListTripTimeFormatter = null;
   }
-})();
 
 const formatTimestamp = (iso: string): string => {
   const d = new Date(iso);
@@ -342,16 +338,10 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
     const shortDest = ((room.end_location || "").split(",")[0] || "").trim();
     router.navigate(appHref("ChatMessages", {
       chatId: room.id,
-      // "Trip to <destination>" — clearer than the full route string
-      // in a narrow chat header, and matches how passengers + hosts
-      // actually talk about the trip ("the SFO → Powell trip" reads
-      // as awkward in conversation; "the Powell trip" doesn't).
+      // Short destination title fits the narrow chat header.
       chatTitle: room.chat_name || (shortDest ? `Trip to ${shortDest}` : "Trip"),
       userId: viewerUserId || undefined,
-      // No subtitle — the previous "WED, MAY 20" date below the
-      // title felt like trip metadata mid-conversation. The chat
-      // header should be just the trip identity; details live one
-      // tap away in chat settings.
+      // Trip metadata lives one tap away in chat settings.
       isGroupChat: true,
       hostUserId: room.host_user_id,
       viewerRole: room.viewer_role,

@@ -14,30 +14,19 @@
  *                             (host pays this from their own pocket;
  *                              passengers reimburse the rest)
  *
- * Every screen that gates a booking, shows "X seats left", or
- * computes a per-seat split MUST go through this module. The
- * pre-migration codebase had four different inline "passengers
- * left" formulas spread across CreateRide, RideDetails,
- * AvailableRideScreen and BookingScreen, which made the
- * total_seats-includes-host migration a 30-touch search-and-replace
- * instead of a one-import diff. Don't drift back into that.
+ * Screens that gate bookings, show seats left, or compute per-seat fare should
+ * use this module so the frontend stays aligned with backend seat arithmetic.
  */
 
-/** Smallest legal value for a new ride's total_seats — host + one
- *  passenger. Smaller than this means no passenger slot to offer. */
+/** Smallest legal total_seats value: host plus one passenger. */
 export const MIN_TOTAL_SEATS = 2;
 
-/** Sanity cap on total_seats. Matches the backend's MaxTotalSeats.
- *  Set at 20 so the stepper covers everything from a hatchback up to
- *  a full-size Tempo Traveller / minibus (driver + ~19 passengers).
- *  20 is also the threshold at which CreateRide swaps the vehicle
- *  art over to the UFO Easter-egg fallback, so it's the largest
- *  count that still maps to a real-vehicle image. */
+/** UI sanity cap for total_seats. Matches backend MaxTotalSeats. */
 export const MAX_TOTAL_SEATS = 20;
 
 /**
  * Returns how many passenger seats a ride has, given total_seats.
- * Always non-negative — a row with total_seats=0 reads as no
+ * Always non-negative; a row with total_seats=0 reads as no
  * passenger capacity rather than -1.
  */
 export function passengerCapacity(totalSeats: number): number {
@@ -71,11 +60,7 @@ export function hasSeatsLeft(
 }
 
 /**
- * The per-seat fare for a ride, given the total trip cost. Every
- * person in the car — host AND passengers — pays this amount. The
- * value stored on the booking (total_price) is what each PASSENGER
- * pays; the host's share is implicit (they fund it from their
- * pocket and get reimbursed by passengers at the same rate).
+ * Per-person fare for a ride, given the total trip cost.
  */
 export function perSeatFare(
   totalFare: number,
@@ -87,11 +72,7 @@ export function perSeatFare(
 }
 
 /**
- * "X / Y seats" string used on ride cards. X = seats left for the
- * viewer to book; Y = total passenger seats (excludes the host
- * driver's seat). Wrapped in this helper so the format is
- * consistent everywhere — pre-migration the codebase had three
- * subtly different versions ("3/4 seats", "3 of 4", "3 seats left").
+ * "X/Y" seat availability string for ride cards.
  */
 export function seatsAvailableLabel(
   totalSeats: number,
@@ -103,11 +84,9 @@ export function seatsAvailableLabel(
 }
 
 /**
- * "3 seats left", "1 seat left", "Full". Used where space is tight
- * and the "X/Y" form is too noisy. Always says "seats" (plural form
- * adjusted for 1) so the meaning is unambiguous.
+ * Compact seat availability label for tight spaces.
  */
-export function seatsLeftLabel(
+function seatsLeftLabel(
   totalSeats: number,
   bookedSeats: number,
 ): string {

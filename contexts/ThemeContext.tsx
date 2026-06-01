@@ -1,7 +1,7 @@
 import React, {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
@@ -11,65 +11,31 @@ import AsyncStorage from "../utils/safeAsyncStorage";
 import { palettes, Palette, ThemeMode, ThemePreference } from "../design_systems/palettes";
 
 /**
- * Theme provider.
- *
- * One source of truth for the active palette. Three pieces of state:
- *
- *   • `preference`  — the USER intent: 'system' | 'light' | 'dark'.
- *                     Persisted to AsyncStorage.
- *   • `systemMode`  — the OS-reported scheme (`useColorScheme`-ish).
- *                     Live-updates via `Appearance.addChangeListener`
- *                     so changing the device-level theme while the
- *                     app is open repaints instantly.
- *   • `mode`        — the resolved active mode. If preference is
- *                     'system' we mirror systemMode; otherwise the
- *                     preference wins.
- *
- * Most consumers only care about `colors`. The toggle UI is the only
- * place that needs `preference` / `setPreference`.
- *
- * NOTE on migration: module-scope `StyleSheet.create()` snapshots
- * color values at module load. Existing files that import the
- * legacy `AppColors` default export will keep painting in the light
- * palette. To make a component theme-aware, switch its styles to
- * `useThemedStyles` (re-built whenever `colors` changes) and tag
- * any inline color overrides with `colors.X` rather than the
- * legacy hex.
+ * Theme provider and palette resolver.
+ * `preference` is the stored user setting, `systemMode` mirrors the OS, and
+ * `mode` is the palette currently used by consumers.
  */
 
 const STORAGE_KEY = "@unipool:theme-preference";
 
 interface ThemeContextValue {
-  /** The active palette — what consumers paint with. */
+  /** Palette currently used by consumers. */
   colors: Palette;
-  /** Resolved active mode (after applying preference + system). */
+  /** Resolved active mode after applying user and system preferences. */
   mode: ThemeMode;
-  /** The user's stored intent — drives the Profile toggle. */
+  /** User's stored theme preference. */
   preference: ThemePreference;
-  /** Persist a new preference. Synchronous from the UI's perspective. */
+  /** Persist a new theme preference. */
   setPreference: (next: ThemePreference) => void;
-  /** True once the persisted preference has been read from storage —
-   *  consumers that gate render on theme-aware paint can wait for
-   *  this to avoid a light-mode flash on cold start. */
+  /** True once the persisted preference has been read from storage. */
   hydrated: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function resolveMode(preference: ThemePreference, system: ThemeMode): ThemeMode {
-  // Dark mode is temporarily disabled for the 2.0.8 / 2.0.9 release.
-  // All theme infrastructure stays intact — `useThemeColors`, the
-  // gated `colors.mode === "dark"` overrides, the persisted user
-  // preference, the system listener — but the resolver always returns
-  // `"light"` so consumers paint the light palette regardless of what
-  // the user picked or what iOS reports.
-  //
-  // To re-enable: replace the body of this function with the commented
-  // block below.
-  //
-  //   if (preference === "light" || preference === "dark") return preference;
-  //   return system;
-  //
+  // Dark mode remains disabled for this release, but the preference and system
+  // listeners stay wired so the resolver can be re-enabled without migration.
   void preference;
   void system;
   return "light";
@@ -80,20 +46,16 @@ function normalizeSystem(scheme: ColorSchemeName | null | undefined): ThemeMode 
 }
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Seed system mode synchronously so the very first render paints in
-  // the right scheme (no light-mode flash before the listener fires).
+  // Seed from the current OS setting before the subscription fires.
   const [systemMode, setSystemMode] = useState<ThemeMode>(() =>
     normalizeSystem(Appearance.getColorScheme()),
   );
 
-  // Seed preference with 'system' until AsyncStorage tells us
-  // otherwise. The hydration flag lets gated consumers wait if they
-  // care about the cold-start frame.
+  // Use 'system' until persisted storage resolves.
   const [preference, setPreferenceState] = useState<ThemePreference>("system");
   const [hydrated, setHydrated] = useState(false);
 
-  // Read persisted preference once at mount. Failure mode is silent —
-  // we stay on 'system' which is the right default.
+  // Storage failures fall back to the default preference.
   useEffect(() => {
     let cancelled = false;
     AsyncStorage.getItem(STORAGE_KEY)
@@ -112,9 +74,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
-  // Live system-theme subscription. The OS surfacing a different
-  // scheme (Settings toggle, automatic sunset, etc.) should repaint
-  // immediately rather than only on next cold start.
+  // Keep system mode current while the app is open.
   useEffect(() => {
     const sub = Appearance.addChangeListener(({ colorScheme }) => {
       setSystemMode(normalizeSystem(colorScheme));
@@ -125,8 +85,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const setPreference = useCallback((next: ThemePreference) => {
     setPreferenceState(next);
     AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {
-      // Persistence failure is non-fatal — the in-memory choice
-      // still applies for the current session.
+      // The in-memory preference still applies for the current session.
     });
   }, []);
 
@@ -142,11 +101,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 };
 
 /**
- * Read the active theme. Stable reference for the lifetime of a
- * given (mode, preference) pair — safe to put in dependency arrays.
+ * Read the active theme context.
  */
 export function useTheme(): ThemeContextValue {
-  const ctx = useContext(ThemeContext);
+  const ctx = use(ThemeContext);
   if (!ctx) {
     throw new Error(
       "useTheme() called outside ThemeProvider. Wrap the app root in <ThemeProvider>.",
@@ -156,18 +114,14 @@ export function useTheme(): ThemeContextValue {
 }
 
 /**
- * Convenience hook — most consumers only need the palette. Equivalent
- * to `useTheme().colors` but reads as the intent.
+ * Convenience hook for components that only need palette tokens.
  */
 export function useThemeColors(): Palette {
   return useTheme().colors;
 }
 
 /**
- * Build a `StyleSheet.create` result from a factory that receives the
- * active palette. Re-runs (and rebuilds the styles) whenever the
- * palette changes, so swapping themes mid-session re-paints without
- * a remount.
+ * Build theme-aware styles from the active palette.
  *
  * Usage:
  *
@@ -176,13 +130,11 @@ export function useThemeColors(): Palette {
  *     title:     { color: c.textPrimary, fontSize: 18 },
  *   }));
  *
- * The factory is called on every theme change but the StyleSheet is
- * memoised across renders within the same palette, so per-render
- * cost is one shallow comparison.
+ * The factory runs on palette changes and is memoized between them.
  */
 type NamedStyles<T> = { [P in keyof T]: Record<string, unknown> };
 
-export function useThemedStyles<T extends NamedStyles<T>>(
+function useThemedStyles<T extends NamedStyles<T>>(
   factory: (colors: Palette) => T,
 ): T {
   const colors = useThemeColors();

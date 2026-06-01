@@ -1,4 +1,4 @@
-import RideCreatedScreen from "../screens/RideCreatedScreen";
+import RideCreatedScreen from "../screens/RideCreatedScreen/RideCreatedScreen";
 import { useNavBarControls } from "../contexts/NavBarContext";
 
 export default function RideCreatedScreenRoute() {

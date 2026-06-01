@@ -1,15 +1,15 @@
-import React, {
+import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
-  ReactNode,
+  type ReactNode,
 } from "react";
 import { getAuth, onAuthStateChanged } from "@react-native-firebase/auth";
-import AuthSheet, { AuthSheetReturnTo } from "../components/AuthSheet";
+import AuthSheet, { AuthSheetReturnTo } from "../components/AuthSheet/AuthSheet";
 import { useApi } from "../utils/ApiUtil";
 
 type GatedAction = AuthSheetReturnTo;
@@ -21,10 +21,8 @@ type AuthGateValue = {
   resolving: boolean;
   /**
    * Gate a user action. If signed in, returns `true` so the caller can
-   * proceed inline. If not signed in, presents the AuthSheet (Vibecode /
-   * FotMob pattern from Mobbin) over the current screen and returns
-   * `false`. Pass a contextual `reason` like "to book this ride" so the
-   * sheet shows tailored copy.
+   * proceed inline. If not signed in, presents AuthSheet over the current
+   * screen and returns `false`.
    */
   requireAuth: (returnTo: GatedAction, reason?: string) => boolean;
 };
@@ -40,15 +38,12 @@ export const AuthGateProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<any>(null);
   const [resolving, setResolving] = useState(true);
 
-  // Sheet state lives in the provider so any screen can trigger it
-  // without dealing with refs or imperative navigation.
+  // Provider-owned sheet state lets any screen gate an action consistently.
   const [sheetVisible, setSheetVisible] = useState(false);
   const [sheetReason, setSheetReason] = useState<string | undefined>(undefined);
   const [sheetReturnTo, setSheetReturnTo] = useState<GatedAction | undefined>(undefined);
 
-  // Track the latest `user` for use in callbacks without making them
-  // dependent on the state directly (which would invalidate them on
-  // every auth change).
+  // Keep requireAuth stable while still reading the latest auth user.
   const userRef = useRef<any>(null);
   userRef.current = user;
 
@@ -96,4 +91,4 @@ export const AuthGateProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useAuthGate = () => useContext(AuthGateContext);
+export const useAuthGate = () => use(AuthGateContext);

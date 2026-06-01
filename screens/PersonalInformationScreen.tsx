@@ -5,20 +5,19 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  ScrollView,
   FlatList,
   ListRenderItem,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
-import BrandInfo from '../components/BrandInfo';
-import ChevronBack from '../components/ChevronBack';
+import BrandInfo from '../components/BrandInfo/BrandInfo';
+import ChevronBack from '../components/ChevronBack/ChevronBack';
 import { useRouter } from "expo-router";
 import LoadingComponent from '../components/LoadingComponent';
 import AppColors from '../design_systems/colors';
 import BrandedAlert from "../components/BrandedAlert";
-import { haptic } from "../components/PressableScale";
+import { haptic } from "../components/haptics";
 import SheetShell from "../components/SheetShell";
 import { useTabletContentStyle } from "../utils/responsive";
 import { useThemeColors } from "../contexts/ThemeContext";
@@ -39,20 +38,11 @@ interface UserResponse {
 }
 
 /**
- * Personal Information screen. Shows the user's identity fields
- * (name, email, contact, gender) as read-only rows + two editable
- * affordances:
- *
- *   - A single editable row for the UPI VPA so hosts can opt in to
- *     receiving post-trip payments via the home-screen pay sheet's
- *     UPI deeplink.
- *   - A "Verify" pill beside the email row so users who signed in
- *     with a personal Google account can still prove they own a
- *     real institute email — they'd otherwise look like outsiders
- *     forever even after switching to the right address.
+ * Personal information screen with read-only identity rows plus editable UPI
+ * and academic-verification actions.
  */
 const PersonalInformationScreen: React.FC = () => {
-  const router = useRouter();
+  const { back } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const { apiUtil } = useApi();
   const colors = useThemeColors();
@@ -92,7 +82,7 @@ const PersonalInformationScreen: React.FC = () => {
       <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, isDark && { color: colors.textPrimary }]}>{title}</Text>
@@ -139,10 +129,7 @@ const PersonalInformationScreen: React.FC = () => {
             <Text style={[styles.menuItemText, { flex: 2, flexWrap: 'wrap', textAlign: 'right' }, isDark && { color: colors.textOnDark }]}>{user.name}</Text>
           </View>
 
-          {/* Email row is now purely informational — the sign-in
-              identity isn't what we're verifying, the user's
-              academic affiliation is. The Verify CTA lives on the
-              Institute row below. */}
+          {/* Sign-in email is informational; academic verification lives below. */}
           <View style={[styles.menuItem, isDark && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}>
             <Text style={[styles.menuItemText, { flex: 1 }, isDark && { color: colors.textOnDark }]}>Email</Text>
             <Text
@@ -165,11 +152,7 @@ const PersonalInformationScreen: React.FC = () => {
             </View>
           ) : null}
 
-          {/* Academic status row — the verification surface. Three
-              states:
-                · verified + institute known  → badge + school name
-                · verified only (rare)        → green check, "Verified"
-                · unverified                  → tappable Verify pill */}
+          {/* Academic status row: verified school, verified fallback, or CTA. */}
           <TouchableOpacity
             style={[styles.menuItem, isDark && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}
             activeOpacity={verified ? 1 : 0.7}
@@ -224,9 +207,7 @@ const PersonalInformationScreen: React.FC = () => {
             </View>
           </TouchableOpacity>
 
-          {/* Editable UPI VPA row — tap to open the slide-up editor.
-              Empty state reads "Add UPI ID →" so the affordance is
-              obvious; filled state shows the saved value. */}
+          {/* Editable UPI VPA row. */}
           <TouchableOpacity
             style={[
               styles.menuItem,
@@ -275,8 +256,7 @@ const PersonalInformationScreen: React.FC = () => {
         onDismiss={() => setVerifyOpen(false)}
         onVerified={(next) => {
           setUser((u) => (u ? { ...u, ...next } : null));
-          // Refetch /user/details so the institute relation lands
-          // even if /verify/confirm's preload didn't surface it.
+          // Refetch so the institute relation is populated after verification.
           fetchUser();
         }}
       />
@@ -286,10 +266,7 @@ const PersonalInformationScreen: React.FC = () => {
 
 export default PersonalInformationScreen;
 
-// --------------------------------------------------------------------
-// UPI editor sheet. Single text field + helper copy + primary button.
-// Calls PATCH /user/profile.
-// --------------------------------------------------------------------
+// UPI editor sheet. Calls PATCH /user/profile.
 
 type UpiEditSheetProps = {
   visible: boolean;
@@ -389,18 +366,7 @@ const UpiEditSheet: React.FC<UpiEditSheetProps> = ({ visible, initialValue, onDi
   );
 };
 
-// --------------------------------------------------------------------
-// Verify academic-status sheet. Three steps in one surface:
-//
-//   1) pick a university (typeahead against /institutes/search)
-//   2) enter the institute email at one of that uni's domains
-//   3) enter the 6-digit code (or tap the magic-link in the email)
-//
-// Step state carries between steps so back-stepping doesn't lose
-// what the user typed. SES sends the code + a unipool:// deeplink;
-// backend stamps `is_email_verified` + `institute_id` +
-// `institute_email` on success.
-// --------------------------------------------------------------------
+// Verify academic status through university search, student email, and code.
 
 type VerifyEmailSheetProps = {
   visible: boolean;
@@ -430,9 +396,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  // Disabled-resend window. Server enforces a 45s cooldown; we mirror
-  // it on the client so the button is clearly inactionable instead of
-  // letting the user retry into a 429.
+  // Mirror the backend resend cooldown in the button state.
   const [resendIn, setResendIn] = useState(0);
 
   // Reset every time the sheet re-opens.
@@ -442,9 +406,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
       setPicked(null);
       setSearchQuery('');
       setSearchResults([]);
-      // If the user signed in with a domain that matches a known
-      // institute, default the email entry to that — saves typing
-      // on the happy path.
+      // Default to the sign-in email; the selected institute can rewrite it.
       setEmail(defaultEmail);
       setCode('');
       setResendIn(0);
@@ -458,9 +420,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
     return () => clearInterval(t);
   }, [resendIn]);
 
-  // Debounced search against /institutes/search. 250ms is short
-  // enough to feel reactive when typing and long enough to avoid
-  // pummeling the API on every keystroke.
+  // Debounced university search against /institutes/search.
   useEffect(() => {
     if (step !== 'pick') return;
     const q = searchQuery.trim();
@@ -488,8 +448,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
   const pickInstitute = React.useCallback((inst: PickedInstitute) => {
     haptic('selection');
     setPicked(inst);
-    // Pre-seed the email field: keep whatever local-part the user
-    // typed before (if any) and append the first listed domain.
+    // Preserve the local part and attach the selected institute domain.
     const local = email.split('@')[0] || '';
     if (inst.domains.length > 0) {
       setEmail(`${local}@${inst.domains[0]}`);
@@ -540,9 +499,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
     }
     setBusy(true);
     try {
-      // `postSilent` so a network blip or 5xx during /verify/start
-      // doesn't slam the global "Uh Oh!" sheet on top of this flow.
-      // The local catch already surfaces a contextual BrandedAlert.
+      // Keep verification errors local to this sheet.
       await apiUtil.postSilent<{ status: string; expires_in: number }, { email: string }>(
         '/user/verify/start',
         { email: target },
@@ -617,10 +574,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             />
           </View>
 
-          {/* Results area collapses when empty so the sheet doesn't
-              reserve space for non-existent content. The empty hint
-              before the user types is gone — the input placeholder
-              ("University name or email domain") is enough cue. */}
+          {/* Results area collapses until the user enters a searchable query. */}
           <View style={ui.resultsWrap}>
             {searchQuery.trim().length < 2 ? null
             : searching ? (
@@ -759,10 +713,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
   );
 };
 
-// --------------------------------------------------------------------
-// Local UI tokens. Kept inline because they're tightly coupled to the
-// two sheets here and reuse the brand palette directly.
-// --------------------------------------------------------------------
+// Local UI tokens for the two sheets in this file.
 
 const ui = {
   sheetTitle: {
@@ -866,7 +817,7 @@ const ui = {
     color: AppColors.secondaryDarkGreen,
     letterSpacing: 0.2,
   },
-  // Actionable "Verify →" pill (unverified state).
+  // Actionable verify pill for the unverified state.
   badgeAction: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -880,12 +831,7 @@ const ui = {
     color: AppColors.secondaryDarkGreen,
     letterSpacing: 0.2,
   },
-  // University picker — step 1 of the verify flow. Fixed height
-  // Fixed-height stage so the sheet stays a stable size as the
-  // user types / clears / re-types. The Android keyboard-clip bug
-  // this once contributed to is now solved at the SheetShell level
-  // (it caps itself to the live KeyboardAvoidingView height), so
-  // it's safe to keep the reservation again.
+  // Fixed-height university picker stage keeps the sheet size stable.
   resultsWrap: {
     marginBottom: 12,
     height: 320,
@@ -924,8 +870,7 @@ const ui = {
     opacity: 0.55,
     marginTop: 3,
   },
-  // Picked-university chip shown on step 2 so the user can see what
-  // they're verifying against without scrolling back.
+  // Picked-university chip shown on the email step.
   institutePill: {
     alignSelf: 'flex-start' as const,
     backgroundColor: AppColors.primaryLightGreen,

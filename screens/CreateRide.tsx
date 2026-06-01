@@ -5,21 +5,21 @@ import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
-import SlideToCreate from "../components/SlideToCreate";
+import SlideToCreate from "../components/SlideToCreate/SlideToCreate";
 import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
 import { useUser } from "../contexts/UserContext";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import MatchingRidesSuggestion from "../components/MatchingRidesSuggestion";
 import BrandedAlert from "../components/BrandedAlert";
-import { haptic } from "../components/PressableScale";
-import SheetShell, { sheetUi } from "../components/SheetShell";
+import { haptic } from "../components/haptics";
+import SheetShell from "../components/SheetShell";
+import { sheetUi } from "../components/SheetShell.styles";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
 import { useTabletContentStyle } from "../utils/responsive";
 import {
   MAX_TOTAL_SEATS,
   MIN_TOTAL_SEATS,
-  passengerCapacity,
   perSeatFare,
 } from "../utils/seatMath";
 
@@ -44,7 +44,7 @@ interface CreateRideResponse {
 }
 
 const CreateRide: React.FC = () => {
-  const router = useRouter();
+  const { navigate, back } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const { apiUtil } = useApi();
   const { requireAuth } = useAuthGate();
@@ -284,7 +284,7 @@ const CreateRide: React.FC = () => {
   }, [fromLocation, toLocation, rideDateTime]);
 
   // Animation states
-  const [currentVehicleImage, setCurrentVehicleImage] = useState(require("../assets/Taxi.png"));
+  const [currentVehicleImage, setCurrentVehicleImage] = useState(() => require("../assets/Taxi.png"));
   const slideAnimation = useRef(new Animated.Value(0)).current;
   const fadeAnimation = useRef(new Animated.Value(1)).current;
   const counterAnimation = useRef(new Animated.Value(0)).current;
@@ -338,9 +338,7 @@ const CreateRide: React.FC = () => {
     }
 
     setIsCreating(true);
-    // Notification permission is now asked once on the onboarding
-    // permissions sheet (LocationPermissionScreen). No per-action
-    // prompt here — the user either granted it then or chose not to.
+    // LocationPermissionScreen owns notification permission prompts.
     try {
       const rideData = {
         start_location: fromLocation,
@@ -348,15 +346,10 @@ const CreateRide: React.FC = () => {
         start_time: rideDateTime.toISOString(),
         total_seats: totalSeats,
         booked_seats: 0,
-        // Always send the *per-seat* effective price, regardless of
-        // which split mode the host used. For "total" and "custom"
-        // modes this is the computed/averaged value; for "per_seat"
-        // it's the host's direct input.
+        // Backend stores the effective per-seat fare for every split mode.
         total_price: effectivePerSeat,
         is_ongoing: 0,
-        // Only honor the toggle if the viewer is actually female —
-        // server enforces the same check, this is defensive belt-and-
-        // suspenders so a stale toggle state can't slip through.
+        // Server enforces the same gender gate; keep the client defensive.
         is_same_gender: isWomenOnly && viewerGender === "female" ? 1 : 0,
         start_latitude: fromCoordinates?.latitude || null,
         start_longitude: fromCoordinates?.longitude || null,
@@ -370,10 +363,8 @@ const CreateRide: React.FC = () => {
         rideData
       );
       if (DEBUG_CREATE_RIDE) console.log("Ride created successfully:", response);
-      // Carry the new ride's ID through the success interstitial so it
-      // can drop the host on RideDetailsScreen (= the ride management
-      // view), where the new share-ride affordance lives.
-      router.navigate(appHref("RideCreatedScreen", { rideId: response?.id } as any));
+      // Success screen uses rideId to open the host management view.
+      navigate(appHref("RideCreatedScreen", { rideId: response?.id } as any));
     } catch (error: any) {
       console.error("Error creating ride:", error);
       let errorMessage = "Couldn't post your ride. Try again in a moment.";
@@ -392,9 +383,7 @@ const CreateRide: React.FC = () => {
     }
   };
 
-  // Vehicle image chooser — `count` is the total seat count
-  // INCLUDING the host. Bands shifted up by one from the pre-
-  // migration version which counted passengers only:
+  // Vehicle illustration by total seat count, including the host:
   //
   //   2 people    → motorcycle (host + pillion)
   //   3-4 people  → taxi / racer (sedan-ish)
@@ -530,12 +519,7 @@ const CreateRide: React.FC = () => {
     setCurrentVehicleImage(getPassengerImage(4));
   }, []);
 
-  // Stepper bounds enforced via utils/seatMath constants. MIN=2
-  // (host + 1 passenger) prevents a useless 1-seat ride. MAX=20
-  // covers everything from a hatchback up to a full-size Tempo
-  // Traveller / minibus (driver + ~19 passengers); 20 also lands
-  // the host on the UFO Easter-egg art. The backend's
-  // helpers.MaxTotalSeats mirrors this.
+  // Stepper bounds mirror utils/seatMath and backend helpers.
   const increaseSeats = () => {
     if (totalSeats < MAX_TOTAL_SEATS) {
       const newCount = totalSeats + 1;
@@ -582,11 +566,7 @@ const CreateRide: React.FC = () => {
   const decreaseTotal = () =>
     setTotalFare((c) => Math.max(totalMin, c - 25 * Math.max(1, totalSeats)));
 
-  // Tap-to-edit for the Total amount. Same pattern as Per seat: snap
-  // the draft from the current value, raise the keyboard via autoFocus,
-  // and commit on blur / submit. Clamping is bracketed by the same
-  // range the steppers obey so typing 5 falls back to the minimum
-  // rather than silently becoming a noop.
+  // Tap-to-edit mirrors Per seat mode and clamps to the stepper range.
   const handleTotalPress = () => {
     setCustomTotal(totalFare.toString());
     setIsEditingTotal(true);
@@ -630,10 +610,7 @@ const CreateRide: React.FC = () => {
     });
   };
 
-  // When the host switches modes, seed the new mode's state from
-  // the current effective price so the UI doesn't jolt to a
-  // different number. Smooth feel: pick "Total", see the total
-  // version of the same amount they were already considering.
+  // Seed each split mode from the current effective fare when switching modes.
   const switchSplitMode = (next: "per_seat" | "total" | "custom") => {
     if (next === splitMode) return;
     if (next === "total") {
@@ -647,17 +624,11 @@ const CreateRide: React.FC = () => {
   };
 
   return (
-    // SafeAreaView from `react-native-safe-area-context` (not the
-    // deprecated one in `react-native`, which is iOS-only and was
-    // letting the status bar clip the back chevron and "Create a
-    // Ride" title on Android). `edges={["top", "left", "right"]}`
-    // skips the bottom inset — the slider already sits inside the
-    // home-indicator zone with its own padding.
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }, tabletContentStyle]} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.headerRowWithTitle}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => back()}
         >
           <Image
             source={require("../assets/arrow-square-left.png")}
@@ -667,26 +638,14 @@ const CreateRide: React.FC = () => {
         <Text style={[styles.title, { color: themeColors.textPrimary }]}>Create a Ride</Text>
       </View>
 
-      {/* Main form. Sized to fit on one viewport — the heavy fare
-          UI (three modes, steppers, per-seat list) lives in a sheet
-          rather than inline, so the host sees the whole composition
-          (route, fare summary, seats, vehicle, slider) without
-          scrolling. */}
+      {/* Main form: route, fare summary, seats, vehicle, and submit slider. */}
       <View style={styles.mainContent}>
-        {/* "Already going there?" suggestion. Renders nothing
-            unless GET /ride/matching-create returns ≥1 strict-radius
-            hit for the route + time the user has filled in so far.
-            Drives the dup-detection UX: tap a match to join it
-            instead of fragmenting the supply with a duplicate post.
-            See components/MatchingRidesSuggestion.tsx for the
-            debounce + animation + dismiss-per-mount semantics. */}
+        {/* Suggests existing matching rides before the host posts a duplicate. */}
         <MatchingRidesSuggestion
           fromCoords={fromCoordinates}
           toCoords={toCoordinates}
           date={rideDateTime}
         />
-
-        {/* ← Your built‑in selector handles both date & time */}
         <View style={styles.section}>
           <RideDetailsSelector
             onSubmit={handleRideSubmit}
@@ -698,20 +657,10 @@ const CreateRide: React.FC = () => {
           />
         </View>
 
-        {/* FARE SUMMARY — compact tappable card. Two-line layout:
-            big per-seat headline on the left, trip total on the
-            right, mode + seat context below. Whole card is the
-            tap target; the small chevron on the right is the
-            "tap to edit" affordance (no Edit pill — the entire
-            card is already tappable, the pill read as redundant). */}
+        {/* Tappable fare summary card; full editor opens in the sheet below. */}
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => setShowFareSheet(true)}
-          // navFill resolves to forest (#263B33) in light — unchanged
-          // from history — and to a raised neutral charcoal (#1F1F25)
-          // in dark, dropping the green tint that would otherwise
-          // pull the form cards toward "brand on dark" rather than
-          // a calm dark mode.
           style={[styles.fareSummaryCard, { backgroundColor: themeColors.navFill }]}
         >
           <View style={styles.fareSummaryTopRow}>
@@ -719,9 +668,6 @@ const CreateRide: React.FC = () => {
               <Text
                 style={[
                   styles.fareSummaryColLabel,
-                  // Dark mode: drop the lime label tint and use a
-                  // cream secondary tone so the fare card reads as
-                  // one neutral tonal family — light keeps history.
                   themeColors.mode === "dark" && { color: themeColors.textOnDark, opacity: 0.65 },
                 ]}
               >
@@ -734,9 +680,6 @@ const CreateRide: React.FC = () => {
             <View
               style={[
                 styles.fareSummaryDivider,
-                // Dark: divider switches from lime hairline to a
-                // cream hairline so it doesn't shout between the
-                // two values.
                 themeColors.mode === "dark" && { backgroundColor: themeColors.textOnDark, opacity: 0.12 },
               ]}
             />
@@ -798,10 +741,6 @@ const CreateRide: React.FC = () => {
         <View style={[styles.stepperCard, { backgroundColor: themeColors.navFill }]}>
           <TouchableOpacity
             onPress={decreaseSeats}
-            // Dark mode: stepper button drops the bright lime fill
-            // for a subtle neutral chip so it reads as a quiet
-            // tertiary control on the dark card. Light keeps the
-            // historical lime button with forest "−" / "+".
             style={[
               styles.stepperBtn,
               themeColors.mode === "dark" && {
@@ -851,50 +790,6 @@ const CreateRide: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Women-only toggle temporarily disabled.
-            Reason: even at its compact pill size the row pushes the
-            taxi illustration + submit slider below the fold on
-            shorter Android phones once the female viewer-gender
-            reveals it. Holding off on this UI until we have a
-            cleaner home for the toggle (probably inside the fare
-            sheet alongside seats, or surfaced as a chip elsewhere).
-            Backend still honours `is_same_gender = 1` if a host
-            sends it, so we just stop sending `1` from this client —
-            handleCreateRide ALREADY guards on `isWomenOnly &&
-            viewerGender === "female"`, and with no UI to flip
-            `isWomenOnly` it stays false. Keeping the state + handler
-            in place so this is a single-line revert once we ship
-            the new placement.
-        {viewerGender === "female" && (
-          <TouchableOpacity
-            style={[
-              styles.womenOnlyPill,
-              isWomenOnly && styles.womenOnlyPillActive,
-            ]}
-            onPress={() => setIsWomenOnly((v) => !v)}
-            activeOpacity={0.85}
-            accessibilityRole="switch"
-            accessibilityState={{ checked: isWomenOnly }}
-            accessibilityLabel="Reserve this ride for women passengers"
-          >
-            <Text style={styles.womenOnlyPillTitle}>Women only</Text>
-            <View
-              style={[
-                styles.womenOnlySwitch,
-                isWomenOnly && styles.womenOnlySwitchOn,
-              ]}
-            >
-              <View
-                style={[
-                  styles.womenOnlyKnob,
-                  isWomenOnly && styles.womenOnlyKnobOn,
-                ]}
-              />
-            </View>
-          </TouchableOpacity>
-        )}
-        */}
-
         <Animated.View
           style={[
             styles.vehicleImageContainer,
@@ -922,17 +817,10 @@ const CreateRide: React.FC = () => {
         </Animated.View>
       </View>
 
-      {/* Docked submit bar — pinned at the bottom of the screen.
-          The slider stays enabled even when there's a blocking
-          reason: the user CAN drag, and on completion we either
-          submit or shake the slider as feedback. No inline pill —
-          the shake IS the warning. */}
+      {/* Docked submit slider stays at thumb reach near the bottom edge. */}
       <Animated.View
         style={[
           styles.bottomDock,
-          // Match canvas so the slider dock blends into the page in
-          // both modes — module-scope bakes the lime canvas which
-          // sticks out as a bright band in dark mode.
           { backgroundColor: themeColors.background, borderTopColor: themeColors.inkSubtle },
           { transform: [{ translateX: sliderShake }] },
         ]}
@@ -940,11 +828,6 @@ const CreateRide: React.FC = () => {
         <SlideToCreate
           onSlideComplete={() => {
             if (blockingReason) {
-              // Shake stays for the visceral "no" cue, but follow
-              // it with a BrandedAlert so the user actually knows
-              // WHY the slider rejected. The shake alone was opaque
-              // — people would slide three times before realising
-              // they hadn't picked a destination.
               shakeSlider();
               haptic("error");
               BrandedAlert.alert("Can't post yet", blockingReason);
@@ -965,11 +848,6 @@ const CreateRide: React.FC = () => {
         visible={showFareSheet}
         onDismiss={() => setShowFareSheet(false)}
       >
-        {/* Dark mode: theme the sheet title + body so they're
-            readable on the dark sheet surface — module-scope styles
-            bake forest text which disappears against the dark
-            canvas. Light mode reads the module-scope styles
-            verbatim. */}
         <Text
           style={[
             sheetUi.sheetTitle,
@@ -998,11 +876,6 @@ const CreateRide: React.FC = () => {
             return (
               <TouchableOpacity
                 key={opt.key}
-                // Dark mode: active chip becomes a lime-bordered cream
-                // pill so it reads as the selected mode without
-                // flooding the sheet with forest+lime brand cues.
-                // Inactive chips drop to a subtle outline. Light
-                // mode keeps the historical pairing.
                 style={[
                   styles.sheetModeChip,
                   active && styles.sheetModeChipActive,
@@ -1030,10 +903,7 @@ const CreateRide: React.FC = () => {
           })}
         </View>
 
-        {/* Fixed-height container so switching modes doesn't make
-            the sheet resize. Unequal mode has an internal scroll,
-            the simpler stepper modes just sit inside this min-height
-            block so the Done button stays put. */}
+        {/* Fixed height prevents the fare sheet from resizing between modes. */}
         <View style={styles.sheetModeBody}>
         {splitMode === "per_seat" && (
           <>
@@ -1220,11 +1090,6 @@ const CreateRide: React.FC = () => {
             >
               <View style={[
                 styles.customSeatList,
-                // Dark mode: swap the forest tile for a neutral
-                // surfaceElevated card so the seat list doesn't
-                // read as a forest-tinted slab on the charcoal
-                // canvas. White text + lime ± buttons stay the
-                // brand splash on top.
                 themeColors.mode === "dark" && {
                   backgroundColor: themeColors.surfaceElevated,
                   borderWidth: 1,
@@ -1233,15 +1098,11 @@ const CreateRide: React.FC = () => {
               ]}>
                 {seatFares.map((amount, idx) => {
                   const isEditing = editingSeatIndex === idx;
+                  const seatKey = idx === 0 ? "seat-host" : `seat-${idx}`;
                   return (
-                    <View key={idx} style={styles.customSeatRow}>
+                    <View key={seatKey} style={styles.customSeatRow}>
                       <View style={styles.customSeatLabelWrap}>
-                        {/* First seat is the host (the driver). The
-                            row is labelled "You" so the host
-                            transparently sees their own contribution
-                            instead of paying nothing while everyone
-                            else covers the trip — see utils/seatMath
-                            for the contract. */}
+                        {/* First seat is the host's own contribution. */}
                         <Text style={styles.customSeatNumber}>
                           {idx === 0 ? "You" : `Seat ${idx}`}
                         </Text>
@@ -1250,12 +1111,6 @@ const CreateRide: React.FC = () => {
                         onPress={() => bumpSeat(idx, -25)}
                         style={[
                           styles.customSeatStepBtn,
-                          // Dark mode: drop the lime circle (which
-                          // doesn't match the cream-on-charcoal
-                          // stepper buttons elsewhere on the fare
-                          // sheet) for the same neutral cream pill
-                          // those steppers use, so the whole sheet
-                          // reads as one stepper family.
                           themeColors.mode === "dark" && {
                             backgroundColor: "rgba(237,236,231,0.10)",
                           },
@@ -1338,11 +1193,6 @@ const CreateRide: React.FC = () => {
         </View>
 
         <TouchableOpacity
-          // Dark mode: Done CTA uses the lime accent fill + forest
-          // ink — the one brand splash on the sheet, mirroring the
-          // pattern used by the Slide-to-create thumb elsewhere.
-          // Light mode keeps the historical forest fill + lime
-          // label from the module-scope style.
           style={[
             styles.sheetDoneBtn,
             themeColors.mode === "dark" && { backgroundColor: themeColors.primary },
@@ -1404,10 +1254,6 @@ const styles = StyleSheet.create({
     paddingBottom: "2.5%",
   },
   label: {
-    // Sentence-case section label. Was uppercase + 0.8 tracking,
-    // which fights the rest of the screen's typography. Sentence
-    // case reads as part of a calm prose hierarchy instead of
-    // shouting at the user.
     paddingTop: "5%",
     paddingBottom: "2.5%",
     fontSize: 14,
@@ -1416,19 +1262,12 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_700Bold",
     letterSpacing: -0.1,
   },
-  // Inline parenthetical hint sitting inside a label — same colour
-  // but lighter weight and a touch smaller so it reads as a gloss on
-  // the label, not part of the headline. Used to clarify that
-  // `total_seats` is the passenger count (host not counted) so a
-  // first-time host doesn't post a 3-seat ride expecting 2 friends
-  // + themselves to fit.
+  // Inline parenthetical hint inside a section label.
   labelHint: {
     fontFamily: "NunitoSans_600SemiBold",
     fontSize: 12.5,
     opacity: 0.75,
   },
-  // Forest dark stepper card on lime canvas — matches the rest of the
-  // surface system (lime sheet, forest content cards, lime accents).
   stepperCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -1518,13 +1357,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     overflow: "hidden",
   },
-  // Compact "Women only" row. Same rounded-rect surface system as
-  // `stepperCard` (radius 18, forest fill, identical horizontal
-  // padding) so it reads as part of the "trip details" cluster
-  // instead of a foreign pill shape next to the rect cards above
-  // it. Vertical padding is tighter than the stepper so the row
-  // stays ~52pt vs the stepper's ~70pt — keeps the taxi illustration
-  // + submit slider on-fold even when the toggle is visible.
   womenOnlyPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -1552,10 +1384,7 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_800ExtraBold",
     letterSpacing: -0.1,
   },
-  // Custom switch — RN's <Switch> renders inconsistently across
-  // iOS/Android with hardcoded thumb sizes. Forest track when off,
-  // lime track when on; small light knob slides 18pt horizontally
-  // on toggle.
+  // Custom switch keeps thumb sizing consistent across iOS and Android.
   womenOnlySwitch: {
     width: 44,
     height: 26,
@@ -1580,12 +1409,7 @@ const styles = StyleSheet.create({
     transform: [{ translateX: 18 }],
   },
 
-  // FARE SUMMARY card — forest tile with a two-column top row
-  // (per-seat | trip total) split by a thin lime divider, plus a
-  // muted footer line that says which split mode is active and
-  // hints at the tap interaction. Replaces the earlier single-line
-  // "₹100 per seat / Edit pill" layout which read as cramped and
-  // mixed typography.
+  // Fare summary card with per-seat and total values.
   fareSummaryCard: {
     backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 18,
@@ -1606,11 +1430,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   fareSummaryColLabel: {
-    // Sentence-case sub-label on the fare card ("Per seat" /
-    // "Trip total"). Sized + weighted to match the
-    // `fareSummaryFooterText` line below the card ("Per-seat fare
-    // · N seats") so the two labels read with the same visual
-    // weight — they're the same tier of muted lime metadata.
     color: AppColors.primaryLightGreen,
     opacity: 0.7,
     fontSize: 12,
@@ -1664,8 +1483,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
 
-  // SHEET — mode chip row inside the fare editor. Same pattern as
-  // the main-screen chips, just tuned for the white sheet bg.
+  // Mode chip row inside the fare editor.
   sheetModeChipRow: {
     flexDirection: "row",
     gap: 8,
@@ -1694,17 +1512,11 @@ const styles = StyleSheet.create({
   sheetModeChipTextActive: {
     color: AppColors.primaryLightGreen,
   },
-  // Fixed-height container for the mode-specific UI inside the
-  // sheet. Without this, switching from per-seat (one small
-  // stepper card) to unequal (a multi-row list) made the sheet
-  // visibly resize, which felt jittery. Pick a height that fits
-  // the unequal list comfortably — the simpler modes just sit
-  // top-aligned inside.
+  // Fixed-height container for mode-specific fare controls.
   sheetModeBody: {
     height: 240,
   },
-  // Internal scroll for the unequal-mode per-seat list. Sized to
-  // fit inside sheetModeBody minus the trailing hint line.
+  // Internal scroll for the unequal-mode per-seat list.
   customSeatScroll: {
     maxHeight: 210,
   },
@@ -1728,9 +1540,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // CUSTOM split rows — one per seat. Forest tile, compact stepper
-  // on the right, "Seat N" label on the left. Sized so 4-6 rows fit
-  // comfortably on screen; with more seats the user scrolls.
+  // Unequal split list: one editable row per seat.
   customSeatList: {
     backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 18,
@@ -1804,10 +1614,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // BOTTOM DOCK — fixes the slider to the bottom of the screen so
-  // it sits where a thumb naturally rests, regardless of how much
-  // form content is above it. Lime canvas so it visually merges
-  // with the rest of the page.
+  // Fixed bottom dock for the create slider.
   bottomDock: {
     paddingHorizontal: 20,
     paddingTop: 8,

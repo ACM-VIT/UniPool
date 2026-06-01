@@ -18,38 +18,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../design_systems/colors";
 import { useAuthGate } from "../contexts/AuthGate";
 import { useThemeColors } from "../contexts/ThemeContext";
+import { MAIN_NAV_BAR_BOTTOM_INSET, MAIN_NAV_BAR_HEIGHT } from "./MainNavBar.constants";
 
-// Tabs that require a signed-in user. Guests tapping these get the auth sheet.
 const GUEST_GATED_ROUTES = new Set(["trips", "chat", "profile"]);
 
 const { width: rawWidth, height: rawHeight } = Dimensions.get("window");
-// Tablet branch only: phones keep their real window dimensions so the
-// `width * 0.05` / `height * 0.035` icon math scales naturally between
-// iPhone SE and iPhone 16 Pro Max. On tablets we substitute a fixed
-// mid-iPhone reference (390 × 844, iPhone 14/15 standard) so the same
-// math doesn't inflate every glyph by 2.6×. The cap-at-540 approach
-// I used before was a bug: it was wider than every iPhone, so even
-// after clamping, iPad icons rendered ~25% larger than iPhone ones.
+// Keep tablet nav icons at phone scale while preserving native phone sizing.
 const isTablet = rawWidth >= 768;
 const width = isTablet ? 390 : rawWidth;
 const height = isTablet ? 844 : rawHeight;
-
-// --- Floating-nav-bar geometry --------------------------------------
-// The bottom nav floats above the screen edge with a fixed bottom inset,
-// a fixed height, and (on iOS) a small extra margin. Other screens that
-// want to anchor decoration to the navbar (e.g. the BookingScreen empty
-// state airplane whose wheels should sit on the rail) read these
-// constants so the math stays in one place instead of being copy-pasted
-// (and silently drifting) across files.
-export const MAIN_NAV_BAR_BOTTOM_INSET = 15;
-export const MAIN_NAV_BAR_HEIGHT = Platform.OS === "ios" ? 80 : 70;
-export const MAIN_NAV_BAR_EXTRA_MARGIN = Platform.OS === "ios" ? 10 : 0;
-/**
- * Distance from the screen's bottom edge to the *top* edge of the
- * floating nav bar — i.e. where decorative elements should rest.
- */
-export const MAIN_NAV_BAR_TOP_OFFSET =
-  MAIN_NAV_BAR_BOTTOM_INSET + MAIN_NAV_BAR_HEIGHT + MAIN_NAV_BAR_EXTRA_MARGIN;
 
 interface NavItem {
   iconPath: ImageSourcePropType | any;
@@ -65,9 +42,7 @@ interface SingleBarProps {
   iconPath: ImageSourcePropType | any;
   onPress: () => void;
   showSwitchIcon?: boolean;
-  // Optional dismiss affordance. When provided, a small lime X chip
-  // is rendered on the right edge — tapping it should clear whatever
-  // state put the bar into this variant (e.g. From / To locations).
+  /** Optional right-edge dismiss action for stateful single-bar variants. */
   onClose?: () => void;
 }
 interface MainNavBarProps {
@@ -85,22 +60,17 @@ type RouteMapValue = string | string[];
 const ROUTE_MAP: Record<string, RouteMapValue> = {
   home: "HomeScreen",
   trips: "BookingScreen",
-  // Chat tab routes ONLY to the trips list now. Passenger DMs were
-  // intentionally cut — the app's chat surface is trip-scoped group
-  // threads, and pending passengers can reach the host through their
-  // own trip's chat (backend includes pending bookings in the room
-  // list). PassengerInfoScreen is left in the route table for now
-  // in case anything else linked there, but the nav bar no longer
-  // surfaces it.
+  // Chat starts from the trips list; individual group chats are ride-scoped.
   chat: "TripsListScreen",
   profile: "ProfileScreen",
 };
 
 const DEFAULT_ACTIVE_SCREEN = "HomeScreen";
+const EMPTY_NAV_ITEMS: NavItem[] = [];
 
 const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const { replace, navigate } = useRouter();
   const pathname = usePathname();
   const activeRouteName = (
     routeNameFromPath(pathname) ?? DEFAULT_ACTIVE_SCREEN
@@ -113,10 +83,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
     const firstScreen = Array.isArray(mapping) ? mapping[0] : mapping;
     const firstScreenName = String(firstScreen).toLowerCase();
 
-    // Guest gate: tab taps that require an account open the lightweight
-    // AuthSheet (Vibecode pattern). Contextual reason copy = "to see your
-    // trips" / "to message co-riders" / "to view your profile" so the
-    // sheet feels purposeful, not punitive.
+    // Guest-only sessions can browse, but account-owned tabs require auth.
     if (isGuest && GUEST_GATED_ROUTES.has(routeKey)) {
       const reason =
         routeKey === "trips"
@@ -132,12 +99,12 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
 
     if (Array.isArray(mapping)) {
       const [rootScreen, ...nextScreens] = mapping;
-      router.replace(appHref(rootScreen as any));
+      replace(appHref(rootScreen as any));
       nextScreens.forEach((screen) => {
-        router.navigate(appHref(screen as any));
+        navigate(appHref(screen as any));
       });
     } else {
-      router.replace(appHref(mapping as any));
+      replace(appHref(mapping as any));
     }
   };
 
@@ -159,13 +126,9 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
 
         return (
           <TouchableOpacity
-            key={index}
+            key={item.route}
             style={styles.navItem}
             onPress={() => handleNavigation(item.route)}
-            // VoiceOver: announce each tab by its label ("Home tab"
-            // etc.) and convey the selected state so blind users
-            // know which tab is active. Uses the iOS-standard "tab"
-            // role so the screen reader's tab gestures work.
             accessibilityRole="tab"
             accessibilityLabel={item.label}
             accessibilityState={{ selected: isActive }}
@@ -175,10 +138,6 @@ const BottomNav: React.FC<BottomNavProps> = ({ items }) => {
               style={[
                 styles.icon,
                 {
-                  // `navIconActive` / `navIconInactive` resolve to the
-                  // historical white-on-forest (light) and to off-white-
-                  // on-charcoal (dark) — both correct against the
-                  // navbar's `navFill` in their respective modes.
                   tintColor: isActive
                     ? colors.navIconActive
                     : colors.navIconInactive,
@@ -222,19 +181,12 @@ const SingleBar: React.FC<SingleBarProps> = ({
       style={[
         styles.singleBarContainer,
         { backgroundColor: colors.navFill },
-        // On iOS, lift the bar a little (marginBottom) so it sits
-        // above the home indicator. Do NOT add paddingBottom — the
-        // SingleBar's content is centered (not pinned to the bottom
-        // like the BottomNav tab icons), so eating into the bar's
-        // bottom would just shove the text + emoji above the visual
-        // center.
+        // Lift the centered single-bar content above the iOS home indicator.
         Platform.OS === 'ios' && {
           marginBottom: Math.max(insets.bottom - 12, 10),
         },
       ]}
     >
-      {/* Main tappable surface — the bar itself. Press fires the
-          primary action (e.g. "Search Rides"). */}
       <TouchableOpacity
         style={styles.singleBarTouchable}
         onPress={onPress}
@@ -259,10 +211,6 @@ const SingleBar: React.FC<SingleBarProps> = ({
         </View>
       </TouchableOpacity>
 
-      {/* Close affordance — sits on the right edge as a hit-target
-          large enough to land reliably but visually small. Lime glyph
-          on the forest bar matches the rest of the inverse-button
-          pattern. */}
       {onClose ? (
         <TouchableOpacity
           style={styles.singleBarCloseBtn}
@@ -279,7 +227,7 @@ const SingleBar: React.FC<SingleBarProps> = ({
 
 const MainNavBar: React.FC<MainNavBarProps> = ({
   variant,
-  bottomNavItems = [],
+  bottomNavItems = EMPTY_NAV_ITEMS,
   text = "",
   iconPath,
   onPress = () => {},
@@ -313,13 +261,8 @@ const MainNavBar: React.FC<MainNavBarProps> = ({
 const styles = StyleSheet.create({
   bottomNavContainer: {
     width: "95%",
-    // Cap the four-tab bar at a phone-width pill on tablets so the
-    // tab labels and icons cluster the way they were designed to.
-    // Without this each tab takes 25% of a 1024+pt iPad and the bar
-    // reads as four icons drifting in a vast horizontal void.
+    // Keep the four-tab bar compact on tablets.
     maxWidth: 540,
-    // Height pulled from the same constants other screens use to align
-    // decoration to the navbar, so they can't drift apart.
     height: MAIN_NAV_BAR_HEIGHT,
     flexDirection: "row",
     justifyContent: "space-around",
@@ -348,17 +291,11 @@ const styles = StyleSheet.create({
   },
   singleBarContainer: {
     width: "95%",
-    // Same iPad cap as bottomNavContainer above so the Search Rides
-    // pill / variant-2 text bar stay phone-shape on tablet.
+    // Match the bottom-nav tablet width cap.
     maxWidth: 540,
     height: MAIN_NAV_BAR_HEIGHT,
     flexDirection: "row",
     justifyContent: "center",
-    // True vertical centering on both platforms — content sits in the
-    // middle of the bar. Home-indicator clearance on iOS is handled
-    // by the runtime `paddingBottom` (added inline in the JSX), so
-    // the container doesn't need the old `flex-start + paddingTop`
-    // hack any more.
     alignItems: "center",
     backgroundColor: AppColors.secondaryDarkGreen,
     paddingHorizontal: 0,
@@ -368,19 +305,11 @@ const styles = StyleSheet.create({
     bottom: MAIN_NAV_BAR_BOTTOM_INSET,
     alignSelf: "center",
   },
-  // Auto-width row so the parent's `justifyContent: "center"` can
-  // center it as a single block. The previous `width: "100%"` made
-  // this fill the parent and then re-center its children, which let
-  // small asymmetries in the icon's bounding box drift the text + icon
-  // visibly off-center.
   singleBarContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
-  // The whole bar (minus the close X) is a tappable surface. Filling
-  // the container so the press hit-area covers everything except the
-  // close glyph in the corner.
   singleBarTouchable: {
     position: "absolute",
     top: 0,

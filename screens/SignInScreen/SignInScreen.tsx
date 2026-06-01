@@ -8,7 +8,7 @@ import {
   signInWithCredential,
 } from "@react-native-firebase/auth";
 import styles from "./SignInScreen.styles";
-import GoogleAuthButton from "../../components/GoogleAuthBox";
+import GoogleAuthButton from "../../components/GoogleAuthBox/GoogleAuthBox";
 import BrandedAlert from "../../components/BrandedAlert";
 import { appHref } from "../../navigation/routes";
 import { useTabletContentStyle } from "../../utils/responsive";

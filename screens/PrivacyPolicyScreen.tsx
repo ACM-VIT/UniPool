@@ -6,18 +6,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   Linking,
-  Platform,
   StatusBar,
 } from 'react-native';
 import { useRouter } from "expo-router";
-import BrandInfo from '../components/BrandInfo';
-import ChevronBack from '../components/ChevronBack';
+import BrandInfo from '../components/BrandInfo/BrandInfo';
+import ChevronBack from '../components/ChevronBack/ChevronBack';
 import AppColors from '../design_systems/colors';
 import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/responsive";
 import { useThemeColors } from "../contexts/ThemeContext";
 
 const PrivacyPolicyScreen: React.FC = () => {
-  const router = useRouter();
+  const { back } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const tabletScrollContentStyle = useTabletScrollContentStyle();
   const colors = useThemeColors();
@@ -34,7 +33,7 @@ const PrivacyPolicyScreen: React.FC = () => {
       </View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Privacy Policy</Text>

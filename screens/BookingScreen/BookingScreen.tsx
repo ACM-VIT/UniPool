@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTabletContentStyle } from "../../utils/responsive";
 import { seatsAvailableLabel } from "../../utils/seatMath";
+import { createDateTimeFormatter } from "../../utils/rideTime";
 import styles from "./BookingScreen.styles";
 import AppColors from "../../design_systems/colors";
 import { useApi } from "../../utils/ApiUtil";
@@ -38,9 +39,7 @@ export interface RideData {
   host_user_id?: string;
   is_user_host?: boolean;
   request_status?: string;
-  // Server-computed UI state. New canonical source of truth for
-  // "what's my relationship to this ride?" — see ResolveViewerState
-  // in the backend.
+  // Server-computed relationship between the current viewer and this ride.
   viewer_state?:
     | "host"
     | "confirmed_passenger"
@@ -70,16 +69,10 @@ type RideRow = RideData & {
   hasPendingRating: boolean;
 };
 
-const bookingDateFormatter = (() => {
-  try {
-    return new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "short",
-    });
-  } catch {
-    return null;
-  }
-})();
+const bookingDateFormatter = createDateTimeFormatter("en-GB", {
+  day: "2-digit",
+  month: "short",
+});
 
 const formatHHMM = (iso: string): string => {
   try {
@@ -103,35 +96,22 @@ const formatDate = (iso: string): string => {
 const BookingScreen: React.FC = () => {
   const [rides, setRides] = useState<RideData[]>([]);
   const [loading, setLoading] = useState(true);
-  // Separate flag for pull-to-refresh so the existing list stays
-  // mounted (no "Loading…" full-screen state) while the user yanks
-  // the FlatList down to re-fetch. `loading` is for the FIRST mount
-  // when there's no data yet; `refreshing` is for everything after.
+  // Keep the list mounted during pull-to-refresh; `loading` is only for the
+  // initial empty mount.
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("upcoming");
-  // Once the user manually picks a tab, the smart-default effect
-  // stops nudging them — auto-defaulting on every refetch would
-  // yank the user out of the bucket they were looking at.
+  // Once the user picks a tab, refetches should not auto-switch it.
   const userPickedTabRef = useRef(false);
   const hasFocusedOnceRef = useRef(false);
   const { apiUtil } = useApi();
-  const router = useRouter();
+  const { navigate, replace } = useRouter();
   const { requireAuth } = useAuthGate();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  // iPad-only: phone-shape centred column so the empty state and
-  // tab pills sit in a digestible width instead of floating in
-  // 1032pt of lime canvas. Hook returns null on phones — mobile
-  // layout is untouched.
+  // iPad-only centered column; phones keep the default full-width layout.
   const tabletContentStyle = useTabletContentStyle();
-  // Live window dimensions for orientation-aware airplane
-  // positioning. The static styles in BookingScreen.styles.ts
-  // capture Dimensions.get() once at module load (always portrait
-  // on iPad), so a landscape rotation leaves the airplane stranded
-  // in the bottom-right corner instead of resting on the centred
-  // navbar's right edge. Computing the right offset live here
-  // restores the on-rail alignment in any orientation.
+  // Keep the decorative airplane aligned with the centered nav on rotation.
   const liveWindow = useWindowDimensions();
   const airplaneRightOffset =
     liveWindow.width >= 768
@@ -139,9 +119,8 @@ const BookingScreen: React.FC = () => {
       : undefined;
 
   const fetchAll = useCallback(async ({ refresh = false }: { refresh?: boolean } = {}) => {
-      // Only show the full-screen loading state on the first fetch.
-      // Refreshes keep the list mounted and use the `refreshing` flag
-      // so the user sees the existing rides while the new data arrives.
+      // Full-screen loading is only for the first fetch; refreshes use the
+      // FlatList refresh control while current rows stay visible.
       if (refresh) {
         setRefreshing(true);
       } else {
@@ -154,9 +133,8 @@ const BookingScreen: React.FC = () => {
           setError("Please sign in to view your trips");
           return;
         }
-        // `/user/rides` now carries viewer_state + actions, so this
-        // screen opens with one read instead of also resolving
-        // `/user/details` just to infer host ownership.
+        // `/user/rides` includes viewer_state and actions, so no extra
+        // profile request is needed to infer host/passenger state.
         const ridesData = await apiUtil.get<any>("/user/rides");
         setRides(Array.isArray(ridesData) ? ridesData : []);
       } catch (err: any) {
@@ -182,10 +160,7 @@ const BookingScreen: React.FC = () => {
     }, [fetchAll]),
   );
 
-  // Bucket rides into the three tabs by the server-computed
-  // viewer_state. No more client-side "isHost && hasBooking" math —
-  // the API tells us exactly what the user's relationship to each
-  // ride is.
+  // Bucket rides by the server-computed viewer_state.
   const buckets = useMemo(() => {
     const upcoming: RideRow[] = [];
     const hosting: RideRow[] = [];
@@ -199,9 +174,7 @@ const BookingScreen: React.FC = () => {
       const startMs = new Date(ride.start_time).getTime();
       if (Number.isNaN(startMs)) continue;
 
-      // Prefer the server's viewer_state. Fall back to legacy
-      // derivation only if the API hasn't been updated yet (e.g.
-      // pre-migration clients hitting an older build).
+      // Keep a legacy fallback for older API responses without viewer_state.
       const state =
         ride.viewer_state ??
         (ride.is_user_host
@@ -249,12 +222,7 @@ const BookingScreen: React.FC = () => {
     past: buckets.past.length,
   };
 
-  // Smart default: on first load, jump to the first non-empty bucket
-  // in [upcoming, hosting, past] order so a user who hosts but has
-  // no upcoming bookings doesn't open the screen onto an empty pane
-  // and assume the app is broken. Once the user explicitly taps a
-  // tab, the auto-pick stops firing — refetches don't yank them
-  // back to a bucket they navigated away from.
+  // First load opens the first non-empty tab, then preserves manual tab choice.
   useEffect(() => {
     if (userPickedTabRef.current || loading) return;
     const order: TabKey[] = ["upcoming", "hosting", "past"];
@@ -266,8 +234,8 @@ const BookingScreen: React.FC = () => {
 
   const openRide = useCallback((rideId: string) => {
     if (!rideId) return;
-    router.navigate(appHref("RideDetailsScreen", { rideId }));
-  }, [router]);
+    navigate(appHref("RideDetailsScreen", { rideId }));
+  }, [navigate]);
 
   const renderTrip = useCallback(({ item }: { item: RideRow }) => (
     <View style={styles.cardSlot}>
@@ -292,7 +260,7 @@ const BookingScreen: React.FC = () => {
       {tab === "past" && item.hasPendingRating ? (
         <TouchableOpacity
           onPress={() =>
-            router.navigate(
+            navigate(
               appHref("PostTripRatingScreen", { rideId: item.rideId }),
             )
           }
@@ -306,10 +274,9 @@ const BookingScreen: React.FC = () => {
         </TouchableOpacity>
       ) : null}
     </View>
-  ), [openRide, router, tab]);
+  ), [openRide, navigate, tab]);
 
-  // Empty-state copy is intentionally terse. Mobbin pattern across
-  // Uber / Bolt / inDrive: one line + one CTA, nothing else.
+  // Empty-state copy stays terse: one line plus one CTA.
   const renderEmpty = () => {
     const copy =
       tab === "upcoming"
@@ -331,7 +298,7 @@ const BookingScreen: React.FC = () => {
           };
     const handleEmptyCta = () => {
       if (copy.cta.to === "HomeScreen") {
-        router.replace(appHref(copy.cta.to));
+        replace(appHref(copy.cta.to));
         return;
       }
       // CreateRide path — posting needs an account, so prompt for
@@ -340,7 +307,7 @@ const BookingScreen: React.FC = () => {
       if (copy.cta.to === "CreateRide") {
         if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) return;
       }
-      router.navigate(appHref(copy.cta.to));
+      navigate(appHref(copy.cta.to));
     };
 
     return (
@@ -400,8 +367,7 @@ const BookingScreen: React.FC = () => {
           horizontally on iPad. On phone `tabletContentStyle` is
           null so this is just `flex: 1`. */}
       <View style={[{ flex: 1 }, tabletContentStyle]}>
-      {/* Header — title only. Mobbin pattern across Uber, Bolt,
-          inDrive: bold title, no help copy, tabs do the explaining. */}
+      {/* Header is title-only; tabs explain the buckets. */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 4 }]}>
         <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Your trips</Text>
       </View>

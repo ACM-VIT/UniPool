@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as Linking from 'expo-linking';
 import BrandedAlert from './BrandedAlert';
-import { haptic } from './PressableScale';
+import { haptic } from './haptics';
 import { useApi } from '../utils/ApiUtil';
 
 /**

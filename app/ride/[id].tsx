@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { appHref } from "../../navigation/routes";
@@ -17,18 +17,18 @@ import AppColors from "../../design_systems/colors";
  * never sees a black flash from a transparent root view.
  */
 export default function RideDeepLinkRoute() {
-  const router = useRouter();
+  const { replace } = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
 
   useEffect(() => {
     if (!id) {
       // Malformed share URL; bounce to Home instead of getting
       // stuck on an empty deep-link route.
-      router.replace("/");
+      replace("/");
       return;
     }
-    router.replace(appHref("RideDetailsScreen", { rideId: id } as any));
-  }, [id, router]);
+    replace(appHref("RideDetailsScreen", { rideId: id } as any));
+  }, [id, replace]);
 
   return <View style={{ flex: 1, backgroundColor: AppColors.primaryLightGreen }} />;
 }

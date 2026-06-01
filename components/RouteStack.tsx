@@ -142,11 +142,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   connector: {
-    // Left-align the dashed column under the centre of the start dot
-    // (5 = (12 dot − 2 dash) / 2). Larger vertical margin so the
-    // dashes have room to breathe between the start row and the end
-    // row — the previous 6pt clamp made the connector read as a
-    // single short smudge.
+    // Align the dashed column under the center of the start dot.
     marginLeft: 5,
     marginVertical: 10,
     alignItems: "flex-start",

@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
-import { haptic } from "./PressableScale";
+import { haptic } from "./haptics";
 import { displayRideLocation } from "../utils/LocationService";
 import SheetShell from "./SheetShell";
 

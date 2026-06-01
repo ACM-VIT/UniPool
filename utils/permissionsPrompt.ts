@@ -1,7 +1,7 @@
 import AsyncStorage from "./safeAsyncStorage";
 import * as Location from "expo-location";
 
-export const HAS_SEEN_PERMISSIONS_PROMPT_KEY = "hasSeenPermissionsPrompt";
+const HAS_SEEN_PERMISSIONS_PROMPT_KEY = "hasSeenPermissionsPrompt";
 
 export const markPermissionsPromptSeen = async () => {
   await AsyncStorage.setItem(HAS_SEEN_PERMISSIONS_PROMPT_KEY, "true");

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, Image, ScrollView, TouchableOpacity, Platform, StatusBar, Share, Linking } from "react-native";
+import { View, Text, Image, ScrollView, TouchableOpacity, Platform, Share, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { ProfileScreenProps } from "./ProfileScreen.types";
@@ -128,7 +128,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   // palette is active without rewriting every style block.
   const { colors: themeColors } = useTheme();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const { replace, navigate } = useRouter();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -187,13 +187,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       if (isAuthenticationRedirectError(error)) {
         debugLog("Authentication redirect in ProfileScreen - clearing stale session");
         await rollbackFirebaseSession(apiUtil);
-        router.replace(appHref("HomeScreen"));
+        replace(appHref("HomeScreen"));
         return;
       }
       
       if (isSignupRequiredError(error)) {
         debugLog("User not found in database - redirecting to signup");
-        router.replace(appHref("SignUpScreen", {
+        replace(appHref("SignUpScreen", {
           newUser: error.response?.data?.newUser || null,
           returnTo: { screen: "ProfileScreen" },
         }));
@@ -209,7 +209,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     } finally {
       setLoading(false);
     }
-  }, [apiUtil, contextUser, router]);
+  }, [apiUtil, contextUser, replace]);
 
   useEffect(() => {
     return () => {
@@ -270,7 +270,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       onPress: () => {
         debugLog("Navigating to PersonalInformationScreen");
         try {
-          router.navigate(appHref("PersonalInformationScreen"));
+          navigate(appHref("PersonalInformationScreen"));
         } catch (error) {
           console.error("Navigation error:", error);
           BrandedAlert.alert("Navigation Error", "Unable to navigate to Personal Information screen");
@@ -285,7 +285,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       onPress: () => {
         debugLog("Navigating to PassengersHistoryScreen");
         try {
-          router.navigate(appHref("PassengersHistoryScreen"));
+          navigate(appHref("PassengersHistoryScreen"));
         } catch (error) {
           console.error("Navigation error:", error);
           BrandedAlert.alert("Navigation Error", "Unable to navigate to Passengers History screen");
@@ -299,7 +299,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       hasCheckmark: true,
       onPress: () => {
         try {
-          router.navigate(appHref("TripHistoryScreen"));
+          navigate(appHref("TripHistoryScreen"));
         } catch (error) {
           console.error("Navigation error:", error);
           BrandedAlert.alert("Navigation Error", "Unable to navigate to Trip history screen");
@@ -316,34 +316,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       onPress: () => {
         debugLog("Navigating to DefaultAddressScreen");
         try {
-          router.navigate(appHref("DefaultAddressScreen"));
+          navigate(appHref("DefaultAddressScreen"));
         } catch (error) {
           console.error("Navigation error:", error);
           BrandedAlert.alert("Navigation Error", "Unable to navigate to Default Address screen");
         }
       },
     },
-    // {
-    //   id: "currency",
-    //   title: "Currency - INR",
-    //   hasCheckmark: true,
-    //   onPress: () => navigation.navigate("CurrencySettings"),
-    // },
-    // {
-    //   id: "notifications",
-    //   title: "Notifications",
-    //   icon: require("../../assets/notification-icon.png"),
-    //   hasCheckmark: true,
-    //   onPress: () => {
-    //     console.log("Navigating to NotificationsScreen");
-    //     try {
-    //       navigation.navigate("NotificationsScreen");
-    //     } catch (error) {
-    //       console.error("Navigation error:", error);
-    //       BrandedAlert.alert("Navigation Error", "Unable to navigate to Notifications screen");
-    //     }
-    //   },
-    // },
   ];
 
   const openACMVITSite = () => {
@@ -361,11 +340,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   };
 
   const openShareDialog = async () => {
-    // Hold the ghost-tap guard from before the sheet appears until a
-    // short beat after it resolves, so the dismissal tap can't fall
-    // through to a menu row (see shareGuardRef). Covers both possible
-    // orderings: the stray onPress firing before OR after Share.share
-    // resolves.
+    // Hold a short guard after the native share sheet closes so its dismissal
+    // tap cannot fall through to the menu row underneath.
     shareGuardRef.current = true;
     try {
       await Share.share({
@@ -385,7 +361,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
 
   const openRateApp = () => {
     const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.carpoolitapp';
-    // App Store URL will use bundle ID - update with actual App ID after first submission
+    // Replace with the App Store listing URL after first iOS submission.
     const appStoreUrl = 'https://apps.apple.com/app/unipool/id6740000000';
     const url = Platform.OS === 'ios' ? appStoreUrl : playStoreUrl;
     Linking.openURL(url).catch((error) => {
@@ -407,23 +383,27 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
           onPress: async () => {
             debugLog("User confirmed logout");
             try {
-              const { getAuth, signOut } = await import('@react-native-firebase/auth');
-              const { default: AsyncStorage } = await import('../../utils/safeAsyncStorage');
+              const [{ getAuth, signOut }, { default: AsyncStorage }] = await Promise.all([
+                import('@react-native-firebase/auth'),
+                import('../../utils/safeAsyncStorage'),
+              ]);
 
               debugLog("Starting logout process...");
               const auth = getAuth();
               await signOut(auth);
               debugLog("Firebase signout completed");
 
-              await AsyncStorage.removeItem('unipool_start_address');
-              await AsyncStorage.removeItem('defaultAddress');
-              await AsyncStorage.removeItem('lastUserVerification');
+              await Promise.all([
+                AsyncStorage.removeItem('unipool_start_address'),
+                AsyncStorage.removeItem('defaultAddress'),
+                AsyncStorage.removeItem('lastUserVerification'),
+              ]);
               debugLog("AsyncStorage cleared (including lastUserVerification)");
 
               setUserData(null);
               debugLog("Navigating to AuthScreen...");
 
-              router.replace(appHref("AuthScreen"));
+              replace(appHref("AuthScreen"));
               debugLog("Navigation reset completed");
             } catch (e) {
               console.error('Logout error:', e);
@@ -469,7 +449,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       icon: require("../../assets/setting-3.png"),
       hasCheckmark: true,
       onPress: () => {
-        router.navigate(appHref("PrivacyPolicyScreen"));
+        navigate(appHref("PrivacyPolicyScreen"));
       },
     },
     {
@@ -478,7 +458,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       icon: require("../../assets/setting-3.png"),
       hasCheckmark: true,
       onPress: () => {
-        router.navigate(appHref("TermsOfServiceScreen"));
+        navigate(appHref("TermsOfServiceScreen"));
       },
     },
     {
@@ -489,7 +469,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       onPress: () => {
         debugLog("Navigating to AccountSettingsScreen");
         try {
-          router.navigate(appHref("AccountSettingsScreen"));
+          navigate(appHref("AccountSettingsScreen"));
           debugLog("Navigation to AccountSettingsScreen completed");
         } catch (error) {
           console.error("Navigation error:", error);
@@ -507,13 +487,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
 
   const renderMenuItem = (item: MenuItem) => {
     const isHighPriorityItem = ['help', 'account_settings', 'logout'].includes(item.id);
-    // Menu rows sit on the canvas as raised cards. Override the
-    // module-scope backgroundColor + border so they read as raised
-    // tiles in both light (forest navbar-style fill) and dark
-    // (raised charcoal). Module-scope `styles.menuItem` already
-    // hardcoded `secondaryDarkGreen` as the bg in light, so honour
-    // that exact value via `colors.navFill` which resolves to the
-    // same forest in light and to the dark surface in dark.
+    // Keep menu rows on the themed raised surface in both color modes.
     const themedMenuOverride = {
       backgroundColor: themeColors.navFill,
       borderColor: themeColors.inkSubtle,
@@ -544,37 +518,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
             source={item.icon}
             style={[
               styles.menuItemIcon,
-              // Dark mode: drop the lime icon tint so the row reads
-              // in one neutral cream tonal family with the label
-              // next to it. Light mode keeps the historical lime
-              // on forest tile pairing.
+              // Dark mode uses the same neutral icon color as the row label.
               themeColors.mode === "dark" && { tintColor: themeColors.textOnDark, opacity: 0.85 },
             ]}
             resizeMode="contain"
           />
         )}
         <Text style={[styles.menuItemText, { color: themeColors.textOnDark }]}>{item.title}</Text>
-        {/* {item.hasCheckmark && (
-          <Image
-            source={require("../../assets/favicon.png")}
-            style={styles.checkmarkIcon}
-            resizeMode="contain"
-          />
-        )} */}
       </TouchableOpacity>
     );
-  };  const renderStatsCard = (value: string, label: string, unit?: string, icon?: any) => (
-    // Stats cards sit on the canvas as raised tiles. `navFill` keeps
-    // the historical forest fill in light mode and shifts to a
-    // raised-charcoal in dark.
-    //
-    // Light mode keeps the historical lime numerals + lime labels —
-    // that's the brand pairing the screen has always shown.
-    //
-    // Dark mode swaps to cream so the stats cards read as part of
-    // the same neutral tonal family as the menu rows below (which
-    // also use cream-on-charcoal). No lime accents on stats in
-    // dark mode.
+  };
+
+  const renderStatsCard = (value: string, label: string, unit?: string, icon?: any) => (
+    // Stats use the same raised surface treatment as the menu rows.
     <View style={[styles.statsCard, { backgroundColor: themeColors.navFill }]}>
       {icon && (
         <Image

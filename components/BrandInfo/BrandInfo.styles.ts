@@ -6,16 +6,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    // Bumped from 14 → 20 so the "UniPool" wordmark on the right has
-    // breathing room from the iPhone's rounded screen-corner curvature
-    // on Dynamic Island devices. The previous 14pt let the final "l"
-    // get clipped by the bezel curve.
+    // Protect the wordmark from rounded screen corners.
     paddingHorizontal: 20,
   },
-  // When the location strip is hidden (permission denied / loading),
-  // the wordmark would otherwise drift to the right edge under
-  // space-between. Left-align it so it sits where the brand mark
-  // would naturally go.
+  // Left-align the wordmark when the location strip is hidden.
   containerSolo: {
     justifyContent: "flex-start",
   },
@@ -31,9 +25,7 @@ const styles = StyleSheet.create({
     height: 20,
     marginRight: 8,
   },
-  // Was 16/bold-on-Regular-family which renders synthetic-bold + ugly
-  // on Android, plus a `#222` raw hex off-palette. Now uses the brand
-  // palette + a real bold weight; truncates cleanly when text is long.
+  // Use palette text and a real bold weight so long addresses truncate cleanly.
   locationText: {
     fontFamily: "NunitoSans_700Bold",
     fontSize: 14.5,
@@ -54,15 +46,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: AppColors.secondaryDarkGreen,
     letterSpacing: -0.4,
-    // Never let the wordmark be the flex-shrink target — the location
-    // strip on the left should shrink + ellipsize first if the row
-    // runs out of room. Previously the "l" in "UniPool" was getting
-    // chopped because Text in a flex row defaults to shrinkable.
+    // Keep the wordmark fixed while the location strip shrinks first.
     flexShrink: 0,
-    // A pixel of padding so the rightmost glyph's antialiasing edge
-    // can't get clipped by the iPhone bezel curve on Dynamic Island
-    // devices, where the screen's curved corner eats into the last
-    // ~2pt of visible width.
+    // Small guard against right-edge glyph clipping on rounded screens.
     paddingRight: 2,
   },
 });
