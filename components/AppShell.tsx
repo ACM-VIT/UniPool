@@ -224,6 +224,11 @@ const AppShell = () => {
     // because the .otf shipped via the asset bundle, but Android needs
     // the explicit register.
     "Trap-Bold": require("../assets/fonts/trap/Trap-Bold.otf"),
+    // Heavier + medium display cuts. Used by the web surfaces for a
+    // richer headline hierarchy (oversized Trap-Black heroes, Trap-Medium
+    // subheads); harmless on native, which simply has them available.
+    "Trap-Black": require("../assets/fonts/trap/Trap-Black.otf"),
+    "Trap-Medium": require("../assets/fonts/trap/Trap-Medium.otf"),
   });
 
   const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
@@ -535,7 +540,9 @@ const AppShell = () => {
             setInitialRoute("HomeScreen");
           } else {
             debugLog("No user, first run — OnboardingScreen");
-            setInitialRoute("OnboardingScreen");
+            // Web has a landing page on HomeScreen for signed-out
+            // visitors, so it skips the mobile onboarding carousel.
+            setInitialRoute(Platform.OS === "web" ? "HomeScreen" : "OnboardingScreen");
           }
         } catch (e) {
           debugLog("Onboarding flag check failed, defaulting to OnboardingScreen", e);
@@ -614,9 +621,11 @@ const AppShell = () => {
           try {
             const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
             const seen = await AsyncStorage.getItem("hasSeenOnboarding");
-            setInitialRoute(seen === "true" ? "HomeScreen" : "OnboardingScreen");
+            setInitialRoute(seen === "true" || Platform.OS === "web" ? "HomeScreen" : "OnboardingScreen");
           } catch (e) {
-            setInitialRoute("OnboardingScreen");
+            // Web has a landing page on HomeScreen for signed-out
+            // visitors, so it skips the mobile onboarding carousel.
+            setInitialRoute(Platform.OS === "web" ? "HomeScreen" : "OnboardingScreen");
           }
         }
         setAuthStateResolved(true);
@@ -788,8 +797,12 @@ const AppShell = () => {
     }
   }, [initialRoute, isBootstrapping, pathname, router, locationDetour]);
 
+  // The mobile floating tab bar is replaced on web by the top
+  // navigation in WebShell, so it never renders on the web build.
   const showNavBar =
-    !isBootstrapping && !NAVBAR_HIDDEN_ROUTES.includes(currentRouteName as string);
+    !isBootstrapping &&
+    !NAVBAR_HIDDEN_ROUTES.includes(currentRouteName as string) &&
+    Platform.OS !== "web";
   
   return (
     <View style={globalStyles.shellRoot}>
