@@ -28,6 +28,7 @@ import { useUser } from '../../contexts/UserContext';
 import { useThemeColors } from '../../contexts/ThemeContext';
 import { useTabletContentStyle } from '../../utils/responsive';
 import { passengerSeatsLeft } from '../../utils/seatMath';
+import { createDateTimeFormatter } from '../../utils/rideTime';
 import ChatService from '../../utils/ChatService';
 import { setActiveChat, clearActiveChat } from '../../utils/activeChatRegistry';
 import BrandedAlert from "../../components/BrandedAlert";
@@ -241,34 +242,22 @@ const formatChatTime = (timestamp: any): string => {
     : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-let chatTimeFormatter: Intl.DateTimeFormat | null = null;
-  try {
-    chatTimeFormatter = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    chatTimeFormatter = null;
-  }
+const chatTimeFormatter = createDateTimeFormatter(undefined, {
+  hour: '2-digit',
+  minute: '2-digit',
+});
 
-let chatDateSeparatorFormatter: Intl.DateTimeFormat | null = null;
-  try {
-    chatDateSeparatorFormatter = new Intl.DateTimeFormat(undefined, {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-    });
-  } catch {
-    chatDateSeparatorFormatter = null;
-  }
+const chatDateSeparatorFormatter = createDateTimeFormatter(undefined, {
+  weekday: 'short',
+  day: '2-digit',
+  month: 'short',
+});
 
-let chatRideDateFormatter: Intl.DateTimeFormat | null = null;
-  try {
-    chatRideDateFormatter = new Intl.DateTimeFormat(undefined, {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    });
-  } catch {
-    chatRideDateFormatter = null;
-  }
+const chatRideDateFormatter = createDateTimeFormatter(undefined, {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+});
 
 const chatDayKey = (date: Date): number =>
   date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate();
