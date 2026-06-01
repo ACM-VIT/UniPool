@@ -13,6 +13,7 @@ const DEBUG_SELECTED_RIDE =
 import ChevronBack from '../../components/ChevronBack/ChevronBack';
 import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
 import BrandInfo from '../../components/BrandInfo/BrandInfo';
+import BrandedAlert from '../../components/BrandedAlert';
 import RouteStack from '../../components/RouteStack';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
@@ -22,6 +23,7 @@ import { useThemeColors } from '../../contexts/ThemeContext';
 import { appHref, useDecodedLocalSearchParams } from '../../navigation/routes';
 import { seatsAvailableLabel } from '../../utils/seatMath';
 import { useTabletContentStyle } from "../../utils/responsive";
+import { describeBookingRequestError } from "../../utils/bookingRequestError";
 
 const customMapStyle = [
   {
@@ -626,7 +628,7 @@ const AvailableRideScreenSelected: React.FC = () => {
 
       if (DEBUG_SELECTED_RIDE) console.log('Requesting ride with payload:', requestPayload);
 
-      const response = await apiUtil.post('/bookings/request', requestPayload) as RideRequestResponse;
+      const response = await apiUtil.postSilent('/bookings/request', requestPayload) as RideRequestResponse;
       
       if (DEBUG_SELECTED_RIDE) console.log('Ride request response:', response);
 
@@ -659,32 +661,13 @@ const AvailableRideScreenSelected: React.FC = () => {
     } catch (error: any) {
       console.error('Error requesting ride:', error);
       
-      let errorMessage = 'Failed to request ride. Please try again.';
-      
-      const responseData = error?.response?.data || {};
-      const status = error?.response?.status;
-      const code = responseData?.code;
-      const serverMessage = responseData?.message || responseData?.error;
-
-      if (status === 400) {
-        errorMessage = serverMessage || 'Invalid request. Please check ride availability.';
-      } else if (error?.response?.status === 401) {
-        errorMessage = 'Please log in to request a ride.';
-      } else if (status === 409) {
-        if (code === "already_booked") {
-          errorMessage = "You've already requested this ride.";
-        } else if (code === "ride_full") {
-          errorMessage = "This ride is full.";
-        } else if (code === "ride_started") {
-          errorMessage = "This ride has already started.";
-        } else {
-          errorMessage = serverMessage || 'You have already requested this ride or the ride is full.';
-        }
-      } else if (error?.message) {
-        errorMessage = error.message;
+      const requestError = describeBookingRequestError(error);
+      if (requestError.blockState) {
+        setViewerState(requestError.blockState);
+        setViewerActions((actions) => ({ ...actions, can_request_seat: false }));
       }
-
-      console.error('Ride request error:', errorMessage);
+      setDetailsRefreshTick((tick) => tick + 1);
+      BrandedAlert.alert("Couldn't request", requestError.message);
     } finally {
       setIsRequesting(false);
     }

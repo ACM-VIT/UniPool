@@ -257,6 +257,23 @@ export default class ApiUtil {
     );
   }
 
+  private shouldShowGlobalErrorFor(error: any, method: string, requestOptions: RequestOptions) {
+    if (requestOptions.showGlobalError === true) {
+      return true;
+    }
+
+    if (requestOptions.showGlobalError === false || method === "GET") {
+      return false;
+    }
+
+    const status = error?.response?.status ?? error?.status;
+    if (typeof status === "number") {
+      return status === 408 || status === 429 || status >= 500;
+    }
+
+    return this.shouldUseStaleFallback(error);
+  }
+
   private async makeRequestWithErrorHandling<T>(
     method: string,
     endpoint: string,
@@ -390,12 +407,10 @@ export default class ApiUtil {
       // context (returnTo, etc.); ApiUtil just rethrows so they can
       // route appropriately.
       
-      // GET failures usually belong to the screen that requested data.
-      // Let those render their local empty/error state instead of
-      // opening the global sheet after the user has navigated away.
-      const shouldShowGlobalError =
-        requestOptions.showGlobalError === true ||
-        (requestOptions.showGlobalError !== false && method !== "GET");
+      // GET failures and expected 4xx domain responses belong to the
+      // screen that made the request. The global sheet is reserved for
+      // failures that imply the app/backend path itself is unhealthy.
+      const shouldShowGlobalError = this.shouldShowGlobalErrorFor(error, method, requestOptions);
 
       if (this.showError && retryAction && this.isAppInitialized && shouldShowGlobalError &&
           error?.response?.status !== 401 && 
