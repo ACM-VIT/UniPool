@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import AsyncStorage from '../utils/safeAsyncStorage';
-import { X } from "lucide-react-native";
 import {
   View,
   Text,
@@ -8,7 +7,6 @@ import {
   StyleSheet,
   Image,
   Modal,
-  ScrollView,
   FlatList,
   ListRenderItem,
   Dimensions,
@@ -27,14 +25,12 @@ import { useThemeColors } from "../contexts/ThemeContext";
 import {
   searchLocationsWithFallback,
   getInstantLocationResults,
-  getPopularLocations, 
+  getPopularLocations,
   getPopularLocationsFallback,
   LocationResult,
   formatLocationName,
   getLocationDisplayName,
-  POPULAR_LOCATIONS,
   UserLocation,
-  NearbyPlace,
   getCoordinatesForLocation,
   reverseGeocodeShort,
 } from "../utils/LocationService";
@@ -44,11 +40,7 @@ const DEBUG_RIDE_SELECTOR =
   typeof __DEV__ !== "undefined" &&
   __DEV__ &&
   process.env.EXPO_PUBLIC_DEBUG_RIDE_SELECTOR === "1";
-// Tablet branch only: phones keep their real window dimensions so
-// every `width * 0.NN` / `height * 0.NN` size below scales naturally
-// across iPhone SE → 16 Pro Max. On tablets we substitute a fixed
-// iPhone 14/15 reference (390 × 844) so the From/To card icons,
-// padding, and chip sizes don't inflate ~2.6× on the iPad canvas.
+// Tablet sizing uses a phone reference so form controls stay compact on iPad.
 const isTablet = rawWidth >= 768;
 const width = isTablet ? 390 : rawWidth;
 const height = isTablet ? 844 : rawHeight;
@@ -107,8 +99,7 @@ interface RideDetailsSelectorProps {
   onSubmit: (details: RideDetails) => void;
   /**
    * Fires whenever either location field changes (even with only one set).
-   * Parents use this to update the map preview as the user types — without
-   * waiting for the date to also be filled.
+   * Parents use it to update map previews before the full form is complete.
    */
   onCoordsChange?: (from: LocationCoordinates | null, to: LocationCoordinates | null) => void;
   onLocationSelectionChange?: (hasFromAndTo: boolean) => void;
@@ -119,27 +110,16 @@ interface RideDetailsSelectorProps {
   /**
    * Bump this counter from the parent to imperatively clear From,
    * To, and their coordinates (used by the Search Rides X button).
-   * Effect compares the new value to the previous one and resets on
-   * change — first render is treated as the baseline.
    */
   clearTrigger?: number;
   /**
    * Seed value for the date pill. Used when the parent comes in with
-   * a pre-filled date (e.g. CreateRide opened from the search-empty-
-   * state). Only consulted on first render; once the user picks a
-   * date from the wheel, the internal state takes over.
+   * a pre-filled date. Only consulted on first render.
    */
   initialDate?: Date;
   /**
    * When true, the selector stops auto-submitting whenever
-   * from + to + date all happen to be filled. Instead it renders
-   * its own "Search rides" footer button — the user has to explicitly
-   * tap it, giving them a beat to also tweak the date if they want.
-   * Date stays optional (the default `now + 1h` value is still
-   * submitted if untouched). Used by the home-screen search sheet
-   * where auto-submit would yank the user out of the sheet the
-   * moment they picked a destination, before they had a chance to
-   * change the date.
+   * from + to + date are filled. The footer CTA becomes the only submit path.
    */
   manualSubmit?: boolean;
 }
@@ -382,15 +362,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       );
     }
 
-    // "Current location" is a UX shorthand for "use my GPS pin", not a
-    // place name. If we persist the literal string into the ride
-    // payload it shows up on cards, trip history, and share text as
-    // "Current location" — meaningless to anyone but the picker. So
-    // when the user lands on that entry, reverse-geocode the GPS in
-    // the background and swap the from text to the resolved name
-    // ("MG Road, Bangalore"). Same request-id guard as the coords
-    // resolve below — if the user picks a different from before this
-    // completes, the swap is dropped.
+    // "Current location" is picker shorthand; persist a resolved place name.
     if (isFrom && locationResult?.source === "current" && userLocation) {
       const resolveId = coordinateResolveRequestRef.current.from;
       void reverseGeocodeShort(userLocation).then((resolved) => {
@@ -502,7 +474,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={colors.textPrimary} accessibilityLabel="Loading" />
             <Text style={[styles.loadingText, { color: colors.textPrimary }]}>
-              Loading nearby places...
+              Loading nearby places…
             </Text>
           </View>
         );
@@ -520,12 +492,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       case "popular":
         return (
           <TouchableOpacity
-            // Light mode: transparent row on the forest sheet, with
-            // the historical white pin glyph + white text — exactly
-            // how the picker shipped before the dark-mode work.
-            // Dark mode: surface chip with no pin glyph (the asset
-            // renders as a thin vertical sliver that reads as noise
-            // when there's no lime accent bar next to it).
             style={[
               styles.locationItem,
               colors.mode === "dark" && {
@@ -557,8 +523,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       case "search":
         return (
           <TouchableOpacity
-            // Light: historical transparent row on forest sheet with
-            // white text. Dark: cream tile on the dark modal.
             style={[
               styles.locationItem,
               colors.mode === "dark" && {
@@ -629,7 +593,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                 colors.mode === "dark" && { color: colors.textSecondary },
               ]}
             >
-              Type more characters to search for locations...
+              Type more characters to search for locations…
             </Text>
           </View>
         );
@@ -762,10 +726,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   };
 
   const handleLocationSwap = () => {
-    // No-op when there's nothing to swap *into* From. Previously this
-    // would clear From, then a `useEffect` watching the parent's
-    // `fromLocation` prop would re-fill it to the same value, leaving
-    // both fields with the original From location (duplicate).
+    // Nothing to swap until both fields have values.
     if (!toLocation || !fromLocation) return;
 
     const tempLocation = fromLocation;
@@ -855,7 +816,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     if (externalFromLocation !== undefined) {
       setFromLocation(externalFromLocation);
       
-      // Handle async coordinate fetching
       const fetchCoords = async () => {
         try {
           const coords = await getCoordinatesForLocation(externalFromLocation);
@@ -878,7 +838,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     if (externalToLocation !== undefined) {
       setToLocation(externalToLocation);
       
-      // Handle async coordinate fetching
       const fetchCoords = async () => {
         try {
           const coords = await getCoordinatesForLocation(externalToLocation);
@@ -903,9 +862,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
   }, [fromLocation]);
 
-  // Imperative clear from the parent (e.g. Search Rides X button).
-  // `fromCleared` blocks the defaultStartAddress auto-fill effect
-  // from immediately re-populating From after we wipe it.
+  // Parent-driven clear; fromCleared prevents default-address auto-fill rebound.
   useEffect(() => {
     if (clearTrigger === undefined) return;
     coordinateResolveRequestRef.current.from += 1;
@@ -924,9 +881,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     }
   }, [fromLocation, toLocation, onLocationSelectionChange]);
 
-  // Push coord updates upward whenever either pin changes, so the parent
-  // can animate the map preview without waiting for a full From+To+date
-  // submission. Either side may be null when only one location is set.
+  // Push partial coordinate updates upward for map previews.
   useEffect(() => {
     if (onCoordsChange) {
       onCoordsChange(fromCoordinates ?? null, toCoordinates ?? null);
@@ -948,10 +903,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     return 30;
   };
 
-  // All theme overrides below are gated on `isDark`. Light mode
-  // reads the historical lime/forest pairing verbatim so the picker
-  // looks bit-for-bit identical to what shipped before dark mode.
-  // Only the dark branch swaps to neutral cream tones.
+  // Dark mode overrides live inline; light mode keeps module styles.
   const isDark = colors.mode === "dark";
   return (
     <View style={[styles.container, { backgroundColor: colors.navFill }]}>
@@ -959,17 +911,11 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         <View
           style={[
             styles.routeConnector,
-            // Dark mode: neutral cream connector. Light mode: keep
-            // the historical half-opacity lime hairline from the
-            // module-scope style.
             isDark && { backgroundColor: colors.textOnDark, opacity: 0.35 },
           ]}
           pointerEvents="none"
         />
         <TouchableOpacity
-          // Drop the bright white hairline below the From row IN DARK
-          // MODE only. Light mode keeps the historical 8%-white
-          // bottom border baked into `inputContainer`.
           style={[styles.inputContainer, isDark && { borderBottomWidth: 0 }]}
           onPress={() => handleLocationSelectorOpen(true)}
         >
@@ -977,16 +923,12 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             <View
               style={[
                 styles.routeDotOutline,
-                // Dark mode: cream outline; light mode: historical lime.
                 isDark && { borderColor: colors.textOnDark },
               ]}
             />
             <Text
               style={[
                 fromLocation ? styles.selectedText : styles.label,
-                // Dark mode: filled = cream / empty = same colour at
-                // 0.55 opacity. Light mode keeps the historical lime
-                // label / lime selectedText untouched.
                 isDark && { color: colors.textOnDark, opacity: fromLocation ? 1 : 0.55 },
               ]}
               numberOfLines={1}
@@ -998,10 +940,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         </TouchableOpacity>
 
         <TouchableOpacity
-          // Swap button: dark mode drops the lime fill and uses a
-          // hairline-outlined pill so the affordance reads as a
-          // tertiary control next to the picker's neutral palette.
-          // Light mode keeps the historical lime-filled circle.
           style={[
             styles.switchIconContainer,
             isDark
@@ -1031,7 +969,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           <View style={styles.inputContent}>
             <Image
               source={require("../assets/navigation-2.png")}
-              // Dark mode: cream tint. Light mode: historical lime.
               style={[
                 styles.routeArrow,
                 { tintColor: isDark ? colors.textOnDark : colors.primary },
@@ -1057,8 +994,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           <View style={styles.inputContent}>
             <Image
               source={require("../assets/calendar-icon.png")}
-              // Dark mode: cream calendar icon to match the route
-              // stack above. Light mode: historical lime tint.
               style={[
                 styles.icon,
                 { tintColor: isDark ? colors.textOnDark : colors.primary },
@@ -1070,7 +1005,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                   <Text
                     style={[
                       styles.selectedDateLabel,
-                      // Dark: cream label; light: historical lime.
                       { color: isDark ? colors.textOnDark : colors.primary },
                     ]}
                   >
@@ -1129,9 +1063,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           }}
           style={[
             styles.manualSubmitBtn,
-            // surface (cream / charcoal) reads as a quiet card against
-            // either canvas while the inkSubtle border keeps the chip
-            // distinct from neighbouring surfaces.
             { backgroundColor: colors.surface, borderColor: colors.inkSubtle },
             (!fromLocation || !toLocation) && styles.manualSubmitBtnDisabled,
           ]}
@@ -1158,9 +1089,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             <Text
               style={[
                 styles.modalTitle,
-                // Dark only — light keeps the historical lime title
-                // (= primaryLightGreen) painted on the forest sheet
-                // from the module-scope style.
                 colors.mode === "dark" && { color: colors.textPrimary },
               ]}
             >
@@ -1171,9 +1099,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               <TextInput
                 style={[styles.searchInput, colors.mode === "dark" && { color: colors.textPrimary, backgroundColor: colors.surfaceInset }]}
                 placeholder="Search for a location..."
-                // Light keeps the historical white-at-low-opacity
-                // placeholder on the black search bar; dark uses
-                // tertiary cream.
                 placeholderTextColor={colors.mode === "dark" ? colors.textTertiary : "rgba(255,255,255,0.45)"}
                 value={searchQuery}
                 onChangeText={handleSearchInput}
@@ -1208,10 +1133,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             <TouchableOpacity
               style={[
                 styles.closeButton,
-                // Dark mode: surfaceInset + line border so the close
-                // pill sits as a calm tertiary chip on the dark
-                // modal. Light mode keeps the historical forest
-                // pill from the module-scope style.
                 colors.mode === "dark" && { backgroundColor: colors.surfaceInset, borderColor: colors.inkLine },
               ]}
               onPress={() => {
@@ -1232,8 +1153,6 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               <Text
                 style={[
                   styles.closeButtonText,
-                  // Dark only — light keeps the historical lime
-                  // label from the module-scope style.
                   colors.mode === "dark" && { color: colors.textPrimary },
                 ]}
               >
@@ -1296,7 +1215,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                   onPress={() => {
                     const tomorrow = new Date();
                     tomorrow.setDate(tomorrow.getDate() + 1);
-                    tomorrow.setHours(9, 0, 0, 0); // Set to 9 AM tomorrow
+                    tomorrow.setHours(9, 0, 0, 0);
                     if (DEBUG_RIDE_SELECTOR) console.log('Quick select tomorrow:', tomorrow);
                     setTempDate(tomorrow);
                   }}
@@ -1313,12 +1232,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 };
 
 const styles = StyleSheet.create({
-  // Manual-submit footer — sits beneath the forest selector card
-  // in manualSubmit mode. Lime CTA against the lime sheet canvas
-  // would disappear, so it borrows the white treatment from
-  // HomeScreen.createRideButton. Disabled state stays the same
-  // shape but drops opacity + uses a flatter label so the screen
-  // reads "fill the two fields, then tap me".
+  // Manual-submit footer used when auto-submit is disabled.
   manualSubmitBtn: {
     marginTop: 14,
     backgroundColor: AppColors.basicWhite,
@@ -1348,14 +1262,8 @@ const styles = StyleSheet.create({
     width: "100%",
     borderRadius: 18,
     overflow: "hidden",
-    // Forest card on lime — matches UpNextCard / PreviousTripsSection
-    // empty card. Bold dark slab carries the route inputs; lime accents
-    // (dots, swap button) and white text live inside.
     backgroundColor: AppColors.secondaryDarkGreen,
     borderWidth: 0,
-    // Match the home sheet's other forest tiles for cross-platform
-    // shadow parity — Android's Material renderer needs higher
-    // elevation to read at the same depth iOS gets from shadow props.
     elevation: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
@@ -1365,11 +1273,7 @@ const styles = StyleSheet.create({
   locationsWrapper: {
     position: "relative",
   },
-  // Vertical dotted connector that spans between the From and To rows,
-  // mirroring the BlaBlaCar / inDrive dot-line-dot route pattern we use
-  // on RideCard + UpNextCard. The dots are `hp(2)` wide, so their
-  // centre sits at `wp(4) + hp(1)` from the row's start — minus half
-  // the connector width (1pt) to centre the column on the dot.
+  // Vertical connector between the From and To route dots.
   routeConnector: {
     position: "absolute",
     left: wp(4) + hp(1) - 1,
@@ -1382,10 +1286,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     width: "100%",
     paddingLeft: wp(4),
-    // Extra right padding so the clear-X icon clears the absolutely-
-    // positioned lime swap button (which is anchored at right wp(4),
-    // 36×36). Without this, the X visually overlapped the swap
-    // button and read as a smudge under its edge.
+    // Extra right padding leaves room for the absolute swap button.
     paddingRight: wp(14),
     paddingVertical: hp(2),
     borderBottomWidth: 1,
@@ -1404,8 +1305,7 @@ const styles = StyleSheet.create({
     resizeMode: "contain",
     tintColor: AppColors.primaryLightGreen,
   },
-  // Replace pin/arrow icons with abstract route dots. Empty circle = origin,
-  // filled circle = destination (universal cartography idiom).
+  // Empty circle = origin, filled circle = destination.
   routeDotOutline: {
     width: hp(2),
     height: hp(2),
@@ -1422,11 +1322,7 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.primaryLightGreen,
     marginRight: wp(3),
   },
-  // Slightly larger than the origin dot because the arrow glyph
-  // reads visually smaller than a filled circle at the same box
-  // size — bumping by ~25% keeps the optical weight balanced
-  // across the two rows. Same lime tint, same right margin so the
-  // text baseline stays aligned with the origin row.
+  // Slightly larger than the origin dot to balance the arrow glyph.
   routeArrow: {
     width: hp(2.5),
     height: hp(2.5),
@@ -1436,19 +1332,10 @@ const styles = StyleSheet.create({
   label: {
     marginLeft: wp(2),
     fontSize: getFontSize(15, 16, 17),
-    // Default state ("When", "From", "To"). Was 0.55 SemiBold which
-    // washed out to near-invisible on the forest card — users
-    // couldn't see the placeholder labels. Bold @ 0.85 keeps the
-    // empty-state look distinct from a filled value (still slightly
-    // dimmer) while reading clearly at a glance.
     color: AppColors.primaryLightGreen,
     opacity: 0.85,
     fontFamily: "NunitoSans_700Bold",
   },
-  // Filled From / To location — mirrors `selectedDateLabel` exactly
-  // so the location row and the date row look like one design system,
-  // not two. Was white 700Bold @ 17 (too loud, mismatch with the lime
-  // date headline below).
   selectedText: {
     fontSize: getFontSize(15, 15.5, 16),
     color: AppColors.primaryLightGreen,
@@ -1460,8 +1347,6 @@ const styles = StyleSheet.create({
   selectedDateText: {
     marginLeft: wp(2),
     fontSize: getFontSize(12, 13, 14),
-    // The selected time — full white, no opacity. The previous lime+opacity
-    // combo read as a washed olive on the forest card.
     color: AppColors.basicWhite,
     opacity: 0.85,
     fontFamily: "NunitoSans_600SemiBold",
@@ -1470,10 +1355,6 @@ const styles = StyleSheet.create({
   },
   selectedDateLabel: {
     marginLeft: wp(2),
-    // Was 800ExtraBold @ 18 — same weight as section titles, which
-    // made the whole sheet feel "shouty." Dropped to 700Bold @ 16 so
-    // it reads as a confident value, not a banner. Mirrors the
-    // location text below.
     fontSize: getFontSize(15, 15.5, 16),
     color: AppColors.primaryLightGreen,
     fontFamily: "NunitoSans_700Bold",

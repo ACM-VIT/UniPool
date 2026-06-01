@@ -2,11 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, ListRenderItem, TouchableOpacity } from 'react-native';
 import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
-import BrandInfo from '../components/BrandInfo';
-import ChevronBack from '../components/ChevronBack';
+import BrandInfo from '../components/BrandInfo/BrandInfo';
+import ChevronBack from '../components/ChevronBack/ChevronBack';
 import { useFocusEffect, useRouter } from "expo-router";
 import LoadingComponent from '../components/LoadingComponent';
-import AppColors from '../design_systems/colors';
 import EmptyState from '../components/EmptyState';
 import SmileyGlyph from '../components/SmileyGlyph';
 import { appHref } from "../navigation/routes";
@@ -20,7 +19,7 @@ interface Passenger {
 }
 
 const PassengersHistoryScreen: React.FC = () => {
-  const router = useRouter();
+  const { back, navigate } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const { apiUtil } = useApi();
   const colors = useThemeColors();
@@ -69,7 +68,7 @@ const PassengersHistoryScreen: React.FC = () => {
         <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
         <View style={styles.headerRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity onPress={() => back()}>
               <ChevronBack />
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Passengers History</Text>
@@ -93,7 +92,7 @@ const PassengersHistoryScreen: React.FC = () => {
       <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Passengers History</Text>
@@ -101,14 +100,12 @@ const PassengersHistoryScreen: React.FC = () => {
       </View>
       {passengers.length === 0 ? (
         <EmptyState
-          // Inline SVG smiley — the previous PNG asset was pixelated on
-          // dense screens. Vector renders sharp at every density and
-          // colour-tracks the brand palette automatically.
+          // Vector glyph stays sharp and color-tracks the active palette.
           glyph={<SmileyGlyph size={150} />}
           title="No co-riders yet"
           body="The people you share a ride with will live here once you've taken your first trip together."
           ctaLabel="Find a ride"
-          onPressCta={() => router.navigate(appHref("HomeScreen"))}
+          onPressCta={() => navigate(appHref("HomeScreen"))}
         />
       ) : (
         <View style={styles.newSection}>

@@ -1,19 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-//
-// Resilient AsyncStorage.
-//
-// If the native AsyncStorage module is unavailable or version-skewed
-// against the JS bundle (the exact failure that black-screened 2.0.10
-// over OTA: a 2.x JS bundle looking up a native module that the 3.x
-// build registered under a different name), the real package throws at
-// import time and takes the whole app down to a black screen.
-//
-// This wrapper loads the real implementation defensively. If it cannot,
-// it falls back to a non-persistent in-memory store so the app still
-// boots and runs; persistence resumes automatically once a matching
-// native build ships. Every app module imports AsyncStorage from here,
-// never from the package directly, so a single bad native module can
-// never crash startup again.
+// Resilient AsyncStorage wrapper.
+// If the native module is unavailable or version-skewed against the JS bundle,
+// fall back to a non-persistent memory store so startup can continue.
 
 type KV = [string, string | null];
 
@@ -81,9 +69,7 @@ function createInMemoryFallback(): AsyncStorageLike {
 let AsyncStorage: AsyncStorageLike;
 
 try {
-  // require (not a static import) so a throw during the native module's
-  // initialization is catchable here rather than crashing the JS bundle
-  // at load time.
+  // Use require so native-module initialization errors are catchable.
   const mod = require("@react-native-async-storage/async-storage");
   const real = (mod && (mod.default ?? mod)) as AsyncStorageLike | undefined;
   if (!real || typeof real.getItem !== "function") {

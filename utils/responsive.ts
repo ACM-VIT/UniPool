@@ -17,7 +17,7 @@ export const TABLET_BREAKPOINT = 768;
  * empirically by matching how Notion / Lyft / Cash App center their
  * phone UI on iPad before a real tablet redesign ships.
  */
-export const TABLET_CONTENT_MAX_WIDTH = 540;
+const TABLET_CONTENT_MAX_WIDTH = 540;
 
 /**
  * Maximum vertical extent of the phone-shape column on a tablet.
@@ -28,7 +28,7 @@ export const TABLET_CONTENT_MAX_WIDTH = 540;
  * same vertical envelope as the tallest iPhone (956pt on a 16 Pro
  * Max) so internal `flex: 1` math behaves the way it does on phone.
  */
-export const TABLET_CONTENT_MAX_HEIGHT = 900;
+const TABLET_CONTENT_MAX_HEIGHT = 900;
 
 /**
  * Live hook for responsive layout. Returns the current window
@@ -36,7 +36,7 @@ export const TABLET_CONTENT_MAX_HEIGHT = 900;
  * orientation changes without reading `Dimensions.get('window')`
  * once at module load (which freezes the value).
  */
-export const useResponsive = () => {
+const useResponsive = () => {
   const { width, height } = useWindowDimensions();
   return {
     width,

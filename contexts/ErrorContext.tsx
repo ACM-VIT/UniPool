@@ -1,7 +1,7 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import React, { createContext, use, useCallback, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Animated, Easing, View } from 'react-native';
 import { router } from "expo-router";
-import ErrorComponent from '../components/ErrorComponent';
+import ErrorComponent from '../components/ErrorComponent/ErrorComponent';
 import { appHref } from "../navigation/routes";
 
 export interface ErrorState {
@@ -140,7 +140,7 @@ export const ErrorProvider: React.FC<ErrorProviderProps> = ({ children }) => {
   );
 };
 
-export const useErrorContext = () => useContext(ErrorContext);
+export const useErrorContext = () => use(ErrorContext);
 
 const styles = StyleSheet.create({
   errorOverlay: {

@@ -1,4 +1,4 @@
-import { AvailableRideScreen } from "../screens/AvailableRideScreens";
+import AvailableRideScreen from "../screens/AvailableRideScreens/AvailableRideScreen";
 import { useNavBarControls } from "../contexts/NavBarContext";
 
 export default function AvailableRidesScreenRoute() {

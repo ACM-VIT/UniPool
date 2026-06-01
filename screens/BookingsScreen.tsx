@@ -10,8 +10,8 @@ import {
 } from "react-native";
 import styles from "./ProfileScreen/ProfileScreen.styles";
 import { useApi } from "../utils/ApiUtil";
-import BrandInfo from "../components/BrandInfo";
-import ChevronBack from "../components/ChevronBack";
+import BrandInfo from "../components/BrandInfo/BrandInfo";
+import ChevronBack from "../components/ChevronBack/ChevronBack";
 import RideCard from "../components/RideCard";
 import UpNextCard from "../components/UpNextCard";
 import AppColors from "../design_systems/colors";
@@ -65,28 +65,26 @@ interface TripItem {
 type Tab = "upcoming" | "hosting" | "past";
 type TripBuckets = Record<Tab, TripItem[]>;
 
-const tripDateFormatter = (() => {
+let tripDateFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    tripDateFormatter = new Intl.DateTimeFormat(undefined, {
       weekday: "short",
       day: "numeric",
       month: "short",
     });
   } catch {
-    return null;
+    tripDateFormatter = null;
   }
-})();
 
-const tripTimeFormatter = (() => {
+let tripTimeFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    tripTimeFormatter = new Intl.DateTimeFormat(undefined, {
       hour: "2-digit",
       minute: "2-digit",
     });
   } catch {
-    return null;
+    tripTimeFormatter = null;
   }
-})();
 
 const tripLabels = (date: Date) => {
   if (!date || date.getTime() === 0 || Number.isNaN(date.getTime())) {
@@ -104,7 +102,7 @@ const tripLabels = (date: Date) => {
 };
 
 const BookingsScreen: React.FC = () => {
-  const router = useRouter();
+  const { navigate, back } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const { requireAuth } = useAuthGate();
   const { user: viewerUser } = useUser();
@@ -256,8 +254,8 @@ const BookingsScreen: React.FC = () => {
 
   const navigateToRide = useCallback((rideId?: string) => {
     if (!rideId) return;
-    router.navigate(appHref("RideDetailsScreen", { rideId: String(rideId) }));
-  }, [router]);
+    navigate(appHref("RideDetailsScreen", { rideId: String(rideId) }));
+  }, [navigate]);
 
   const navigateToChat = useCallback((rideId?: string, route?: string, destination?: string) => {
     if (!rideId) return;
@@ -268,7 +266,7 @@ const BookingsScreen: React.FC = () => {
     const title = shortDest
       ? `Trip to ${shortDest}`
       : (route || "Ride chat");
-    router.navigate(appHref("ChatMessages", {
+    navigate(appHref("ChatMessages", {
       chatId: String(rideId),
       chatTitle: title,
       userId: viewerUser?.id,
@@ -276,7 +274,7 @@ const BookingsScreen: React.FC = () => {
       // title, matches the rest of the entry points.
       isGroupChat: true,
     }));
-  }, [router, viewerUser?.id]);
+  }, [navigate, viewerUser?.id]);
 
   const renderTrip = useCallback<ListRenderItem<TripItem>>(({ item }) => {
     const seats =
@@ -313,7 +311,7 @@ const BookingsScreen: React.FC = () => {
             title: "No upcoming trips",
             body: "Browse rides on your route or post your own. Anything you book will land here.",
             ctaLabel: "Find a ride",
-            onPress: () => router.navigate(appHref("HomeScreen")),
+            onPress: () => navigate(appHref("HomeScreen")),
           }
         : tab === "hosting"
         ? {
@@ -322,14 +320,14 @@ const BookingsScreen: React.FC = () => {
             ctaLabel: "Post a ride",
             onPress: () => {
               if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) return;
-              router.navigate(appHref("CreateRide"));
+              navigate(appHref("CreateRide"));
             },
           }
         : {
             title: "No past trips",
             body: "Once you complete a ride it'll show up here so you can re-book or rate it.",
             ctaLabel: "Find a ride",
-            onPress: () => router.navigate(appHref("HomeScreen")),
+            onPress: () => navigate(appHref("HomeScreen")),
           };
     return (
       <View style={{ alignItems: "center", paddingTop: 32, paddingHorizontal: 24 }}>
@@ -389,7 +387,7 @@ const BookingsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
     );
-  }, [requireAuth, router, tab, colors]);
+  }, [requireAuth, navigate, tab, colors]);
 
   const renderTab = useCallback((key: Tab, label: string, count: number) => {
     const active = tab === key;
@@ -440,7 +438,7 @@ const BookingsScreen: React.FC = () => {
             <Text
               style={{
                 fontFamily: "NunitoSans_700Bold",
-                fontSize: 11,
+                fontSize: 12,
                 color: colors.mode === "dark"
                   ? (active ? colors.primary : colors.textSecondary)
                   : AppColors.secondaryDarkGreen,
@@ -514,7 +512,7 @@ const BookingsScreen: React.FC = () => {
         </View>
         <View style={styles.headerRow}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity onPress={() => back()}>
               <ChevronBack />
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Your trips</Text>
@@ -532,7 +530,7 @@ const BookingsScreen: React.FC = () => {
       </View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Your trips</Text>

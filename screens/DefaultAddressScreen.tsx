@@ -3,8 +3,8 @@ import AsyncStorage from '../utils/safeAsyncStorage';
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Modal, Image, FlatList, ListRenderItem } from "react-native";
 import { X } from "lucide-react-native";
-import ChevronBack from "../components/ChevronBack";
-import BrandInfo from "../components/BrandInfo";
+import ChevronBack from "../components/ChevronBack/ChevronBack";
+import BrandInfo from "../components/BrandInfo/BrandInfo";
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "../components/BrandedAlert";
@@ -83,12 +83,8 @@ const DefaultAddressScreen: React.FC = () => {
     }
   };
 
-  // Location search UI state. `popularLocations` was previously typed
-  // as `string[]`, but the LocationService helpers always return
-  // LocationResult objects ({display_name, lat, lon, place_id, name,
-  // source, score}). Mapping that into <Text>{location}</Text> threw
-  // "Objects are not valid as a React child" the moment the sheet
-  // opened on a network with cached popular results.
+  // LocationService returns structured results; rows derive display labels at
+  // render time so search and popular-location entries stay consistent.
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [searchResults, setSearchResults] = useState<LocationResult[]>([]);
   const [popularLocations, setPopularLocations] = useState<LocationResult[]>([]);
@@ -209,7 +205,7 @@ const DefaultAddressScreen: React.FC = () => {
         return (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={isDark ? colors.textPrimary : AppColors.basicWhite} accessibilityLabel="Loading" />
-            <Text style={[styles.loadingText, isDark && { color: colors.textPrimary }]}>Loading nearby places...</Text>
+            <Text style={[styles.loadingText, isDark && { color: colors.textPrimary }]}>Loading nearby places…</Text>
           </View>
         );
       case "section":
@@ -281,9 +277,6 @@ const DefaultAddressScreen: React.FC = () => {
         contentContainerStyle={[styles.scrollContent, tabletScrollContentStyle]}
       >
         <View style={[styles.cardWrapper, isDark && { backgroundColor: colors.surface }]}>
-          {/* No card title / description — the page header already
-              says "Default Start Address," and the input itself
-              ("Enter your default address…") is self-explanatory. */}
           <TouchableOpacity
             style={[styles.inputContainer, isDark && { backgroundColor: colors.surfaceInset, borderColor: colors.inkSubtle }]}
             onPress={handleDropdownOpen}
@@ -319,19 +312,6 @@ const DefaultAddressScreen: React.FC = () => {
             </View>
           </TouchableOpacity>
         </View>
-
-        {/* {defaultAddress && (
-          <View style={styles.statusCard}>
-            <View style={styles.statusHeader}>
-              <Image
-                source={require("../assets/location-pin.png")}
-                style={styles.statusIcon}
-              />
-              <Text style={styles.statusTitle}>Current Default Address</Text>
-            </View>
-            <Text style={styles.statusAddress}>{defaultAddress}</Text>
-          </View>
-        )} */}
       </ScrollView>
 
       <Modal
@@ -419,9 +399,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: height * 0.02,
   },
-  // Matches the shared ProfileScreen headerTitle pattern so every
-  // settings sub-page (Profile, Personal Info, Passengers History,
-  // Default Address) wears the same crown.
+  // Shared settings-screen header treatment.
   headerTitle: {
     fontSize: 24,
     color: AppColors.secondaryDarkGreen,
@@ -436,10 +414,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
-  // Forest dark card on the lime canvas — same vocabulary as the
-  // ProfileScreen menuContainer cards. Was an outlined "ghost card"
-  // before, which made this screen feel like it lived in a different
-  // app.
+  // Matches the Profile settings card treatment.
   cardWrapper: {
     backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 20,
@@ -485,12 +460,9 @@ const styles = StyleSheet.create({
     height: height * 0.03,
     width: height * 0.04,
     resizeMode: "contain",
-    // Lime tint so the location pin reads on the forest dark card.
     tintColor: AppColors.primaryLightGreen,
   },
   selectedText: {
-    // Sits inside the forest dark cardWrapper now — so text reads as
-    // white, not basicBlack-on-lime.
     fontSize: 16,
     color: AppColors.basicWhite,
     fontFamily: "NunitoSans_700Bold",

@@ -38,7 +38,6 @@
     "google-auth-library": "^10.6.2",
     "lottie-react-native": "^7.3.8",
     "lucide-react-native": "^1.16.0",
-    "prop-types": "^15.8.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "^0.85.3",

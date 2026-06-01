@@ -7,7 +7,7 @@ import {
   StyleProp,
   ViewStyle,
 } from "react-native";
-import * as Haptics from "expo-haptics";
+import { haptic as fireHaptic, type HapticKind } from "./haptics";
 
 /**
  * Drop-in `Pressable` replacement that adds the kind of tactile
@@ -25,40 +25,6 @@ import * as Haptics from "expo-haptics";
  * app. The scale is GPU-driven (`useNativeDriver: true`) so the JS
  * thread can be busy without the press feel suffering.
  */
-
-type HapticKind = "light" | "medium" | "heavy" | "selection" | "success" | "warning" | "error";
-
-const fire = async (kind: HapticKind | null) => {
-  if (kind == null) return;
-  try {
-    switch (kind) {
-      case "light":
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        break;
-      case "medium":
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        break;
-      case "heavy":
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-        break;
-      case "selection":
-        await Haptics.selectionAsync();
-        break;
-      case "success":
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        break;
-      case "warning":
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        break;
-      case "error":
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        break;
-    }
-  } catch {
-    // Haptics aren't available on every device (older Androids,
-    // simulators) — silently skip rather than crash.
-  }
-};
 
 export type PressableScaleProps = Omit<PressableProps, "style"> & {
   style?: StyleProp<ViewStyle>;
@@ -81,7 +47,7 @@ const PressableScale: React.FC<PressableScaleProps> = ({
 
   const handlePressIn = useCallback(
     (e: GestureResponderEvent) => {
-      fire(haptic);
+      fireHaptic(haptic);
       Animated.spring(scale, {
         toValue: scaleTo,
         useNativeDriver: true,
@@ -118,8 +84,3 @@ const PressableScale: React.FC<PressableScaleProps> = ({
 };
 
 export default PressableScale;
-
-// Re-export a thin `haptic()` function so callers that just want
-// haptic feedback (without the scale) — e.g. tab presses, gesture
-// snaps — can fire one without adding a wrapper component.
-export const haptic = fire;
