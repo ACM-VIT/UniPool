@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   StatusBar,
   RefreshControl,
   StyleSheet,
-  Platform,
   Image,
   Dimensions,
 } from "react-native";
@@ -17,12 +16,12 @@ import { useAuthGate } from "../../contexts/AuthGate";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../../design_systems/colors";
 import { useThemeColors } from "../../contexts/ThemeContext";
-import ChevronBack from "../../components/ChevronBack";
+import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import LoadingComponent from "../../components/LoadingComponent";
 import EmptyState from "../../components/EmptyState";
 import RouteStack from "../../components/RouteStack";
 import SmileyGlyph from "../../components/SmileyGlyph";
-import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar";
+import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar.constants";
 import { appHref } from "../../navigation/routes";
 import { useApi } from "../../utils/ApiUtil";
 import { useUser } from "../../contexts/UserContext";
@@ -47,12 +46,7 @@ let nearbyLocationCache:
 
 type NearbyRide = {
   id: string;
-  // host_user_id powers the viewer-self filter — without it we'd
-  // surface the viewer's own rides as nearby suggestions, which
-  // they can't book anyway (server-side gate). The backend already
-  // skips them when we pass `exclude_host_user_id`; this is the
-  // belt-and-suspenders client check that runs even on stale
-  // responses.
+  // Used to filter out rides hosted by the current viewer.
   host_user_id?: string;
   start_location: string;
   end_location: string;
@@ -78,29 +72,27 @@ type NearbyRideRow = Omit<NearbyRideWithComputed, "distanceKm"> & {
   seatsLeft: number;
 };
 
-const nearbyDateFormatter = (() => {
+let nearbyDateFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    nearbyDateFormatter = new Intl.DateTimeFormat(undefined, {
       weekday: "short",
       day: "2-digit",
       month: "short",
     });
   } catch {
-    return null;
+    nearbyDateFormatter = null;
   }
-})();
 
-const nearbyTimeFormatter = (() => {
+let nearbyTimeFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    nearbyTimeFormatter = new Intl.DateTimeFormat(undefined, {
       hour: "2-digit",
       minute: "2-digit",
       hourCycle: "h23",
     });
   } catch {
-    return null;
+    nearbyTimeFormatter = null;
   }
-})();
 
 const formatTime = (iso: string): string => {
   const d = new Date(iso);
@@ -135,19 +127,11 @@ const haversineKm = (
 };
 
 /**
- * "Rides around you" — fetches the public `/rides/nearby` endpoint
- * (no auth required) and renders the results as a list of route
- * cards. Each card uses the same dotted-line route idiom + clock-and-
- * price layout as the booking RideCard so the catalogue feels like
- * the same product the user sees everywhere else.
- *
- * Built specifically for guest browse — the only place in the app
- * where someone who isn't signed in can scroll a real catalogue of
- * trips. Tapping a card opens AvailableRidesSelectedScreen, which
- * already handles the sign-in gate when they try to request a seat.
+ * Public nearby-rides list for signed-in and guest users.
+ * Requesting a seat is still gated by AvailableRidesSelectedScreen.
  */
 const NearbyRidesScreen: React.FC = () => {
-  const router = useRouter();
+  const { navigate, back } = useRouter();
   const colors = useThemeColors();
   const tabletContentStyle = useTabletContentStyle();
   const tabletScrollContentStyle = useTabletScrollContentStyle();
@@ -161,9 +145,7 @@ const NearbyRidesScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Distinct flag for the "permission needed" empty state — keeps the
-  // generic `error` strictly for fetch failures so the two surfaces
-  // don't share copy ("We hit a snag" doesn't fit a permission gate).
+  // Permission-gate state is separate from network failures.
   const [needsLocation, setNeedsLocation] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
 
@@ -204,10 +186,7 @@ const NearbyRidesScreen: React.FC = () => {
     setError(null);
     setNeedsLocation(false);
     try {
-      // Use the device's current location to centre the query.
-      // If permission isn't granted, surface a dedicated empty state
-      // with a working "Allow location" CTA — don't fall through to
-      // the generic error path.
+      // Permission denial renders a dedicated CTA instead of a fetch error.
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== "granted") {
         setNeedsLocation(true);
@@ -217,10 +196,7 @@ const NearbyRidesScreen: React.FC = () => {
       const c = await getCurrentCoords(forceNetwork);
       setCoords(c);
 
-      // Pass the viewer's user id so the backend drops the viewer's
-      // own rides server-side — the surrounding client filter at
-      // visibleRides below is the belt-and-suspenders for races and
-      // stale-cache responses.
+      // Ask the backend to exclude rides hosted by the viewer.
       const excludeParam = viewerUserId
         ? `&exclude_host_user_id=${encodeURIComponent(viewerUserId)}`
         : "";
@@ -229,18 +205,17 @@ const NearbyRidesScreen: React.FC = () => {
         ? await apiUtil.getUncached<{ rides?: NearbyRide[] }>(endpoint)
         : await apiUtil.get<{ rides?: NearbyRide[] }>(endpoint);
       const nowMs = Date.now();
-      const list: NearbyRideWithComputed[] = (Array.isArray(json?.rides) ? json.rides : [])
-        .filter((r) => isRideUpcomingAt(r.start_time, nowMs))
-        .filter((r) => !viewerUserId || r.host_user_id !== viewerUserId)
-        .map((r) => ({
+      const list: NearbyRideWithComputed[] = [];
+      for (const r of Array.isArray(json?.rides) ? json.rides : []) {
+        if (!isRideUpcomingAt(r.start_time, nowMs)) continue;
+        if (viewerUserId && r.host_user_id === viewerUserId) continue;
+        list.push({
           ...r,
           distanceKm: haversineKm(c.latitude, c.longitude, r.start_latitude, r.start_longitude),
           startTimeMs: new Date(r.start_time).getTime(),
-        }));
-      // Sort by distance from the user, then by start_time within ties.
-      // Distance and timestamps are precomputed once per row. The
-      // previous comparator recalculated haversine twice per
-      // comparison, then visibleRides calculated it all over again.
+        });
+      }
+      // Sort by distance first, then departure time for near ties.
       list.sort((a, b) => {
         if (Math.abs(a.distanceKm - b.distanceKm) > 0.05) return a.distanceKm - b.distanceKm;
         return a.startTimeMs - b.startTimeMs;
@@ -253,10 +228,7 @@ const NearbyRidesScreen: React.FC = () => {
     }
   }, [apiUtil, getCurrentCoords, viewerUserId]);
 
-  // Reload on every focus so coming back from LocationPermissionScreen
-  // (after the user granted permission) actually refreshes the list
-  // instead of leaving them stuck on the "Allow location" empty state.
-  // Initial mount also fires this.
+  // Refocus reload catches permission changes from LocationPermissionScreen.
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -276,20 +248,18 @@ const NearbyRidesScreen: React.FC = () => {
 
   const visibleRides = useMemo<NearbyRideRow[]>(
     () =>
-      rides
-        .filter((r) => isRideUpcomingAt(r.start_time, nowTick))
-        // Belt-and-suspenders: also drop viewer-hosted rides here so
-        // that a cached response from before the user logged in (or
-        // an /rides/nearby that landed pre-context) never leaks the
-        // viewer's own pins into the list.
-        .filter((r) => !viewerUserId || r.host_user_id !== viewerUserId)
-        .map((r) => ({
+      rides.flatMap((r) => {
+        if (!isRideUpcomingAt(r.start_time, nowTick)) return [];
+        // Client-side guard for cached responses that predate viewer context.
+        if (viewerUserId && r.host_user_id === viewerUserId) return [];
+        return [{
           ...r,
           dateLabel: formatDate(r.start_time),
           timeLabel: formatTime(r.start_time),
           distanceKm: coords ? r.distanceKm : null,
           seatsLeft: Math.max(0, r.total_seats - r.booked_seats),
-        })),
+        }];
+      }),
     [coords, rides, nowTick, viewerUserId],
   );
 
@@ -315,8 +285,8 @@ const NearbyRidesScreen: React.FC = () => {
       seatsLeft: _seatsLeft,
       ...ridePayload
     } = ride;
-    router.navigate(appHref("AvailableRidesSelectedScreen", { ride: ridePayload } as any));
-  }, [router]);
+    navigate(appHref("AvailableRidesSelectedScreen", { ride: ridePayload } as any));
+  }, [navigate]);
 
   const renderRide = useCallback(({ item }: { item: NearbyRideRow }) => (
       <TouchableOpacity
@@ -325,9 +295,6 @@ const NearbyRidesScreen: React.FC = () => {
         onPress={() => openRide(item)}
       >
         <View style={styles.cardTop}>
-          {/* Route block — outlined origin dot → dotted connector →
-              filled destination dot. Same vocabulary as RideCard,
-              PreviousTripsCompressed, and the chat list. */}
           <View style={styles.routeBlock}>
             <RouteStack
               tone="onForest"
@@ -368,7 +335,7 @@ const NearbyRidesScreen: React.FC = () => {
 
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 10, backgroundColor: colors.background }]}>
         <View style={styles.headerTopRow}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Rides around you</Text>
@@ -381,23 +348,14 @@ const NearbyRidesScreen: React.FC = () => {
       {loading ? (
         <LoadingComponent />
       ) : needsLocation ? (
-        // Dedicated permission-gate state. Sends the user through
-        // LocationPermissionScreen (with the radar + reasoning) and
-        // brings them back here after they decide. Same flow we use
-        // on first launch.
-        //
-        // SVG glyph instead of the happy-emoji.png raster — that
-        // asset is 38×37 native and rendered at 160px here, which
-        // pixelated hard. SmileyGlyph is the canonical crisp
-        // replacement already used by EmptyState surfaces elsewhere
-        // for the same reason.
+        // LocationPermissionScreen returns here after the user decides.
         <EmptyState
           glyph={<SmileyGlyph />}
           title="Allow location"
           body="So we can show carpools heading your way on the map."
           ctaLabel="Allow location"
           onPressCta={() =>
-            router.navigate(
+            navigate(
               appHref("LocationPermissionScreen", {
                 returnTo: { screen: "NearbyRidesScreen" },
               } as any),
@@ -414,20 +372,15 @@ const NearbyRidesScreen: React.FC = () => {
         />
       ) : visibleRides.length === 0 ? (
         <EmptyState
-          // Caption-less variant — the full no-rides.png has "Uh Oh!
-          // No Rides Available" baked into the artwork, which doubled
-          // up with the EmptyState's own title + body. The
-          // -emoji.png crop is the canonical empty-state asset across
-          // TripsListScreen, PassengerInfo, etc.
+          // Use the caption-less asset so EmptyState owns the copy.
           image={require("../../assets/no-rides-emoji.png")}
           title="No carpools near you"
           body="Be the first to post one going your way — your co-riders will roll in."
           ctaLabel="Post a ride"
           onPressCta={() => {
-            // Posting requires auth — show the AuthSheet first if the
-            // user is a guest, then navigate after sign-in.
+            // Posting requires auth; AuthSheet resumes this intent after sign-in.
             if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) return;
-            router.navigate(appHref("CreateRide"));
+            navigate(appHref("CreateRide"));
           }}
         />
       ) : (
@@ -488,16 +441,14 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: wp(4),
     paddingTop: 4,
-    // Clear the floating bottom nav so the last card has air below
-    // it. MAIN_NAV_BAR_TOP_OFFSET = distance from screen bottom to
-    // the *top* of the floating nav; +24 gives breathing room.
+    // Clear the floating bottom nav.
     paddingBottom: MAIN_NAV_BAR_TOP_OFFSET + 24,
   },
   rideSeparator: {
     height: 12,
   },
 
-  // Forest dark card, same vocabulary as RideCard + the chat list row.
+  // Card surface shared with ride-list rows.
   card: {
     width: "100%",
     backgroundColor: AppColors.secondaryDarkGreen,

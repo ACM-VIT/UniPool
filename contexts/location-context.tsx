@@ -1,12 +1,12 @@
-import React, {
+import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
-  ReactNode,
+  type ReactNode,
 } from "react";
 import { AppState, AppStateStatus } from "react-native";
 import * as Location from "expo-location";
@@ -66,9 +66,8 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
         setError(null);
       }
 
-      // Only READ current permission — never prompt here. The dedicated
-      // LocationPermissionScreen owns the request UX. Prompting from the
-      // provider would fire the iOS dialog over the onboarding carousel.
+      // Permission prompts belong to LocationPermissionScreen; this provider
+      // only observes current permission and refreshes cached coordinates.
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== "granted") {
         setError("Permission not granted");
@@ -104,8 +103,7 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
         
         let locStr = "";
         
-        // Priority order: district -> subregion -> city -> region
-        // Avoid overly specific street names or landmarks
+        // Prefer locality-level labels over street names or landmarks.
         if (first.district && first.district !== first.city) {
           locStr = first.district;
         } else if (first.subregion && first.subregion !== first.city) {
@@ -156,10 +154,8 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // Latest snapshot of whether we currently believe we have coords —
-  // used by the AppState listener below to decide if a re-fetch is
-  // warranted on foreground. Ref so the listener callback (registered
-  // once) stays current without re-subscribing on every coords change.
+  // Ref keeps the foreground listener current without re-subscribing on every
+  // coordinate update.
   const hasCoordsRef = useRef(false);
   useEffect(() => {
     hasCoordsRef.current = coords !== null;
@@ -185,21 +181,15 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
       }, 1500);
     }
 
-    // Re-fetch when the app returns to the foreground IF the user has
-    // since granted permission (e.g. they tapped "Allow" on the
-    // LocationPermissionScreen, OR they enabled location externally
-    // from system Settings and came back). Without this, the very
-    // first read happens at app-boot — usually BEFORE the user has
-    // granted permission — and BrandInfo's "Tap to enable location"
-    // stays stuck forever because the provider never re-checks.
+    // Foreground re-check catches permission granted from the app prompt or
+    // system Settings after the initial provider read.
     const onAppStateChange = async (next: AppStateStatus) => {
       if (next !== "active") return;
       try {
         const { status } = await Location.getForegroundPermissionsAsync();
         if (status !== "granted") return;
-        // Permission is granted. If we don't have coords yet (cold-
-        // start case), fetch now. If we already do, leave it — the
-        // user can pull-to-refresh via `refreshLocation` if needed.
+        // Only fill a missing coordinate snapshot; manual refresh handles
+        // already-populated state.
         if (!hasCoordsRef.current) {
           void fetchLocation();
         }
@@ -251,4 +241,4 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useLocationInfo = () => useContext(LocationContext);
+export const useLocationInfo = () => use(LocationContext);

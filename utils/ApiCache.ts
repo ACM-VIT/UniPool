@@ -238,7 +238,7 @@ export const getStaleCache = <T>(key: string): T | undefined => {
   return entry.value;
 };
 
-export const readEntry = <T>(key: string): CacheEntry<T> | undefined => {
+const readEntry = <T>(key: string): CacheEntry<T> | undefined => {
   const memoryEntry = memoryCache.get(key) as CacheEntry<T> | undefined;
   if (memoryEntry) return memoryEntry;
 

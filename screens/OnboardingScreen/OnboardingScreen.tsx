@@ -11,7 +11,6 @@ import {
 import AsyncStorage from "../../utils/safeAsyncStorage";
 import { useRouter } from "expo-router";
 import styles, { SLIDE_WIDTH, HERO_SIZE } from "./OnboardingScreen.styles";
-import AppColors from "../../design_systems/colors";
 import { useThemeColors } from "../../contexts/ThemeContext";
 import { appHref } from "../../navigation/routes";
 import { shouldShowPermissionsPrompt } from "../../utils/permissionsPrompt";
@@ -62,14 +61,10 @@ const SLIDES: Slide[] = [
 ];
 
 const OnboardingScreen: React.FC = () => {
-  const router = useRouter();
+  const { replace } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const colors = useThemeColors();
-  // `Animated.ScrollView` is required for `Animated.event` with
-  // `useNativeDriver: true` to work under Fabric. A plain
-  // `<ScrollView>` receives the `AnimatedEvent` instance as
-  // `onScroll` and crashes trying to call it as a function, which
-  // is what was killing slide 2 on every scroll event.
+  // Animated.ScrollView is required for native-driver scroll events on Fabric.
   const scrollRef = useRef<any>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const [index, setIndex] = useState(0);
@@ -91,12 +86,8 @@ const OnboardingScreen: React.FC = () => {
         await AsyncStorage.setItem("hasSeenOnboarding", "true");
       } catch {}
 
-      // Permissions step is the final beat of onboarding. If the user
-      // hasn't already cleared the combined permissions sheet, route
-      // through it before dropping them on Home; the sheet handles its
-      // own returnTo back to `target`. Auth-screen target is left
-      // alone because that path is for users explicitly heading to
-      // sign in, not first-launch landings.
+      // Route first-launch home entry through the combined permissions sheet
+      // when the prompt has not been cleared yet.
       let needsPermissionsStep = false;
       if (target === "HomeScreen") {
         try {
@@ -107,16 +98,16 @@ const OnboardingScreen: React.FC = () => {
       }
 
       if (needsPermissionsStep) {
-        router.replace(
+        replace(
           appHref("LocationPermissionScreen", {
             returnTo: { screen: target },
           } as any) as any,
         );
         return;
       }
-      router.replace(appHref(target));
+      replace(appHref(target));
     },
-    [router],
+    [replace],
   );
 
   const goNext = useCallback(() => {
@@ -127,12 +118,7 @@ const OnboardingScreen: React.FC = () => {
       });
       return;
     }
-    // Last slide drops the user straight into the product as a
-    // guest. UniPool is guest-first: browse / search rides without
-    // an account. Auth is only triggered later, contextually, when
-    // the user taps a gated action (post a ride, book a seat,
-    // chat) and the AuthSheet pops up. Pushing AuthScreen here
-    // would force a decision the user doesn't need to make yet.
+    // Keep onboarding guest-first; auth appears later at gated actions.
     finishOnboarding("HomeScreen");
   }, [index, finishOnboarding]);
 
@@ -159,10 +145,7 @@ const OnboardingScreen: React.FC = () => {
         bounces={false}
       >
         {SLIDES.map((slide, i) => {
-          // Two scroll-driven transforms per slide. As the slide
-          // approaches centre it scales 0.86 → 1, fades 0.4 → 1 and
-          // the hero floats up slightly. As it leaves, the reverse.
-          // Subtle — same vibe as Robinhood / Revolut onboardings.
+          // Scroll-driven scale, opacity, and lift for the active slide.
           const inputRange = [
             (i - 1) * SLIDE_WIDTH,
             i * SLIDE_WIDTH,
@@ -249,7 +232,7 @@ const OnboardingScreen: React.FC = () => {
           sheet's Post-a-ride button, and a quiet sign-in link. */}
       <View style={styles.bottomBar} pointerEvents="box-none">
         <View style={styles.dotsRow}>
-          {SLIDES.map((_, i) => {
+          {SLIDES.map((slide, i) => {
             const inputRange = [
               (i - 1) * SLIDE_WIDTH,
               i * SLIDE_WIDTH,
@@ -267,7 +250,7 @@ const OnboardingScreen: React.FC = () => {
             });
             return (
               <Animated.View
-                key={i}
+                key={slide.key}
                 style={[
                   styles.dot,
                   { backgroundColor: colors.primary, width: dotWidth, opacity: dotOpacity },

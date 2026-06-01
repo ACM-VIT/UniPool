@@ -17,12 +17,12 @@ import { useTabletContentStyle } from "../utils/responsive";
 const win = Dimensions.get("window");
 
 const ErrorScreen: React.FC = () => {
-  const router = useRouter();
+  const { canGoBack, back, replace } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const colors = useThemeColors();
   const goBack = () => {
-    if (router.canGoBack()) router.back();
-    else router.replace(appHref("HomeScreen"));
+    if (canGoBack()) back();
+    else replace(appHref("HomeScreen"));
   };
 
   return (

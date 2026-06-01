@@ -3,12 +3,8 @@ import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, Platform, 
 import { TABLET_BREAKPOINT } from "../utils/responsive";
 import navigationImg from "../assets/navigation.png";
 import locationPinImg from "../assets/location-pin-2.png";
-// MapLibre replaces react-native-maps. We control tiles via a style
-// URL (currently OpenFreeMap's `liberty` — donation-funded, no API
-// key, see MAP_STYLE_URL note below) and draw shapes via GeoJSON
-// sources + style-spec layers instead of imperative
-// `<Marker>`/`<Polyline>`/`<Circle>` children. Marker is preserved
-// for custom-view pins (our forest chip cluster pin).
+// MapLibre renders tiles from style URLs and vector overlays from GeoJSON
+// sources. Marker is still used for custom React Native pin views.
 import {
   Map as MapLibreMap,
   Camera,
@@ -21,7 +17,7 @@ import {
 } from "@maplibre/maplibre-react-native";
 import * as Location from "expo-location";
 import { useRouter, useFocusEffect } from "expo-router";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
@@ -33,11 +29,10 @@ import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import PreviousTripsSection from "../components/PreviousTripsSection";
 import ActiveTripCard from "../components/ActiveTripCard";
 import SheetShell from "../components/SheetShell";
-import { MAIN_NAV_BAR_TOP_OFFSET } from "../components/MainNavBar";
+import { MAIN_NAV_BAR_TOP_OFFSET } from "../components/MainNavBar.constants";
 import bottomNavItems from "../data/BottomNavigationItems";
-import BrandInfo from "../components/BrandInfo";
-import BrandedAlert from "../components/BrandedAlert";
-import { haptic } from "../components/PressableScale";
+import BrandInfo from "../components/BrandInfo/BrandInfo";
+import { haptic } from "../components/haptics";
 import RideClusterSheet, { ClusteredRide } from "../components/RideClusterSheet";
 import RoutePreviewLayer, {
   type RoutePreviewBounds,
@@ -51,13 +46,8 @@ import { scheduleIdleTask, type ScheduledIdleTask } from "../utils/scheduleIdleT
 
 const { width: rawScreenWidth, height: rawScreenHeight } = Dimensions.get("window");
 
-// Tablet branch only: phones keep their real window dimensions so
-// `normalize` and `responsiveWidth`/`responsiveHeight` scale naturally
-// across the iPhone family. On tablets we substitute a fixed iPhone
-// 14/15 reference (390×844) so the same helpers compute phone-tuned
-// values instead of inflating every font and padding ~2.75x to fill
-// a 1032pt canvas. Absolute-positioned containers like the map can
-// still read the real iPad dimensions via `rawScreenWidth`/Height.
+// Phone sizing uses the actual viewport; tablet sizing uses a phone reference
+// so form controls do not inflate across the full iPad canvas.
 const isTabletScreen = rawScreenWidth >= 768;
 const screenWidth = isTabletScreen ? 390 : rawScreenWidth;
 const screenHeight = isTabletScreen ? 844 : rawScreenHeight;
@@ -125,12 +115,7 @@ interface LocationCoords {
 
 const DRAG_THRESHOLD = 10;
 
-// Sensible fallback map center used until the user's real coords land.
-// Picked to sit in the middle of our seeded ride catalogue (VIT Vellore /
-// Tamil Nadu / Bengaluru corridor) so the map looks like "a real place"
-// rather than a generic country-wide view while location is fetching.
-// Without this the map gate blocked the MapView entirely on cold start,
-// leaving an unbranded lime void where the map should be.
+// Fallback map center used until real location coordinates arrive.
 const FALLBACK_REGION = {
   latitude: 12.9698,   // VIT Vellore
   longitude: 79.1559,
@@ -138,19 +123,12 @@ const FALLBACK_REGION = {
   longitudeDelta: 0.06,
 };
 
-// OpenFreeMap — donation-funded, OSM-based, no API key, no usage caps.
-// `liberty` is the well-rounded default (streets, POI icons, place
-// labels at every zoom). `dark` is the same shape in a near-black
-// palette — used when the app theme resolves to dark mode. Other
-// styles available: `positron` (light/minimal), `bright`.
+// OpenFreeMap styles used for unauthenticated tile loading.
 const MAP_STYLE_URL_LIGHT = "https://tiles.openfreemap.org/styles/liberty";
 const MAP_STYLE_URL_DARK = "https://tiles.openfreemap.org/styles/dark";
 
-// MapLibre uses [longitude, latitude] tuples and a single `zoom`
-// level instead of react-native-maps' `{latitude, longitude,
-// latitudeDelta, longitudeDelta}`. We translate by approximating
-// zoom from `latitudeDelta` (which is "visible degrees latitude" —
-// halves with each zoom step). Empirically:
+// MapLibre uses [longitude, latitude] + zoom. Approximate zoom from
+// react-native-maps-style latitudeDelta values:
 //   delta 0.06 (city)        → zoom ~12.5
 //   delta 0.045 (neighborhood)→ zoom ~13
 //   delta 0.02 (street)      → zoom ~14
@@ -163,12 +141,9 @@ const regionToCenter = (region: {
 }): [number, number] => [region.longitude, region.latitude];
 
 /**
- * Build a GeoJSON polygon approximating a circle of `radiusMeters`
- * around `(lat, lng)`. MapLibre's circle *layer* draws a screen-space
- * circle (radius scales with zoom in pixels, not real-world metres),
- * which is wrong for our "5 km service area" visual — so we use a
- * polygon ring instead. 64 vertices is smooth enough at any zoom
- * level we'd ever show.
+ * Build a GeoJSON polygon approximating a real-world radius around a point.
+ * CircleLayer radii are screen-space pixels, so a polygon is required for
+ * metre-based service areas.
  */
 const buildCirclePolygon = (
   lat: number,
@@ -203,10 +178,15 @@ const buildCirclePolygon = (
 const buildLineString = (
   pts: { latitude: number; longitude: number }[],
 ): GeoJSON.Feature<GeoJSON.LineString> | null => {
-  const coordinates = pts
-    .filter(isValidLocationCoord)
-    .map((p): [number, number] => [p.longitude, p.latitude])
-    .filter((point, index, points) => index === 0 || !sameLngLat(point, points[index - 1]));
+  const coordinates: [number, number][] = [];
+  for (const point of pts) {
+    if (!isValidLocationCoord(point)) continue;
+    const lngLat: [number, number] = [point.longitude, point.latitude];
+    const previous = coordinates[coordinates.length - 1];
+    if (!previous || !sameLngLat(lngLat, previous)) {
+      coordinates.push(lngLat);
+    }
+  }
 
   if (coordinates.length < 2) return null;
 
@@ -242,8 +222,6 @@ const coordsToBounds = (
 };
 
 // Short, comma-stripped, ellipsized destination label for pin badges.
-// Pulled out of the marker render so the rotating-pin component below
-// can use the same shortening.
 const shortenDestination = (s: string) => {
   const first = (s.split(",")[0] || "").trim();
   return first.length > 16 ? first.slice(0, 15).trimEnd() + "…" : first;
@@ -298,23 +276,8 @@ const areNearbyClustersEqual = (
 };
 
 /**
- * ClusterMarker — Cash App / Uber / Airbnb cluster pattern.
- *
- * Replaces the earlier rotating-destination idea, which broke down
- * the moment you had more than 3-4 rides at one coord — cycling
- * through a dozen labels every 2.5s read as broken, not informative.
- *
- * Now:
- *   - Single ride at a coord → static chip showing the destination
- *     (e.g. "Katpadi Junction"). Tap = open that ride.
- *   - Multi-ride cluster (likely "VIT Vellore", "MG Road" etc. with
- *     N students all departing from the same building) → static
- *     count badge ("12 rides"). Tap = open a bottom sheet listing
- *     every ride leaving from that point so the user can pick.
- *
- * No more animation, no more tracksViewChanges churn, and zero
- * confusion when the campus inevitably has 50 rides leaving from
- * the same gate.
+ * Map pin for one pickup coordinate. Single-ride pins show the destination;
+ * multi-ride pins show a count and open the cluster sheet.
  */
 const ClusterMarker = React.memo<{
   cluster: NearbyCluster;
@@ -331,8 +294,7 @@ const ClusterMarker = React.memo<{
     <MapLibreMarker
       lngLat={[cluster.longitude, cluster.latitude]}
       onPress={handlePress}
-      // Anchor the chip's bottom (the lime dot) at the geo coordinate,
-      // same as the old `{x:0.5, y:1}` Marker anchor.
+      // Anchor the visual pin tip at the pickup coordinate.
       anchor="bottom"
     >
       <View style={styles.pinWrap}>
@@ -361,97 +323,52 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 }) => {
   const router = useRouter();
   const colors = useThemeColors();
-  // Live window dimensions so iPad rotation reflows the layout
-  // without a remount. The module-level `screenWidth`/`screenHeight`
-  // constants stay where they are because the phone-only math
-  // upstream of this component depends on them being snapshot at
-  // module load time; this hook only feeds the iPad branch below.
+  // Live dimensions keep the tablet panel responsive during rotation.
   const { width: liveWidth } = useWindowDimensions();
   const isTablet = liveWidth >= TABLET_BREAKPOINT;
   const [isFocused, setIsFocused] = useState(true);
   const { apiUtil, revalidate } = useApi();
   const { requireAuth, isGuest } = useAuthGate();
-  // Used to filter the viewer's own rides out of the nearby-pins
-  // set. The /rides/nearby endpoint is public (no auth identity), so
-  // ownership has to be reconciled on the client — without this the
-  // viewer can tap their own ride pin and end up on a
-  // "Slide to request ride" screen that semantically can't work.
+  // Used to keep the viewer's own hosted rides out of nearby pins.
   const { user: viewerUser } = useUser();
   const mapRef = useRef<MapRef>(null);
-  // MapLibre splits ref surfaces: the Map ref exposes geometry
-  // queries (project/unproject/getCenter); the Camera ref drives
-  // imperative camera moves (fitBounds/easeTo/jumpTo). The old
-  // react-native-maps MapView did both — we need both refs.
+  // Map ref exposes geometry; Camera ref drives imperative moves.
   const cameraRef = useRef<CameraRef>(null);
 
   const [location, setLocation] = useState<LocationCoords | null>(null);
   const locationRef = useRef<LocationCoords | null>(null);
-  // Cluster sheet state — populated when the user taps a multi-ride
-  // cluster pin (Cash App / Uber style). `null` when closed.
+  // Populated when the user taps a multi-ride cluster pin.
   const [clusterSheet, setClusterSheet] = useState<{
     pickup: string;
     rides: ClusteredRide[];
   } | null>(null);
 
-  // Route preview overlay state — populated when the user taps a
-  // single-ride pin (or a row inside the cluster sheet) and we want
-  // to animate the dotted line from pickup → destination right on
-  // the map before they commit to opening the ride. `null` while no
-  // preview is active. Lives in HomeScreen so the floating "View
-  // ride" card can be an absolute overlay outside the MapLibre tree
-  // while the line + chevron live INSIDE the tree.
+  // Route preview state shared by the map overlay and floating preview card.
   const [previewRide, setPreviewRide] = useState<
     | (RoutePreviewRide & {
         host_user_name?: string;
         start_location: string;
         start_time?: string;
         total_price?: number;
-        // Full ride payload so "View ride" can hand the existing
-        // navigation flow the shape it already expects.
+        // Full ride payload for the existing ride-details navigation path.
         raw: any;
       })
     | null
   >(null);
 
-  // Live viewport bounds reported by MapLibre on every onRegionDidChange.
-  // The preview layer reads this to know whether the destination falls
-  // outside the visible map (off-screen chevron) or inside (line ends
-  // at the destination naturally). Updated lazily — null until the
-  // user has moved the camera at least once after first paint.
+  // Viewport bounds used by RoutePreviewLayer to place off-screen chevrons.
   const [mapBounds, setMapBounds] = useState<RoutePreviewBounds>(null);
   const [initialRegion, setInitialRegion] = useState<any>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [bothLocationsSelected, setBothLocationsSelected] = useState(false);
   const [allFieldsSelected, setAllFieldsSelected] = useState(false);
-  // Counter that, when bumped, makes RideDetailsSelector wipe its
-  // From / To fields. Driven by the Search Rides X button via the
-  // `window.mainNavBarOnClose` global (set up next to
-  // `mainNavBarOnPress` in the variant-1 effect below).
+  // Bumped by the Search Rides close action to clear the selector.
   const [clearRideTrigger, setClearRideTrigger] = useState(0);
-  // Set by `PreviousTripsSection` when its API resolves. Drives the
-  // "Your trips ↔ Rides around you" mutual exclusion on the home
-  // sheet.
-  //
-  // Tri-state on purpose:
-  //   `null`  → trips API hasn't resolved yet (signed-in users).
-  //             Render NEITHER tile so we don't paint "Rides around
-  //             you" only to yank it away half a second later when
-  //             trips land.
-  //   `true`  → user has trips. Show "Your trips", hide nearby tile.
-  //   `false` → user has no trips. Show nearby tile.
-  // Guests skip this state machine entirely — they always see the
-  // nearby tile.
+  // null = unresolved, true = show trip carousel, false = show nearby tile.
   const [hasUserTrips, setHasUserTrips] = useState<boolean | null>(null);
-  // True while ActiveTripCard is rendering a real card. Used to hide
-  // the upcoming-trips carousel — when the active card is up, it's
-  // the user's headline trip and the carousel below it is just noise.
+  // ActiveTripCard takes priority over the upcoming-trips carousel.
   const [hasActiveTripCard, setHasActiveTripCard] = useState(false);
-  // When the trip card is showing, the home sheet gets dense and the
-  // From / To / Date selector pushes everything else below the fold.
-  // We collapse the inline selector to a single "Where'd you like to
-  // go?" pill in that case; tapping it opens this sheet where the
-  // full RideDetailsSelector lives. Submit closes the sheet and
-  // fires the same handleRideSubmit path the inline form does.
+  // Full search selector sheet used when the inline home stack is too dense.
   const [searchSheetOpen, setSearchSheetOpen] = useState(false);
   const [rideDetails, setRideDetails] = useState<{ 
     from: string; 
@@ -461,37 +378,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     toCoordinates?: { latitude: number; longitude: number };
   } | null>(null);
 
-  // Nearby ride summaries used to plot pins on the map.
   type NearbyRide = NearbyRideSummary;
   const [nearbyRides, setNearbyRides] = useState<NearbyRide[]>([]);
-  // Pan-driven nearby refresh — tracks the last centre we queried
-  // /rides/nearby for so the effect below can skip redundant fetches
-  // (e.g. when the user-puck tracker nudges the camera by a few
-  // metres of GPS drift). Monotonically incremented `seq` lets a
-  // late-arriving response know it was superseded by a newer fetch
-  // and bail without overwriting fresher state.
+  // Pan-driven refresh state for /rides/nearby.
   const lastNearbyCentreRef = useRef<{ lat: number; lng: number } | null>(null);
   const nearbyFetchSeqRef = useRef(0);
   const nearbyFetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [appState, setAppState] = useState<AppStateResponse | null>(null);
   const [appStateResolved, setAppStateResolved] = useState(false);
-  // Map cover fade — opaque lime over the MapView until tiles are
-  // ready (`onMapReady`), at which point we fade it out over ~360ms.
-  // Without this the user sees a hard black flash for ~1-2s while the
-  // native MapView surfaces wait for their first tile render.
+  // Opaque brand cover shown until MapLibre paints its first tile frame.
   const mapCoverOpacity = useRef(new Animated.Value(1)).current;
   const [mapTilesReady, setMapTilesReady] = useState(false);
 
-  // Cluster rides by start location (rounded to ~10m) so multiple
-  // rides leaving the same pickup point collapse to a single pin
-  // instead of stacking on top of each other. The pin's onPress
-  // routes to the cheapest ride in that cluster — fine as a first
-  // pass; later we can show a sheet listing all rides in the cluster.
-  // Re-tick every 30s so the "upcoming-only" filter below drops
-  // rides as their start_time crosses now() without waiting for the
-  // user to pan/refresh. 30s granularity is way finer than the
-  // human eye cares about for a "this ride just departed" cue, and
-  // cheap — only this memo re-runs.
+  // Recompute time-sensitive nearby pins every 30s so departed rides drop out.
   const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
     if (!isFocused) return undefined;
@@ -513,27 +412,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     const viewerUserId = viewerUser?.id ?? null;
     const nowMs = nowTick;
     for (const r of nearbyRides) {
-      // Hide the viewer's own rides from the map. They can't request
-      // a seat on their own ride, so a pin that leads to an unactionable
-      // "Slide to request" screen is just a trap. Mirrors the
-      // self-exclusion that /ride/search does server-side; we have to
-      // do it client-side here because /rides/nearby is anonymous.
+      // Hide the viewer's own rides; hosts cannot request their own seats.
       if (viewerUserId && r.host_user_id === viewerUserId) continue;
-      // Drop rides whose scheduled start_time has elapsed. Backend
-      // filters at query time, but Home can hold the last /app/state
-      // or /rides/nearby response across focus changes, and the pan
-      // dedupe intentionally keeps the current pin set during tiny
-      // map movements. Re-checking against live time keeps pins from
-      // pointing at rides that have already left.
+      // Drop stale rides from cached app-state or nearby responses.
       if (!isRideUpcomingAt(r.start_time, nowMs)) continue;
-      // 3 decimal places ≈ 110 m precision. Previously we used 4
-      // decimals (~11 m), but in practice host-typed start coords for
-      // the same campus / depot would drift by 20-50 m and end up as
-      // distinct clusters, painting two pin pills directly on top of
-      // each other (e.g. all "VIT Vellore" rides splitting into Q-block
-      // and the main gate). 110 m groups all of those into one pin
-      // while still keeping genuinely-different pickup points separate
-      // (a street away ≈ 200 m+ stays its own cluster).
+      // 3 decimals is roughly 110m, enough to group campus-scale pickups.
       const key = `${r.start_latitude.toFixed(3)},${r.start_longitude.toFixed(3)}`;
       const existing = byKey.get(key);
       if (!existing) {
@@ -661,15 +544,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     };
   }, []);
 
-  // The sheet keeps a fixed max height and moves with translateY.
-  // Animating `height` during a drag forced a full layout pass through
-  // the ScrollView every frame, which made the sheet stutter badly.
+  // Keep sheet height fixed during drag; translateY avoids layout work per frame.
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const sheetOffset = useRef(0);
   const dragStartOffset = useRef(0);
 
-  // Measured natural height of the ScrollView's content container,
-  // including the responsive bottom breathing room below the form.
+  // Natural ScrollView content height, including bottom breathing room.
   const [scrollContentHeight, setScrollContentHeight] = useState<number | null>(null);
   const onScrollContentSizeChange = useCallback((_w: number, h: number) => {
     if (!h || Number.isNaN(h)) return;
@@ -774,16 +654,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     return coordinates;
   };
 
-// NOTE: the old Google Maps `customMapStyle` JSON lived here. It is
-// gone now that we render with MapLibre, which styles tiles via a
-// full style.json (vector source + layer paint specs) instead of
-// the Google Maps Styling Wizard schema. The custom palette ("#f8f8f8"
-// geometries, "#273B33" labels, white roads with grey strokes) will
-// move into a hand-rolled style.json once we pick a real tile
-// provider — until then we ship MapLibre's free demotiles, which is
-// good enough to evaluate the migration but not the final visual.
-
-
   const panResponder = React.useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: (_evt, gestureState) =>
@@ -833,10 +703,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         targetHeight = gestureState.vy < 0 ? naturalRestHeight.current : BOTTOM_SHEET_MIN_HEIGHT;
       }
 
-      // Light haptic when the sheet locks into a new snap point.
-      // Only fires if we're actually settling somewhere different
-      // from where the gesture started — quietly skips the no-op
-      // case where the user dragged a tiny amount and bounced back.
+      // Fire haptics only when settling into a different snap point.
       if (Math.abs(targetHeight - currentHeight) > 4) {
         haptic("light");
       }
@@ -854,12 +721,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   }), [getCollapsedSheetOffset, getExpandedSheetOffset, sheetTranslateY]);
 
   const requestLocationPermission = async () => {
-    // READ ONLY — never trigger the native iOS/Android prompt here.
-    // The dedicated LocationPermissionScreen (with the radar
-    // illustration + reasoning) is the single place allowed to call
-    // `requestForegroundPermissionsAsync`. Every other screen reads
-    // the current status and silently falls through if it isn't
-    // already granted.
+    // Read-only permission check; LocationPermissionScreen owns native prompts.
     const { status } = await Location.getForegroundPermissionsAsync();
     if (status === "granted") {
       if (!hasPermission) setHasPermission(true);
@@ -895,9 +757,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       });
     };
 
-    // FAST PATH: last-known coords return synchronously from the cache
-    // (no GPS fix needed). Lets the map snap to a real region within
-    // ~50ms of permission granting instead of waiting on a fresh fix.
+    // Fast path: cached coordinates paint the map before a fresh GPS fix lands.
     try {
       const last = await Location.getLastKnownPositionAsync();
       if (last) applyCoords(last.coords.latitude, last.coords.longitude);
@@ -905,9 +765,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       console.warn("Last-known position lookup failed (continuing)", e);
     }
 
-    // SLOW PATH: refine with a fresh fix. `Balanced` accuracy is more
-    // than good enough for a 10 km radius search and is dramatically
-    // faster on cold start than `High` (which waits for GPS lock).
+    // Fresh balanced fix refines the cached position without waiting for GPS lock.
     try {
       const { coords } = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
@@ -951,12 +809,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
   useEffect(() => {
     requestLocationPermission();
-    // Re-check on every return to foreground. Covers the case where
-    // the user denied permission in the in-app prompt, then enabled
-    // it later from system Settings — without this listener,
-    // `hasPermission` and `location` stay at their initial state
-    // forever, leaving the map empty and `/app/state` queried without
-    // coords (so nearby pins never load).
+    // Re-check on foreground so Settings changes are reflected without restart.
     const sub = AppState.addEventListener("change", (next) => {
       if (next === "active") {
         setNowTick(Date.now());
@@ -967,32 +820,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ------------------------------------------------------------------
-  // Pan-driven nearby refresh
-  // ------------------------------------------------------------------
-  // When the user pans/zooms the map, refetch /rides/nearby with the
-  // map's current centre as the anchor and the bounds' half-diagonal
-  // as the radius. Replaces the initial /app/state-seeded pin set so
-  // the map always shows rides for whatever area is in view rather
-  // than only the rides near the user's GPS location.
-  //
-  // Guards:
-  //   1. Debounce — wait 500ms after the camera settles before
-  //      firing. Without this every onRegionDidChange (including the
-  //      initial paint, fitBounds animation completion, and user-
-  //      location tracking nudges) would slam the backend.
-  //   2. Centre-displacement gate — skip if the new centre is within
-  //      ~500m of the last successfully-fetched centre. Stops the
-  //      user-puck's continuous GPS drift from looping the fetch.
-  //   3. Seq versioning — late responses from a superseded fetch
-  //      check their own seq number against the current head before
-  //      writing to nearbyRides. Without this a slow first fetch
-  //      could overwrite a fresh second fetch's results when it
-  //      finally arrived.
-  //   4. Skipped entirely while the user is route-previewing a
-  //      specific ride (previewRide != null) since the map is
-  //      effectively locked to that interaction; new pins arriving
-  //      mid-preview would be visual noise.
+  // Pan-driven nearby refresh: debounce camera movement, skip small centre
+  // changes, and sequence responses so stale fetches cannot overwrite newer pins.
   useEffect(() => {
     if (!mapBounds) return;
     if (previewRide) return;
@@ -1000,10 +829,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     const centreLat = (north + south) / 2;
     const centreLng = (east + west) / 2;
 
-    // Skip if we already fetched within ~500m of this centre. 0.005
-    // degrees ≈ 555m at the equator, tighter at higher latitudes —
-    // the half-degree-window is intentionally coarse so panning
-    // across a campus or a city block doesn't trigger a fetch.
+    // Skip if the map centre is still within roughly 500m of the last fetch.
     const last = lastNearbyCentreRef.current;
     if (last) {
       const dLat = Math.abs(centreLat - last.lat);
@@ -1011,13 +837,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       if (dLat < 0.005 && dLng < 0.005) return;
     }
 
-    // Derive a radius from the visible map extent. The bounds'
-    // larger span (converted to km at ~111km/degree) approximates
-    // the diagonal corner-to-centre distance; halving it gives a
-    // radius that's just big enough to fill the visible map without
-    // overflowing into far-off territory the user can't see. Capped
-    // at 50km because /rides/nearby normalises larger values down
-    // to that ceiling server-side anyway.
+    // Derive search radius from visible bounds and clamp to the API limit.
     const latSpan = north - south;
     const lngSpan = east - west;
     const radiusKm = Math.max(latSpan, lngSpan) * 111 * 0.6;
@@ -1029,31 +849,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     nearbyFetchTimerRef.current = setTimeout(async () => {
       const seq = ++nearbyFetchSeqRef.current;
       try {
-        // Pass the viewer's user id when we know it so the backend
-        // drops the viewer's own rides from the response server-side.
-        // The old client-side filter raced against the user-context
-        // load — a /rides/nearby response landing before viewerUser
-        // resolved would leak the viewer's own pins onto the map
-        // until the next pan re-ran the memo. Doing the filter
-        // server-side closes that window entirely. Guest viewers
-        // omit the param and see every ride as before.
+        // Signed-in callers pass their user id so the API can exclude
+        // their own hosted rides before the response reaches the map.
         const excludeParam = viewerUser?.id
           ? `&exclude_host_user_id=${encodeURIComponent(viewerUser.id)}`
           : "";
         const resp = await apiUtil.get<{ rides: NearbyRideSummary[] }>(
           `/rides/nearby?lat=${centreLat.toFixed(4)}&lng=${centreLng.toFixed(4)}&radius=${radiusM}&limit=50${excludeParam}`,
         );
-        // Discard if a newer fetch has been kicked off in the
-        // meantime — prevents stale results from overwriting fresher
-        // ones if the network reorders responses.
+        // Discard stale responses when network ordering changes.
         if (seq !== nearbyFetchSeqRef.current) return;
         setNearbyRides(resp?.rides ?? []);
         lastNearbyCentreRef.current = { lat: centreLat, lng: centreLng };
       } catch (e) {
-        // Silent — the pre-existing pin set stays on the map. Worst
-        // case the user sees stale-but-relevant pins until the next
-        // pan succeeds; way better than blanking the map on a
-        // transient network blip.
+        // Keep the last successful pin set on transient network failures.
       }
     }, 500);
     return () => {
@@ -1096,9 +905,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     }, [loadHomeState]),
   );
 
-  // One bootstrap read model replaces the former fan-out across
-  // /user/rides, /trip-card/active, /user/pending-ratings, and
-  // /rides/nearby. ApiUtil serves this from persistent cache first.
+  // App-state bootstrap hydrates home, trip card, ratings, and nearby rides.
   useEffect(() => {
     let cancelled = false;
     void loadHomeState(() => cancelled);
@@ -1112,39 +919,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     void loadHomeState();
   }, [loadHomeState, revalidate]);
 
-  // The post-trip rating BrandedAlert that used to fire here is
-  // gone. It interrupted Home focus every time and gave no escape
-  // valve short of completing the form, which made it feel like a
-  // nag. The affordance now lives in context on each past-trip row
-  // in the Trips tab (driven by the same /user/pending-ratings
-  // payload), so a user can rate when they choose to instead of
-  // being prompted out of whatever they were doing on Home.
-
-  // When a ride preview opens (user tapped a pin or picked one from
-  // the cluster sheet), two things happen in concert:
-  //
-  //   1. Collapse the main home sheet to its min height so the
-  //      preview modal lands on a calm background instead of
-  //      stacking on top of a sheet full of search-panel UI.
-  //      Restored to its previous rest height when the preview
-  //      closes.
-  //
-  //   2. Animate the camera so both pickup + drop land in the
-  //      visible band above the SheetShell preview sheet (~40%
-  //      from the bottom). The route should breathe — neither
-  //      pin kissed against the card edge nor jammed against the
-  //      status bar.
-  //
-  // Keyed on previewRide?.id so the effect doesn't re-fire on
-  // every unrelated render. The cleanup restores the home sheet
-  // to whatever its natural rest height was before the preview
-  // opened, preserving any user drag state.
+  // Opening a route preview collapses the home sheet and fits pickup/dropoff
+  // above the preview card. Cleanup restores the prior sheet offset.
   useEffect(() => {
     if (!previewRide) return;
 
-    // Snapshot the current sheet offset BEFORE collapsing, so the
-    // cleanup can restore exactly what the user had (which might
-    // be a manually-dragged position, not just naturalRest).
+    // Preserve manual drag position across preview open/close.
     const previousOffset = sheetOffset.current;
     Animated.spring(sheetTranslateY, {
       toValue: getCollapsedSheetOffset(),
@@ -1170,9 +950,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     }
 
     return () => {
-      // Restore the home sheet to where it was before the preview
-      // opened. If the user had dragged it manually, that drag
-      // position is preserved.
       Animated.spring(sheetTranslateY, {
         toValue: previousOffset,
         useNativeDriver: true,
@@ -1229,9 +1006,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     }, 300);
   }, [runMapCameraUpdate]);
 
-  // Stable callback for RideDetailsSelector. The selector calls this
-  // from an effect, so changing the function identity on every render
-  // can retrigger native map camera work repeatedly.
+  // Stable callback for RideDetailsSelector to avoid repeated camera work.
   const handleCoordsChange = useCallback((
     from: LocationCoords | null,
     to: LocationCoords | null,
@@ -1280,7 +1055,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     });
   }, [handleCoordsChange]);
 
-  // Don't change this code, state mgmt is crucial here
+  // Nav bar variant follows whether the search form has a complete route.
   useEffect(() => {
     if (!isFocused) return;
     if (allFieldsSelected && rideDetails) {
@@ -1297,13 +1072,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           toCoordinates: rideDetails.toCoordinates,
           targetTime: rideDetails.date?.toISOString(),
         };
-        // Browsing rides is free; booking inside RideDetails will gate the user.
+        // Browsing rides is public; booking gates auth later.
         router.navigate(appHref("AvailableRidesScreen", params));
       };
-      // Close X on the Search Rides bar — wipes From / To selection.
-      // The RideDetailsSelector's clearTrigger effect handles the
-      // actual state reset; `handleLocationSelectionChange(false)`
-      // then cascades through to flip the nav bar back to variant 0.
+      // Close action clears the selector through clearTrigger.
       (window as any).mainNavBarOnClose = () => {
         setClearRideTrigger((n) => n + 1);
       };
@@ -1332,8 +1104,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     if (!hasFromAndTo) {
       setAllFieldsSelected(false);
       setRideDetails(null);
-      // Note: fromCoords / toCoords are now driven by handleCoordsChange,
-      // which also resets the camera when both pins are cleared.
+      // handleCoordsChange owns map camera reset when both pins clear.
     }
   }, []);
 
@@ -1346,15 +1117,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     [routePolylineCoordinates],
   );
 
-  // Render the map as soon as the screen is focused — don't wait for
-  // location to arrive. Previously this gate required all three of
-  // (hasPermission, location, initialRegion) to be true, which meant
-  // a slow GPS fix (cold start, indoors, etc.) left users staring at
-  // the lime background for 10-20s and assuming the map was broken.
-  // Now: we always mount the MapView and pass a sensible fallback
-  // region; once the user's real coords land we animate to them.
-  // `showsUserLocation` itself is gated on hasPermission so the
-  // blue-dot puck only appears when the user has actually allowed it.
+  // Mount the map while location is still resolving; Camera starts at fallback.
   const shouldRenderMap = Boolean(isFocused);
 
   return (
@@ -1369,11 +1132,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           <MapLibreMap
             ref={mapRef}
             style={styles.map}
-            // OpenFreeMap tiles — see MAP_STYLE_URL_LIGHT / _DARK note
-            // at top of file. The map style swaps with the theme so
-            // dark mode shows OpenStreetMap's near-black palette
-            // instead of the bright `liberty` style that previously
-            // shouted against the dark canvas.
+            // Swap OpenFreeMap styles with the app theme.
             mapStyle={colors.mode === "dark" ? MAP_STYLE_URL_DARK : MAP_STYLE_URL_LIGHT}
             // Apple's HIG treats a map as a single navigable region for
             // VoiceOver; individual pins/the user puck render to the
@@ -1383,23 +1142,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             // brute-force-explore the canvas.
             accessibilityLabel="Map of nearby rides"
             accessibilityHint="Shows your current location and pickup points for rides leaving from nearby."
-            // Kill MapLibre's stock ornaments. We have our own map UX
-            // so the maplibre logo, attribution chip, compass and
-            // scale bar would just be clutter on top of the lime
-            // brand canvas. (Attribution is still legally required —
-            // we'll surface it through an in-app About / Credits
-            // screen before shipping.)
+            // Hide stock ornaments; attribution is handled elsewhere in app chrome.
             logo={false}
             attribution={false}
             compass={false}
             scaleBar={false}
             onDidFinishLoadingMap={() => {
-              // Fade the lime cover out the moment MapLibre signals
-              // the style + first frame are painted. The 240ms hold
-              // before fade gives the tiles a beat to colour in so
-              // the user never glimpses the loading texture
-              // underneath. (Direct equivalent of the old
-              // `onMapReady` callback on react-native-maps.)
+              // Fade the brand cover after MapLibre paints the first frame.
               if (!mapTilesReady) setMapTilesReady(true);
               Animated.timing(mapCoverOpacity, {
                 toValue: 0,
@@ -1408,20 +1157,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 easing: Easing.out(Easing.quad),
                 useNativeDriver: true,
               }).start();
-              // Snapshot the initial bounds the moment the map paints
-              // so the route-preview layer can clip an off-screen
-              // destination chevron even if the user taps a pin
-              // before panning the camera.
+              // Snapshot initial bounds for route-preview chevron clipping.
               void mapRef.current
                 ?.getBounds()
                 .then((b) => setMapBounds(b as RoutePreviewBounds))
                 .catch(() => {});
             }}
-            // Track viewport bounds for the route-preview chevron.
-            // `onRegionDidChange` fires after the camera settles
-            // (pan, zoom, fitBounds animation end) — exactly when we
-            // want to re-clip the off-screen destination. Mid-gesture
-            // events would thrash the GeoJSON.
+            // Track settled viewport bounds for route-preview clipping.
             onRegionDidChange={(e: any) => {
               const next = e?.nativeEvent?.bounds as RoutePreviewBounds | undefined;
               if (next && Array.isArray(next) && next.length === 4) {
@@ -1429,11 +1171,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               }
             }}
           >
-            {/* Camera — drives both the initial framing (fallback /
-                user-coords region) and every imperative move below
-                via cameraRef. MapLibre's camera centers on a
-                [lng, lat] pair + zoom level, so we translate
-                `initialRegion`'s deltas with `deltaToZoom`. */}
+            {/* Initial map framing and imperative camera moves. */}
             <Camera
               ref={cameraRef}
               initialViewState={{
@@ -1444,28 +1182,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               }}
             />
 
-            {/* Blue user-dot puck — only mounted once location
-                permission is granted (matches the old
-                `showsUserLocation` gating).
-                - `accuracy` paints the translucent radius ring
-                  (Google Maps' familiar pulse circle). Without it
-                  you only get a 15-pixel dot, easy to miss against
-                  the lime canvas.
-                - `heading` paints the directional fan arrow over the
-                  dot so the user can see which way they're facing.
-                - `minDisplacement={1}` keeps the puck smooth — updates
-                  on every metre of movement instead of MapLibre's
-                  default which only fires on larger jumps. */}
+            {/* User location puck, mounted only after permission is granted. */}
             {isFocused && hasPermission && (
               <UserLocation animated accuracy heading minDisplacement={1} />
             )}
 
-            {/* Service-area ring around the user — gives the map a
-                sense of coverage ("UniPool finds carpools within
-                this radius"). Implemented as a GeoJSON polygon
-                rather than a CircleLayer because CircleLayer
-                radii are in *pixels*, not metres, which would
-                shrink-and-grow with zoom. */}
+            {/* Metre-based service-area ring around the user's location. */}
             {location && isValidLocationCoord(location) && (
               <GeoJSONSource
                 id="service-area-source"
@@ -1486,9 +1208,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                   id="service-area-stroke"
                   type="line"
                   paint={{
-                    // Forest on the light map; lime on the dark map
-                    // — same reasoning as the route line below, the
-                    // forest stroke vanishes into the dark tile set.
+                    // Forest on light tiles; lime on dark tiles.
                     "line-color": colors.mode === "dark"
                       ? AppColors.primaryLightGreen
                       : AppColors.secondaryDarkGreen,
@@ -1498,19 +1218,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               </GeoJSONSource>
             )}
 
-            {/* Nearby ride pins — Bolt / Uber pattern: a forest chip
-                with a tail pointing down to the pickup coord. The
-                label now shows the *destination* (→ Katpadi) instead
-                of the cheapest fare — "where can I go from here" is
-                a more useful question at a glance than "how cheap is
-                the cheapest seat." For multi-ride clusters (campus
-                gates, train stations, anywhere multiple students
-                depart from the same spot), tapping opens the cluster
-                sheet so users can pick the specific ride they want
-                — far better than the previous rotating-label hack
-                that broke down past 3-4 rides. Single-ride pins
-                still jump straight into that ride. Hidden once the
-                user has picked a From/To (route preview wins). */}
+            {/* Nearby ride pins hide while the From/To route preview is active. */}
             {!fromCoords && !toCoords && clusteredNearbyRides.map((c) => (
               <ClusterMarker
                 key={c.key}
@@ -1519,12 +1227,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               />
             ))}
 
-            {/* Route preview overlay — the animated dotted line +
-                off-screen destination chevron. Lives as a child of
-                the Map so the line scales with zoom and the chevron
-                stays pinned to a real lng/lat at the viewport edge.
-                See components/RoutePreviewLayer.tsx for the geometry
-                + animation. */}
+            {/* Map-owned route line and off-screen destination chevron. */}
             {previewRide && (
               <RoutePreviewLayer
                 ride={previewRide}
@@ -1537,12 +1240,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               />
             )}
 
-            {/* From / To pins — react-native-maps' Marker had a
-                native `image` prop that took an asset directly.
-                MapLibre Markers wrap arbitrary React Native views,
-                so we render the asset via `<Image>` inside the
-                marker. Anchored at the bottom of the icon so the
-                tip sits on the coordinate. */}
+            {/* From/To pins rendered as React Native marker children. */}
             {fromCoords && (
               <MapLibreMarker
                 lngLat={[fromCoords.longitude, fromCoords.latitude]}
@@ -1582,29 +1280,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                     "line-cap": "round",
                   }}
                   paint={{
-                    // Forest reads cleanly on the light map but
-                    // disappears into the dark map style. Switch to
-                    // lime in dark — the brand splash doubles as a
-                    // high-visibility route accent against charcoal
-                    // tiles.
+                    // Use lime on dark tiles for route contrast.
                     "line-color": colors.mode === "dark"
                       ? AppColors.primaryLightGreen
                       : (AppColors.secondaryDarkGreen || "#2d5016"),
                     "line-width": 3,
-                    // MapLibre style-spec dash pattern is in
-                    // line-width multiples (not pixels), so 3 width
-                    // × [3.3, 3.3] ≈ the old [10, 10] pixel dash.
+                    // Dash pattern values are line-width multiples.
                     "line-dasharray": [3.3, 3.3],
                   }}
                 />
               </GeoJSONSource>
             )}
           </MapLibreMap>
-          {/* Lime fade-in cover. Sits on top of the MapView until the
-              native surface signals `onMapReady`, then animates out.
-              Replaces the previous "black flash" with a soft handoff
-              from brand canvas to map tiles. pointerEvents=none so it
-              never blocks pin taps even mid-fade. */}
+          {/* Brand cover fades out after the map's first tile frame. */}
           <Animated.View
             pointerEvents="none"
             style={[
@@ -1642,14 +1330,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           styles.bottomSheet,
           { backgroundColor: colors.background },
           isTablet
-            ? // iPad: floating left-side panel. Apple Maps idiom — the
-              // map breathes full-bleed and the controls park in a
-              // ~420pt-wide sidebar that's pinned to the left edge
-              // with the navbar still floating at screen bottom-
-              // centre. Drag-to-expand and translateY animation are
-              // skipped because the panel is always at its natural
-              // size on a tablet; there's no off-screen "collapsed"
-              // state to spring out of.
+            ? // Tablet: fixed floating panel; phones keep draggable sheet behavior.
               styles.bottomSheetTablet
             : {
                 height: BOTTOM_SHEET_MAX_HEIGHT,
@@ -1657,9 +1338,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               },
         ]}
       >
-        {/* Drag handle is phone-only. On tablet the panel is always
-            at its natural size, so the handle would just be a
-            misleading affordance. */}
+        {/* Drag handle is phone-only; tablet panel is fixed. */}
         {!isTablet && (
           <View
             collapsable={false}
@@ -1676,24 +1355,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             style={styles.scrollView}
             contentContainerStyle={[
               styles.scrollableContent,
-              // On iPad the panel is a content-sized floating card
-              // (no clearance needed for the floating navbar, which
-              // sits below the panel rather than overlapping it). Trim
-              // the breathing-room padding so the panel shrinks to its
-              // actual content instead of carrying ~100pt of empty
-              // lime under the From/To card.
-              isTablet && { paddingBottom: 16 },
+                  // Tablet panel does not need phone navbar clearance.
+                  isTablet && { paddingBottom: 16 },
             ]}
             showsVerticalScrollIndicator={false}
             bounces={false}
             onContentSizeChange={onScrollContentSizeChange}
           >
-            {/* Active trip card — the highest-signal surface on the
-                home screen for signed-in users. Renders the next
-                upcoming trip OR the most recent un-dismissed one;
-                the component itself returns null when the server has
-                nothing relevant (204), so there's no empty UI to
-                manage from here. */}
+            {/* Active trip card renders null when there is no current trip. */}
             {!isGuest && (
               <ActiveTripCard
                 cardFromState={appState?.home?.active_trip_card ?? null}
@@ -1705,15 +1374,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               />
             )}
 
-            {/* Mutually exclusive: when the signed-in user has trips,
-                show "Your trips" and hide "Rides around you" — and
-                vice versa. Guests never see the trips carousel; they
-                always see the nearby tile. This avoids the home sheet
-                looking like a catalog of redundant CTAs.
-                Additionally hide the carousel whenever the ActiveTripCard
-                is present — that card IS the user's current trip
-                headline, so the upcoming-trips carousel below it just
-                doubles up. */}
+            {/* ActiveTripCard, trip carousel, and nearby tile are mutually exclusive. */}
             {!isGuest && !hasActiveTripCard && (
               <View style={styles.previousTripsWrapper}>
                 <PreviousTripsSection
@@ -1724,10 +1385,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               </View>
             )}
 
-            {/* Guests always see this. Signed-in users only see it
-                once we've confirmed they have no trips — null means
-                "still loading", so we render nothing rather than
-                paint-then-yank when trips arrive a frame later. */}
+            {/* Nearby tile appears for guests or signed-in users with no trips. */}
             {(isGuest || hasUserTrips === false) && (
               <TouchableOpacity
                 activeOpacity={0.85}
@@ -1739,21 +1397,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             )}
 
             <View style={styles.section}>
-              {/* Create Ride above; the "Where'd you like to go?" label
-                  below now reads as the heading for the search
-                  selector it sits right against, instead of doubling
-                  as a section label for the white CTA. */}
               <TouchableOpacity
                 style={[styles.createRideButton, colors.mode === "dark" && { backgroundColor: colors.surface }]}
                 onPress={() => {
                   // Posting a ride requires an authenticated student.
                   if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) return;
-                  // If the user has already filled From / To / Date in the
-                  // search section below, carry that into Create Ride. The
-                  // common case for someone tapping Create Ride after
-                  // typing a route is "no one's offering my trip, I'll
-                  // post it myself" — making them re-type the same
-                  // endpoints would be silly.
+                  // Carry any selected route details into CreateRide.
                   if (rideDetails && (rideDetails.from || rideDetails.to)) {
                     router.navigate(
                       appHref("CreateRide", {
@@ -1774,23 +1423,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 </Text>
               </TouchableOpacity>
 
-              {/* Two layouts for the search panel:
-                  - When the ActiveTripCard is up, the home sheet is
-                    already dense (pay card + create-ride CTA). Drop
-                    the inline From / To / Date and replace it with
-                    a single tap-to-expand pill that opens the
-                    SheetShell modal further down. Keeps the home
-                    surface scannable without taking away the
-                    search affordance.
-                  - Otherwise render the inline section + selector
-                    exactly as before (no behaviour change for the
-                    common case). */}
+              {/* Dense home states collapse search into a sheet trigger. */}
               {hasActiveTripCard ? (
-                // Same visual treatment as the "Rides around you"
-                // tile a few rows up — forest pill, lime label,
-                // single line. Keeps the home stack looking like one
-                // composed set of CTAs instead of three different
-                // button shapes.
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={() => {
@@ -1822,20 +1456,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         </View>
       </Animated.View>
 
-      {/* Cluster picker sheet — opens when the user taps a "N rides"
-          pin. Sits above the map + bottom sheet via the Modal's own
-          z-index. Picking a row routes to that specific ride. */}
+      {/* Cluster picker for multi-ride pickup pins. */}
       <RideClusterSheet
         visible={clusterSheet !== null && clusterSheetRides.length > 0}
         pickup={clusterSheet?.pickup || ""}
         rides={clusterSheetRides}
         onClose={() => setClusterSheet(null)}
         onPickRide={(r: any) => {
-          // Same preview-then-card flow as a single-pin tap so the
-          // user gets the route animation even when they pick a ride
-          // out of the cluster picker. If geo is missing for some
-          // reason (older seed data, bad coords) fall back to the
-          // original instant-navigate path.
+          // Prefer route preview; fall back to details when geometry is missing.
           setClusterSheet(null);
           if (!isRideUpcomingAt(r?.start_time, Date.now())) return;
           if (
@@ -1866,14 +1494,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         }}
       />
 
-      {/* Route preview sheet — wraps SheetShell so it picks up the
-          same chrome (dim backdrop, grab handle, close X, slide-up
-          spring) as every other modal sheet in the app. Always
-          mounted; SheetShell drives the open/close animation off
-          the `ride` prop being null vs set. Home sheet underneath
-          collapses to its min height via the `previewRide` effect
-          below so the preview sheet lands on a calm background
-          instead of stacking atop a busy sheet. */}
+      {/* Floating route preview card shown after selecting a map pin. */}
       <RoutePreviewCard
         ride={previewRide}
         onDismiss={() => setPreviewRide(null)}
@@ -1887,12 +1508,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         }}
       />
 
-      {/* Search sheet — only used when the home surface has
-          collapsed the inline RideDetailsSelector behind the
-          "Where'd you like to go?" pill. The selector inside opens
-          its own from / to / date sub-sheets above this one (RN
-          Modal stacking handles the z-order). Submit closes the
-          sheet so the search results screen takes focus. */}
+      {/* Search sheet used when the inline selector is collapsed. */}
       <SheetShell
         visible={searchSheetOpen}
         onDismiss={() => setSearchSheetOpen(false)}
@@ -1900,18 +1516,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       >
         <Text style={styles.searchSheetTitle}>Where'd you like to go?</Text>
         <RideDetailsSelector
-          // manualSubmit suppresses the selector's auto-fire-on-
-          // both-locations-set behaviour so picking a destination
-          // doesn't yank the user out of the sheet before they
-          // had a chance to also tweak the date. The footer
-          // Search-rides button is the only path that fires
-          // onSubmit in this mode; date stays optional and falls
-          // back to the selector's "now + 1h" default.
+          // manualSubmit waits for the footer CTA instead of auto-submitting.
           manualSubmit
           onSubmit={(details) => {
-            // Close FIRST so the search-results navigation doesn't
-            // happen with the sheet still up — looks like a
-            // stutter on the search screen mount otherwise.
+            // Close before search-results navigation takes focus.
             setSearchSheetOpen(false);
             handleRideSubmit(details);
           }}
@@ -1928,8 +1536,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    // Lime fallback shows through while the map is loading instead of a
-    // bright white flash. Map mounts on top once it's ready.
+    // Brand fallback while the map surface is loading.
     backgroundColor: AppColors.primaryLightGreen,
   },
   brandInfoContainer: {
@@ -1951,17 +1558,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
   },
-  // ---------------------------------------------------------------
-  // Map marker for nearby rides. Same shape as Bolt's price chip and
-  // Uber's "X min" pill — a small forest badge with the trip price
-  // in lime, a downward triangle tail, and a lime contact dot at the
-  // ground. Anchored at the bottom of the View so the dot sits on
-  // the actual coordinate.
-  //   ┌────────┐
-  //   │ ₹220   │  <- pinBadge (forest fill, lime text)
-  //   └─▼──────┘  <- pinTail (forest triangle)
-  //       ●        <- pinDot (lime contact dot at lat/lng)
-  // ---------------------------------------------------------------
+  // Nearby ride marker: label badge, downward tail, and coordinate dot.
   pinWrap: {
     alignItems: "center",
     justifyContent: "flex-end",
@@ -1989,8 +1586,7 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_800ExtraBold",
     letterSpacing: 0.1,
   },
-  // Lime sub-badge inside the pin — shows how many rides leave from
-  // this pickup point when more than one is clustered.
+  // Sub-badge for multi-ride pickup clusters.
   pinBadgeCount: {
     minWidth: 18,
     height: 16,
@@ -2006,8 +1602,7 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_800ExtraBold",
   },
   pinTail: {
-    // Triangle pointing down. Created via the classic
-    // four-border trick (transparent left/right, coloured top).
+    // Downward triangle created with transparent side borders.
     width: 0,
     height: 0,
     borderLeftWidth: 5,
@@ -2027,10 +1622,7 @@ const styles = StyleSheet.create({
     borderColor: AppColors.secondaryDarkGreen,
     marginTop: -2,
   },
-  // Size for the From / To pin asset rendered inside MapLibre markers.
-  // react-native-maps' `image={...}` prop sized the asset for us; under
-  // MapLibre the marker is a plain RN view so we need an explicit size.
-  // Matches the visual weight of the old native asset (~28×28 hit area).
+  // Explicit size for image assets rendered inside MapLibre markers.
   routePinImage: {
     width: 28,
     height: 36,
@@ -2063,27 +1655,13 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 8,
   },
-  // iPad-only: turn the bottom sheet into a left-side floating panel.
-  // - No `bottom` constraint, so the panel's height grows with its
-  //   content instead of stretching the full screen and leaving a sea
-  //   of empty lime under the controls. `maxHeight` keeps it under
-  //   control if the user signs in and the trip carousel fills up.
-  // - 480pt wide so the From/To card, "Post a ride" pill, and trip
-  //   chips have room to breathe (the 420pt version felt cramped).
-  // - All four corners rounded; the panel reads as a discrete floating
-  //   card over the map instead of a sheet pinned to a screen edge.
-  // - Deep shadow because the panel floats over a vivid map and needs
-  //   a clear surface separation.
+  // Tablet-only floating panel; phones use the draggable bottom sheet.
   bottomSheetTablet: {
     left: 24,
     right: undefined,
     top: 72,
     bottom: undefined,
-    // Match the iPhone 14/15 width we use as the design reference
-    // above. Going wider (480) makes the From/To card and Post-a-ride
-    // pill stretch into wide pills full of dead air; matching the
-    // phone width keeps every internal layout reading at the
-    // proportions it was tuned for.
+    // Match the phone reference width used by the tablet sizing branch.
     width: 390,
     maxHeight: 900,
     borderRadius: 28,
@@ -2094,11 +1672,7 @@ const styles = StyleSheet.create({
     shadowRadius: 28,
     elevation: 14,
   },
-  // Wrapper around the visible drag-handle pill — a generous full-
-  // width touch target above the ScrollView so the sheet's
-  // PanResponder reliably catches the gesture. ≥48pt tall to meet
-  // Android's minimum touch-target spec, with `elevation` so it
-  // sits clearly on top of anything else inside the sheet.
+  // Full-width touch target for the visible drag-handle pill.
   dragHandleHitArea: {
     width: "100%",
     paddingTop: 10,
@@ -2108,8 +1682,6 @@ const styles = StyleSheet.create({
     zIndex: 5,
     elevation: 4,
   },
-  // Visible pill — was nearly invisible (rgba 0.28 forest on lime).
-  // Bigger, more contrasted: 56×6, forest at 0.45 opacity.
   dragHandle: {
     width: 56,
     height: 6,
@@ -2125,28 +1697,16 @@ const styles = StyleSheet.create({
   },
   scrollableContent: {
     paddingHorizontal: responsiveWidth(2.5),
-    // Keeps content clear of the floating navbar. The expanded snap
-    // measures this too, so the final row rests above the nav instead
-    // of touching it on shorter Android screens.
+    // Keep sheet content clear of the floating navbar.
     paddingBottom: SHEET_BOTTOM_BREATHING_ROOM,
   },
   previousTripsWrapper: {
-    // Transparent wrapper — the inner card (PreviousTripsSection's
-    // empty container or trip cards) provides the forest surface. Two
-    // overlapping cards would look like a typography error.
     backgroundColor: "transparent",
     borderRadius: normalize(18),
     paddingVertical: responsiveHeight(0.3),
     paddingHorizontal: 0,
   },
-  // "Rides around you" — mirrors `createRideButton` exactly so the
-  // two CTAs read as a matched pair on the home sheet (forest fill,
-  // lime label, identical padding / radius / shadow).
-  //
-  // Hard-coded vertical padding (no `normalize`) because `normalize`
-  // subtracts 2pt on Android, which made the pills feel cramped on
-  // smaller devices (Samsung F14 etc.). iOS keeps the same value so
-  // the two platforms render with matching heights.
+  // Matched CTA surface for "Rides around you".
   nearbyTile: {
     backgroundColor: AppColors.secondaryDarkGreen,
     paddingVertical: 18,
@@ -2158,11 +1718,6 @@ const styles = StyleSheet.create({
     marginTop: responsiveHeight(0.4),
     marginBottom: responsiveHeight(1.4),
     alignSelf: "center",
-    // Bumped from elevation: 2 → 5 because Material's shadow renderer
-    // is more conservative than iOS's, leaving forest cards looking
-    // flat-stuck-to-the-canvas on Android. The iOS shadow props are
-    // also stronger now so both platforms render with comparable
-    // depth.
     elevation: 5,
     shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 6 },
@@ -2176,11 +1731,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   section: {
-    // No `paddingHorizontal` here — the parent (`scrollableContent`)
-    // already insets every child by 2.5% on each side. The previous
-    // 2% padding inside this section made the Create Ride button +
-    // RideDetailsSelector ~4% narrower than the "Your trips" card
-    // and the "Rides around you" tile, breaking the visual rhythm.
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
@@ -2190,13 +1740,6 @@ const styles = StyleSheet.create({
     paddingVertical: responsiveHeight(0.2),
   },
   sectionTitle: {
-    // Sub-header for the home sheet. Still sentence-case so a
-    // question doesn't read awkwardly as uppercase, but pulled out
-    // of the previous 0.7-opacity SemiBold whisper — too faint on
-    // the lime canvas; users couldn't see it. Bold @ 0.95 reads
-    // as a confident label without competing with the CTA below.
-    // Kept in sync with PreviousTripsSection.sectionTitle so "Your
-    // trips" and "Where'd you like to go?" sit at the same volume.
     fontSize: normalize(16),
     color: AppColors.secondaryDarkGreen,
     fontFamily: "NunitoSans_700Bold",
@@ -2205,15 +1748,6 @@ const styles = StyleSheet.create({
     opacity: 0.95,
   },
   createRideButton: {
-    // White card with forest text — lighter middle that breaks the
-    // forest stack (Rides around you above, From/To card below)
-    // without going off-palette. Subtle hairline border anchors it
-    // to the brand colour so the white doesn't read as detached.
-    //
-    // Hard-coded paddingVertical (same reason as `nearbyTile`) so the
-    // CTA reads as a real touch target on smaller Android screens.
-    // Higher elevation on Android because Material's shadow renderer
-    // is more conservative than iOS's.
     backgroundColor: AppColors.basicWhite,
     paddingVertical: 18,
     paddingHorizontal: responsiveWidth(2.5),
@@ -2233,7 +1767,6 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
   },
   createRideButtonText: {
-    // Forest label on a white card — high contrast, brand-aligned.
     color: AppColors.secondaryDarkGreen,
     fontSize: normalize(15.5),
     fontFamily: "NunitoSans_800ExtraBold",

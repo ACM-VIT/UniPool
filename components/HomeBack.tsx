@@ -27,17 +27,15 @@ type Props = {
  * navigationRow.
  */
 const HomeBack: React.FC<Props> = ({ onPress, style }) => {
-  const router = useRouter();
+  const { replace } = useRouter();
 
   const handlePress = () => {
     if (onPress) {
       onPress();
       return;
     }
-    // Replace rather than navigate — the previous screen
-    // (RideCreated / RideRequested interstitial) and the form
-    // before it shouldn't linger in the back stack from Home.
-    router.replace(appHref("HomeScreen"));
+    // Replace so creation/request interstitials do not linger behind Home.
+    replace(appHref("HomeScreen"));
   };
 
   return (

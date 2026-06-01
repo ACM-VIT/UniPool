@@ -7,7 +7,7 @@ import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 
-import BrandInfo from "../../components/BrandInfo";
+import BrandInfo from "../../components/BrandInfo/BrandInfo";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import RideCard from "../../components/RideCard";
 import RideCardSkeleton from "../../components/RideCardSkeleton";
@@ -52,8 +52,7 @@ interface RideData {
   booked_seats: number;
   host_user_name: string;
   host_user_profile_picture_url?: string;
-  // Lowercase "male" | "female" | "other" — drives the same-gender
-  // affinity tint on the result card when the viewer is female.
+  // Lowercase gender value used by same-gender result-card highlighting.
   host_user_gender?: string;
   same_gender_female?: boolean;
   is_same_gender_female?: boolean;
@@ -74,11 +73,7 @@ type VisibleRideItem = {
 
 interface ApiResponse {
   rides: RideData[];
-  /** Server-flagged strict matches — rides whose start AND end are
-   *  within 500m of the requested route and within ±3h of the
-   *  requested time. Always present (empty array when no coords
-   *  or no hits). Used here to flag a "Best match" badge on
-   *  overlapping rows in the regular `rides` list. */
+  /** Rides the server marked as tight route/time matches. */
   strict_matches?: { id: string; start_distance_m: number; end_distance_m: number }[];
   meta: {
     total_found: number;
@@ -111,25 +106,23 @@ const formatFilterDateLabel = (value: string) => {
   });
 };
 
-const rideTimeFormatter = (() => {
+let rideTimeFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+    rideTimeFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
   } catch {
-    return null;
+    rideTimeFormatter = null;
   }
-})();
 
-const rideDateFormatter = (() => {
+let rideDateFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat("en-GB", {
+    rideDateFormatter = new Intl.DateTimeFormat("en-GB", {
       weekday: "short",
       day: "numeric",
       month: "short",
     });
   } catch {
-    return null;
+    rideDateFormatter = null;
   }
-})();
 
 const formatRideStart = (iso: string) => {
   const date = new Date(iso);
@@ -172,10 +165,7 @@ const AvailableRideResultRow = React.memo(function AvailableRideResultRow({
   const { ride, isBestMatch } = item;
   const startLabels = useMemo(() => formatRideStart(ride.start_time), [ride.start_time]);
   const hostRating = formatHostRating(ride);
-  // Theme-aware text colors for the under-card host + distance row.
-  // Module-scope `styles.hostName` etc. bake forest ink that would
-  // disappear against the dark canvas; the inline overrides below
-  // swap to the active palette's primary / secondary text tones.
+  // Inline palette overrides keep the under-card row legible in dark mode.
   const colors = useThemeColors();
 
   return (
@@ -258,62 +248,44 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   setNavBarIcon,
   setNavBarItems,
 }) => {
-  const router = useRouter();
+  const { navigate, back } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const routeParams = useDecodedLocalSearchParams();
   const [isFocused, setIsFocused] = useState(true);
   const { apiUtil } = useApi();
   const { isGuest, requireAuth } = useAuthGate();
   const colors = useThemeColors();
-  // Real device safe-area inset. The styles previously used a
-  // hardcoded `paddingTop: 35` on the rides header, which clipped
-  // the brand wordmark + back chevron under the Android status bar
-  // on devices with a taller-than-35dp top inset (Pixels, cutouts,
-  // notches). Reading the real value keeps the header below system
-  // chrome on every device.
+  // Real safe-area inset keeps the header below system chrome.
   const insets = useSafeAreaInsets();
 
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
   const [rides, setRides] = useState<RideData[]>([]);
   const [loading, setLoading] = useState(false);
-  // Pull-to-refresh — kept separate from `loading` so the result list
-  // stays mounted while the user yanks the ScrollView down. `loading`
-  // drives the full-screen searching loader on first mount; this
-  // drives the inline spinner that hangs from the top of the list.
+  // Pull-to-refresh keeps the current result list mounted.
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  // Buffered selection so iOS users can scroll the spinner without
-  // committing the filter until they tap Done. Without this, every
-  // wheel tick would re-fetch rides — and Cancel would have no way
-  // to revert because we'd have already written through to `filters`.
+  // iOS date selection is committed only when the user taps Done.
   const [tempPickerDate, setTempPickerDate] = useState<Date | null>(null);
   const [searchMeta, setSearchMeta] = useState<ApiResponse['meta'] | null>(null);
-  // Set of ride IDs the server flagged as strict matches (start and
-  // end both within 500m of the requested route AND within ±3h of
-  // the requested time). Drives the "Best match" badge on
-  // overlapping cards. Cleared on every search so stale flags from
-  // a prior query don't bleed into new results.
+  // Strict-match IDs drive the "Best match" badge on search results.
   const [strictMatchIds, setStrictMatchIds] = useState<Set<string>>(new Set());
-  // Viewer's gender — used to gate the same-gender pink affinity tint
-  // on host cards. Sourced from the shared `UserContext` so the
-  // /user/details fetch on cold boot happens ONCE for the whole app
-  // instead of separately per screen. Stays `null` for guests and
-  // while the context is still hydrating.
+  // Shared user context avoids a screen-local profile request.
   const { user: viewerUser } = useUser();
   const viewerGender = (viewerUser?.gender || "").toLowerCase() || null;
   const visibleRides = useMemo(
     () =>
-      rides
-        .filter((ride: RideData) => ride.total_seats > (ride.booked_seats + 1))
-        .map((ride: RideData) => ({
+      rides.flatMap((ride: RideData) =>
+        ride.total_seats > (ride.booked_seats + 1)
+          ? [{
           ride,
           isBestMatch: strictMatchIds.has(ride.id),
-        })),
+        }]
+          : [],
+      ),
     [rides, strictMatchIds],
   );
   
-  // State for locations and coordinates
   const [fromLocation, setFromLocation] = useState("");
   const [toLocation, setToLocation] = useState("");
   const [fromCoordinates, setFromCoordinates] = useState<{ latitude: number; longitude: number } | undefined>(undefined);
@@ -336,12 +308,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     }, []),
   );
 
-  // (The dedicated `/user/details` fetch that used to live here has
-  //  moved into the shared `UserContext` — `viewerGender` above is
-  //  derived from `useUser()`. This avoids a second network round
-  //  trip on every visit to the search screen.)
-
-  // Extract and update route parameters when they change
+  // Normalize route params from both direct and nested Expo Router payloads.
   useEffect(() => {
     let newFromLocation = "";
     let newToLocation = "";
@@ -410,7 +377,6 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       queryParams += `&end_lat=${toCoordinates.latitude}&end_lon=${toCoordinates.longitude}`;
     }
     
-    // Add filter parameters
     if (filters.maxPrice) {
       queryParams += `&max_price=${filters.maxPrice}`;
     }
@@ -444,8 +410,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       return;
     }
 
-    // First fetch shows the full-screen searching loader; subsequent
-    // pull-to-refresh shows the inline spinner so the list stays put.
+    // First fetch uses the page loader; refreshes use the inline spinner.
     if (refresh) {
       setRefreshing(true);
     } else {
@@ -470,20 +435,14 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
           }
           setStrictMatchIds(ids);
         } else {
-          // Fallback for old API format
+          // Legacy API shape returned the ride array directly.
           setRides(Array.isArray(response) ? response : []);
           setSearchMeta(null);
           setStrictMatchIds(new Set());
         }
       })
       .catch((err: any) => {
-        // AUTHENTICATION_REDIRECT bubbles up here as a real Error when
-        // a guest hits anything ApiUtil considers private. /ride/search
-        // is public (OptionalAuthenticate), so this branch should only
-        // ever fire on actual network failures now — but we still
-        // belt-and-braces guard against the auth redirect to make sure
-        // a stray 401 from a side call doesn't show "Failed to fetch
-        // rides" to a guest with a perfectly valid empty result set.
+        // Auth redirects are handled by the auth flow, not this result list.
         const isAuthRedirect =
           err instanceof Error && err.message === "AUTHENTICATION_REDIRECT";
         console.error("API error:", err);
@@ -543,13 +502,13 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const handleRideSelection = useCallback((rideId: string) => {
     const selectedRide = rides.find(ride => ride.id === rideId);
     if (selectedRide) {
-      router.navigate(appHref("AvailableRidesSelectedScreen", {
+      navigate(appHref("AvailableRidesSelectedScreen", {
         ride: selectedRide,
       } as any));
     } else {
       setSelectedRideId((prev) => (prev === rideId ? null : rideId));
     }
-  }, [rides, router]);
+  }, [rides, navigate]);
 
   const applyFilters = () => {
     setShowFilters(false);
@@ -741,8 +700,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       <View style={styles.noRidesContainer}>
         <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: 8, marginTop: 16 }}>
           {colors.mode === 'dark' ? (
-            // Dark mode: theme-aware SVG glyph instead of the
-            // lime-tile PNG (which shouts on a charcoal canvas).
+            // Use theme-aware artwork in dark mode.
             <DarkEmptyGlyph
               size={Math.min(Dimensions.get('window').width * 0.45, 200)}
               colors={colors}
@@ -788,7 +746,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
                 },
               };
               if (!requireAuth(createTarget as any, "to post a ride")) return;
-              router.navigate(appHref("CreateRide", createTarget.params as any));
+              navigate(appHref("CreateRide", createTarget.params as any));
             }}
           >
             <Text style={[styles.adjustFiltersButtonText, { color: colors.textOnAccent, fontFamily: 'NunitoSans_800ExtraBold' }]}>Post a ride</Text>
@@ -803,12 +761,9 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     loading,
     requireAuth,
     rides.length,
-    router,
-    toCoordinates,
+    navigate, toCoordinates,
     toLocation,
-    // Re-render the empty state's text/CTA colors when the theme
-    // changes — without this the useMemo would cache the JSX with
-    // the previous palette's colours captured at first build.
+    // Re-render when theme tokens used by the empty state change.
     colors,
   ]);
 
@@ -1032,18 +987,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
-      {/* `BrandInfo` already handles its own safe-area padding
-          internally (Platform-aware, uses `useSafeAreaInsets`), so
-          DON'T add another `paddingTop` on this absolute wrapper or
-          you'll double-count the inset on iOS (was pushing the
-          wordmark ~47pt too far down on notched iPhones). The wrapper
-          is just here to position + colour the band.
-          The `ridesHeaderRow` below needs `insets.top + ~44` to clear
-          the absolute `brandInfoHeaderRow` (whose height ≈
-          BrandInfo's own paddingTop + ~32pt content); the old
-          hardcoded `paddingTop: 35` was too short on tall-status-bar
-          Pixels and clipped the back chevron + "X rides found"
-          count behind the wordmark. */}
+      {/* Header stays above the virtualized result list while scrolling. */}
       <View style={[styles.brandInfoHeaderRow, { backgroundColor: colors.background }]}>
         <BrandInfo />
       </View>
@@ -1052,7 +996,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         <View style={styles.ridesHeaderLeft}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => back()}
           >
             <ChevronBack />
           </TouchableOpacity>
@@ -1067,16 +1011,9 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
             )}
           </View>
         </View>
-        {/* Top-right Create-Ride CTA removed — it duplicated the
-            "Post a ride" CTA inside the empty state and shouted at
-            every search results screen, including ones with plenty
-            of rides already. Posting belongs in the empty state /
-            Home composer, not as a permanent header chip. */}
       </View>
 
-      {/* Cold-fetch loading state is handled inside the virtualized
-          list so search results render in batches instead of mapping
-          every card eagerly. */}
+      {/* The virtualized list owns cold-loading and empty states. */}
       <FlatList
         style={styles.scrollView}
         data={loading && rides.length === 0 ? [] : visibleRides}

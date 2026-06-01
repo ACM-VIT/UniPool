@@ -267,7 +267,7 @@ export const COUNTRIES: Country[] = [
   { code: "ZW", name: "Zimbabwe", dial: "263" },
 ];
 
-export const findCountry = (code: string): Country | undefined =>
+const findCountry = (code: string): Country | undefined =>
   COUNTRIES.find((c) => c.code === code.toUpperCase());
 
 /**

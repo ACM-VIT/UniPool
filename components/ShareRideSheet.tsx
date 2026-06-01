@@ -15,22 +15,12 @@ import { useThemeColors } from "../contexts/ThemeContext";
 import RouteStack from "./RouteStack";
 import { displayRideLocation } from "../utils/LocationService";
 
-/**
- * Universal-link host the deeplinks point to. Real app-link / universal-
- * link verification (assetlinks.json + apple-app-site-association)
- * is set up later — for now this just renders as a tappable URL on
- * the recipient's device which, once verification is live, will
- * automatically open the installed UniPool app to the right ride. In
- * the meantime it shows a clean web preview at unipool.acmvit.in
- * (placeholder landing for now).
- */
+/** Base HTTPS host for ride share links and future app-link routing. */
 const SHARE_HOST = "https://unipool.acmvit.in";
-// Direct install target for first-time recipients. Keep this off the
-// /download SPA so link previewers and JS-blocked clients still get a
-// concrete store URL. Swap to an App Store URL or server redirect when
-// iOS distribution is public.
+// Direct install target for first-time recipients and link preview clients.
 const DOWNLOAD_URL =
   "https://play.google.com/store/apps/details?id=com.carpoolitapp&hl=en_IN";
+const PERFORATION_DASH_KEYS = Array.from({ length: 18 }, (_, index) => `dash-${index}`);
 
 type Props = {
   visible: boolean;
@@ -65,27 +55,17 @@ const formatShareTime = (iso: string): string => {
 };
 
 /**
- * Dashed horizontal perforation — the visual cue that lets the
- * cream card read as a "ticket" (top half = QR, bottom half =
- * stub with route + time). Implemented as a row of short dashes
- * because RN's `borderStyle: "dashed"` is inconsistent across
- * platforms, and a real dashed line gives us control over
- * dash length + gap. Notched scoops on either side sell the
- * perforation read even harder — they're absolutely positioned
- * lime circles that bleed into the cream card edge.
+ * Dashed perforation between the QR area and ticket stub. Uses explicit dash
+ * views because dashed borders are inconsistent across native platforms.
  */
 const Perforation: React.FC<{ sheetBackground: string }> = ({ sheetBackground }) => {
-  const dashes = Array.from({ length: 18 }, (_, i) => i);
   return (
     <View style={styles.perfRow}>
-      {/* Left scoop — a small circle clipped half-off the
-          card's left edge, giving the eye a real "stub torn off
-          here" cue. Matches the sheet background so it reads as a
-          real notch cut out of the card. */}
+      {/* Left scoop clipped into the card edge. */}
       <View style={[styles.scoopLeft, { backgroundColor: sheetBackground }]} />
       <View style={styles.dashesWrap}>
-        {dashes.map((i) => (
-          <View key={i} style={styles.dash} />
+        {PERFORATION_DASH_KEYS.map((dashKey) => (
+          <View key={dashKey} style={styles.dash} />
         ))}
       </View>
       <View style={[styles.scoopRight, { backgroundColor: sheetBackground }]} />
@@ -94,17 +74,8 @@ const Perforation: React.FC<{ sheetBackground: string }> = ({ sheetBackground })
 };
 
 /**
- * ShareRideSheet — bottom modal that lets the host hand their ride
- * link to passengers. Two affordances:
- *
- *   1. QR code (scannable across the table at a campus hangout, etc.)
- *   2. "Share link" — pops the native iOS / Android share sheet so the
- *      link goes out via WhatsApp / iMessage / Instagram DMs / wherever.
- *
- * Visual model is a paper ticket: cream card with the QR on top, a
- * dashed perforation in the middle, and the route + time on the
- * "stub" below. Single unified surface so the host's eye reads it
- * as one object instead of three stacked panels.
+ * Bottom modal for sharing a hosted ride by QR code or native share sheet.
+ * The ticket layout keeps the QR, route, and departure time in one object.
  */
 const ShareRideSheet: React.FC<Props> = ({
   visible,
@@ -119,15 +90,9 @@ const ShareRideSheet: React.FC<Props> = ({
   const dateLabel = useMemo(() => formatShareDate(startTime), [startTime]);
   const timeLabel = useMemo(() => formatShareTime(startTime), [startTime]);
 
-  // Keep each URL on its own row and make the ride link the last URL
-  // in the body. iOS share targets pick previews from message URLs
-  // inconsistently, so the canonical ride URL should be the final
-  // surface they see.
-  const shareMessage = useMemo(
-    () =>
-      `I'm hosting a UniPool ride from ${displayRideLocation(startLocation)} to ${displayRideLocation(endLocation)} on ${dateLabel} at ${timeLabel}.\n\nNew to UniPool?\n${DOWNLOAD_URL}\n\nGrab a seat:\n${deeplink}`,
-    [startLocation, endLocation, dateLabel, timeLabel, deeplink],
-  );
+  // Keep the canonical ride URL last; share targets often preview the final URL.
+  const shareMessage =
+    `I'm hosting a UniPool ride from ${displayRideLocation(startLocation)} to ${displayRideLocation(endLocation)} on ${dateLabel} at ${timeLabel}.\n\nNew to UniPool?\n${DOWNLOAD_URL}\n\nGrab a seat:\n${deeplink}`;
 
   const handleNativeShare = async () => {
     try {
@@ -149,10 +114,7 @@ const ShareRideSheet: React.FC<Props> = ({
     >
       <Pressable style={styles.scrim} onPress={onClose}>
         <Pressable style={[styles.sheet, colors.mode === "dark" && { backgroundColor: colors.surfaceElevated }]} onPress={() => {}}>
-          {/* Grip handle: light = rgba(38,59,51,0.30) from module styles,
-              dark = colors.inkLine (rgba warm-white 18%). Override here
-              because the module-scope `grip` style hardcodes a forest
-              rgba that reads as near-invisible on dark canvas. */}
+          {/* Grip handle uses a darker override only on dark canvas. */}
           <View style={[styles.grip, colors.mode === "dark" && { backgroundColor: colors.inkLine }]} />
 
           <Text style={[styles.title, { color: colors.textPrimary }]}>Share this ride</Text>
@@ -160,8 +122,7 @@ const ShareRideSheet: React.FC<Props> = ({
             Scan the code or send the link to a classmate.
           </Text>
 
-          {/* Boarding-pass card — single surface holds the QR on top +
-              the perforation + the route stub at the bottom. */}
+          {/* Ticket card holding the QR, perforation, and route stub. */}
           <View style={[styles.ticketCard, { backgroundColor: colors.surface }]}>
             <View style={styles.qrZone}>
               <QRCode
@@ -170,17 +131,15 @@ const ShareRideSheet: React.FC<Props> = ({
                 color={colors.textPrimary}
                 backgroundColor={colors.surface}
               />
-              {/* Small wordmark below the QR — brands the ticket
-                  without needing a logo asset. */}
+              {/* Small wordmark below the QR. */}
               <Text style={[styles.qrBrand, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>UniPool</Text>
             </View>
 
-            {/* Scoop background must match the sheet canvas so they read
-                as real notches cut out of the card. */}
+            {/* Scoop backgrounds match the sheet canvas so they read as notches. */}
             <Perforation sheetBackground={colors.mode === "dark" ? colors.surfaceElevated : AppColors.primaryLightGreen} />
 
             <View style={styles.stubZone}>
-              {/* Canonical RouteStack — pin → dashed → arrow. */}
+              {/* Canonical RouteStack: pin, dashed connector, arrow. */}
               <RouteStack
                 tone="onLime"
                 start={startLocation}
@@ -189,7 +148,7 @@ const ShareRideSheet: React.FC<Props> = ({
                 textStyle={[styles.routePoint, { color: colors.textPrimary }]}
               />
 
-              {/* When line — sits below the route as a quieter caption. */}
+              {/* Departure date and time. */}
               <View style={styles.whenRow}>
                 <Text style={[styles.whenText, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
                   {dateLabel}
@@ -202,10 +161,7 @@ const ShareRideSheet: React.FC<Props> = ({
           <TouchableOpacity
             style={[
               styles.primaryBtn,
-              // Light: forest pill (module-scope). Dark: lime brand
-              // splash — matches the Accept button pattern used
-              // across the app so the primary CTA reads loud and
-              // clear on the charcoal sheet.
+              // Dark mode uses the app's primary CTA contrast.
               colors.mode === "dark" && { backgroundColor: colors.primary },
             ]}
             activeOpacity={0.85}
@@ -234,14 +190,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "flex-end",
-    // Centre the inner sheet under its maxWidth on iPad. On phones
-    // the scrim width is already ≤540 so this is a no-op.
+    // Center the capped sheet on wide screens.
     alignItems: "center",
   },
   sheet: {
     width: "100%",
-    // Phone-shape cap so the share ticket reads as a focused card
-    // on iPad instead of a 1000pt-wide pill.
+    // Phone-shape cap for tablet layouts.
     maxWidth: 540,
     backgroundColor: AppColors.primaryLightGreen,
     borderTopLeftRadius: 28,
@@ -288,9 +242,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.16,
     shadowRadius: 16,
     elevation: 5,
-    // Hide nothing — the scoop circles on the perf row will bleed
-    // INTO the card edge via negative margins, sold by their lime
-    // background colour matching the sheet behind.
+    // Allow the scoop circles to bleed into the card edge.
     overflow: "visible",
   },
   qrZone: {
@@ -307,9 +259,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 
-  // Perforation row — sits inside the ticket card, full-width minus
-  // the inset for the scoops. The scoops are absolutely positioned
-  // off the left/right edges so they read as torn-off corners.
+  // Perforation row with scoops positioned off the left and right edges.
   perfRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -325,9 +275,7 @@ const styles = StyleSheet.create({
     width: SCOOP_SIZE,
     height: SCOOP_SIZE,
     borderRadius: SCOOP_SIZE / 2,
-    // Matches the sheet's lime canvas so the scoop reads as a real
-    // notch cut OUT of the cream card. Without this, the perforation
-    // is just a line with no "torn paper" feel.
+    // Match the sheet canvas so the scoop reads as a notch.
     backgroundColor: AppColors.primaryLightGreen,
   },
   scoopRight: {
@@ -352,9 +300,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(38,59,51,0.22)",
   },
 
-  // Bottom half of the ticket — the "stub" with route + time. Same
-  // surface as the QR zone above; the perforation is what reads
-  // visually as the divider.
+  // Bottom half of the ticket with route and departure time.
   stubZone: {
     paddingHorizontal: 22,
     paddingTop: 14,
@@ -364,8 +310,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  // Outlined origin dot. Same proportions as the dots inside
-  // RideCard / PreviousTripsCompressed so the visual idiom is unified.
+  // Same route-dot proportions as RideCard and PreviousTripsCompressed.
   dotOutline: {
     width: 11,
     height: 11,

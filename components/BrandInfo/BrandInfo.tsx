@@ -11,10 +11,7 @@ const BrandInfo: React.FC<BrandInfoProps> = ({ style }) => {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
 
-  // Show the location strip only when we have a real, resolved
-  // address. Permission-denied / fetching / unknown states collapse
-  // to just the UniPool wordmark — without this, the lime header
-  // bar reads as a cluttered error message stacked under the brand.
+  // Show the location strip only after it resolves to a real address.
   const hasResolvedLocation =
     !error &&
     !loading &&
@@ -30,16 +27,8 @@ const BrandInfo: React.FC<BrandInfoProps> = ({ style }) => {
       Platform.OS === 'ios' && {
         paddingTop: Math.max(insets.top, 20),
       },
-      // Android: this app sets the StatusBar non-translucent (lime
-      // canvas, dark icons) in app/_layout.tsx, so the system already
-      // draws the bar above our content area and useSafeAreaInsets
-      // returns top=0. The old formula here added max(insets.top, 16)
-      // + 6 — i.e. an unconditional 22pt cushion below the status
-      // bar — which read as a chunky empty gap above the wordmark.
-      // Now we honour the inset when it's real (translucent or
-      // notch-affected Android variants) and otherwise sit close to
-      // the top with a 4pt breathing margin from the bar's bottom
-      // edge. iOS path above is unchanged.
+      // Android usually has a non-translucent status bar, so keep only
+      // a small gap unless the platform reports a real top inset.
       Platform.OS === 'android' && {
         paddingTop: Math.max(insets.top, 4),
       },

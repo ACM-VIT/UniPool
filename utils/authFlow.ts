@@ -27,7 +27,7 @@ export const isProviderCollisionError = (error: any) =>
     "auth/credential-already-in-use",
   ].includes(String(error?.code ?? ""));
 
-export const formatAppleFullName = (fullName?: AppleFullName | null) => {
+const formatAppleFullName = (fullName?: AppleFullName | null) => {
   if (!fullName) return "";
   return [
     fullName.namePrefix,
@@ -41,7 +41,7 @@ export const formatAppleFullName = (fullName?: AppleFullName | null) => {
     .join(" ");
 };
 
-export const primeFreshAuthToken = async (
+const primeFreshAuthToken = async (
   apiUtil: ApiUtil,
   firebaseUser: any,
   forceRefresh = false,

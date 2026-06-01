@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { View, StyleSheet, Platform, AppState } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { Stack } from "expo-router/stack";
@@ -10,7 +10,8 @@ import {
 } from "../navigation/routes";
 import { NavBarProvider } from "../contexts/NavBarContext";
 import SplashScreenComponent from "../screens/SplashScreen";
-import MainNavBar, { MAIN_NAV_BAR_TOP_OFFSET } from "../components/MainNavBar";
+import MainNavBar from "../components/MainNavBar";
+import { MAIN_NAV_BAR_TOP_OFFSET } from "../components/MainNavBar.constants";
 import { BrandedAlertHost } from "../components/BrandedAlert";
 import bottomNavItems from "../data/BottomNavigationItems";
 import { useApi } from "../utils/ApiUtil";
@@ -18,7 +19,6 @@ import { useUser } from "../contexts/UserContext";
 
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { useFonts } from "expo-font";
-import * as Location from "expo-location";
 import {
   NunitoSans_400Regular,
   NunitoSans_600SemiBold,
@@ -154,7 +154,7 @@ const NAVBAR_HIDDEN_ROUTES = [
 ];
 
 const AppShell = () => {
-  const router = useRouter();
+  const { navigate, replace } = useRouter();
   const pathname = usePathname();
   const { apiUtil } = useApi();
   const { user: viewerUser } = useUser();
@@ -216,19 +216,13 @@ const AppShell = () => {
     NunitoSans_700Bold,
     NunitoSans_800ExtraBold,
     NunitoSans: NunitoSans_600SemiBold,
-    // Brand wordmark face. Was previously assumed loaded via the
-    // (defunct) RN asset linker — without explicit registration here,
-    // every `fontFamily: "Trap-Bold"` consumer (BrandInfo wordmark,
-    // SplashScreen logo, ErrorComponent, profile + chat headers) falls
-    // back to the system font on Android. iOS happened to resolve it
-    // because the .otf shipped via the asset bundle, but Android needs
-    // the explicit register.
+    // Brand wordmark face used by shared headers, splash, and error surfaces.
     "Trap-Bold": require("../assets/fonts/trap/Trap-Bold.otf"),
   });
 
   const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
   const [navBarText, setNavBarText] = useState<string>("");
-  const [navBarIcon, setNavBarIcon] = useState<any>(
+  const [navBarIcon, setNavBarIcon] = useState<any>(() =>
     require("../assets/wallet.png")
   );
   const [navBarItems, setNavBarItems] = useState(bottomNavItems);
@@ -260,7 +254,7 @@ const AppShell = () => {
 
     if (type === "chat_message") {
       if (rideId) {
-        router.navigate(appHref("ChatMessages", {
+        navigate(appHref("ChatMessages", {
           chatId: String(rideId),
           chatTitle: String(data.chat_title || "Chat"),
           chatSubtitle: String(data.chat_subtitle || "Ride Chat"),
@@ -270,7 +264,7 @@ const AppShell = () => {
       }
     } else if (type === "direct_message") {
       if (dmRoomId) {
-        router.navigate(appHref("ChatMessages", {
+        navigate(appHref("ChatMessages", {
           chatId: String(dmRoomId),
           chatTitle: String(data.sender_name || data.chat_title || "Chat"),
           userId: viewerUser?.id,
@@ -278,11 +272,11 @@ const AppShell = () => {
           otherUserId: data.sender_id ? String(data.sender_id) : undefined,
         }));
       } else {
-        router.navigate(appHref("TripsListScreen"));
+        navigate(appHref("TripsListScreen"));
       }
     } else if (type === "booking_accepted" || type === "ride_request_approved") {
       if (rideId) {
-        router.navigate(appHref("ChatMessages", {
+        navigate(appHref("ChatMessages", {
           chatId: String(rideId),
           chatTitle: String(data.chat_title || "Trip chat"),
           chatSubtitle: String(data.chat_subtitle || "Ride Chat"),
@@ -290,11 +284,11 @@ const AppShell = () => {
           isGroupChat: true,
         }));
       } else {
-        router.navigate(appHref("TripsListScreen"));
+        navigate(appHref("TripsListScreen"));
       }
     } else if (type === "booking_request" || type === "ride_request_received") {
       if (dmRoomId || rideId) {
-        router.navigate(appHref("ChatMessages", {
+        navigate(appHref("ChatMessages", {
           chatId: String(dmRoomId || rideId),
           chatTitle: String(data.passenger_name || data.chat_title || "Ride request"),
           userId: viewerUser?.id,
@@ -307,10 +301,10 @@ const AppShell = () => {
           hostPendingRequestBookingId: data.booking_id ? String(data.booking_id) : undefined,
         } as any));
       } else {
-        router.navigate(appHref("TripsListScreen"));
+        navigate(appHref("TripsListScreen"));
       }
     } else if (type === "booking_rejected") {
-      router.navigate(appHref("HomeScreen"));
+      navigate(appHref("HomeScreen"));
     } else if (type === "booking_withdrawn") {
       // Accepted passenger backed out before the ride. Drop the host
       // on the ride's management view so they can see the freshly-
@@ -318,37 +312,37 @@ const AppShell = () => {
       // refill it. Fall back to Home if for some reason the push
       // lacks a ride_id.
       if (rideId) {
-        router.navigate(appHref("RideDetailsScreen", {
+        navigate(appHref("RideDetailsScreen", {
           rideId: String(rideId),
         }));
       } else {
-        router.navigate(appHref("HomeScreen"));
+        navigate(appHref("HomeScreen"));
       }
     } else if (data?.type === "ride_reminder") {
       if (rideId) {
-        router.navigate(appHref("RideDetailsScreen", {
+        navigate(appHref("RideDetailsScreen", {
           rideId: String(rideId)
         }));
       }
     } else if (type === "rating_prompt") {
       // 12h-after-trip "how was the ride?" push lands here.
       if (rideId) {
-        router.navigate(appHref("PostTripRatingScreen", {
+        navigate(appHref("PostTripRatingScreen", {
           rideId: String(rideId),
         }));
       }
     } else if (type === "ride_cancelled" || type === "ride_cancelled_pending") {
       // Host pulled a ride before the user's pending request was
       // accepted — drop them at Home so they can find another.
-      router.navigate(appHref("HomeScreen"));
+      navigate(appHref("HomeScreen"));
     } else if (type === "ride_updated") {
       if (rideId) {
-        router.navigate(appHref("RideDetailsScreen", {
+        navigate(appHref("RideDetailsScreen", {
           rideId: String(rideId)
         }));
       }
     } else if (rideId) {
-      router.navigate(appHref("RideDetailsScreen", {
+      navigate(appHref("RideDetailsScreen", {
         rideId: String(rideId)
       }));
     }
@@ -633,30 +627,13 @@ const AppShell = () => {
   }, []);
 
   useEffect(() => {
-    // Token registration runs on three events:
-    //   1. Effect mount (cold start)
-    //   2. App returning to foreground (AppState.change → "active")
-    //   3. Auth state resolving + user is signed in
-    //
-    // Three signals because real users hit one of these but not
-    // always all three — a host who signed in on AuthScreen, never
-    // went through LocationPermissionScreen, and brought the app
-    // to foreground from background would previously have had NO
-    // token registered (the old code only registered when
-    // initialRoute === "HomeScreen" at mount). That gap is exactly
-    // the "host has no FCM token" log line we kept seeing in prod —
-    // the host could not get DM / booking pings until they happened
-    // to hit one of the niche paths that posted the token.
-    //
-    // Idempotent: once a user/token pair is posted in this shell,
-    // repeat triggers skip the network write entirely.
+    // Register push tokens on mount, foreground resume, and auth resolution.
+    // Posting is idempotent per user/token pair in this shell.
     const setupNotifications = async () => {
       const token = await registerForPushNotificationsAsync();
       if (!token) return;
       if (!authStateResolved) {
-        // Auth not ready yet — bail. The deps array will re-fire
-        // this effect once authStateResolved flips, by which point
-        // apiUtil has a bearer token to attach.
+        // Auth is not ready yet; the effect re-runs when authStateResolved flips.
         return;
       }
       const uid = getAuth().currentUser?.uid;
@@ -674,11 +651,7 @@ const AppShell = () => {
 
     setupNotifications();
 
-    // Foreground-resume listener. Fires every time the user brings
-    // UniPool back to the foreground from background — captures the
-    // case where the OS rotated the FCM token while the app was
-    // suspended (Apple does this periodically, especially after
-    // OS updates).
+    // Foreground resume can surface OS-rotated notification tokens.
     const appStateSub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         void setupNotifications();
@@ -723,11 +696,7 @@ const AppShell = () => {
 
   useEffect(() => {
     if (fontsLoaded && !loading && initialRoute && authStateResolved) {
-      // First-run users get a brief brand beat before we hand them to
-      // the onboarding carousel — auth + storage resolve in well under
-      // a frame on a warm device, so the old 100ms floor meant the
-      // splash flashed past unseen. Returning + signed-in users still
-      // skip the wait so it never feels like an artificial delay.
+      // First-run users get a brief splash beat before onboarding.
       const minDurationMs = initialRoute === "OnboardingScreen" ? 900 : 100;
       const timer = setTimeout(() => {
         setShowCustomSplash(false);
@@ -751,12 +720,8 @@ const AppShell = () => {
           if (!cancelled) setLocationDetour(null);
           return;
         }
-        // New combined-prompt sheet covers BOTH location + notifications.
-        // Renamed key so the rollout shows the new sheet once even to
-        // users who previously dismissed the old location-only one.
-        // If foreground location is already granted, the prompt has
-        // nothing useful to ask for on startup; skip it and mark it
-        // seen so onboarding/signup paths don't route through it later.
+        // Skip the combined permissions prompt when foreground location is
+        // already granted.
         const needsPrompt = await shouldShowPermissionsPrompt();
         if (!cancelled) {
           setLocationDetour(needsPrompt ? "LocationPermissionScreen" : null);
@@ -777,16 +742,16 @@ const AppShell = () => {
         // Send the user through the permissions screen first;
         // LocationPermissionScreen reads `returnTo` and lands them
         // on their real destination after the native prompts.
-        router.replace(
+        replace(
           appHref("LocationPermissionScreen", {
             returnTo: { screen: initialRoute },
           } as any) as any,
         );
       } else {
-        router.replace(appHref(initialRoute) as any);
+        replace(appHref(initialRoute) as any);
       }
     }
-  }, [initialRoute, isBootstrapping, pathname, router, locationDetour]);
+  }, [initialRoute, isBootstrapping, pathname, replace, locationDetour]);
 
   const showNavBar =
     !isBootstrapping && !NAVBAR_HIDDEN_ROUTES.includes(currentRouteName as string);
@@ -830,7 +795,7 @@ const AppShell = () => {
                   text={navBarText}
                   iconPath={navBarIcon}
                   onPress={() => {
-                    router.navigate(appHref("AvailableRidesScreen", { fromLocation: "", toLocation: "" }));
+                    navigate(appHref("AvailableRidesScreen", { fromLocation: "", toLocation: "" }));
                     setNavBarVariant(0);
                     setNavBarText("");
                     setNavBarIcon(require("../assets/wallet.png"));
@@ -851,7 +816,7 @@ const AppShell = () => {
                   text={navBarText}
                   iconPath={navBarIcon}
                   onPress={() => {
-                    router.navigate(appHref("AvailableRidesSelectedScreen"));
+                    navigate(appHref("AvailableRidesSelectedScreen"));
                   }}
                 />
               ) : (

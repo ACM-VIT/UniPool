@@ -27,11 +27,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.051,
     marginBottom: height * 0.02,
   },
-  // Page title for all settings sub-pages (Profile, Personal Info,
-  // Passengers History, Account Settings, etc.). Dialed from 800
-  // ExtraBold @ 27pt to 700Bold @ 24pt — same pattern as the rest of
-  // the calmed-down typography pass. Confident page header, not a
-  // shouty banner.
+  // Page title for settings sub-pages.
   headerTitle: {
     fontSize: 24,
     color: AppColors.secondaryDarkGreen,
@@ -59,8 +55,7 @@ const styles = StyleSheet.create({
     width: width * 0.205,
     height: width * 0.205,
     borderRadius: width * 0.103,
-    // Forest avatar slot on the lime canvas — when no image is loaded,
-    // it reads as an empty slot, not a white pop.
+    // Forest avatar slot for the no-image state.
     backgroundColor: AppColors.secondaryDarkGreen,
     borderWidth: 2,
     borderColor: AppColors.primaryLightGreen,
@@ -78,9 +73,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.026,
   },
   statsCard: {
-    // Forest card on the lime canvas — bold, palette-matched, lifted
-    // by a deeper shadow. Inverts the typography (lime numerals on
-    // forest surface).
+    // Forest card on the lime canvas with inverted lime typography.
     backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: width * 0.04,
     paddingVertical: width * 0.045,
@@ -134,11 +127,7 @@ const styles = StyleSheet.create({
     marginRight: width * 0.064,
   },
   sectionTitle: {
-    // Matches the HomeScreen + chat-list section titles: sentence-
-    // case, 600SemiBold, dimmed. The point is that these are quiet
-    // mile-markers above their menu card, not headlines competing
-    // for the eye. Was 800ExtraBold uppercase — too "shouty" for the
-    // overall screen rhythm.
+    // Quiet section marker above each settings menu card.
     fontSize: 14,
     color: AppColors.secondaryDarkGreen,
     fontFamily: "NunitoSans_600SemiBold",
