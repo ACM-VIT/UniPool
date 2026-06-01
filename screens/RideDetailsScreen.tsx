@@ -28,6 +28,7 @@ import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
 import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/responsive";
 import { hasSeatsLeft, seatsAvailableLabel } from "../utils/seatMath";
 import { displayRideLocation } from "../utils/LocationService";
+import { describeBookingRequestError } from "../utils/bookingRequestError";
 
 /**
  * Small lime "open profile" eye icon. Stroke-only so it sits in the
@@ -952,7 +953,7 @@ const RideDetailsScreen: React.FC = () => {
     if (isActionLoading || !rideData) return;
     setIsActionLoading(true);
     try {
-      const resp: any = await apiUtil.post("/bookings/request", {
+      const resp: any = await apiUtil.postSilent("/bookings/request", {
         ride_id: rideData.id || rideId,
         request_status: "pending",
       });
@@ -977,18 +978,16 @@ const RideDetailsScreen: React.FC = () => {
         } as any),
       );
     } catch (err: any) {
-      let msg = "Couldn't request the ride. Try again?";
-      if (err?.response?.status === 409 || err?.response?.status === 400) {
-        msg =
-          err?.response?.data?.message ||
-          err?.response?.data?.error ||
-          "You may have already requested this ride or it's full.";
-      } else if (err?.response?.status === 403) {
-        msg =
-          err?.response?.data?.error ||
-          "This ride isn't available to request.";
+      const requestError = describeBookingRequestError(err);
+      if (requestError.blockState === "full" || requestError.blockState === "past") {
+        setViewerState(requestError.blockState);
+        setViewerActions((actions) => ({ ...actions, can_request_seat: false }));
+      } else if (requestError.blockState === "pending_passenger") {
+        setViewerState("pending_passenger");
+        setUserBookingStatus("pending");
       }
-      BrandedAlert.alert("Couldn't request", msg);
+      setRefreshTick((tick) => tick + 1);
+      BrandedAlert.alert("Couldn't request", requestError.message);
     } finally {
       setIsActionLoading(false);
     }
