@@ -1,6 +1,6 @@
 import { StyleSheet, Dimensions } from "react-native";
 import AppColors from "../../design_systems/colors";
-import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar";
+import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar.constants";
 
 const rawWindow = Dimensions.get("window");
 // Tablet branch only: phones keep the natural canvas width so the

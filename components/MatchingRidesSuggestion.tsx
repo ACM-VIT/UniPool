@@ -13,7 +13,7 @@ import { useThemeColors } from "../contexts/ThemeContext";
 import { useApi } from "../utils/ApiUtil";
 import { useRouter } from "expo-router";
 import { appHref } from "../navigation/routes";
-import { haptic } from "./PressableScale";
+import { haptic } from "./haptics";
 import { displayRideLocation } from "../utils/LocationService";
 
 type Match = {
@@ -180,13 +180,10 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
   const top = matches[0];
   const restCount = Math.max(0, matches.length - 1);
   const visible = expanded ? matchViews : matchViews.slice(0, 1);
-  const headerTitle = useMemo(
-    () =>
-      matches.length === 1
-        ? `${top?.host_user_name || "Someone"} is heading your way`
-        : `${matches.length} hosts are heading your way`,
-    [matches.length, top?.host_user_name],
-  );
+  const headerTitle =
+    matches.length === 1
+      ? `${top?.host_user_name || "Someone"} is heading your way`
+      : `${matches.length} hosts are heading your way`;
   const animatedStyle = useMemo(
     () => [styles.wrap, { opacity, transform: [{ translateY }] }],
     [opacity, translateY],
@@ -305,25 +302,23 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
 
 // --- helpers --------------------------------------------------------
 
-const matchTimeFormatter = (() => {
+let matchTimeFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+    matchTimeFormatter = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
   } catch {
-    return null;
+    matchTimeFormatter = null;
   }
-})();
 
-const matchDateFormatter = (() => {
+let matchDateFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    matchDateFormatter = new Intl.DateTimeFormat(undefined, {
       weekday: "short",
       month: "short",
       day: "numeric",
     });
   } catch {
-    return null;
+    matchDateFormatter = null;
   }
-})();
 
 function dayKey(d: Date): number {
   return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();

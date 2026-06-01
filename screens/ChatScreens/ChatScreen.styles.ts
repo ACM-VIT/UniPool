@@ -1,7 +1,7 @@
 import { Platform, StyleSheet } from 'react-native';
 import AppColors from '../../design_systems/colors';
 
-export const chatScreenStyles = StyleSheet.create({
+const chatScreenStyles = StyleSheet.create({
   container: {
     flex: 1,
     // Lime brand canvas — on-brand. Bubbles use forest + white so
@@ -135,7 +135,7 @@ export const passengerInfoStyles = StyleSheet.create({
   },
 });
 
-export const tripInfoStyles = StyleSheet.create({
+const tripInfoStyles = StyleSheet.create({
   ...chatScreenStyles,
   toggleContainer: {
     flexDirection: 'row',
@@ -233,14 +233,7 @@ export const chatMessagesStyles = StyleSheet.create({
     ...chatScreenStyles.chatHeader,
     paddingVertical: 12,
   },
-  // ---------------------------------------------------------------
-  // Conversation header. Sits on the lime canvas like the rest of
-  // the app's nav chrome — the previous forest slab read as a heavy
-  // banner divorced from the surrounding sheet. Standard ChevronBack
-  // on the left, three-dot menu on the right, title + subtitle in
-  // between. Title wraps to two lines so long route titles don't
-  // truncate mid-name.
-  // ---------------------------------------------------------------
+  // Conversation header with edge controls and a centered title block.
   chatHeaderRow: {
     // iMessage-style centered header. Stack chevron + menu absolutely
     // at the edges so the centered title block isn't pushed off-center
@@ -315,9 +308,7 @@ export const chatMessagesStyles = StyleSheet.create({
   chatHeaderSettings: {
     width: 38,
     height: 38,
-    // No circle background — the muddy lime-tint puck looked dirty on
-    // the brand canvas. Three dots stand alone now, same as the menu
-    // glyphs Mobbin shows on Notion / Things / Linear.
+    // Let the three-dot icon stand alone on the brand canvas.
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -805,11 +796,7 @@ export const chatMessagesStyles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // Section Titles — matches the ProfileScreen / HomeScreen pattern
-  // (14pt 600SemiBold, sentence-case, dimmed) so every settings-style
-  // surface in the app reads with the same calm hierarchy. Lime here
-  // because these titles sit inside forest dark settings cards;
-  // ProfileScreen uses the forest variant on its lime canvas.
+  // Section titles for settings-style surfaces.
   sectionTitle: {
     fontSize: 14,
     color: AppColors.primaryLightGreen,
@@ -1174,11 +1161,7 @@ export const chatMessagesStyles = StyleSheet.create({
     paddingBottom: 8,
     alignItems: 'center',
   },
-  // Forest-dark surface instead of the previous cream card. Reads as
-  // a premium dashboard widget against the lime canvas — the
-  // cream-on-lime version felt like a generic toast banner. The
-  // forest base lets the animated lime pulse + lime CTA pop with
-  // proper contrast and brand recognition.
+  // Forest surface gives the empty host card enough contrast on the lime canvas.
   hostEmptyCard: {
     width: '100%',
     maxWidth: 380,
@@ -1301,10 +1284,3 @@ export const chatMessagesStyles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 });
-
-export default {
-  chatScreenStyles,
-  passengerInfoStyles,
-  tripInfoStyles,
-  chatMessagesStyles,
-};

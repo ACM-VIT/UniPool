@@ -35,37 +35,27 @@ type Props = {
 };
 
 const shorten = (s: string, max = 40): string => {
-  // Same legacy-data defence as RoutePreviewCard.shortenLoc — if a
-  // ride was created back when picking "Current location" persisted
-  // that literal string, fall back to a neutral pickup label here
-  // rather than letting it leak onto the cluster header.
+  // Normalize legacy pickup labels before showing them in the cluster header.
   const safe = displayRideLocation(s);
   const first = (safe.split(",")[0] || "").trim();
   return first.length > max ? first.slice(0, max - 1).trimEnd() + "…" : first;
 };
 
-const chipDayFormatter = (() => {
+let chipDayFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, { weekday: "short" });
+    chipDayFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short" });
   } catch {
-    return null;
+    chipDayFormatter = null;
   }
-})();
 
-const chipTimeFormatter = (() => {
+let chipTimeFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+    chipTimeFormatter = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
   } catch {
-    return null;
+    chipTimeFormatter = null;
   }
-})();
 
-/**
- * Format a single ride's departure as a compact 2-line chip label:
- *   line 1: "Sat"  (short weekday)
- *   line 2: "9:33 AM"  (time)
- * Two-line chips are denser than "Sat 9:33 AM" all on one row.
- */
+/** Format one ride departure as a compact weekday/time chip label. */
 const formatChipLabel = (iso: string): { day: string; time: string } => {
   try {
     const d = new Date(iso);
@@ -88,14 +78,11 @@ type ClusteredRideChip = ClusteredRide & {
 
 type DestinationGroup = {
   destination: string;
-  // Lowest price in this destination's rides — surfaced as the
-  // group's headline price. Most rides to the same destination share
-  // a price anyway; if they differ, the cheapest is the honest pitch.
+  // Lowest price across rides in this destination group.
   cheapestPrice: number;
   // All rides going to this destination, sorted by departure time.
   rides: ClusteredRideChip[];
-  // Earliest departure timestamp in this group — drives the group
-  // sort order (next-to-leave destination shows first).
+  // Earliest departure timestamp; drives group sort order.
   nextDeparture: number;
 };
 
@@ -114,8 +101,7 @@ const DestinationGroupRow = React.memo(function DestinationGroupRow({
 }: DestinationGroupRowProps) {
   return (
     <View style={[styles.group, isLast && styles.groupLast]}>
-      {/* Destination header — bold name, price + ride count
-          as a quiet caption on the right. */}
+      {/* Destination header with headline price. */}
       <View style={styles.groupHeader}>
         <Text style={[styles.groupDest, { color: colors.textPrimary }]} numberOfLines={1}>
           {shorten(group.destination)}
@@ -127,9 +113,7 @@ const DestinationGroupRow = React.memo(function DestinationGroupRow({
         </View>
       </View>
 
-      {/* Tappable time chips, one per departure. Each chip
-          is a forest-outlined pill with the weekday on top
-          and the time below. Compact + scannable. */}
+      {/* Tappable time chips, one per departure. */}
       <View style={styles.chipsWrap}>
         {group.rides.map((ride) => (
           <TouchableOpacity
@@ -165,16 +149,8 @@ const DestinationGroupRow = React.memo(function DestinationGroupRow({
 });
 
 /**
- * RideClusterSheet — transit-board style picker.
- *
- * Replaces the earlier "27 stacked white cards" layout which read as a
- * monotonous activity list. Now rides are grouped by destination, each
- * group rendering as one tight block with a tappable time chip per
- * departure. Way denser, way more scannable: 14 destination groups vs
- * 27 lookalike rows.
- *
- * Group sort: next-to-leave destination first (matches the way real
- * transit boards work — "where can I go RIGHT NOW" gets top billing).
+ * Transit-board style picker that groups nearby rides by destination and
+ * shows one departure chip per ride. Groups sort by next departure.
  */
 const RideClusterSheet: React.FC<Props> = ({
   visible,
@@ -184,10 +160,7 @@ const RideClusterSheet: React.FC<Props> = ({
   onPickRide,
 }) => {
   const colors = useThemeColors();
-  // Sheet inherits the lime canvas in light to match the existing brand
-  // surface; switches to elevated charcoal in dark.
-  // colors.background = lime (#B5D750) in light, near-black in dark.
-  // We want lime in light and surfaceElevated in dark.
+  // Light mode inherits the brand canvas; dark mode uses an elevated sheet.
   const sheetBg = colors.mode === "dark" ? colors.surfaceElevated : colors.background;
   const groups = React.useMemo<DestinationGroup[]>(() => {
     const byDest = new Map<string, DestinationGroup>();
@@ -249,18 +222,11 @@ const RideClusterSheet: React.FC<Props> = ({
       animationType="slide"
       onRequestClose={onClose}
     >
-      {/* Sibling structure (not parent/child): the dim layer is a
-          sibling of the sheet so tapping the sheet content can't
-          bubble up to a Pressable wrapper. The previous nested
-          Pressable was absorbing scroll gestures and killing the
-          ScrollView's panning. */}
+      {/* Keep scrim and sheet as siblings so sheet scroll gestures are preserved. */}
       <View style={styles.modalRoot}>
         <Pressable style={styles.scrimTop} onPress={onClose} />
         <View style={[styles.sheet, { backgroundColor: sheetBg }]}>
-          {/* Top bar — grip centered, Done text-button anchored
-              top-right. Tap-outside-to-dismiss still works, but the
-              Done button gives users an explicit, tappable exit that
-              doesn't require reaching for the scrim. */}
+          {/* Top bar with centered grip and explicit Done action. */}
           <View style={styles.topBar}>
             <View style={[styles.grip, colors.mode === "dark" && { backgroundColor: colors.inkLine }]} />
             <TouchableOpacity
@@ -302,18 +268,14 @@ const RideClusterSheet: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  // Full-modal container — splits into the dim scrim on top and the
-  // sheet docked to the bottom. Sibling layout so the sheet's
-  // ScrollView isn't trapped under a Pressable.
+  // Full-modal shell with a bottom-docked sheet.
   modalRoot: {
     flex: 1,
     justifyContent: "flex-end",
-    // Centre the inner sheet on iPad so the cluster picker is a
-    // phone-shape card instead of a 1000pt-wide pill.
+    // Center the capped sheet on wide screens.
     alignItems: "center",
   },
-  // Dim layer above the sheet. Only the empty space above the sheet
-  // is tappable-to-close — the sheet sits below it as a sibling.
+  // Tap outside the sheet to close.
   scrimTop: {
     position: "absolute",
     top: 0,
@@ -333,9 +295,7 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === "ios" ? 24 : 16,
     maxHeight: "80%",
   },
-  // Top bar — holds the centered drag-grip + the right-anchored Done
-  // button. Relative positioning so the absolutely-positioned Done
-  // overlays the grip's row without shifting it off-center.
+  // Relative positioning keeps Done from shifting the centered grip.
   topBar: {
     height: 32,
     justifyContent: "center",
@@ -389,7 +349,6 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
 
-  // -------- destination group --------------------------------------
   group: {
     marginBottom: 18,
   },
@@ -425,14 +384,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
   },
 
-  // -------- chip row -----------------------------------------------
   chipsWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
-  // Each chip: cream surface, tight padding, three-line stack (day /
-  // time / seats). Reads as a "departure card" miniature.
+  // Compact departure chip: day, time, and seats.
   chip: {
     backgroundColor: AppColors.cardSurface,
     borderRadius: 12,

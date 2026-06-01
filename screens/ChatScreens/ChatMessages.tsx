@@ -7,7 +7,6 @@ import {
   StatusBar,
   FlatList,
   TextInput,
-  Modal,
   Switch,
   Keyboard,
   KeyboardAvoidingView,
@@ -19,7 +18,6 @@ import {
   Dimensions,
 } from 'react-native';
 import type { StyleProp, TextStyle } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from "expo-router";
 import { chatMessagesStyles } from './ChatScreen.styles';
 import { ChatMessagesScreenProps, ChatMessage } from './ChatScreen.types';
@@ -33,19 +31,15 @@ import { passengerSeatsLeft } from '../../utils/seatMath';
 import ChatService from '../../utils/ChatService';
 import { setActiveChat, clearActiveChat } from '../../utils/activeChatRegistry';
 import BrandedAlert from "../../components/BrandedAlert";
-import ChevronBack from "../../components/ChevronBack";
+import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import RouteStack from "../../components/RouteStack";
 import ShareRideSheet from "../../components/ShareRideSheet";
-import SheetShell, { sheetUi } from "../../components/SheetShell";
+import SheetShell from "../../components/SheetShell";
+import { sheetUi } from "../../components/SheetShell.styles";
 import { useDecodedLocalSearchParams } from "../../navigation/routes";
 import { scheduleIdleTask, type ScheduledIdleTask } from "../../utils/scheduleIdleTask";
 
-/**
- * Quick-reply chips shown above the keyboard when the input is empty.
- * Ordered for ride logistics: greet, status, location, ETA. Lifted from
- * the Gojek "Quick chat", Bolt onboarding chips, and Uber "I'm here" /
- * "Be right there" patterns we sourced from Mobbin.
- */
+/** Quick-reply chips shown above the keyboard when the input is empty. */
 const QUICK_REPLIES = [
   '👋',
   "On my way",
@@ -62,6 +56,12 @@ const REPORT_REASONS: Array<{ key: string; label: string }> = [
   { key: 'spam', label: 'Spam' },
   { key: 'inappropriate', label: 'Inappropriate content' },
   { key: 'other', label: 'Something else' },
+];
+const INITIAL_MESSAGE_SKELETONS = [
+  { key: 'initial-left-wide', width: '62%', side: 'left' as const },
+  { key: 'initial-right-medium', width: '48%', side: 'right' as const },
+  { key: 'initial-left-full', width: '74%', side: 'left' as const },
+  { key: 'initial-right-narrow', width: '40%', side: 'right' as const },
 ];
 const NOOP = () => {};
 
@@ -216,9 +216,10 @@ const BroadcastPulse: React.FC = () => {
 
 const composeRideWithTitle = (others: { name?: string }[], fallback: string): string => {
   if (others.length === 0) return fallback;
-  const firstNames = others
-    .map((p) => (p.name || '').trim().split(/\s+/)[0])
-    .filter(Boolean);
+  const firstNames = others.flatMap((p) => {
+    const firstName = (p.name || '').trim().split(/\s+/)[0];
+    return firstName ? [firstName] : [];
+  });
   if (firstNames.length === 0) return fallback;
   if (firstNames.length === 1) return `Ride with ${firstNames[0]}`;
   if (firstNames.length === 2) return `Ride with ${firstNames[0]} & ${firstNames[1]}`;
@@ -240,37 +241,34 @@ const formatChatTime = (timestamp: any): string => {
     : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const chatTimeFormatter = (() => {
+let chatTimeFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
+    chatTimeFormatter = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
   } catch {
-    return null;
+    chatTimeFormatter = null;
   }
-})();
 
-const chatDateSeparatorFormatter = (() => {
+let chatDateSeparatorFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    chatDateSeparatorFormatter = new Intl.DateTimeFormat(undefined, {
       weekday: 'short',
       day: '2-digit',
       month: 'short',
     });
   } catch {
-    return null;
+    chatDateSeparatorFormatter = null;
   }
-})();
 
-const chatRideDateFormatter = (() => {
+let chatRideDateFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    chatRideDateFormatter = new Intl.DateTimeFormat(undefined, {
       weekday: 'short',
       day: 'numeric',
       month: 'short',
     });
   } catch {
-    return null;
+    chatRideDateFormatter = null;
   }
-})();
 
 const chatDayKey = (date: Date): number =>
   date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate();
@@ -484,6 +482,8 @@ const ChatMessageBubble = React.memo(function ChatMessageBubble({
   userUuid: string | null;
   viewerIsHost: boolean;
 }) {
+  const colors = useThemeColors();
+
   if (message.kind === 'payment_marker' || message.kind === 'payment_ack') {
     const passengerIdMeta = String((message.metadata as any)?.passenger_id || '');
     const isSelfMarker =
@@ -506,7 +506,6 @@ const ChatMessageBubble = React.memo(function ChatMessageBubble({
   // charcoal) in dark so it reads as a card floating on the canvas.
   // Light mode keeps the historical olive-on-lime / forest-on-lime
   // pairing — those bubbles ARE the brand expression.
-  const colors = useThemeColors();
   const isDark = colors.mode === "dark";
 
   return (
@@ -560,7 +559,7 @@ const ChatMessageBubble = React.memo(function ChatMessageBubble({
 const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarVariant">> = ({
   setNavBarVariant,
 }) => {
-  const router = useRouter();
+  const { back } = useRouter();
   const { apiUtil } = useApi();
   const { user: contextUser, loading: contextUserLoading } = useUser();
   const chatParams = useDecodedLocalSearchParams<ChatRouteParams>();
@@ -574,12 +573,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   // null on phones so the mobile chat is untouched.
   const tabletContentStyle = useTabletContentStyle();
 
-  // iOS keyboard height, tracked manually. The previous
-  // KeyboardAvoidingView (behavior="padding") over-lifted the composer
-  // — it left a ~keyboard-sized gap between the input pill and the
-  // keyboard instead of sitting flush. Tracking the frame ourselves and
-  // padding the composer-stack container by exactly that height puts the
-  // input right on top of the keyboard. Android keeps the KAV path.
+  // Track iOS keyboard frame manually so the composer sits flush above it.
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   useEffect(() => {
     if (Platform.OS !== "ios") return;
@@ -1030,15 +1024,16 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         },
       ];
       if (r.bookings && Array.isArray(r.bookings)) {
-        r.bookings.filter(b => b.request_status === 'accepted').forEach(b =>
+        r.bookings.forEach(b => {
+          if (b.request_status !== 'accepted') return;
           list.push({
             id: b.passenger_id,
             name: b.passenger_name || 'Unknown',
             avatar: b.passenger_profile_picture_url,
             isOnline: b.passenger_id === userUuid || onlineUserIdsRef.current.has(b.passenger_id),
             role: 'member',
-          })
-        );
+          });
+        });
       }
       setParticipants(list);
 
@@ -1048,9 +1043,9 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         availableSeats: Math.max(0, (prev.totalSeats||0) - list.length),
       }));
 
-      const missingProfileIds = list
-        .filter(p => p.id && p.id !== userUuid && (!p.name || p.name === 'Unknown'))
-        .map(p => p.id);
+      const missingProfileIds = list.flatMap(p =>
+        p.id && p.id !== userUuid && (!p.name || p.name === 'Unknown') ? [p.id] : [],
+      );
       if (missingProfileIds.length > 0) {
         Promise.all(missingProfileIds.map(id => fetchUserProfile(id).then(profile => ({ id, profile }))))
           .then(profiles => {
@@ -1182,13 +1177,8 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     // Initial page (most recent ~50 messages). Older pages are loaded
     // on demand via loadOlderMessages() when the user scrolls to top.
     //
-    // On failure: KEEP whatever messages are already in state instead
-    // of wiping them. The previous DM branch did `setMessages([])` on
-    // error — that meant a single transient fetch failure (network
-    // blip, auth token mid-refresh) would empty out a DM and the
-    // user would think their messages vanished. With this change, a
-    // failed fetch leaves the visible message list alone; the next
-    // successful fetch (focus refetch, foreground refetch) reconciles.
+    // On failure, keep visible messages in place and let the next successful
+    // fetch reconcile them.
     const cachedMessages = ChatService.getCachedMessages(chatId);
     if (cachedMessages) {
       const processed = cachedMessages.messages.map((msg: any) => processBackendMessage(msg, userUuid));
@@ -1363,13 +1353,8 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           });
       }
 
-      // Foreground-resume refetch. When the user backgrounds the app
-      // mid-chat, the WS closes; messages persisted while away aren't
-      // pushed to this screen until something forces a fetch. AppState
-      // active transition is that something. Without this, you'd see
-      // the user's reported "I opened the chat and my older messages
-      // weren't there" pattern — the screen kept stale state since the
-      // WS broadcast that delivered them was missed during background.
+      // Foreground resume refetches messages that arrived while the WebSocket
+      // was closed in the background.
       const appStateSub = AppState.addEventListener("change", (state) => {
         if (state !== "active" || cancelled) return;
         ChatService.fetchMessages(apiUtil, chatId, { limit: 50, markRead: true })
@@ -1455,13 +1440,10 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       setNotificationsMuted(val);
       return;
     }
-    // Optimistic flip — re-revert on error.
+    // Optimistic flip; revert on error.
     setNotificationsMuted(val);
     try {
-      // Per-user, per-ride mute. The old /ride/:id/settings route
-      // stored this on the ride row, which silently affected
-      // everyone in the chat; the dedicated endpoint scopes it to
-      // the caller alone.
+      // Dedicated endpoint scopes mute state to the caller.
       await apiUtil.put(`/ride/${chatId}/chat-mute`, { muted: val });
     } catch (error: any) {
       console.warn('[Chat] mute toggle failed:', error?.response?.status);
@@ -1547,7 +1529,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   const handleLeaveRide = () => {
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
     if (chatParams.isGroupChat===false || !chatId) {
-      router.back();
+      back();
       return;
     }
     BrandedAlert.alert(
@@ -1564,7 +1546,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             } catch {
               console.warn('[Chat] leave ride failed');
             } finally {
-              router.back();
+              back();
             }
           },
         },
@@ -1880,7 +1862,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           <Text
             style={{
               fontFamily: 'NunitoSans_800ExtraBold',
-              fontSize: 11.5,
+              fontSize: 12,
               color: colors.textTertiary,
               opacity: 1,
               letterSpacing: 0.6,
@@ -2107,18 +2089,12 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           mash. */}
       <View style={[chatMessagesStyles.chatHeaderRow, { backgroundColor: colors.background }]}>
         <View style={chatMessagesStyles.chatHeaderLeft}>
-          <ChevronBack onPress={() => router.back()} />
+          <ChevronBack onPress={() => back()} />
         </View>
 
         <View style={chatMessagesStyles.chatHeaderCenter} pointerEvents="none">
           {(() => {
-            // Group chat: hold a non-breaking space placeholder while
-            // /ride/details is in flight, then swap to "Ride with X"
-            // once participants land. The previous behaviour was to
-            // fall back to the raw chatTitle (the route string), which
-            // produced a visible "SF → Powell" → "Ride with X" flicker
-            // on every chat open. DMs always use the route-less title
-            // straight from props, so they paint correctly first try.
+            // Group chat holds a stable placeholder until participants load.
             const isGroup = chatParams.isGroupChat !== false;
             let title = chatTitle;
             if (isGroup) {
@@ -2178,7 +2154,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                     `/bookings/reject/${bookingIdForActions}`,
                     {},
                   );
-                  router.back();
+                  back();
                 } catch (e) {
                   console.warn('reject failed', e);
                   BrandedAlert.alert('Could not reject', 'Try again in a moment.');
@@ -2206,7 +2182,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                     `/bookings/accept/${bookingIdForActions}`,
                     {},
                   );
-                  router.back();
+                  back();
                 } catch (e) {
                   console.warn('accept failed', e);
                   BrandedAlert.alert('Could not accept', 'Try again in a moment.');
@@ -2290,14 +2266,9 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         // pulsing via opacity. Reads as "the chat exists, just give it
         // a moment" instead of dumping an empty pane on the user.
         <View style={{ flex: 1, paddingHorizontal: 18, paddingTop: 28, gap: 14 }}>
-          {[
-            { width: '62%', side: 'left' as const },
-            { width: '48%', side: 'right' as const },
-            { width: '74%', side: 'left' as const },
-            { width: '40%', side: 'right' as const },
-          ].map((b, i) => (
+        {INITIAL_MESSAGE_SKELETONS.map((b) => (
             <View
-              key={i}
+              key={b.key}
               style={{
                 alignSelf: b.side === 'left' ? 'flex-start' : 'flex-end',
                 width: b.width as any,
@@ -2374,9 +2345,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           so the inner Fragment here just groups the quick-replies
           row with the input bar. */}
       <>
-        {/* Quick replies — hidden once the user starts typing so they don't
-            crowd a real composition. Mobbin precedent: Gojek "Quick chat",
-            Bolt onboarding chips, Uber "I'm here / Be right there". */}
+        {/* Quick replies hide once the user starts typing. */}
         {!hasMessageDraft ? (
           <View style={chatMessagesStyles.quickReplyRailFrame}>
             <ScrollView

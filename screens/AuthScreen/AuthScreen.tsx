@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, Image, TouchableOpacity, ActivityIndicator, Platform, StatusBar } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Platform, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import {
@@ -8,13 +8,8 @@ import {
   AppleAuthProvider,
   signInWithCredential,
 } from "@react-native-firebase/auth";
-// Apple Sign-In via Expo's wrapper around AuthenticationServices. The
-// older @invertase/react-native-apple-authentication library has known
-// reliability issues on iPad / iPadOS 26 — App Review reproduces them
-// as a "Sign Up Not Completed" sheet — so we go through the Expo path
-// which uses the system framework directly. `isAvailableAsync` lets us
-// hide the button on devices that genuinely don't support it (older
-// hardware, restricted accounts) instead of surfacing a cryptic failure.
+// Expo's AuthenticationServices wrapper handles Apple Sign-In consistently
+// across iPhone and iPad review devices.
 import * as AppleAuthentication from "expo-apple-authentication";
 import LottieView from "lottie-react-native";
 import Svg, { Path } from "react-native-svg";
@@ -24,7 +19,7 @@ import { useApi } from "../../utils/ApiUtil";
 import AppColors from "../../design_systems/colors";
 import { useThemeColors } from "../../contexts/ThemeContext";
 import BrandedAlert from "../../components/BrandedAlert";
-import ChevronBack from "../../components/ChevronBack";
+import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import type { AppRouteTarget } from "../../navigation/routes";
 import { useTabletContentStyle } from "../../utils/responsive";
@@ -40,13 +35,10 @@ type SigningProvider = "apple" | "google" | null;
 
 const AuthScreen: React.FC = () => {
   const { apiUtil } = useApi();
-  const router = useRouter();
+  const { replace, canGoBack: canRouterGoBack, back, navigate } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const routeParams = useDecodedLocalSearchParams<{ returnTo?: AppRouteTarget }>();
-  // Track which provider is mid-flow so only that button shows the
-  // spinner. A single boolean here was painting the Google button as
-  // "Signing in…" the moment a user tapped Apple, which made it look
-  // like the wrong provider was authenticating.
+  // Track the active provider so only the selected button shows progress.
   const [signingIn, setSigningIn] = useState<SigningProvider>(null);
   const isSigningIn = signingIn !== null;
   const insets = useSafeAreaInsets();
@@ -55,11 +47,11 @@ const AuthScreen: React.FC = () => {
 
   const navigateAfterAuth = useCallback(() => {
     if (returnTo) {
-      router.replace(targetHref(returnTo));
+      replace(targetHref(returnTo));
     } else {
-      router.replace(appHref("HomeScreen"));
+      replace(appHref("HomeScreen"));
     }
-  }, [returnTo, router]);
+  }, [returnTo, replace]);
 
   useEffect(() => {
     const checkExistingAuth = async () => {
@@ -68,20 +60,13 @@ const AuthScreen: React.FC = () => {
 
       if (currentUser) {
         try {
-          // No `getIdToken(true)` here either — `apiUtil` picks up the
-          // cached token and refreshes only when it's actually close
-          // to expiry. The previous force-refresh added a wasted
-          // network round-trip every time AuthScreen mounted.
+          // ApiUtil reads and refreshes the cached Firebase token as needed.
           await apiUtil.getForUserUncached("/user/details?summary=1", currentUser);
           navigateAfterAuth();
         } catch (err: any) {
-          // 404 = Firebase auth is good but the user has no backend
-          // row yet → profile-completion screen. Carry `returnTo` so
-          // the post-signup flow ends up at the action that gated
-          // them. NEVER sign out here — that would tear down the
-          // Firebase session before the route changes.
+            // Firebase auth exists but profile completion is still required.
           if (isSignupRequiredError(err)) {
-            router.replace(appHref("SignUpScreen", {
+            replace(appHref("SignUpScreen", {
               newUser: err.response?.data?.newUser || null,
               returnTo,
             }));
@@ -92,7 +77,7 @@ const AuthScreen: React.FC = () => {
       }
     };
     checkExistingAuth();
-  }, [apiUtil, navigateAfterAuth, router, returnTo]);
+  }, [apiUtil, navigateAfterAuth, replace, returnTo]);
 
   const routeAfterAuth = async (firebaseUser: any, provider?: "apple" | "google") => {
     try {
@@ -100,7 +85,7 @@ const AuthScreen: React.FC = () => {
       navigateAfterAuth();
     } catch (err: any) {
       if (isSignupRequiredError(err)) {
-        router.replace(appHref("SignUpScreen", {
+        replace(appHref("SignUpScreen", {
           newUser: err.response?.data?.newUser || null,
           returnTo,
         }));
@@ -132,11 +117,7 @@ const AuthScreen: React.FC = () => {
       }
       const googleCredential = GoogleAuthProvider.credential(idToken);
       const result = await signInWithCredential(getAuth(), googleCredential);
-      // No explicit `getIdToken(true)` — `signInWithCredential`
-      // resolves with a user whose ID token is already fresh. The
-      // forced refresh here was costing ~500-800ms on Android for
-      // no benefit; ApiUtil reads the cached token on the very next
-      // request anyway.
+      // signInWithCredential already returns a user with a fresh ID token.
       await routeAfterAuth(result.user, "google");
     } catch (error: any) {
       const code = error?.code;
@@ -160,10 +141,7 @@ const AuthScreen: React.FC = () => {
     if (Platform.OS !== "ios") return;
     if (isSigningIn) return;
 
-    // Guard against environments where Apple's framework reports the
-    // capability isn't available (older devices, child accounts,
-    // managed devices, MDM lockouts). Surface a specific message
-    // instead of letting Apple's "Sign Up Not Completed" sheet appear.
+    // Apple Sign-In can be unavailable on restricted or managed devices.
     const available = await AppleAuthentication.isAvailableAsync();
     if (!available) {
       BrandedAlert.alert(
@@ -186,18 +164,13 @@ const AuthScreen: React.FC = () => {
         throw new Error("Apple didn't return an identity token. Try again.");
       }
 
-      // AppleAuthProvider.credential accepts an undefined nonce —
-      // Firebase verifies the JWT signature against Apple's public
-      // keys regardless. We never set a custom nonce on the Apple
-      // request, so passing the response field through would be a
-      // no-op (the field is always undefined for expo's wrapper).
+      // No custom nonce is requested, so Firebase only needs the identity token.
       const appleCredential = AppleAuthProvider.credential(credential.identityToken);
       const result = await signInWithCredential(getAuth(), appleCredential);
       await prepareAppleFirebaseUser(apiUtil, result.user, credential.fullName);
       await routeAfterAuth(result.user, "apple");
     } catch (error: any) {
-      // expo-apple-authentication uses ERR_REQUEST_CANCELED on iOS;
-      // keep the legacy code too for any older builds that linger.
+      // Treat provider cancellation as a no-op.
       if (
         error?.code === "ERR_REQUEST_CANCELED" ||
         error?.code === "ERR_CANCELED" ||
@@ -220,21 +193,18 @@ const AuthScreen: React.FC = () => {
     }
   };
 
-  const canGoBack = router.canGoBack();
+  const canGoBack = canRouterGoBack();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: Math.max(insets.top, 12) + 4 }, tabletContentStyle]}>
       <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.statusBarBackground} />
       <View style={styles.topRow}>
         {canGoBack ? (
-          <ChevronBack onPress={() => router.back()} />
+          <ChevronBack onPress={() => back()} />
         ) : (
           <View style={{ width: 40 }} />
         )}
-        {/* Brand wordmark in Trap-Bold — same display face the rest of
-            the app uses for the UniPool name (splash, brand strip,
-            chat brand chips). NunitoSans here read as a generic
-            heading instead of the wordmark. */}
+        {/* Brand wordmark in the shared display face. */}
         <Text style={[styles.wordmark, { color: colors.brandText }]} allowFontScaling={false}>UniPool</Text>
         <View style={{ width: 40 }} />
       </View>
@@ -308,14 +278,14 @@ const AuthScreen: React.FC = () => {
             By continuing, you agree to UniPool's{" "}
             <Text
               style={[styles.footerLink, { color: colors.navIconInactive }]}
-              onPress={() => router.navigate(appHref("TermsOfServiceScreen"))}
+              onPress={() => navigate(appHref("TermsOfServiceScreen"))}
             >
               Terms
             </Text>{" "}
             and{" "}
             <Text
               style={[styles.footerLink, { color: colors.navIconInactive }]}
-              onPress={() => router.navigate(appHref("PrivacyPolicyScreen"))}
+              onPress={() => navigate(appHref("PrivacyPolicyScreen"))}
             >
               Privacy Policy
             </Text>

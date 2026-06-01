@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Dimensions, Switch, ActivityIndicator } from "react-native";
 import { TouchableOpacity, ScrollView } from "react-native";
-import ChevronBack from "../components/ChevronBack";
-import BrandInfo from "../components/BrandInfo";
+import ChevronBack from "../components/ChevronBack/ChevronBack";
+import BrandInfo from "../components/BrandInfo/BrandInfo";
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import { useRouter } from "expo-router";
@@ -54,7 +54,7 @@ const DEFAULT_STATE: PrefsState = {
 };
 
 const NotificationsScreen: React.FC = () => {
-  const router = useRouter();
+  const { back } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const tabletScrollContentStyle = useTabletScrollContentStyle();
   const { apiUtil } = useApi();
@@ -107,7 +107,7 @@ const NotificationsScreen: React.FC = () => {
       <View style={profileStyles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={profileStyles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={[profileStyles.headerTitle, { color: colors.textPrimary }]}>Notifications</Text>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -13,11 +13,12 @@ import {
   FlatList,
   KeyboardAvoidingView,
 } from "react-native";
+import type { ListRenderItem } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { COUNTRIES, Country, flagFor } from "../data/countries";
-import { haptic } from "./PressableScale";
+import { haptic } from "./haptics";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const IS_TABLET = SCREEN_WIDTH >= 768;
@@ -40,6 +41,48 @@ type Props = {
   onSelect: (country: Country) => void;
   onDismiss: () => void;
 };
+
+type ThemeColors = ReturnType<typeof useThemeColors>;
+
+type CountryRowProps = {
+  item: Country;
+  selected: boolean;
+  colors: ThemeColors;
+  onPick: (country: Country) => void;
+};
+
+const CountryRow = React.memo(function CountryRow({
+  item,
+  selected,
+  colors,
+  onPick,
+}: CountryRowProps) {
+  const handlePress = useCallback(() => {
+    onPick(item);
+  }, [item, onPick]);
+
+  return (
+    <TouchableOpacity
+      style={[styles.row, selected && styles.rowSelected]}
+      activeOpacity={0.7}
+      onPress={handlePress}
+    >
+      <Text style={styles.flag}>{flagFor(item.code)}</Text>
+      <Text style={[styles.name, { color: colors.textPrimary }]} numberOfLines={1}>
+        {item.name}
+      </Text>
+      <Text
+        style={[
+          styles.dial,
+          { color: colors.textSecondary },
+          selected && [styles.dialSelected, { color: colors.textPrimary }],
+        ]}
+      >
+        +{item.dial}
+      </Text>
+    </TouchableOpacity>
+  );
+});
 
 /**
  * Bottom-sheet country picker for the phone-number input. Search-as-
@@ -103,11 +146,23 @@ const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDis
     );
   }, [query]);
 
-  const handlePick = (c: Country) => {
+  const handlePick = useCallback((c: Country) => {
     haptic("selection");
     onSelect(c);
     onDismiss();
-  };
+  }, [onDismiss, onSelect]);
+
+  const renderCountry = useCallback<ListRenderItem<Country>>(
+    ({ item }) => (
+      <CountryRow
+        item={item}
+        selected={item.code === selectedCode}
+        colors={colors}
+        onPick={handlePick}
+      />
+    ),
+    [colors, handlePick, selectedCode],
+  );
 
   return (
     <Modal
@@ -202,24 +257,7 @@ const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDis
             keyExtractor={(item) => item.code}
             keyboardShouldPersistTaps="handled"
             initialNumToRender={20}
-            renderItem={({ item }) => {
-              const selected = item.code === selectedCode;
-              return (
-                <TouchableOpacity
-                  style={[styles.row, selected && { backgroundColor: "rgba(181,215,80,0.20)" }]}
-                  activeOpacity={0.7}
-                  onPress={() => handlePick(item)}
-                >
-                  <Text style={styles.flag}>{flagFor(item.code)}</Text>
-                  <Text style={[styles.name, { color: colors.textPrimary }]} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text style={[styles.dial, { color: colors.textSecondary }, selected && { color: colors.textPrimary, fontFamily: "NunitoSans_800ExtraBold" as const }]}>
-                    +{item.dial}
-                  </Text>
-                </TouchableOpacity>
-              );
-            }}
+            renderItem={renderCountry}
             ListEmptyComponent={
               <Text style={[styles.emptyHint, { color: colors.textSecondary }]}>No countries match "{query}".</Text>
             }
@@ -309,9 +347,7 @@ const styles = {
     opacity: 0.6,
   },
   dialSelected: {
-    color: AppColors.secondaryDarkGreen,
-    opacity: 1,
-    fontFamily: "NunitoSans_800ExtraBold",
+    fontFamily: "NunitoSans_800ExtraBold" as const,
   },
   emptyHint: {
     fontFamily: "NunitoSans_400Regular",

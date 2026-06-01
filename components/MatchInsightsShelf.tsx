@@ -252,11 +252,8 @@ const ORANGE = AppColors.accentOrange;
 const FOREST_18 = "rgba(38,59,51,0.18)";
 const FOREST_70 = "rgba(38,59,51,0.70)";
 
-// Visual palette per tone. Restraint over branding: only the
-// strongest signal (primary / social / fresh) carries a filled
-// pill; everything else falls through to the muted cream variant
-// so the shelf never out-shouts the card it sits under. Deliberate
-// loss of expressiveness in exchange for a calmer list.
+// Visual palette per tone. Only strong signals use filled pills; secondary
+// signals stay muted so the shelf supports the ride card.
 const variants: Record<string, ChipVariant> = {
   primary: {
     chip: { backgroundColor: LIME },
@@ -312,9 +309,7 @@ const SignalIcon: React.FC<{ kind: MatchSignalKind | string; color: string }> = 
   );
 };
 
-// Each icon below renders into a parent <Svg viewBox="0 0 24 24"/>.
-// Strokes use round line caps + 2.2 width so the glyphs read crisp
-// at 14pt and still hold up if a future shelf grows to 20pt.
+// Each icon renders into a parent <Svg viewBox="0 0 24 24"/>.
 
 const STROKE = 2.2;
 

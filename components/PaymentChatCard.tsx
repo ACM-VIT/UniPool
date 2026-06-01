@@ -12,7 +12,7 @@ import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "./BrandedAlert";
-import { haptic } from "./PressableScale";
+import { haptic } from "./haptics";
 import type { ChatMessage } from "../screens/ChatScreens/ChatScreen.types";
 
 type Props = {
