@@ -2,7 +2,6 @@ import React from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   Image,
   StyleSheet,
   ImageSourcePropType,
@@ -11,6 +10,7 @@ import Svg, { Circle, Path } from "react-native-svg";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import type { Palette } from "../design_systems/palettes";
+import PressableScale from "./PressableScale";
 
 /**
  * Theme-aware sad-face glyph used in place of fixed-background raster assets
@@ -107,14 +107,13 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         </Text>
       ) : null}
       {ctaLabel && onPressCta ? (
-        <TouchableOpacity
+        <PressableScale
           style={[
             styles.cta,
             // Dark mode uses the same primary CTA contrast as other sheets.
             colors.mode === "dark" && { backgroundColor: colors.primary },
           ]}
           onPress={onPressCta}
-          activeOpacity={0.85}
         >
           <Text
             style={[
@@ -124,7 +123,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
           >
             {ctaLabel}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       ) : null}
     </View>
   );

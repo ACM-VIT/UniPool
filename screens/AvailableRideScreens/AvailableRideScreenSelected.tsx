@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, Dimensions } from 'react-native';
 import TripPreviewMap from '../../components/TripPreviewMap';
+import PressableScale from '../../components/PressableScale';
+import { haptic } from '../../components/haptics';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from "expo-router";
 
@@ -597,6 +599,8 @@ const AvailableRideScreenSelected: React.FC = () => {
       if (DEBUG_SELECTED_RIDE) console.log('Ride request response:', response);
 
       if (response && (response.success || response.id || response.booking_id)) {
+        // Confirm the request landed before navigating to the requested screen.
+        haptic("success");
         // Optimistically expose the pending state; the next details fetch
         // confirms it from the backend.
         setViewerState("pending_passenger");
@@ -621,7 +625,8 @@ const AvailableRideScreenSelected: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error requesting ride:', error);
-      
+      haptic("error");
+
       const requestError = describeBookingRequestError(error);
       if (requestError.blockState) {
         setViewerState(requestError.blockState);
@@ -642,12 +647,13 @@ const AvailableRideScreenSelected: React.FC = () => {
 
       <View style={[styles.navigationRow, { backgroundColor: colors.background }]}>
         <View style={styles.navigationLeft}>
-          <TouchableOpacity
+          <PressableScale
             style={styles.backButton}
             onPress={() => back()}
+            haptic={null}
           >
             <ChevronBack />
-          </TouchableOpacity>
+          </PressableScale>
           <Text style={[styles.navigationTitle, { color: colors.textPrimary }]}>Ride details</Text>
         </View>
       </View>
@@ -748,8 +754,13 @@ const AvailableRideScreenSelected: React.FC = () => {
                 routePoints={routeCoordinates}
               />
             ) : (
-              <View style={styles.mapPlaceholder}>
-                <Text style={styles.loadingText}>Loading map…</Text>
+              // Permission denied / no valid coordinates is a steady state,
+              // not a transient load — so a static, honest message, not a
+              // skeleton that would shimmer a slot that will never fill.
+              <View style={[styles.mapPlaceholder, { backgroundColor: colors.surfaceInset }]}>
+                <Text style={[styles.loadingText, { color: colors.textTertiary }]}>
+                  Map preview unavailable
+                </Text>
               </View>
             )}
           </View>
@@ -765,12 +776,12 @@ const AvailableRideScreenSelected: React.FC = () => {
             return (
               <View style={[styles.viewerNoticeWrap, { backgroundColor: colors.navFill }]}>
                 <Text style={[styles.viewerNoticeTitle, { color: colors.navIconInactive }]}>You're hosting this ride</Text>
-                <TouchableOpacity
+                <PressableScale
                   style={[styles.viewerNoticeBtn, { backgroundColor: colors.primary }]}
                   onPress={() => navigate(appHref("RideDetailsScreen", { rideId: ride.id }))}
                 >
                   <Text style={[styles.viewerNoticeBtnText, { color: colors.textOnAccent }]}>Manage</Text>
-                </TouchableOpacity>
+                </PressableScale>
               </View>
             );
           }
@@ -782,12 +793,12 @@ const AvailableRideScreenSelected: React.FC = () => {
             return (
               <View style={[styles.viewerNoticeWrap, { backgroundColor: colors.navFill }]}>
                 <Text style={[styles.viewerNoticeTitle, { color: colors.navIconInactive }]}>Your seat is confirmed</Text>
-                <TouchableOpacity
+                <PressableScale
                   style={[styles.viewerNoticeBtn, { backgroundColor: colors.primary }]}
                   onPress={() => navigate(appHref("RideDetailsScreen", { rideId: ride.id }))}
                 >
                   <Text style={[styles.viewerNoticeBtnText, { color: colors.textOnAccent }]}>View booking</Text>
-                </TouchableOpacity>
+                </PressableScale>
               </View>
             );
           }

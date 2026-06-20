@@ -4,11 +4,11 @@ import {
   Text,
   Image,
   StyleSheet,
-  TouchableOpacity,
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import PressableScale from "../components/PressableScale";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { appHref } from "../navigation/routes";
@@ -38,13 +38,12 @@ const ErrorScreen: React.FC = () => {
         <Text style={[styles.subText, { color: colors.navIconInactive }, colors.mode === "dark" && { opacity: 1 }]}>
           Something went sideways. Head back and give it another go.
         </Text>
-        <TouchableOpacity
+        <PressableScale
           style={[styles.cta, { backgroundColor: colors.primary }]}
-          activeOpacity={0.85}
           onPress={goBack}
         >
           <Text style={[styles.ctaText, { color: colors.textOnAccent }]}>Try again</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </SafeAreaView>
   );

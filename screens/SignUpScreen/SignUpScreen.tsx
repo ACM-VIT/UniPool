@@ -3,7 +3,6 @@ import {
   View,
   Platform,
   KeyboardAvoidingView,
-  TouchableOpacity,
   Text,
   ScrollView,
   TextInput,
@@ -22,6 +21,8 @@ import styles from "./SignUpScreen.styles";
 import AppColors from "../../design_systems/colors";
 import { useThemeColors } from "../../contexts/ThemeContext";
 import BrandedAlert from "../../components/BrandedAlert";
+import PressableScale from "../../components/PressableScale";
+import { haptic } from "../../components/haptics";
 import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import type { AppRouteTarget } from "../../navigation/routes";
 import { Country, DEFAULT_COUNTRY, flagFor } from "../../data/countries";
@@ -164,6 +165,8 @@ const SignUpScreen: React.FC = () => {
     const ok = await submitProfile();
     setLoading(false);
     if (ok) {
+      // Profile saved — confirm the completed step before routing on.
+      haptic("success");
       let needsPermissionsStep = true;
       try {
         needsPermissionsStep = await shouldShowPermissionsPrompt();
@@ -246,11 +249,11 @@ const SignUpScreen: React.FC = () => {
           <View style={styles.heroBlock}>
             <View style={styles.headlineRow}>
               <Text style={[styles.headline, { color: colors.textPrimary }]}>One last thing.</Text>
-              <TouchableOpacity
+              <PressableScale
                 style={[styles.logoutBtn, { backgroundColor: colors.navFill }]}
                 onPress={handleLogout}
-                activeOpacity={0.75}
                 disabled={loading}
+                haptic={null}
                 accessibilityRole="button"
                 accessibilityLabel="Log out"
               >
@@ -258,7 +261,7 @@ const SignUpScreen: React.FC = () => {
                   <Path d="M10 7V5.8C10 4.8 10.8 4 11.8 4h5.4C18.2 4 19 4.8 19 5.8v12.4c0 1-.8 1.8-1.8 1.8h-5.4c-1 0-1.8-.8-1.8-1.8V17" stroke={colors.navIconInactive} strokeWidth={2} strokeLinecap="round" />
                   <Path d="M14 12H4m0 0 3.5-3.5M4 12l3.5 3.5" stroke={colors.navIconInactive} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
             <Text style={[styles.subhead, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
               We need a few details so we can connect you with other users.
@@ -270,10 +273,9 @@ const SignUpScreen: React.FC = () => {
               number. We send +{dial}{local} as E.164 on submit. */}
           <Text style={[styles.fieldLabel, colors.mode === "dark" && { color: colors.textPrimary, opacity: 1 }]}>Phone number</Text>
           <View style={[styles.inputWrap, { backgroundColor: colors.navFill }, focused === "phone" && styles.inputWrapFocused]}>
-            <TouchableOpacity
+            <PressableScale
               style={styles.countryBtn}
               onPress={() => setCountryPickerOpen(true)}
-              activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={`Country code, currently ${country.name}`}
             >
@@ -288,7 +290,7 @@ const SignUpScreen: React.FC = () => {
                   strokeLinejoin="round"
                 />
               </Svg>
-            </TouchableOpacity>
+            </PressableScale>
             <View style={styles.countryDivider} />
             <TextInput
               style={[styles.input, { color: colors.navIconActive }]}
@@ -327,14 +329,14 @@ const SignUpScreen: React.FC = () => {
             {["Male", "Female"].map((g) => {
               const selected = gender === g;
               return (
-                <TouchableOpacity
+                <PressableScale
                   key={g}
                   style={[styles.genderChip, { backgroundColor: colors.navFill }, selected && styles.genderChipSelected]}
-                  activeOpacity={0.8}
+                  haptic="selection"
                   onPress={() => setGender(g)}
                 >
                   <Text style={[styles.genderChipText, { color: colors.navIconInactive }, selected && styles.genderChipTextSelected]}>{g}</Text>
-                </TouchableOpacity>
+                </PressableScale>
               );
             })}
           </View>
@@ -346,13 +348,12 @@ const SignUpScreen: React.FC = () => {
           <Text style={[styles.fieldLabel, colors.mode === "dark" && { color: colors.textPrimary, opacity: 1 }]}>
             Academic status <Text style={[styles.fieldLabelMuted, { color: colors.textTertiary }]}>(Optional)</Text>
           </Text>
-          <TouchableOpacity
+          <PressableScale
             style={[
               styles.verifyBtn,
               { backgroundColor: colors.navFill },
               verifiedInstitute ? styles.verifyBtnDone : null,
             ]}
-            activeOpacity={verifiedInstitute ? 1 : 0.85}
             disabled={!!verifiedInstitute || loading}
             onPress={handleVerifyTap}
           >
@@ -389,7 +390,7 @@ const SignUpScreen: React.FC = () => {
                 />
               </Svg>
             )}
-          </TouchableOpacity>
+          </PressableScale>
 
           <View style={{ height: 24 }} />
         </ScrollView>
@@ -406,11 +407,11 @@ const SignUpScreen: React.FC = () => {
         >
           {/* Inner content rendered below. Closing this comment to
               keep the JSX child structure intact. */}
-          <TouchableOpacity
+          <PressableScale
             style={[styles.primaryBtn, { backgroundColor: colors.navFill }, (!isValid || loading) && styles.primaryBtnDisabled]}
             onPress={handleComplete}
             disabled={!isValid || loading}
-            activeOpacity={0.85}
+            haptic="medium"
           >
             {loading ? (
               <ActivityIndicator size="small" color={colors.navIconInactive} accessibilityLabel="Loading" />
@@ -419,7 +420,7 @@ const SignUpScreen: React.FC = () => {
                 {profileSubmitted ? "Continue" : "Complete profile"}
               </Text>
             )}
-          </TouchableOpacity>
+          </PressableScale>
           <Text style={[styles.privacyNote, { color: colors.textTertiary, opacity: 1 }]}>
             We never share your data without your permission.
           </Text>

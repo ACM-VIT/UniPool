@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import {
   View,
   Text,
-  TouchableOpacity,
   FlatList,
   Image,
   StatusBar,
@@ -19,6 +18,7 @@ import { useTabletContentStyle } from "../../utils/responsive";
 import LoadingComponent from "../../components/LoadingComponent";
 import EmptyState from "../../components/EmptyState";
 import RouteStack from "../../components/RouteStack";
+import PressableScale from "../../components/PressableScale";
 import { appHref } from "../../navigation/routes";
 
 const clockIcon = require("../../assets/clock.png");
@@ -379,8 +379,7 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
     const role = item.role;
 
     return (
-      <TouchableOpacity
-        activeOpacity={0.85}
+      <PressableScale
         style={[
           styles.card,
           themeColors.mode === "dark" && { backgroundColor: themeColors.surface, borderColor: themeColors.inkSubtle },
@@ -478,7 +477,7 @@ const TripsListScreen: React.FC<Props> = ({ setNavBarVariant }) => {
             </View>
           </View>
         )}
-      </TouchableOpacity>
+      </PressableScale>
     );
   }, [openChat]);
 
@@ -650,8 +649,7 @@ const PendingRequestCard: React.FC<{
       }
     : null;
   return (
-    <TouchableOpacity
-      activeOpacity={0.85}
+    <PressableScale
       style={[styles.pendingCard, !isLast && styles.pendingCardSpacer, darkPendingCard]}
       onPress={onPress}
     >
@@ -684,7 +682,7 @@ const PendingRequestCard: React.FC<{
       <View style={styles.pendingCardRight}>
         <Text style={[styles.pendingCardChevron, isDark && { color: themeColors.textSecondary, opacity: 1 }]}>›</Text>
       </View>
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 

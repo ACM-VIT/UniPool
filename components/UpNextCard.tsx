@@ -1,7 +1,8 @@
 import { memo, useMemo } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
+import { View, Text, StyleSheet, Image } from "react-native";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
+import PressableScale from "./PressableScale";
 
 type Props = {
   origin: string;
@@ -48,8 +49,7 @@ const UpNextCard = memo(function UpNextCard({
   const dateLabel = useMemo(() => formatDateLabel(startTime), [startTime]);
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.92}
+    <PressableScale
       onPress={onOpen}
       // Forest surface in light, raised charcoal in dark — same
       // navFill swap as ActiveTripCard so the "Up Next" hero stays
@@ -114,30 +114,28 @@ const UpNextCard = memo(function UpNextCard({
       </View>
 
       <View style={styles.actionRow}>
-        <TouchableOpacity
+        <PressableScale
           style={[styles.actionBtn, styles.actionBtnGhost]}
-          activeOpacity={0.85}
           onPress={onChat}
         >
           <Text style={[styles.actionBtnGhostText, { color: colors.textOnDark }]}>
             Open chat
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </PressableScale>
+        <PressableScale
           style={[
             styles.actionBtn,
             styles.actionBtnFilled,
             { backgroundColor: colors.primary },
           ]}
-          activeOpacity={0.85}
           onPress={onOpen}
         >
           <Text style={[styles.actionBtnFilledText, { color: colors.textOnAccent }]}>
             View ride
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
-    </TouchableOpacity>
+    </PressableScale>
   );
 });
 

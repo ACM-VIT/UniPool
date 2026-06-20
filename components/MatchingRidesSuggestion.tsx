@@ -2,7 +2,6 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   Animated,
   Easing,
@@ -13,6 +12,7 @@ import { useThemeColors } from "../contexts/ThemeContext";
 import { useApi } from "../utils/ApiUtil";
 import { useRouter } from "expo-router";
 import { appHref } from "../navigation/routes";
+import PressableScale from "./PressableScale";
 import { haptic } from "./haptics";
 import { displayRideLocation } from "../utils/LocationService";
 
@@ -235,14 +235,17 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
               {headerTitle}
             </Text>
           </View>
-          <TouchableOpacity
+          <PressableScale
             onPress={dismiss}
+            // Handler already fires a selection haptic on dismiss, so
+            // suppress the press-in tap to avoid doubling up.
+            haptic={null}
             style={[styles.dismissBtn, { backgroundColor: colors.inkSubtle }]}
             hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             accessibilityLabel="Dismiss suggestion"
           >
             <Text style={[styles.dismissGlyph, { color: colors.textPrimary }]}>×</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
 
         <ScrollView
@@ -254,9 +257,10 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
           style={expanded ? styles.matchListExpanded : undefined}
         >
           {visible.map((item, idx) => (
-            <TouchableOpacity
+            <PressableScale
               key={item.match.id}
-              activeOpacity={0.85}
+              // `open` already fires a light haptic; don't double up.
+              haptic={null}
               style={[
                 idx > 0 ? styles.matchRowWithDivider : styles.matchRow,
                 idx > 0 ? { borderTopColor: colors.inkSubtle } : null,
@@ -276,20 +280,21 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
                 </Text>
               </View>
               <Text style={[styles.matchChevron, { color: colors.textTertiary }]}>›</Text>
-            </TouchableOpacity>
+            </PressableScale>
           ))}
         </ScrollView>
 
         {restCount > 0 ? (
-          <TouchableOpacity
+          <PressableScale
             onPress={toggleExpanded}
+            // `toggleExpanded` already fires a selection haptic.
+            haptic={null}
             style={styles.expandBtn}
-            activeOpacity={0.7}
           >
             <Text style={[styles.expandBtnText, { color: colors.textPrimary }]}>
               {expanded ? "Show less" : `Show ${restCount} more`}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         ) : null}
 
         <Text style={[styles.footnote, { color: colors.textTertiary }]}>

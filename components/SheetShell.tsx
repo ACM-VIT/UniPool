@@ -11,13 +11,13 @@ import {
   Pressable,
   Dimensions,
   StatusBar,
-  TouchableOpacity,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { haptic } from "./haptics";
+import PressableScale from "./PressableScale";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SHEET_TOP_GAP = 8;
@@ -210,10 +210,11 @@ const SheetShell: React.FC<Props> = ({
       />
 
       {dismissible ? (
-        <TouchableOpacity
+        // Dismiss control — no outcome haptic; the press-in scale is enough.
+        <PressableScale
           onPress={() => canDismiss && onDismiss()}
           disabled={!canDismiss}
-          activeOpacity={0.6}
+          haptic={null}
           style={{
             position: "absolute",
             top: 22,
@@ -235,7 +236,7 @@ const SheetShell: React.FC<Props> = ({
               strokeLinecap="round"
             />
           </Svg>
-        </TouchableOpacity>
+        </PressableScale>
       ) : null}
 
       {children}

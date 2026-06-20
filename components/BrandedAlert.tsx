@@ -11,6 +11,7 @@ import {
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { haptic } from "./haptics";
+import PressableScale from "./PressableScale";
 
 /**
  * Brand-styled replacement for `Alert.alert`. The native iOS / Android
@@ -251,7 +252,7 @@ export const BrandedAlertHost: React.FC = () => {
                     : colors.primary;
 
               return (
-                <TouchableOpacity
+                <PressableScale
                   key={`${btn.label}-${i}`}
                   style={[
                     styles.btn,
@@ -268,8 +269,17 @@ export const BrandedAlertHost: React.FC = () => {
                       backgroundColor: colors.inkSoft,
                     },
                   ]}
+                  // Weight the tap by intent: a destructive confirm
+                  // feels heavier (warning), a cancel/dismiss stays
+                  // silent, everything else gets a committed medium tap.
+                  haptic={
+                    effectiveStyle === "destructive"
+                      ? "warning"
+                      : effectiveStyle === "cancel"
+                        ? null
+                        : "medium"
+                  }
                   onPress={() => onButtonPress(btn)}
-                  activeOpacity={0.85}
                 >
                   <Text
                     style={[
@@ -288,7 +298,7 @@ export const BrandedAlertHost: React.FC = () => {
                   >
                     {btn.label}
                   </Text>
-                </TouchableOpacity>
+                </PressableScale>
               );
             })}
           </View>

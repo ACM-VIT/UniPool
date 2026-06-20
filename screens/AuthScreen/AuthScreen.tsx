@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, Platform, StatusBar } from "react-native";
+import { View, Text, ActivityIndicator, Platform, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import {
@@ -19,6 +19,8 @@ import { useApi } from "../../utils/ApiUtil";
 import AppColors from "../../design_systems/colors";
 import { useThemeColors } from "../../contexts/ThemeContext";
 import BrandedAlert from "../../components/BrandedAlert";
+import PressableScale from "../../components/PressableScale";
+import { haptic } from "../../components/haptics";
 import ChevronBack from "../../components/ChevronBack/ChevronBack";
 import { appHref, targetHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import type { AppRouteTarget } from "../../navigation/routes";
@@ -82,6 +84,8 @@ const AuthScreen: React.FC = () => {
   const routeAfterAuth = async (firebaseUser: any, provider?: "apple" | "google") => {
     try {
       await apiUtil.getForUserUncached("/user/details?summary=1", firebaseUser);
+      // Confirm the completed, user-initiated sign-in with a success tap.
+      haptic("success");
       navigateAfterAuth();
     } catch (err: any) {
       if (isSignupRequiredError(err)) {
@@ -93,11 +97,13 @@ const AuthScreen: React.FC = () => {
         BrandedAlert.alert("Hmm, something's off", err.response?.data?.message || "Try that again in a moment.");
       } else if (isAuthenticationRedirectError(err)) {
         await rollbackFirebaseSession(apiUtil, provider);
+        haptic("error");
         BrandedAlert.alert(
           "Couldn't finish sign-in",
           err.response?.data?.error || "We couldn't verify this sign-in with UniPool. Please try again.",
         );
       } else {
+        haptic("error");
         BrandedAlert.alert("Couldn't sign you in", err.message || "Try again in a moment.");
       }
     }
@@ -112,6 +118,7 @@ const AuthScreen: React.FC = () => {
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
       if (!idToken) {
+        haptic("error");
         BrandedAlert.alert("Sign-In Failed", "Unable to complete sign-in. Please try again.");
         return;
       }
@@ -131,6 +138,7 @@ const AuthScreen: React.FC = () => {
         return;
       }
       const message = error instanceof Error ? error.message : "An unknown error occurred";
+      haptic("error");
       BrandedAlert.alert("Sign-In Failed", message);
     } finally {
       setSigningIn(null);
@@ -187,6 +195,7 @@ const AuthScreen: React.FC = () => {
         return;
       }
       const message = error instanceof Error ? error.message : "An unknown error occurred";
+      haptic("error");
       BrandedAlert.alert("Apple Sign-In Failed", message);
     } finally {
       setSigningIn(null);
@@ -225,11 +234,11 @@ const AuthScreen: React.FC = () => {
             redundant chrome. */}
 
         {Platform.OS === "ios" && (
-          <TouchableOpacity
+          <PressableScale
             style={[styles.button, styles.appleButton, isSigningIn && styles.buttonDisabled]}
             onPress={handleAppleSignIn}
             disabled={isSigningIn}
-            activeOpacity={0.85}
+            haptic="medium"
           >
             <View style={styles.iconWrap}>
               {signingIn === "apple" ? (
@@ -244,14 +253,14 @@ const AuthScreen: React.FC = () => {
             <Text style={styles.appleButtonText}>
               {signingIn === "apple" ? "Signing in…" : "Sign in with Apple"}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         )}
 
-        <TouchableOpacity
+        <PressableScale
           style={[styles.button, styles.googleButton, isSigningIn && styles.buttonDisabled]}
           onPress={handleGoogleSignIn}
           disabled={isSigningIn}
-          activeOpacity={0.85}
+          haptic="medium"
         >
           <View style={styles.iconWrap}>
             {signingIn === "google" ? (
@@ -271,7 +280,7 @@ const AuthScreen: React.FC = () => {
           <Text style={styles.googleButtonText}>
             {signingIn === "google" ? "Signing in…" : "Sign in with Google"}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.navIconInactive }, colors.mode === "dark" && { opacity: 1 }]}>

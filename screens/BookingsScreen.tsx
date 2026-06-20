@@ -19,6 +19,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useAuthGate } from "../contexts/AuthGate";
 import { useUser } from "../contexts/UserContext";
 import LoadingComponent from "../components/LoadingComponent";
+import PressableScale from "../components/PressableScale";
 import { appHref } from "../navigation/routes";
 import { useTabletContentStyle } from "../utils/responsive";
 import { useThemeColors } from "../contexts/ThemeContext";
@@ -365,9 +366,9 @@ const BookingsScreen: React.FC = () => {
         >
           {cfg.body}
         </Text>
-        <TouchableOpacity
+        <PressableScale
           onPress={cfg.onPress}
-          activeOpacity={0.85}
+          haptic="medium"
           style={{
             backgroundColor: colors.primary,
             paddingVertical: 12,
@@ -384,7 +385,7 @@ const BookingsScreen: React.FC = () => {
           >
             {cfg.ctaLabel}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     );
   }, [requireAuth, navigate, tab, colors]);

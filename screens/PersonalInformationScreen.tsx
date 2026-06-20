@@ -18,6 +18,8 @@ import LoadingComponent from '../components/LoadingComponent';
 import AppColors from '../design_systems/colors';
 import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/haptics";
+import PressableScale from "../components/PressableScale";
+import EmptyState from "../components/EmptyState";
 import SheetShell from "../components/SheetShell";
 import { useTabletContentStyle } from "../utils/responsive";
 import { useThemeColors } from "../contexts/ThemeContext";
@@ -103,16 +105,10 @@ const PersonalInformationScreen: React.FC = () => {
   if (!user) return (
     <View style={[styles.container, isDark && { backgroundColor: colors.background }]}>
       {header('Personal Information')}
-      <View style={{ alignItems: 'center', paddingHorizontal: 28, paddingTop: 36 }}>
-        <Text style={{
-          fontFamily: 'NunitoSans_800ExtraBold',
-          fontSize: 22,
-          color: isDark ? colors.textPrimary : AppColors.secondaryDarkGreen,
-          letterSpacing: -0.4,
-        }}>
-          Nothing here yet
-        </Text>
-      </View>
+      <EmptyState
+        title="Nothing here yet"
+        body="We couldn't find your profile details. Pull back and sign in again to load them."
+      />
     </View>
   );
 
@@ -153,9 +149,9 @@ const PersonalInformationScreen: React.FC = () => {
           ) : null}
 
           {/* Academic status row: verified school, verified fallback, or CTA. */}
-          <TouchableOpacity
+          <PressableScale
             style={[styles.menuItem, isDark && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}
-            activeOpacity={verified ? 1 : 0.7}
+            haptic={null}
             disabled={verified}
             onPress={() => {
               if (verified) return;
@@ -205,16 +201,16 @@ const PersonalInformationScreen: React.FC = () => {
                 </>
               )}
             </View>
-          </TouchableOpacity>
+          </PressableScale>
 
           {/* Editable UPI VPA row. */}
-          <TouchableOpacity
+          <PressableScale
             style={[
               styles.menuItem,
               { borderBottomWidth: 0 },
               isDark && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle },
             ]}
-            activeOpacity={0.7}
+            haptic={null}
             onPress={() => {
               haptic('selection');
               setUpiOpen(true);
@@ -239,7 +235,7 @@ const PersonalInformationScreen: React.FC = () => {
             >
               {user.upi_vpa || 'Add UPI ID'}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </View>
 
@@ -337,8 +333,8 @@ const UpiEditSheet: React.FC<UpiEditSheetProps> = ({ visible, initialValue, onDi
         <Text style={[ui.inputHint, isDark && { color: colors.textTertiary, opacity: 1 }]}>e.g. yash@upi, 9999999999@paytm</Text>
       </View>
 
-      <TouchableOpacity
-        activeOpacity={0.85}
+      <PressableScale
+        haptic="medium"
         disabled={busy}
         onPress={save}
         style={[ui.primaryBtn, isDark && { backgroundColor: colors.primary }, busy && { opacity: 0.6 }]}
@@ -348,11 +344,11 @@ const UpiEditSheet: React.FC<UpiEditSheetProps> = ({ visible, initialValue, onDi
         ) : (
           <Text style={[ui.primaryBtnText, isDark && { color: colors.textOnAccent }]}>Save UPI ID</Text>
         )}
-      </TouchableOpacity>
+      </PressableScale>
 
       {initialValue ? (
-        <TouchableOpacity
-          activeOpacity={0.7}
+        <PressableScale
+          haptic={null}
           disabled={busy}
           onPress={() => {
             setDraft('');
@@ -360,7 +356,7 @@ const UpiEditSheet: React.FC<UpiEditSheetProps> = ({ visible, initialValue, onDi
           style={ui.linkBtn}
         >
           <Text style={[ui.linkBtnText, isDark && { color: colors.textSecondary, opacity: 1 }]}>Clear UPI ID</Text>
-        </TouchableOpacity>
+        </PressableScale>
       ) : null}
     </SheetShell>
   );
@@ -458,9 +454,9 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
 
   const renderInstituteResult = React.useCallback<ListRenderItem<PickedInstitute>>(
     ({ item: inst }) => (
-      <TouchableOpacity
+      <PressableScale
         style={[ui.resultRow, isDark && { borderBottomColor: colors.inkSubtle }]}
-        activeOpacity={0.7}
+        haptic={null}
         onPress={() => pickInstitute(inst)}
       >
         <Text style={[ui.resultName, isDark && { color: colors.textPrimary }]} numberOfLines={2}>
@@ -474,7 +470,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             .filter(Boolean)
             .join(' · ')}
         </Text>
-      </TouchableOpacity>
+      </PressableScale>
     ),
     [pickInstitute, colors, isDark],
   );
@@ -625,8 +621,8 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             />
           </View>
 
-          <TouchableOpacity
-            activeOpacity={0.85}
+          <PressableScale
+            haptic="medium"
             disabled={busy}
             onPress={sendCode}
             style={[ui.primaryBtn, isDark && { backgroundColor: colors.primary }, busy && { opacity: 0.6 }]}
@@ -636,16 +632,16 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             ) : (
               <Text style={[ui.primaryBtnText, isDark && { color: colors.textOnAccent }]}>Send verification link</Text>
             )}
-          </TouchableOpacity>
+          </PressableScale>
 
-          <TouchableOpacity
-            activeOpacity={0.7}
+          <PressableScale
+            haptic={null}
             disabled={busy}
             onPress={() => setStep('pick')}
             style={ui.linkBtn}
           >
             <Text style={[ui.linkBtnText, isDark && { color: colors.textSecondary, opacity: 1 }]}>Change university</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </>
       ) : (
         <>
@@ -673,8 +669,8 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             />
           </View>
 
-          <TouchableOpacity
-            activeOpacity={0.85}
+          <PressableScale
+            haptic="medium"
             disabled={busy || code.length !== 6}
             onPress={submitCode}
             style={[ui.primaryBtn, isDark && { backgroundColor: colors.primary }, (busy || code.length !== 6) && { opacity: 0.4 }]}
@@ -684,20 +680,20 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
             ) : (
               <Text style={[ui.primaryBtnText, isDark && { color: colors.textOnAccent }]}>Verify with code</Text>
             )}
-          </TouchableOpacity>
+          </PressableScale>
 
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 }}>
-            <TouchableOpacity
-              activeOpacity={0.7}
+            <PressableScale
+              haptic={null}
               disabled={busy}
               onPress={() => setStep('email')}
               style={ui.linkBtn}
             >
               <Text style={[ui.linkBtnText, isDark && { color: colors.textSecondary, opacity: 1 }]}>Change email</Text>
-            </TouchableOpacity>
+            </PressableScale>
 
-            <TouchableOpacity
-              activeOpacity={0.7}
+            <PressableScale
+              haptic={null}
               disabled={busy || resendIn > 0}
               onPress={sendCode}
               style={ui.linkBtn}
@@ -705,7 +701,7 @@ const VerifyEmailSheet: React.FC<VerifyEmailSheetProps> = ({ visible, defaultEma
               <Text style={[ui.linkBtnText, isDark && { color: colors.textSecondary, opacity: 1 }, resendIn > 0 && { opacity: 0.4 }]}>
                 {resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend'}
               </Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         </>
       )}

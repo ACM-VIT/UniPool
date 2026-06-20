@@ -2,7 +2,6 @@ import React from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   Dimensions,
   Animated,
@@ -13,6 +12,8 @@ import LottieView from "lottie-react-native";
 import { Home, X } from "lucide-react-native";
 import AppColors from "../../design_systems/colors";
 import { useThemeColors } from "../../contexts/ThemeContext";
+import PressableScale from "../PressableScale";
+import { haptic } from "../haptics";
 
 export interface ErrorComponentProps {
   title?: string;
@@ -48,6 +49,9 @@ const ErrorComponent: React.FC<ErrorComponentProps> = ({
   const gestureTranslateY = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
+    // The sheet only appears when something failed — confirm that with
+    // a single error haptic as it slides up.
+    haptic("error");
     Animated.timing(translateY, {
       toValue: 0,
       duration: 400,
@@ -116,12 +120,16 @@ const ErrorComponent: React.FC<ErrorComponentProps> = ({
           { transform: [{ translateY: Animated.add(translateY, gestureTranslateY) }] },
         ]}
       >
-        <TouchableOpacity style={[styles.closeButton, { backgroundColor: colors.navFill }]} onPress={onClose}>
+        <PressableScale
+          style={[styles.closeButton, { backgroundColor: colors.navFill }]}
+          onPress={onClose}
+          haptic={null}
+        >
           <X
             size={Math.min(width, height) * 0.06}
             color={colors.navIconInactive}
           />
-        </TouchableOpacity>
+        </PressableScale>
 
         <PanGestureHandler
           onGestureEvent={onGestureEvent}
@@ -155,12 +163,13 @@ const ErrorComponent: React.FC<ErrorComponentProps> = ({
 
         <View style={styles.buttonsContainer}>
           {showHomeButton && onGoHome && (
-            <TouchableOpacity
+            <PressableScale
               style={[
                 styles.homeButton,
                 { backgroundColor: colors.mode === "dark" ? colors.primary : colors.textPrimary },
               ]}
               onPress={onGoHome}
+              haptic="medium"
             >
               <Home
                 size={Math.min(width, height) * 0.05}
@@ -168,7 +177,7 @@ const ErrorComponent: React.FC<ErrorComponentProps> = ({
                 style={styles.buttonIcon}
               />
               <Text style={[styles.homeButtonText, { color: colors.mode === "dark" ? colors.textOnAccent : colors.primary }]}>Go Home</Text>
-            </TouchableOpacity>
+            </PressableScale>
           )}
         </View>
       </Animated.View>

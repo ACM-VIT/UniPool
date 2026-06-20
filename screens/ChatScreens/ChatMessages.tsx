@@ -39,6 +39,8 @@ import SheetShell from "../../components/SheetShell";
 import { sheetUi } from "../../components/SheetShell.styles";
 import { useDecodedLocalSearchParams } from "../../navigation/routes";
 import { scheduleIdleTask, type ScheduledIdleTask } from "../../utils/scheduleIdleTask";
+import PressableScale from "../../components/PressableScale";
+import { haptic } from "../../components/haptics";
 
 /** Quick-reply chips shown above the keyboard when the input is empty. */
 const QUICK_REPLIES = [
@@ -1406,6 +1408,9 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
     clearComposerDraft();
 
     if (wsRef.current?.readyState===WebSocket.OPEN) {
+      // Soft confirmation that the message left — the committed
+      // "decision" tick, distinct from the press-in tap.
+      haptic("soft");
       wsRef.current.send(JSON.stringify({
         type:'message',
         room_id:chatId,
@@ -1415,6 +1420,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         temp_id:tempId,
       }));
     } else {
+      haptic("error");
       setMessages(prev => {
         const next = prev.map(m => m.id===tempId?{...m, status:'failed' as const}:m);
         return next;
@@ -1423,6 +1429,8 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   };
 
   const handleMuteToggle = async (val: boolean) => {
+    // Toggle flipped — confirm the value change with a selection tick.
+    haptic("selection");
     const chatId = chatParams.chatRoom?.id || chatParams.chatId;
     if (!chatId || chatParams.isGroupChat === false) {
       // DMs aren't backed by a ride yet; toggle is local-only.
@@ -1436,6 +1444,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       await apiUtil.put(`/ride/${chatId}/chat-mute`, { muted: val });
     } catch (error: any) {
       console.warn('[Chat] mute toggle failed:', error?.response?.status);
+      haptic("error");
       setNotificationsMuted(!val);
       if (error?.response?.status === 403) {
         BrandedAlert.alert('Permission Denied', 'You do not have permission to change settings for this ride.');
@@ -1496,6 +1505,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
         reason: reportReason,
         details: reportDetails.trim(),
       });
+      haptic("success");
       setShowReportSheet(false);
       setReportReason(null);
       setReportDetails('');
@@ -1505,6 +1515,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       );
     } catch (err: any) {
       console.warn('[Chat] report submit failed', err);
+      haptic("error");
       BrandedAlert.alert(
         "Couldn't send report",
         err?.response?.data?.error ||
@@ -1619,12 +1630,12 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                         autoFocus
                         onSubmitEditing={handleChatRename}
                       />
-                      <TouchableOpacity onPress={handleChatRename}>
+                      <PressableScale onPress={handleChatRename} haptic="medium">
                         <Text style={[chatMessagesStyles.saveButton, { color: colors.primary }]}>Save</Text>
-                      </TouchableOpacity>
+                      </PressableScale>
                     </View>
                   ) : (
-                    <TouchableOpacity
+                    <PressableScale
                       disabled={!isGroup || !hasSettingsPermission}
                       onPress={()=>{
                         if(isGroup && hasSettingsPermission){
@@ -1636,7 +1647,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                       <Text style={[chatMessagesStyles.chatTitleLarge, colors.mode === "dark" && { color: colors.textPrimary }]}>{chatTitle}</Text>
                       {isGroup && hasSettingsPermission && <Text style={[chatMessagesStyles.tapToEdit, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Tap to edit</Text>}
                       {isGroup && !hasSettingsPermission && <Text style={[chatMessagesStyles.tapToEdit, colors.mode === "dark" && { color: colors.textSecondary, opacity: 0.5 }]}>View only</Text>}
-                    </TouchableOpacity>
+                    </PressableScale>
                   )}
                   <Text style={[chatMessagesStyles.participantCount, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
                     {participants.length} participants
@@ -1738,8 +1749,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                 button. Available in every chat (group and DM), since
                 trust + safety is universal. Tapping it closes settings
                 and opens the dedicated report sheet. */}
-            <TouchableOpacity
-              activeOpacity={0.85}
+            <PressableScale
               onPress={() => {
                 setShowSettings(false);
                 // small delay so the sheet animation doesn't fight
@@ -1766,19 +1776,21 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               >
                 Report a problem
               </Text>
-            </TouchableOpacity>
+            </PressableScale>
 
             {chatParams.isGroupChat !== false && (
               // Leave Ride — standalone destructive CTA at the bottom
               // of the scroll area.
-              <TouchableOpacity
+              <PressableScale
                 style={[chatMessagesStyles.actionButton, chatMessagesStyles.destructiveButton, { marginTop: 4 }]}
+                // Opens a destructive confirm — warn on the entry tap.
+                haptic="warning"
                 onPress={handleLeaveRide}
               >
                 <Text style={[chatMessagesStyles.actionButtonText, chatMessagesStyles.destructiveButtonText]}>
                   Leave ride
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             )}
         </ScrollView>
       </SheetShell>
@@ -1816,9 +1828,10 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             {REPORT_REASONS.map((r) => {
               const selected = reportReason === r.key;
               return (
-                <TouchableOpacity
+                <PressableScale
                   key={r.key}
-                  activeOpacity={0.85}
+                  // Single-select picker change → selection tick.
+                  haptic="selection"
                   onPress={() => setReportReason(r.key)}
                   style={{
                     paddingHorizontal: 14,
@@ -1843,7 +1856,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                   >
                     {r.label}
                   </Text>
-                </TouchableOpacity>
+                </PressableScale>
               );
             })}
           </View>
@@ -1888,8 +1901,8 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
           {(() => {
             const submitDisabled = !reportReason || reportSubmitting;
             return (
-              <TouchableOpacity
-                activeOpacity={0.85}
+              <PressableScale
+                haptic="medium"
                 disabled={submitDisabled}
                 onPress={submitReport}
                 style={{
@@ -1911,7 +1924,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                 >
                   {reportSubmitting ? 'Sending…' : 'Send report'}
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             );
           })()}
       </ScrollView>
@@ -2000,8 +2013,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               Share this trip so users can join.
             </Text>
             {chatParams.chatId ? (
-              <TouchableOpacity
-                activeOpacity={0.85}
+              <PressableScale
                 onPress={openHostShare}
                 style={[
                   chatMessagesStyles.hostEmptyMinimalShareBtn,
@@ -2016,7 +2028,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                 >
                   Share ride
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             ) : null}
           </View>
         );
@@ -2061,10 +2073,18 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
   // the tracked keyboard height (KAV over-lifted, leaving a gap above
   // the keyboard); Android keeps the KeyboardAvoidingView.
   const ComposerWrap: any = Platform.OS === "ios" ? View : KeyboardAvoidingView;
+  // A not-yet-started pending request shows the centered empty-state card
+  // (route + "once accepted…") rendered just above this composer. That
+  // card is already flex:1, so if the composer ALSO claims flex:1 the two
+  // split the screen 50/50 and leave a dead green gap between the card and
+  // the input. Collapse the composer to its own height in that one state
+  // so the card owns — and centers in — the full space.
+  const pendingEmptyState =
+    isPendingHostInquiry && !isLoadingInitial && messages.length === 0;
   const composerWrapProps: any =
     Platform.OS === "ios"
-      ? { style: { flex: 1, paddingBottom: keyboardHeight } }
-      : { style: { flex: 1 }, behavior: "padding", keyboardVerticalOffset: 0 };
+      ? { style: { flex: pendingEmptyState ? 0 : 1, paddingBottom: keyboardHeight } }
+      : { style: { flex: pendingEmptyState ? 0 : 1 }, behavior: "padding", keyboardVerticalOffset: 0 };
 
   return (
     <View style={[chatMessagesStyles.container, { flex: 1, backgroundColor: colors.background }, tabletContentStyle]}>
@@ -2128,12 +2148,14 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
             {otherFirstName} wants to ride along
           </Text>
           <View style={chatMessagesStyles.hostDecisionActions}>
-            <TouchableOpacity
+            <PressableScale
               style={[
                 chatMessagesStyles.hostDecisionReject,
                 bookingActionLoading && chatMessagesStyles.pendingActionDisabled,
               ]}
-              activeOpacity={0.85}
+              // Rejecting a request is a recoverable, weighty decision —
+              // warn on press; surface an error tick if the call fails.
+              haptic="warning"
               disabled={!!bookingActionLoading}
               onPress={async () => {
                 if (bookingActionLoading) return;
@@ -2146,6 +2168,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                   back();
                 } catch (e) {
                   console.warn('reject failed', e);
+                  haptic("error");
                   BrandedAlert.alert('Could not reject', 'Try again in a moment.');
                 } finally {
                   setBookingActionLoading(null);
@@ -2155,13 +2178,15 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               <Text style={chatMessagesStyles.hostDecisionRejectText}>
                 {bookingActionLoading === 'reject' ? 'Rejecting…' : 'Reject'}
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </PressableScale>
+            <PressableScale
               style={[
                 chatMessagesStyles.hostDecisionAccept,
                 bookingActionLoading && chatMessagesStyles.pendingActionDisabled,
               ]}
-              activeOpacity={0.85}
+              // Primary commit — medium press, success on confirmation,
+              // error if the call fails.
+              haptic="medium"
               disabled={!!bookingActionLoading}
               onPress={async () => {
                 if (bookingActionLoading) return;
@@ -2171,9 +2196,11 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                     `/bookings/accept/${bookingIdForActions}`,
                     {},
                   );
+                  haptic("success");
                   back();
                 } catch (e) {
                   console.warn('accept failed', e);
+                  haptic("error");
                   BrandedAlert.alert('Could not accept', 'Try again in a moment.');
                 } finally {
                   setBookingActionLoading(null);
@@ -2183,7 +2210,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               <Text style={chatMessagesStyles.hostDecisionAcceptText}>
                 {bookingActionLoading === 'accept' ? 'Accepting…' : 'Accept'}
               </Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         </View>
       ) : null}
@@ -2346,10 +2373,10 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               contentContainerStyle={chatMessagesStyles.quickReplyRailContent}
             >
               {QUICK_REPLIES.map((q) => (
-                <TouchableOpacity
+                <PressableScale
                   key={q}
                   onPress={() => sendMessage(q)}
-                  activeOpacity={0.7}
+                  haptic={null}
                   style={[chatMessagesStyles.quickReplyChip, colors.mode === "dark" && { backgroundColor: colors.surface, borderColor: colors.inkSubtle }]}
                 >
                   <Text
@@ -2359,7 +2386,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                   >
                     {q}
                   </Text>
-                </TouchableOpacity>
+                </PressableScale>
               ))}
             </ScrollView>
           </View>
@@ -2408,7 +2435,10 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
               autoCorrect
             />
           </View>
-          <TouchableOpacity onPress={() => sendMessage()} style={chatMessagesStyles.typingBarIconContainer}>
+          {/* Send: scale press feels physical; the soft "sent" haptic
+              fires inside sendMessage, so mute the press-in tap here to
+              avoid a double tick. */}
+          <PressableScale onPress={() => sendMessage()} haptic={null} style={chatMessagesStyles.typingBarIconContainer}>
             {/* Paper-plane on the lime send button. Forest stroke +
                 fill so it reads as a strong glyph against the lime. */}
             <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
@@ -2421,7 +2451,7 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
                 fill={AppColors.secondaryDarkGreen}
               />
             </Svg>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </>
       </ComposerWrap>

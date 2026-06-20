@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, Image, ScrollView, TouchableOpacity, Platform, Share, Linking } from "react-native";
+import { View, Text, Image, ScrollView, Platform, Share, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import PressableScale from "../../components/PressableScale";
+import { haptic } from "../../components/haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import { ProfileScreenProps } from "./ProfileScreen.types";
 import styles from "./ProfileScreen.styles";
@@ -88,10 +90,15 @@ const AppearanceSegmented: React.FC = () => {
       {APPEARANCE_OPTIONS.map((opt) => {
         const active = preference === opt.value;
         return (
-          <TouchableOpacity
+          <PressableScale
             key={opt.value}
-            activeOpacity={0.7}
-            onPress={() => setPreference(opt.value)}
+            // Selection haptic only when the value actually changes —
+            // re-tapping the active segment shouldn't buzz.
+            haptic={null}
+            onPress={() => {
+              if (!active) haptic("selection");
+              setPreference(opt.value);
+            }}
             style={{
               flex: 1,
               paddingVertical: 9,
@@ -114,7 +121,7 @@ const AppearanceSegmented: React.FC = () => {
             >
               {opt.label}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         );
       })}
     </View>
@@ -372,6 +379,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
 
   const handleLogout = () => {
     debugLog("Logout button pressed");
+    // Warn before surfacing the destructive sign-out confirm.
+    haptic("warning");
     BrandedAlert.alert(
       "Logout",
       "Are you sure you want to log out?",
@@ -497,7 +506,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       : [styles.menuItem, themedMenuOverride];
 
     return (
-      <TouchableOpacity
+      <PressableScale
         key={item.id}
         style={itemStyle}
         onPress={() => {
@@ -511,7 +520,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
             console.warn(`No onPress handler for item: ${item.title}`);
           }
         }}
-        activeOpacity={0.7}
       >
         {item.icon && (
           <Image
@@ -525,7 +533,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
           />
         )}
         <Text style={[styles.menuItemText, { color: themeColors.textOnDark }]}>{item.title}</Text>
-      </TouchableOpacity>
+      </PressableScale>
     );
   };
 

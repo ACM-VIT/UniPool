@@ -20,6 +20,7 @@ import { useApi } from "../../utils/ApiUtil";
 import RideCardSkeleton from "../../components/RideCardSkeleton";
 import RideCard from "../../components/RideCard";
 import EmptyState from "../../components/EmptyState";
+import PressableScale from "../../components/PressableScale";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuthGate } from "../../contexts/AuthGate";
 import { useThemeColors } from "../../contexts/ThemeContext";
@@ -258,20 +259,19 @@ const BookingScreen: React.FC = () => {
         startTimeIso={item.start_time}
       />
       {tab === "past" && item.hasPendingRating ? (
-        <TouchableOpacity
+        <PressableScale
           onPress={() =>
             navigate(
               appHref("PostTripRatingScreen", { rideId: item.rideId }),
             )
           }
-          activeOpacity={0.85}
           accessibilityLabel="Rate this trip"
           style={styles.ratePill}
         >
           <Text style={styles.ratePillStar}>★</Text>
           <Text style={styles.ratePillText}>Rate this trip</Text>
           <Text style={styles.ratePillArrow}>↗</Text>
-        </TouchableOpacity>
+        </PressableScale>
       ) : null}
     </View>
   ), [openRide, navigate, tab]);

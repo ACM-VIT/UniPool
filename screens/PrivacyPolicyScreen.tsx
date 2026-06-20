@@ -9,6 +9,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useRouter } from "expo-router";
+import PressableScale from '../components/PressableScale';
 import BrandInfo from '../components/BrandInfo/BrandInfo';
 import ChevronBack from '../components/ChevronBack/ChevronBack';
 import AppColors from '../design_systems/colors';
@@ -143,15 +144,15 @@ const PrivacyPolicyScreen: React.FC = () => {
         <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
           If you have any questions about this Privacy Policy, please contact us at:
         </Text>
-        <TouchableOpacity onPress={() => openExternalLink('mailto:outreach.acmvit@gmail.com')}>
+        <PressableScale onPress={() => openExternalLink('mailto:outreach.acmvit@gmail.com')}>
           <Text style={[styles.link, { color: colors.textPrimary }]}>outreach.acmvit@gmail.com</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </PressableScale>
+        <PressableScale
           style={styles.websiteLink}
           onPress={() => openExternalLink('https://acmvit.in')}
         >
           <Text style={[styles.link, { color: colors.textPrimary }]}>https://acmvit.in</Text>
-        </TouchableOpacity>
+        </PressableScale>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>

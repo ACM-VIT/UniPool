@@ -7,13 +7,15 @@ import {
   Pressable,
   FlatList,
   ListRenderItem,
-  TouchableOpacity,
   Platform,
 } from "react-native";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { displayRideLocation } from "../utils/LocationService";
 import type { Palette } from "../design_systems/palettes";
+import PressableScale from "./PressableScale";
+import EmptyState from "./EmptyState";
+import SmileyGlyph from "./SmileyGlyph";
 
 export type ClusteredRide = {
   id: string;
@@ -116,9 +118,8 @@ const DestinationGroupRow = React.memo(function DestinationGroupRow({
       {/* Tappable time chips, one per departure. */}
       <View style={styles.chipsWrap}>
         {group.rides.map((ride) => (
-          <TouchableOpacity
+          <PressableScale
             key={ride.id}
-            activeOpacity={0.85}
             disabled={ride.isFull}
             onPress={() => onPickRide(ride)}
             style={[
@@ -141,7 +142,7 @@ const DestinationGroupRow = React.memo(function DestinationGroupRow({
                 ? "Full"
                 : `${ride.seatsLeft} ${ride.seatsLeft === 1 ? "seat" : "seats"}`}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         ))}
       </View>
     </View>
@@ -229,14 +230,14 @@ const RideClusterSheet: React.FC<Props> = ({
           {/* Top bar with centered grip and explicit Done action. */}
           <View style={styles.topBar}>
             <View style={[styles.grip, colors.mode === "dark" && { backgroundColor: colors.inkLine }]} />
-            <TouchableOpacity
+            <PressableScale
               onPress={onClose}
               style={styles.doneBtn}
               hitSlop={10}
-              activeOpacity={0.6}
+              haptic={null}
             >
               <Text style={[styles.doneBtnText, { color: colors.textSecondary }]}>Done</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
 
           <View style={styles.headerBlock}>
@@ -260,6 +261,15 @@ const RideClusterSheet: React.FC<Props> = ({
             updateCellsBatchingPeriod={48}
             windowSize={7}
             removeClippedSubviews={Platform.OS === "android"}
+            // Guard against a blank sheet if the cluster ever resolves
+            // with no rides (e.g. all seats booked between fetch and open).
+            ListEmptyComponent={
+              <EmptyState
+                glyph={<SmileyGlyph size={100} />}
+                title="No rides here yet"
+                body="Nothing's leaving from this stop right now. Check back soon."
+              />
+            }
           />
         </View>
       </View>
@@ -346,6 +356,9 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
   },
   listContent: {
+    // flexGrow lets the empty state center in the sheet's available
+    // height; with rows present the content still stacks from the top.
+    flexGrow: 1,
     paddingBottom: 8,
   },
 

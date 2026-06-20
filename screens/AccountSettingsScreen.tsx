@@ -3,6 +3,8 @@ import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import styles from './ProfileScreen/ProfileScreen.styles';
 import BrandInfo from '../components/BrandInfo/BrandInfo';
 import ChevronBack from '../components/ChevronBack/ChevronBack';
+import PressableScale from '../components/PressableScale';
+import { haptic } from '../components/haptics';
 import { useRouter } from "expo-router";
 import { useApi } from '../utils/ApiUtil';
 import BrandedAlert from "../components/BrandedAlert";
@@ -23,6 +25,8 @@ const AccountSettingsScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const handleDeleteAccount = async () => {
+    // Warn before surfacing the irreversible delete confirm.
+    haptic("warning");
     BrandedAlert.alert(
       'Delete your account?',
       'Your profile, posted rides, and bookings will be erased for good. This can\'t be undone.',
@@ -83,17 +87,15 @@ const AccountSettingsScreen: React.FC = () => {
       </View>
       <View style={styles.newSection}>
         <View style={[styles.menuContainer, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
-          <TouchableOpacity
+          <PressableScale
             style={[styles.menuItem, colors.mode === "dark" && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}
             onPress={() => navigate(appHref("NotificationsScreen"))}
-            activeOpacity={0.7}
           >
             <Text style={[styles.menuItemText, { color: colors.textOnDark }]}>Notifications</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </PressableScale>
+          <PressableScale
             style={[styles.menuItem, { borderBottomWidth: 0 }, colors.mode === "dark" && { backgroundColor: colors.surface }]}
             onPress={handleDeleteAccount}
-            activeOpacity={0.7}
             disabled={loading}
           >
             {loading ? (
@@ -103,7 +105,7 @@ const AccountSettingsScreen: React.FC = () => {
                 Delete my account
               </Text>
             )}
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </View>
     </View>

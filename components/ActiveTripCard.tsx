@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Linking } from "react-native";
+import { View, Text, StyleSheet, Linking } from "react-native";
 import { useFocusEffect } from "expo-router";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "./BrandedAlert";
 import RouteStack from "./RouteStack";
+import PressableScale from "./PressableScale";
+import { haptic } from "./haptics";
 import { displayRideLocation } from "../utils/LocationService";
 
 export type TripCardStage = "upcoming" | "in_window" | "stale";
@@ -146,6 +148,9 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
       // older OS versions and edge cases still flake. `openURL` is the
       // real signal: if it throws, no UPI app handled the intent.
       await Linking.openURL(url);
+      // Pay is the de-facto trip-completion signal — confirm the
+      // handoff to the UPI app with a success tick.
+      haptic("success");
       // Optimistic dismiss — the tap is the signal, we don't try
       // to verify the UPI app actually completed the payment.
       dismiss("paid");
@@ -165,8 +170,7 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
   const showPayBtn = card.stage === "in_window" || card.stage === "stale";
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.85}
+    <PressableScale
       style={[
         styles.card,
         // navFill keeps the forest surface in light AND swaps to
@@ -192,31 +196,32 @@ const ActiveTripCard: React.FC<ActiveTripCardProps> = ({
 
       {showPayBtn ? (
         <View style={styles.actionRow}>
-          <TouchableOpacity
+          <PressableScale
             style={[styles.payBtn, { backgroundColor: colors.primary }]}
             disabled={busy}
             onPress={onPay}
-            activeOpacity={0.85}
+            haptic="medium"
           >
             <Text style={[styles.payBtnText, { color: colors.textOnAccent }]}>
               Pay {hostFirst} ₹{card.total_price}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
           {/* Quiet escape hatch for the rare "the trip didn't actually
               happen" case. Centered tiny link below the primary Pay
               button so it never competes with the headline action — it
               only needs to be findable, not loud. */}
-          <TouchableOpacity
+          <PressableScale
             onPress={() => dismiss("no_show")}
             disabled={busy}
             hitSlop={10}
+            haptic={null}
             style={styles.dismissLinkWrap}
           >
             <Text style={[styles.dismissLink, colors.mode === "dark" && { color: colors.textOnDark }]}>Trip didn't happen</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       ) : null}
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 

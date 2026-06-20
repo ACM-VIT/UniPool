@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
   Animated,
@@ -12,6 +11,7 @@ import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "./BrandedAlert";
+import PressableScale from "./PressableScale";
 import { haptic } from "./haptics";
 import type { ChatMessage } from "../screens/ChatScreens/ChatScreen.types";
 
@@ -169,13 +169,15 @@ const PaymentMarkerCard: React.FC<{
             </View>
           ) : (
             <View style={styles.actionsRow}>
-              <TouchableOpacity
+              {/* Press-in haptic is suppressed here — `ack` already fires
+                  the meaningful warning/success haptic on the outcome. */}
+              <PressableScale
                 style={[
                   styles.actionBtn,
                   styles.actionBtnSecondary,
                   { borderColor: colors.inkLine },
                 ]}
-                activeOpacity={0.85}
+                haptic={null}
                 onPress={() => ack("missing")}
                 accessibilityLabel="Didn't receive payment"
               >
@@ -188,8 +190,8 @@ const PaymentMarkerCard: React.FC<{
                 >
                   Didn't receive
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </PressableScale>
+              <PressableScale
                 style={[
                   styles.actionBtn,
                   styles.actionBtnPrimary,
@@ -200,7 +202,7 @@ const PaymentMarkerCard: React.FC<{
                       colors.mode === "dark" ? colors.primary : colors.textPrimary,
                   },
                 ]}
-                activeOpacity={0.85}
+                haptic={null}
                 onPress={() => ack("received")}
                 accessibilityLabel="Confirm payment received"
               >
@@ -216,7 +218,7 @@ const PaymentMarkerCard: React.FC<{
                 >
                   Confirm received
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
           )
         ) : (

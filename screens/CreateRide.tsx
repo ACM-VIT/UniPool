@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, TextInput, Animated, ScrollView } from "react-native";
+import { View, Text, Image, StyleSheet, Dimensions, TextInput, Animated, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
@@ -13,6 +13,7 @@ import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import MatchingRidesSuggestion from "../components/MatchingRidesSuggestion";
 import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/haptics";
+import PressableScale from "../components/PressableScale";
 import SheetShell from "../components/SheetShell";
 import { sheetUi } from "../components/SheetShell.styles";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
@@ -363,6 +364,8 @@ const CreateRide: React.FC = () => {
         rideData
       );
       if (DEBUG_CREATE_RIDE) console.log("Ride created successfully:", response);
+      // Confirm the ride is live before the success screen takes over.
+      haptic("success");
       // Success screen uses rideId to open the host management view.
       navigate(appHref("RideCreatedScreen", { rideId: response?.id } as any));
     } catch (error: any) {
@@ -523,6 +526,7 @@ const CreateRide: React.FC = () => {
   const increaseSeats = () => {
     if (totalSeats < MAX_TOTAL_SEATS) {
       const newCount = totalSeats + 1;
+      haptic("selection");
       setTotalSeats(newCount);
       animateVehicleChange(newCount);
     }
@@ -531,15 +535,24 @@ const CreateRide: React.FC = () => {
   const decreaseSeats = () => {
     if (totalSeats > MIN_TOTAL_SEATS) {
       const newCount = totalSeats - 1;
+      haptic("selection");
       setTotalSeats(newCount);
       animateVehicleChange(newCount);
     }
   };
 
-  const increaseCost = () =>
-    costPerPerson < 10000 && setCostPerPerson((c) => c + 25);
-  const decreaseCost = () =>
-    costPerPerson > 25 && setCostPerPerson((c) => c - 25);
+  const increaseCost = () => {
+    if (costPerPerson < 10000) {
+      haptic("selection");
+      setCostPerPerson((c) => c + 25);
+    }
+  };
+  const decreaseCost = () => {
+    if (costPerPerson > 25) {
+      haptic("selection");
+      setCostPerPerson((c) => c - 25);
+    }
+  };
 
   const handleCostPress = () => {
     setCustomCost(costPerPerson.toString());
@@ -561,10 +574,14 @@ const CreateRide: React.FC = () => {
   // validation scaled by max seats (25 × 20).
   const totalMin = 25 * Math.max(1, totalSeats);
   const totalMax = 10000 * Math.max(1, totalSeats);
-  const increaseTotal = () =>
+  const increaseTotal = () => {
+    if (totalFare < totalMax) haptic("selection");
     setTotalFare((c) => Math.min(totalMax, c + 25 * Math.max(1, totalSeats)));
-  const decreaseTotal = () =>
+  };
+  const decreaseTotal = () => {
+    if (totalFare > totalMin) haptic("selection");
     setTotalFare((c) => Math.max(totalMin, c - 25 * Math.max(1, totalSeats)));
+  };
 
   // Tap-to-edit mirrors Per seat mode and clamps to the stepper range.
   const handleTotalPress = () => {
@@ -603,9 +620,12 @@ const CreateRide: React.FC = () => {
     setEditingSeatIndex(null);
   };
   const bumpSeat = (idx: number, delta: number) => {
+    const cur = seatFares[idx] ?? 100;
+    const nv = Math.min(10000, Math.max(25, cur + delta));
+    if (nv !== cur) haptic("selection");
     setSeatFares((prev) => {
       const next = prev.slice();
-      next[idx] = Math.min(10000, Math.max(25, (next[idx] ?? 100) + delta));
+      next[idx] = nv;
       return next;
     });
   };
@@ -613,6 +633,7 @@ const CreateRide: React.FC = () => {
   // Seed each split mode from the current effective fare when switching modes.
   const switchSplitMode = (next: "per_seat" | "total" | "custom") => {
     if (next === splitMode) return;
+    haptic("selection");
     if (next === "total") {
       setTotalFare(costPerPerson * totalSeats);
     } else if (next === "custom") {
@@ -626,15 +647,16 @@ const CreateRide: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }, tabletContentStyle]} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.headerRowWithTitle}>
-        <TouchableOpacity
+        <PressableScale
           style={styles.backButton}
           onPress={() => back()}
+          haptic={null}
         >
           <Image
             source={require("../assets/arrow-square-left.png")}
             style={[styles.backIcon, { tintColor: themeColors.textPrimary }]}
           />
-        </TouchableOpacity>
+        </PressableScale>
         <Text style={[styles.title, { color: themeColors.textPrimary }]}>Create a Ride</Text>
       </View>
 
@@ -658,8 +680,7 @@ const CreateRide: React.FC = () => {
         </View>
 
         {/* Tappable fare summary card; full editor opens in the sheet below. */}
-        <TouchableOpacity
-          activeOpacity={0.85}
+        <PressableScale
           onPress={() => setShowFareSheet(true)}
           style={[styles.fareSummaryCard, { backgroundColor: themeColors.navFill }]}
         >
@@ -732,14 +753,14 @@ const CreateRide: React.FC = () => {
               Tap to edit
             </Text>
           </View>
-        </TouchableOpacity>
+        </PressableScale>
 
         <Text style={[styles.label, { color: themeColors.textPrimary }]}>
           Total seats{" "}
           <Text style={[styles.labelHint, { color: themeColors.textSecondary }]}>(including you)</Text>
         </Text>
         <View style={[styles.stepperCard, { backgroundColor: themeColors.navFill }]}>
-          <TouchableOpacity
+          <PressableScale
             onPress={decreaseSeats}
             style={[
               styles.stepperBtn,
@@ -747,7 +768,7 @@ const CreateRide: React.FC = () => {
                 backgroundColor: "rgba(237,236,231,0.10)",
               },
             ]}
-            activeOpacity={0.7}
+            haptic={null}
           >
             <Text
               style={[
@@ -757,7 +778,7 @@ const CreateRide: React.FC = () => {
             >
               −
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
           <View style={styles.stepperValueWrap}>
             <Text style={styles.stepperValue}>{totalSeats}</Text>
             <Text
@@ -769,7 +790,7 @@ const CreateRide: React.FC = () => {
               {totalSeats === 1 ? "seat" : "seats"}
             </Text>
           </View>
-          <TouchableOpacity
+          <PressableScale
             onPress={increaseSeats}
             style={[
               styles.stepperBtn,
@@ -777,7 +798,7 @@ const CreateRide: React.FC = () => {
                 backgroundColor: "rgba(237,236,231,0.10)",
               },
             ]}
-            activeOpacity={0.7}
+            haptic={null}
           >
             <Text
               style={[
@@ -787,7 +808,7 @@ const CreateRide: React.FC = () => {
             >
               +
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
 
         <Animated.View
@@ -874,7 +895,7 @@ const CreateRide: React.FC = () => {
           ] as const).map((opt) => {
             const active = splitMode === opt.key;
             return (
-              <TouchableOpacity
+              <PressableScale
                 key={opt.key}
                 style={[
                   styles.sheetModeChip,
@@ -885,7 +906,7 @@ const CreateRide: React.FC = () => {
                   },
                 ]}
                 onPress={() => switchSplitMode(opt.key)}
-                activeOpacity={0.85}
+                haptic={null}
               >
                 <Text
                   style={[
@@ -898,7 +919,7 @@ const CreateRide: React.FC = () => {
                 >
                   {opt.label}
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             );
           })}
         </View>
@@ -908,8 +929,9 @@ const CreateRide: React.FC = () => {
         {splitMode === "per_seat" && (
           <>
             <View style={[styles.stepperCard, { backgroundColor: themeColors.navFill }]}>
-              <TouchableOpacity
+              <PressableScale
                 onPress={decreaseCost}
+                haptic={null}
                 style={[
                   styles.stepperBtn,
                   themeColors.mode === "dark" && {
@@ -917,7 +939,6 @@ const CreateRide: React.FC = () => {
                   },
                 ]}
                 disabled={isEditingCost}
-                activeOpacity={0.7}
               >
                 <Text
                   style={[
@@ -927,11 +948,10 @@ const CreateRide: React.FC = () => {
                 >
                   −
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </PressableScale>
+              <PressableScale
                 style={styles.stepperValueWrap}
                 onPress={handleCostPress}
-                activeOpacity={0.7}
                 disabled={isEditingCost}
               >
                 <Text
@@ -959,9 +979,10 @@ const CreateRide: React.FC = () => {
                 ) : (
                   <Text style={styles.stepperValue}>{costPerPerson}</Text>
                 )}
-              </TouchableOpacity>
-              <TouchableOpacity
+              </PressableScale>
+              <PressableScale
                 onPress={increaseCost}
+                haptic={null}
                 style={[
                   styles.stepperBtn,
                   themeColors.mode === "dark" && {
@@ -969,7 +990,6 @@ const CreateRide: React.FC = () => {
                   },
                 ]}
                 disabled={isEditingCost}
-                activeOpacity={0.7}
               >
                 <Text
                   style={[
@@ -979,7 +999,7 @@ const CreateRide: React.FC = () => {
                 >
                   +
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
             <Text
               style={[
@@ -996,8 +1016,9 @@ const CreateRide: React.FC = () => {
         {splitMode === "total" && (
           <>
             <View style={[styles.stepperCard, { backgroundColor: themeColors.navFill }]}>
-              <TouchableOpacity
+              <PressableScale
                 onPress={decreaseTotal}
+                haptic={null}
                 style={[
                   styles.stepperBtn,
                   themeColors.mode === "dark" && {
@@ -1005,7 +1026,6 @@ const CreateRide: React.FC = () => {
                   },
                 ]}
                 disabled={isEditingTotal}
-                activeOpacity={0.7}
               >
                 <Text
                   style={[
@@ -1015,11 +1035,10 @@ const CreateRide: React.FC = () => {
                 >
                   −
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </PressableScale>
+              <PressableScale
                 style={styles.stepperValueWrap}
                 onPress={handleTotalPress}
-                activeOpacity={0.7}
                 disabled={isEditingTotal}
               >
                 <Text
@@ -1047,9 +1066,10 @@ const CreateRide: React.FC = () => {
                 ) : (
                   <Text style={styles.stepperValue}>{totalFare}</Text>
                 )}
-              </TouchableOpacity>
-              <TouchableOpacity
+              </PressableScale>
+              <PressableScale
                 onPress={increaseTotal}
+                haptic={null}
                 style={[
                   styles.stepperBtn,
                   themeColors.mode === "dark" && {
@@ -1057,7 +1077,6 @@ const CreateRide: React.FC = () => {
                   },
                 ]}
                 disabled={isEditingTotal}
-                activeOpacity={0.7}
               >
                 <Text
                   style={[
@@ -1067,7 +1086,7 @@ const CreateRide: React.FC = () => {
                 >
                   +
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
             <Text
               style={[
@@ -1107,15 +1126,15 @@ const CreateRide: React.FC = () => {
                           {idx === 0 ? "You" : `Seat ${idx}`}
                         </Text>
                       </View>
-                      <TouchableOpacity
+                      <PressableScale
                         onPress={() => bumpSeat(idx, -25)}
+                        haptic={null}
                         style={[
                           styles.customSeatStepBtn,
                           themeColors.mode === "dark" && {
                             backgroundColor: "rgba(237,236,231,0.10)",
                           },
                         ]}
-                        activeOpacity={0.7}
                       >
                         <Text
                           style={[
@@ -1127,11 +1146,10 @@ const CreateRide: React.FC = () => {
                         >
                           −
                         </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
+                      </PressableScale>
+                      <PressableScale
                         style={styles.customSeatValueWrap}
                         onPress={() => openSeatEditor(idx)}
-                        activeOpacity={0.7}
                       >
                         <Text style={styles.customSeatCurrency}>₹</Text>
                         {isEditing ? (
@@ -1153,16 +1171,16 @@ const CreateRide: React.FC = () => {
                         ) : (
                           <Text style={styles.customSeatValue}>{amount}</Text>
                         )}
-                      </TouchableOpacity>
-                      <TouchableOpacity
+                      </PressableScale>
+                      <PressableScale
                         onPress={() => bumpSeat(idx, 25)}
+                        haptic={null}
                         style={[
                           styles.customSeatStepBtn,
                           themeColors.mode === "dark" && {
                             backgroundColor: "rgba(237,236,231,0.10)",
                           },
                         ]}
-                        activeOpacity={0.7}
                       >
                         <Text
                           style={[
@@ -1174,7 +1192,7 @@ const CreateRide: React.FC = () => {
                         >
                           +
                         </Text>
-                      </TouchableOpacity>
+                      </PressableScale>
                     </View>
                   );
                 })}
@@ -1192,12 +1210,12 @@ const CreateRide: React.FC = () => {
         )}
         </View>
 
-        <TouchableOpacity
+        <PressableScale
           style={[
             styles.sheetDoneBtn,
             themeColors.mode === "dark" && { backgroundColor: themeColors.primary },
           ]}
-          activeOpacity={0.85}
+          haptic={null}
           onPress={() => setShowFareSheet(false)}
         >
           <Text
@@ -1208,7 +1226,7 @@ const CreateRide: React.FC = () => {
           >
             Done
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       </SheetShell>
     </SafeAreaView>
   );

@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ScrollView, View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
 import { Share } from 'react-native';
+import Animated from "react-native-reanimated";
+import PressableScale from "../components/PressableScale";
+import { haptic } from "../components/haptics";
+import { enterStagger } from "../components/motion";
+import SkeletonBlock from "../components/Skeleton";
 // const shareIcon = require('../assets/megaphone.png');
 // `TripPreviewMap` owns the non-interactive A→B map composition that
 // used to live inline here as a `<MapView>` + `<Marker>` + `<Polyline>`
@@ -948,6 +953,9 @@ const RideDetailsScreen: React.FC = () => {
         request_status: "pending",
       });
       const bookingId = resp?.id || resp?.booking_id || null;
+      // Request landed — confirm the state change with a success tap
+      // before we hop to the interstitial.
+      haptic("success");
       // Flip local state so the next render lands on the "Waiting
       // on the host" fallback UI without a refetch round-trip.
       setViewerState("pending_passenger");
@@ -968,6 +976,7 @@ const RideDetailsScreen: React.FC = () => {
         } as any),
       );
     } catch (err: any) {
+      haptic("error");
       const requestError = describeBookingRequestError(err);
       if (requestError.blockState === "full" || requestError.blockState === "past") {
         setViewerState(requestError.blockState);
@@ -987,6 +996,8 @@ const RideDetailsScreen: React.FC = () => {
     if (isActionLoading) return;
 
     if (isHost) {
+      // Warn at the destructive confirm — deleting a ride can't be undone.
+      haptic("warning");
       BrandedAlert.alert(
         "Delete this ride?",
         "Riders who booked will be notified. This can't be undone.",
@@ -1003,7 +1014,8 @@ const RideDetailsScreen: React.FC = () => {
                 try {
                   const deleteResponse = await apiUtil.delete(`/ride/delete/${rideId}`);
                   if (DEBUG_RIDE_DETAILS) console.log("Delete ride response:", deleteResponse);
-                  
+
+                  haptic("success");
                   BrandedAlert.alert("Ride deleted", "It's no longer visible to anyone.", [
                     {
                       text: "OK",
@@ -1016,6 +1028,7 @@ const RideDetailsScreen: React.FC = () => {
                   // If it's just an empty response error, treat as success since backend likely processed it
                   if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
                     if (DEBUG_RIDE_DETAILS) console.log("Got empty response from delete ride - treating as success");
+                    haptic("success");
                     BrandedAlert.alert("Ride deleted", "It's no longer visible to anyone.", [
                       {
                         text: "OK",
@@ -1028,7 +1041,8 @@ const RideDetailsScreen: React.FC = () => {
                 }
               } catch (error: any) {
                 console.error("Delete ride error:", error);
-                
+                haptic("error");
+
                 let errorMessage = "Couldn't delete the ride. Try again?";
                 if (error.message && error.message.includes("accepted bookings")) {
                   errorMessage = "You've already accepted riders. Remove them first, then delete.";
@@ -1065,6 +1079,9 @@ const RideDetailsScreen: React.FC = () => {
         alertMessage = "It'll disappear from your trips.";
       }
       
+      // Warn at the destructive confirm — the rider is about to give
+      // up their seat / request.
+      haptic("warning");
       BrandedAlert.alert(
         alertTitle,
         alertMessage,
@@ -1082,7 +1099,8 @@ const RideDetailsScreen: React.FC = () => {
                   try {
                     const deleteResponse = await apiUtil.delete(`/booking/delete/${userBooking.id}`);
                     if (DEBUG_RIDE_DETAILS) console.log("Cancel booking response:", deleteResponse);
-                    
+
+                    haptic("success");
                     BrandedAlert.alert("Booking cancelled", "Your seat is no longer reserved.", [
                       {
                         text: "OK",
@@ -1095,6 +1113,7 @@ const RideDetailsScreen: React.FC = () => {
                     // If it's just an empty response error, treat as success since backend likely processed it
                     if (deleteError.message?.includes("Empty response") || deleteError.message?.includes("JSON Parse Error")) {
                       if (DEBUG_RIDE_DETAILS) console.log("Got empty response from cancel booking - treating as success");
+                      haptic("success");
                       BrandedAlert.alert("Booking cancelled", "Your seat is no longer reserved.", [
                         {
                           text: "OK",
@@ -1110,6 +1129,7 @@ const RideDetailsScreen: React.FC = () => {
                 }
               } catch (error: any) {
                 console.error("Error cancelling booking:", error);
+                haptic("error");
                 BrandedAlert.alert("Couldn't cancel", error.message || "Try again in a moment.");
               } finally {
                 setIsActionLoading(false);
@@ -1189,6 +1209,7 @@ const RideDetailsScreen: React.FC = () => {
           return;
         }
         console.error("Accept failed, rolling back optimistic update:", error);
+        haptic("error");
         setRequests(prevRequests);
         setRideData(prev =>
           prev ? { ...prev, booked_seats: prevBookedSeats } : null,
@@ -1253,6 +1274,7 @@ const RideDetailsScreen: React.FC = () => {
           return;
         }
         console.error("Reject failed, rolling back optimistic update:", error);
+        haptic("error");
         setRequests(prevRequests);
         setBookingError(describeBookingActionError(error, "reject the request"));
         setRefreshTick(tick => tick + 1);
@@ -1293,6 +1315,7 @@ const RideDetailsScreen: React.FC = () => {
           return;
         }
         console.error("Remove failed, rolling back optimistic update:", error);
+        haptic("error");
         setRequests(prevRequests);
         if (wasAccepted) {
           setRideData(prev =>
@@ -1317,12 +1340,13 @@ const RideDetailsScreen: React.FC = () => {
         </View>
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: colors.textPrimary }]}>{error || "Ride not found"}</Text>
-          <TouchableOpacity
+          <PressableScale
             style={[styles.retryButton, { backgroundColor: colors.navFill }]}
             onPress={() => back()}
+            haptic={null}
           >
             <Text style={[styles.retryButtonText, colors.mode === "dark" && { color: colors.textOnDark }]}>Go Back</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </View>
     );
@@ -1352,7 +1376,7 @@ const RideDetailsScreen: React.FC = () => {
               top-right of the management header so it reads as a
               persistent action on the host's ride rather than buried
               in a menu. */}
-          <TouchableOpacity
+          <PressableScale
             onPress={() => setShareSheetOpen(true)}
             style={{
               marginLeft: "auto",
@@ -1361,7 +1385,6 @@ const RideDetailsScreen: React.FC = () => {
               borderRadius: 999,
               backgroundColor: colors.navFill,
             }}
-            activeOpacity={0.85}
           >
             <Text
               style={{
@@ -1373,7 +1396,7 @@ const RideDetailsScreen: React.FC = () => {
             >
               Share
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
 
         {/* Mounted at the screen level so its z-index sits above the
@@ -1509,7 +1532,7 @@ const RideDetailsScreen: React.FC = () => {
                   <Text style={[styles.shareEmptyBody, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>
                     Share your ride so users can request a seat.
                   </Text>
-                  <TouchableOpacity
+                  <PressableScale
                     style={[
                       styles.shareEmptyBtn,
                       // Light: forest pill + lime text (historical
@@ -1518,11 +1541,10 @@ const RideDetailsScreen: React.FC = () => {
                       // every primary CTA across the app.
                       { backgroundColor: colors.mode === "dark" ? colors.primary : colors.navFill },
                     ]}
-                    activeOpacity={0.85}
                     onPress={() => setShareSheetOpen(true)}
                   >
                     <Text style={[styles.shareEmptyBtnText, colors.mode === "dark" && { color: colors.textOnAccent }]}>Share ride</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 </View>
               );
             }
@@ -1530,8 +1552,18 @@ const RideDetailsScreen: React.FC = () => {
           })()}
 
           {requestsLoading ? (
-            <View style={styles.inlineLoadingContainer}>
-              <LoadingComponent />
+            // Skeleton rows shaped like the passenger tiles that are
+            // about to load — same 60pt height / 16pt radius — so the
+            // list resolves in place instead of flashing a spinner.
+            <View>
+              {[0, 1, 2].map((i) => (
+                <SkeletonBlock
+                  key={i}
+                  height={60}
+                  radius={16}
+                  style={{ marginBottom: 10 }}
+                />
+              ))}
             </View>
           ) : bookingError ? (
             <View style={styles.errorContainer}>
@@ -1545,7 +1577,7 @@ const RideDetailsScreen: React.FC = () => {
             null
           ) : (
             // Rejected passenger rows are not actionable in host management.
-            requests.flatMap((req) => {
+            requests.flatMap((req, index) => {
               if (req.request_status === "rejected") return [];
               const passengerName = req.passenger?.name || "Unknown User";
               const isCurrentUser = req.passenger_id === currentUserId;
@@ -1644,7 +1676,11 @@ const RideDetailsScreen: React.FC = () => {
 
               if (req.request_status === "pending") {
                 return (
-                  <View key={requestKey} style={[styles.pendingRequestCard, { backgroundColor: colors.navFill }]}>
+                  <Animated.View
+                    key={requestKey}
+                    entering={enterStagger(index)}
+                    style={[styles.pendingRequestCard, { backgroundColor: colors.navFill }]}
+                  >
                     {/* Name takes the flex space; right cluster carries
                         the actions: View opens the profile sheet,
                         Reject/Accept drop the row into the slider
@@ -1708,7 +1744,7 @@ const RideDetailsScreen: React.FC = () => {
                     ) : (
                       <Text style={styles.rideOverInline}>Ride is over</Text>
                     )}
-                  </View>
+                  </Animated.View>
                 );
               }
 
@@ -1719,8 +1755,9 @@ const RideDetailsScreen: React.FC = () => {
               // the right (host gets a quiet "Host" caption; everyone
               // else gets View + Remove icon-buttons).
               return (
-                <View
+                <Animated.View
                   key={requestKey}
+                  entering={enterStagger(index)}
                   style={[styles.confirmedPassengerCard, { backgroundColor: colors.navFill }]}
                 >
                   <Text style={styles.passengerName} numberOfLines={1}>
@@ -1753,7 +1790,7 @@ const RideDetailsScreen: React.FC = () => {
                       ) : null}
                     </View>
                   )}
-                </View>
+                </Animated.View>
               );
             })
           )}
@@ -1766,15 +1803,14 @@ const RideDetailsScreen: React.FC = () => {
               dead-end action that opens an empty thread. Returns
               the moment a request is accepted. */}
           {requests.some((r) => r.request_status === "accepted") ? (
-            <TouchableOpacity
+            <PressableScale
               onPress={openRideChat}
-              activeOpacity={0.85}
               style={[styles.tripChatPill, { backgroundColor: colors.navFill }]}
               accessibilityLabel="Open trip chat"
             >
               <ChatBubbleGlyph />
               <Text style={[styles.tripChatPillText, colors.mode === "dark" && { color: colors.textOnDark }]}>Open trip chat</Text>
-            </TouchableOpacity>
+            </PressableScale>
           ) : null}
           {!rideOver ? (
             <SlideToCreate
@@ -1828,7 +1864,7 @@ const RideDetailsScreen: React.FC = () => {
         <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Booking Details</Text>
         {/* Share pill — visible to passengers too, not just hosts.
             Same sheet as the host-side button (QR + native share). */}
-        <TouchableOpacity
+        <PressableScale
           onPress={() => setShareSheetOpen(true)}
           style={{
             marginLeft: "auto",
@@ -1837,7 +1873,6 @@ const RideDetailsScreen: React.FC = () => {
             borderRadius: 999,
             backgroundColor: colors.navFill,
           }}
-          activeOpacity={0.85}
         >
           <Text
             style={{
@@ -1849,7 +1884,7 @@ const RideDetailsScreen: React.FC = () => {
           >
             Share
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       {/* ShareRideSheet for the passenger branch — same component
@@ -1903,8 +1938,7 @@ const RideDetailsScreen: React.FC = () => {
               secondary row. Rejected: skip the message CTA — there's
               nothing useful to say once the host has declined. */}
           {userBookingStatus === 'pending' && (
-            <TouchableOpacity
-              activeOpacity={0.88}
+            <PressableScale
               style={{
                 alignSelf: "stretch",
                 backgroundColor: colors.navFill,
@@ -1948,11 +1982,11 @@ const RideDetailsScreen: React.FC = () => {
               }}>
                 Message {rideData?.host_user_name?.split(' ')?.[0] || 'host'}
               </Text>
-            </TouchableOpacity>
+            </PressableScale>
           )}
 
           <View style={{ flexDirection: "row", gap: 12, alignSelf: "stretch" }}>
-            <TouchableOpacity
+            <PressableScale
               style={{
                 flex: 1,
                 backgroundColor: userBookingStatus === 'pending'
@@ -1981,8 +2015,10 @@ const RideDetailsScreen: React.FC = () => {
               }}>
                 Find rides
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </PressableScale>
+            {/* handleCancelRide fires its own warning haptic at the
+                destructive confirm, so the press-in tap stays neutral. */}
+            <PressableScale
               style={{
                 flex: 1,
                 backgroundColor: colors.inkSoft,
@@ -1992,6 +2028,7 @@ const RideDetailsScreen: React.FC = () => {
               }}
               onPress={handleCancelRide}
               disabled={isActionLoading}
+              haptic={null}
             >
               <Text style={{
                 color: colors.textPrimary,
@@ -2006,7 +2043,7 @@ const RideDetailsScreen: React.FC = () => {
                   : "Remove"
                 }
               </Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         </View>
       ) : (
@@ -2116,15 +2153,14 @@ const RideDetailsScreen: React.FC = () => {
                     routes/rides/viewerState.go) — the same flag is
                     false for pending/rejected/available viewers. */}
                 {viewerActions.can_open_chat ? (
-                  <TouchableOpacity
+                  <PressableScale
                     onPress={openRideChat}
-                    activeOpacity={0.85}
                     style={[styles.tripChatPill, { backgroundColor: colors.navFill }]}
                     accessibilityLabel="Open trip chat"
                   >
                     <ChatBubbleGlyph />
                     <Text style={[styles.tripChatPillText, colors.mode === "dark" && { color: colors.textOnDark }]}>Open trip chat</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 ) : null}
                 {/* Slider is driven by the server's `viewer_actions`
                     booleans, not by client-side state derivation.

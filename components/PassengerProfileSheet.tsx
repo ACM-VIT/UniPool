@@ -15,6 +15,8 @@ import {
 } from "react-native";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
+import PressableScale from "./PressableScale";
+import { haptic } from "./haptics";
 
 export type PassengerProfile = {
   id: string;
@@ -216,22 +218,20 @@ const PassengerProfileSheet: React.FC<Props> = ({
                         skip the button here to avoid two competing
                         message-action UIs. */}
                     {passenger.request_status === "pending" ? (
-                      <TouchableOpacity
+                      <PressableScale
                         onPress={handleMessage}
                         style={[styles.contactBtn, { backgroundColor: colors.inkSubtle }]}
-                        activeOpacity={0.85}
                         accessibilityLabel={`Direct message ${firstName}`}
                       >
                         <Text style={[styles.contactBtnText, { color: colors.textPrimary }]}>DM</Text>
-                      </TouchableOpacity>
+                      </PressableScale>
                     ) : null}
-                    <TouchableOpacity
+                    <PressableScale
                       onPress={handleCall}
                       style={[styles.contactBtn, styles.contactBtnPrimary, { backgroundColor: accentBg }]}
-                      activeOpacity={0.85}
                     >
                       <Text style={[styles.contactBtnText, styles.contactBtnTextPrimary, { color: accentText }]}>Call</Text>
-                    </TouchableOpacity>
+                    </PressableScale>
                   </View>
                 </View>
               </View>
@@ -257,13 +257,12 @@ const PassengerProfileSheet: React.FC<Props> = ({
                         keyboardType="decimal-pad"
                       />
                     </View>
-                    <TouchableOpacity
+                    <PressableScale
                       onPress={handlePay}
                       style={[styles.payBtn, { backgroundColor: accentBg }]}
-                      activeOpacity={0.85}
                     >
                       <Text style={[styles.payBtnText, { color: accentText }]}>Pay with UPI</Text>
-                    </TouchableOpacity>
+                    </PressableScale>
                   </View>
                 </>
               ) : (
@@ -279,20 +278,22 @@ const PassengerProfileSheet: React.FC<Props> = ({
                 <Text style={[styles.sectionLabel, colors.mode === "dark" && { color: colors.textTertiary }]}>Decision</Text>
                 {isPending ? (
                   <View style={styles.hostActionRow}>
-                    <TouchableOpacity
+                    <PressableScale
                       style={[styles.hostActionReject, !!actionLoading && styles.hostActionDisabled]}
                       onPress={() => {
                         if (actionLoading) return;
+                        // Rejecting a request is a negative decision — warn.
+                        haptic("warning");
                         onReject?.();
                       }}
-                      activeOpacity={0.85}
+                      haptic={null}
                       disabled={!!actionLoading}
                     >
                       <Text style={[styles.hostActionRejectText, { color: colors.destructive }]}>
                         {actionLoading === "reject" ? "Rejecting…" : "Reject"}
                       </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
+                    </PressableScale>
+                    <PressableScale
                       style={[
                         styles.hostActionAccept,
                         { backgroundColor: accentBg },
@@ -300,31 +301,35 @@ const PassengerProfileSheet: React.FC<Props> = ({
                       ]}
                       onPress={() => {
                         if (actionLoading) return;
+                        // Accepting a passenger into the ride — confirm the commit.
+                        haptic("success");
                         onAccept?.();
                       }}
-                      activeOpacity={0.85}
+                      haptic={null}
                       disabled={!!actionLoading}
                     >
                       <Text style={[styles.hostActionAcceptText, { color: accentText }]}>
                         {actionLoading === "accept" ? "Accepting…" : "Accept"}
                       </Text>
-                    </TouchableOpacity>
+                    </PressableScale>
                   </View>
                 ) : null}
                 {isAccepted ? (
-                  <TouchableOpacity
+                  <PressableScale
                     style={[styles.removeBtn, !!actionLoading && styles.hostActionDisabled]}
                     onPress={() => {
                       if (actionLoading) return;
+                      // Removing an accepted passenger is destructive — warn.
+                      haptic("warning");
                       onRemove?.();
                     }}
-                    activeOpacity={0.85}
+                    haptic={null}
                     disabled={!!actionLoading}
                   >
                     <Text style={[styles.removeBtnText, { color: colors.destructive }]}>
                       {actionLoading === "remove" ? "Removing…" : `Remove ${firstName}`}
                     </Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 ) : null}
               </View>
             ) : null}

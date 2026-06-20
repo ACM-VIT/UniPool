@@ -9,6 +9,7 @@ import {
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import RouteStack from "./RouteStack";
+import PressableScale from "./PressableScale";
 
 interface RideDetails {
   start_location: string;
@@ -46,10 +47,9 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
   });
 
   return (
-    <TouchableOpacity
+    <PressableScale
       style={[styles.container, { backgroundColor: colors.navFill }]}
       onPress={onPress}
-      activeOpacity={0.85}
     >
       {/* Canonical RouteStack visual for start and end locations. */}
       <View style={styles.routeBlock}>
@@ -102,7 +102,7 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
           </View>
         </View>
       </View>
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 

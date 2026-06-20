@@ -1,7 +1,8 @@
 import React from "react";
-import { TouchableOpacity, Image, StyleSheet, ViewStyle, StyleProp } from "react-native";
+import { Image, StyleSheet, ViewStyle, StyleProp } from "react-native";
 import { useRouter } from "expo-router";
 import { appHref } from "../navigation/routes";
+import PressableScale from "./PressableScale";
 
 type Props = {
   /** Optional override. Defaults to router.replace("HomeScreen") so
@@ -39,9 +40,12 @@ const HomeBack: React.FC<Props> = ({ onPress, style }) => {
   };
 
   return (
-    <TouchableOpacity
+    <PressableScale
       style={[styles.container, style]}
       onPress={handlePress}
+      // Header navigation glyph — mute the haptic to match ChevronBack;
+      // jumping home is navigation, not a committed decision.
+      haptic={null}
       hitSlop={{ top: 10, left: 10, bottom: 10, right: 10 }}
       accessibilityRole="button"
       accessibilityLabel="Go home"
@@ -51,7 +55,7 @@ const HomeBack: React.FC<Props> = ({ onPress, style }) => {
         style={styles.icon}
         resizeMode="contain"
       />
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 

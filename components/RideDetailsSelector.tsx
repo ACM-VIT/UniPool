@@ -34,6 +34,9 @@ import {
   getCoordinatesForLocation,
   reverseGeocodeShort,
 } from "../utils/LocationService";
+import PressableScale from "./PressableScale";
+import SkeletonBlock from "./Skeleton";
+import { haptic } from "./haptics";
 
 const { width: rawWidth, height: rawHeight } = Dimensions.get("window");
 const DEBUG_RIDE_SELECTOR =
@@ -470,12 +473,17 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const renderLocationRow = useCallback<ListRenderItem<LocationPickerRow>>(({ item }) => {
     switch (item.type) {
       case "loading":
+        // Skeleton rows shaped like the location items that are about
+        // to land (icon dot + name line) so the dropdown shows the
+        // shape of the incoming list rather than a bare spinner.
         return (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={colors.textPrimary} accessibilityLabel="Loading" />
-            <Text style={[styles.loadingText, { color: colors.textPrimary }]}>
-              Loading nearby places…
-            </Text>
+            {[0, 1, 2, 3].map((i) => (
+              <View key={i} style={styles.loadingRow}>
+                <SkeletonBlock width={wp(4)} height={wp(4)} radius={wp(2)} />
+                <SkeletonBlock width={`${72 - i * 9}%`} height={12} radius={6} />
+              </View>
+            ))}
           </View>
         );
       case "section":
@@ -491,7 +499,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         );
       case "popular":
         return (
-          <TouchableOpacity
+          <PressableScale
             style={[
               styles.locationItem,
               colors.mode === "dark" && {
@@ -518,11 +526,11 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
             >
               {item.label}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         );
       case "search":
         return (
-          <TouchableOpacity
+          <PressableScale
             style={[
               styles.locationItem,
               colors.mode === "dark" && {
@@ -561,7 +569,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                 {item.result.display_name}
               </Text>
             </View>
-          </TouchableOpacity>
+          </PressableScale>
         );
       case "noResults":
         return (
@@ -728,6 +736,10 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const handleLocationSwap = () => {
     // Nothing to swap until both fields have values.
     if (!toLocation || !fromLocation) return;
+
+    // Confirm the from/to flip — fires only on a real swap, not on
+    // dead taps when one field is empty (those return above).
+    haptic("selection");
 
     const tempLocation = fromLocation;
     const tempCoordinates = fromCoordinates;
@@ -915,9 +927,13 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           ]}
           pointerEvents="none"
         />
-        <TouchableOpacity
+        {/* Field rows open a picker (navigation-like), so they get the
+            scale press response but no haptic — haptics stay reserved
+            for decisions, not opening a sheet. */}
+        <PressableScale
           style={[styles.inputContainer, isDark && { borderBottomWidth: 0 }]}
           onPress={() => handleLocationSelectorOpen(true)}
+          haptic={null}
         >
           <View style={styles.inputContent}>
             <View
@@ -937,9 +953,9 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               {fromLocation || "From"}
             </Text>
           </View>
-        </TouchableOpacity>
+        </PressableScale>
 
-        <TouchableOpacity
+        <PressableScale
           style={[
             styles.switchIconContainer,
             isDark
@@ -952,6 +968,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               : { backgroundColor: colors.primary },
           ]}
           onPress={handleLocationSwap}
+          haptic={null}
         >
           <Image
             source={require("../assets/switch-1.png")}
@@ -960,11 +977,12 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               { tintColor: isDark ? colors.textOnDark : colors.textOnAccent },
             ]}
           />
-        </TouchableOpacity>
+        </PressableScale>
 
-        <TouchableOpacity
+        <PressableScale
           style={[styles.inputContainer, isDark && { borderBottomWidth: 0 }]}
           onPress={() => handleLocationSelectorOpen(false)}
+          haptic={null}
         >
           <View style={styles.inputContent}>
             <Image
@@ -986,11 +1004,11 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               {toLocation || "To"}
             </Text>
           </View>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       <View style={styles.dateContainer}>
-        <TouchableOpacity onPress={handleDateFieldClick} style={styles.dateInputContainer}>
+        <PressableScale onPress={handleDateFieldClick} style={styles.dateInputContainer} haptic={null}>
           <View style={styles.inputContent}>
             <Image
               source={require("../assets/calendar-icon.png")}
@@ -1037,7 +1055,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               )}
             </View>
           </View>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       {/* Manual-submit footer button. Only renders in manualSubmit
@@ -1048,8 +1066,8 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           about a specific time. Calls onSubmit directly, bypassing
           the auto-submit guard above. */}
       {manualSubmit ? (
-        <TouchableOpacity
-          activeOpacity={0.85}
+        <PressableScale
+          haptic="medium"
           disabled={!fromLocation || !toLocation}
           onPress={() => {
             const finalDate = selectedDate || getInitialDate();
@@ -1073,7 +1091,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               ? "Pick a from and to"
               : "Search rides"}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       ) : null}
 
       <Modal
@@ -1130,11 +1148,12 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               />
             </View>
 
-            <TouchableOpacity
+            <PressableScale
               style={[
                 styles.closeButton,
                 colors.mode === "dark" && { backgroundColor: colors.surfaceInset, borderColor: colors.inkLine },
               ]}
+              haptic={null}
               onPress={() => {
                 setShowFromDropdown(false);
                 setShowToDropdown(false);
@@ -1158,7 +1177,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               >
                 Close
               </Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1198,8 +1217,9 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
               </View>
 
               <View style={[styles.quickSelectContainer, { borderTopColor: colors.inkSoft }]}>
-                <TouchableOpacity
+                <PressableScale
                   style={[styles.quickSelectButton, { borderColor: colors.primary }]}
+                  haptic="selection"
                   onPress={() => {
                     const today = new Date();
                     today.setHours(today.getHours() + 1);
@@ -1209,9 +1229,10 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                   }}
                 >
                   <Text style={[styles.quickSelectText, { color: colors.primary }]}>Today</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                </PressableScale>
+                <PressableScale
                   style={[styles.quickSelectButton, { borderColor: colors.primary }]}
+                  haptic="selection"
                   onPress={() => {
                     const tomorrow = new Date();
                     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -1221,7 +1242,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                   }}
                 >
                   <Text style={[styles.quickSelectText, { color: colors.primary }]}>Tomorrow</Text>
-                </TouchableOpacity>
+                </PressableScale>
               </View>
             </View>
           </View>
@@ -1500,16 +1521,17 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   loadingContainer: {
+    paddingTop: hp(1.5),
+    paddingHorizontal: wp(2),
+  },
+  // One skeleton placeholder row — icon dot + name line — matching
+  // the locationItem layout so loaded rows don't shift the list.
+  loadingRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: hp(3),
-  },
-  loadingText: {
-    fontSize: getFontSize(12, 13, 14),
-    fontFamily: "NunitoSans_400Regular",
-    color: AppColors.basicWhite,
-    marginLeft: wp(3),
+    gap: wp(3),
+    paddingVertical: hp(1.5),
+    minHeight: hp(6),
   },
   closeButton: {
     marginTop: hp(2),

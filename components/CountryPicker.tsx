@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   Modal,
   Animated,
   Easing,
@@ -19,6 +18,7 @@ import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { COUNTRIES, Country, flagFor } from "../data/countries";
 import { haptic } from "./haptics";
+import PressableScale from "./PressableScale";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const IS_TABLET = SCREEN_WIDTH >= 768;
@@ -62,9 +62,11 @@ const CountryRow = React.memo(function CountryRow({
   }, [item, onPick]);
 
   return (
-    <TouchableOpacity
+    // `onPick` already fires a `selection` haptic on commit, so the
+    // row's own press-in stays muted to avoid a double tap.
+    <PressableScale
       style={[styles.row, selected && styles.rowSelected]}
-      activeOpacity={0.7}
+      haptic={null}
       onPress={handlePress}
     >
       <Text style={styles.flag}>{flagFor(item.code)}</Text>
@@ -80,7 +82,7 @@ const CountryRow = React.memo(function CountryRow({
       >
         +{item.dial}
       </Text>
-    </TouchableOpacity>
+    </PressableScale>
   );
 });
 
@@ -214,9 +216,9 @@ const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDis
         >
           <View style={[styles.grabHandle, colors.mode === "dark" && { backgroundColor: colors.inkLine }]} />
 
-          <TouchableOpacity
+          <PressableScale
             onPress={onDismiss}
-            activeOpacity={0.6}
+            haptic={null}
             style={[styles.closeBtn, { backgroundColor: colors.inkSubtle }]}
           >
             <Svg width={14} height={14} viewBox="0 0 16 16">
@@ -227,7 +229,7 @@ const CountryPicker: React.FC<Props> = ({ visible, selectedCode, onSelect, onDis
                 strokeLinecap="round"
               />
             </Svg>
-          </TouchableOpacity>
+          </PressableScale>
 
           <Text style={[styles.title, { color: colors.textPrimary }]}>Pick your country</Text>
 

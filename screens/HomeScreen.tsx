@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView, AppState, useWindowDimensions } from "react-native";
+import { View, Text, Image, StyleSheet, Dimensions, Platform, PixelRatio, PanResponder, Animated, Easing, ScrollView, AppState, useWindowDimensions } from "react-native";
 import { TABLET_BREAKPOINT } from "../utils/responsive";
 import navigationImg from "../assets/navigation.png";
 import locationPinImg from "../assets/location-pin-2.png";
@@ -33,6 +33,7 @@ import { MAIN_NAV_BAR_TOP_OFFSET } from "../components/MainNavBar.constants";
 import bottomNavItems from "../data/BottomNavigationItems";
 import BrandInfo from "../components/BrandInfo/BrandInfo";
 import { haptic } from "../components/haptics";
+import PressableScale from "../components/PressableScale";
 import RideClusterSheet, { ClusteredRide } from "../components/RideClusterSheet";
 import RoutePreviewLayer, {
   type RoutePreviewBounds,
@@ -1387,17 +1388,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
             {/* Nearby tile appears for guests or signed-in users with no trips. */}
             {(isGuest || hasUserTrips === false) && (
-              <TouchableOpacity
-                activeOpacity={0.85}
+              <PressableScale
                 style={[styles.nearbyTile, colors.mode === "dark" && { backgroundColor: colors.surface }]}
                 onPress={() => router.navigate(appHref("NearbyRidesScreen"))}
               >
                 <Text style={[styles.nearbyTileText, colors.mode === "dark" && { color: colors.textPrimary }]}>Rides around you</Text>
-              </TouchableOpacity>
+              </PressableScale>
             )}
 
             <View style={styles.section}>
-              <TouchableOpacity
+              <PressableScale
+                haptic="medium"
                 style={[styles.createRideButton, colors.mode === "dark" && { backgroundColor: colors.surface }]}
                 onPress={() => {
                   // Posting a ride requires an authenticated student.
@@ -1421,21 +1422,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 <Text style={[styles.createRideButtonText, { color: colors.textPrimary }]}>
                   {isGuest ? "Post a ride" : "Create Ride"}
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
 
               {/* Dense home states collapse search into a sheet trigger. */}
               {hasActiveTripCard ? (
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    haptic("light");
-                    setSearchSheetOpen(true);
-                  }}
+                <PressableScale
+                  onPress={() => setSearchSheetOpen(true)}
                   style={styles.nearbyTile}
                   accessibilityLabel="Search rides"
                 >
                   <Text style={styles.nearbyTileText}>Search rides</Text>
-                </TouchableOpacity>
+                </PressableScale>
               ) : (
                 <>
                   <View style={styles.createRideText}>

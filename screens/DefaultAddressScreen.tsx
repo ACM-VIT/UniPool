@@ -8,6 +8,8 @@ import BrandInfo from "../components/BrandInfo/BrandInfo";
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import BrandedAlert from "../components/BrandedAlert";
+import { haptic } from "../components/haptics";
+import PressableScale from "../components/PressableScale";
 import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/responsive";
 import { useThemeColors } from "../contexts/ThemeContext";
 import type { LocationResult } from "../utils/LocationService";
@@ -69,14 +71,17 @@ const DefaultAddressScreen: React.FC = () => {
     try {
       if (defaultAddress) {
         await apiUtil.put("/user/default-address", { address: details.from });
+        haptic("success");
         BrandedAlert.alert("Saved", "Your default pickup is updated.");
       } else {
         await apiUtil.post("/user/default-address", { address: details.from });
+        haptic("success");
         BrandedAlert.alert("Saved", "We'll use this as your default pickup.");
       }
       setDefaultAddress(details.from);
       await AsyncStorage.setItem("defaultAddress", details.from);
     } catch (err) {
+      haptic("error");
       BrandedAlert.alert("Couldn't save", "We couldn't update your default pickup. Try again?");
     } finally {
       setLoading(false);
@@ -126,6 +131,7 @@ const DefaultAddressScreen: React.FC = () => {
   };
 
   const handleLocationSelect = (location: string) => {
+    haptic("selection");
     setSearchQuery(location);
     setShowDropdown(false);
     setSearchResults([]);
@@ -212,25 +218,25 @@ const DefaultAddressScreen: React.FC = () => {
         return <Text style={[styles.sectionHeader, isDark && { color: colors.textSecondary }]}>{item.title}</Text>;
       case "popular":
         return (
-          <TouchableOpacity
+          <PressableScale
             style={[styles.locationItem, isDark && { borderBottomColor: colors.inkSubtle }]}
             onPress={() => handleLocationSelect(item.label)}
-            activeOpacity={0.7}
+            haptic={null}
           >
             <Image
               source={require("../assets/location-pin.png")}
               style={[styles.locationIcon, isDark && { tintColor: colors.textPrimary }]}
             />
             <Text style={[styles.locationText, isDark && { color: colors.textPrimary }]}>{item.label}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         );
       case "search": {
         const label = item.result.name || item.result.display_name.split(",")[0];
         return (
-          <TouchableOpacity
+          <PressableScale
             style={[styles.locationItem, isDark && { borderBottomColor: colors.inkSubtle }]}
             onPress={() => handleLocationSelect(label)}
-            activeOpacity={0.7}
+            haptic={null}
           >
             <Image
               source={require("../assets/location-pin.png")}
@@ -244,7 +250,7 @@ const DefaultAddressScreen: React.FC = () => {
                 {item.result.display_name}
               </Text>
             </View>
-          </TouchableOpacity>
+          </PressableScale>
         );
       }
       case "empty":
@@ -277,7 +283,7 @@ const DefaultAddressScreen: React.FC = () => {
         contentContainerStyle={[styles.scrollContent, tabletScrollContentStyle]}
       >
         <View style={[styles.cardWrapper, isDark && { backgroundColor: colors.surface }]}>
-          <TouchableOpacity
+          <PressableScale
             style={[styles.inputContainer, isDark && { backgroundColor: colors.surfaceInset, borderColor: colors.inkSubtle }]}
             onPress={handleDropdownOpen}
             disabled={loading}
@@ -310,7 +316,7 @@ const DefaultAddressScreen: React.FC = () => {
                 <ActivityIndicator size="small" color={isDark ? colors.textPrimary : AppColors.basicWhite} style={styles.loadingIcon} accessibilityLabel="Loading" />
               )}
             </View>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </ScrollView>
 
@@ -355,8 +361,9 @@ const DefaultAddressScreen: React.FC = () => {
               windowSize={5}
             />
 
-            <TouchableOpacity
+            <PressableScale
               style={[styles.closeButton, isDark && { backgroundColor: colors.surfaceInset }]}
+              haptic={null}
               onPress={() => {
                 setShowDropdown(false);
                 setSearchQuery("");
@@ -365,7 +372,7 @@ const DefaultAddressScreen: React.FC = () => {
               }}
             >
               <Text style={[styles.closeButtonText, isDark && { color: colors.textPrimary }]}>Close</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         </View>
       </Modal>

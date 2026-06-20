@@ -1,12 +1,12 @@
 import React, { useMemo } from "react";
 import {
-  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
+import PressableScale from "./PressableScale";
 import { haptic } from "./haptics";
 import { displayRideLocation } from "../utils/LocationService";
 import SheetShell from "./SheetShell";
@@ -110,18 +110,17 @@ const RoutePreviewCard: React.FC<Props> = ({ ride, onDismiss, onOpen }) => {
         </View>
       ) : null}
 
-      <Pressable
+      {/* handleOpen already fires a "medium" haptic on the decision,
+          so suppress PressableScale's press-in tap to avoid doubling up. */}
+      <PressableScale
         onPress={handleOpen}
-        style={({ pressed }) => [
-          styles.cta,
-          { backgroundColor: ctaBg },
-          pressed && { opacity: 0.9 },
-        ]}
+        haptic={null}
+        style={[styles.cta, { backgroundColor: ctaBg }]}
         accessibilityRole="button"
         accessibilityLabel={`View ride to ${shortEnd}`}
       >
         <Text style={[styles.ctaText, { color: ctaText }]}>View ride</Text>
-      </Pressable>
+      </PressableScale>
     </SheetShell>
   );
 };

@@ -10,6 +10,7 @@ import {
   Image,
   Dimensions,
 } from "react-native";
+import Animated from "react-native-reanimated";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuthGate } from "../../contexts/AuthGate";
@@ -21,6 +22,8 @@ import LoadingComponent from "../../components/LoadingComponent";
 import EmptyState from "../../components/EmptyState";
 import RouteStack from "../../components/RouteStack";
 import SmileyGlyph from "../../components/SmileyGlyph";
+import PressableScale from "../../components/PressableScale";
+import { enterStagger } from "../../components/motion";
 import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar.constants";
 import { appHref } from "../../navigation/routes";
 import { useApi } from "../../utils/ApiUtil";
@@ -288,41 +291,43 @@ const NearbyRidesScreen: React.FC = () => {
     navigate(appHref("AvailableRidesSelectedScreen", { ride: ridePayload } as any));
   }, [navigate]);
 
-  const renderRide = useCallback(({ item }: { item: NearbyRideRow }) => (
-      <TouchableOpacity
-        activeOpacity={0.85}
-        style={[styles.card, { backgroundColor: colors.navFill }]}
-        onPress={() => openRide(item)}
-      >
-        <View style={styles.cardTop}>
-          <View style={styles.routeBlock}>
-            <RouteStack
-              tone="onForest"
-              start={item.start_location}
-              end={item.end_location}
-              numberOfLines={1}
-            />
-          </View>
-
-          <View style={styles.right}>
-            <View style={styles.timeRow}>
-              <Image source={clockIcon} style={styles.timeIcon} resizeMode="contain" />
-              <Text style={styles.timeText}>{item.timeLabel}</Text>
+  const renderRide = useCallback(({ item, index }: { item: NearbyRideRow; index: number }) => (
+      // Rows fade in with a short stagger as nearby results arrive.
+      <Animated.View entering={enterStagger(index)}>
+        <PressableScale
+          style={[styles.card, { backgroundColor: colors.navFill }]}
+          onPress={() => openRide(item)}
+        >
+          <View style={styles.cardTop}>
+            <View style={styles.routeBlock}>
+              <RouteStack
+                tone="onForest"
+                start={item.start_location}
+                end={item.end_location}
+                numberOfLines={1}
+              />
             </View>
-            <Text style={styles.dateText}>{item.dateLabel}</Text>
-          </View>
-        </View>
 
-        <View style={styles.cardFooter}>
-          <Text style={styles.metaText}>
-            {item.distanceKm !== null ? `${item.distanceKm.toFixed(1)} km away · ` : ""}
-            {item.seatsLeft} {item.seatsLeft === 1 ? "seat" : "seats"} left
-          </Text>
-          <View style={styles.pricePill}>
-            <Text style={styles.priceText}>₹{item.total_price}</Text>
+            <View style={styles.right}>
+              <View style={styles.timeRow}>
+                <Image source={clockIcon} style={styles.timeIcon} resizeMode="contain" />
+                <Text style={styles.timeText}>{item.timeLabel}</Text>
+              </View>
+              <Text style={styles.dateText}>{item.dateLabel}</Text>
+            </View>
           </View>
-        </View>
-      </TouchableOpacity>
+
+          <View style={styles.cardFooter}>
+            <Text style={styles.metaText}>
+              {item.distanceKm !== null ? `${item.distanceKm.toFixed(1)} km away · ` : ""}
+              {item.seatsLeft} {item.seatsLeft === 1 ? "seat" : "seats"} left
+            </Text>
+            <View style={styles.pricePill}>
+              <Text style={styles.priceText}>₹{item.total_price}</Text>
+            </View>
+          </View>
+        </PressableScale>
+      </Animated.View>
   ), [openRide, colors]);
 
   const headerCount = !loading && visibleRides.length > 0

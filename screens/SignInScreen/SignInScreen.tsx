@@ -10,6 +10,7 @@ import {
 import styles from "./SignInScreen.styles";
 import GoogleAuthButton from "../../components/GoogleAuthBox/GoogleAuthBox";
 import BrandedAlert from "../../components/BrandedAlert";
+import { haptic } from "../../components/haptics";
 import { appHref } from "../../navigation/routes";
 import { useTabletContentStyle } from "../../utils/responsive";
 import { useThemeColors } from "../../contexts/ThemeContext";
@@ -45,9 +46,12 @@ const SignInScreen: React.FC = () => {
       const userCredential = await signInWithCredential(auth, googleCredential);
 
       debugLog("Signed in as:", userCredential.user.email);
+      // Confirm the completed sign-in with a success tap before routing.
+      haptic("success");
       router.navigate(appHref("BookingScreen"));
     } catch (err) {
       console.error("Google Sign-In error", err);
+      haptic("error");
       const message =
         err instanceof Error
           ? err.message

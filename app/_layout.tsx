@@ -2,6 +2,7 @@ import "react-native-gesture-handler";
 import * as Notifications from "expo-notifications";
 import { StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AppShell from "../components/AppShell";
 import { AuthGateProvider } from "../contexts/AuthGate";
@@ -88,26 +89,34 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider style={styles.root}>
       <GestureHandlerRootView style={styles.root}>
-        <ThemeProvider>
-          <ErrorProvider>
-            <ApiProvider>
-              <AuthGateProvider>
-                {/* `UserProvider` hydrates `/user/details` ONCE per
-                    auth-state change and exposes the result via
-                    `useUser()`. Sits inside AuthGate so it can react
-                    to sign-in / sign-out, and inside Api so it has the
-                    apiUtil to make the call. Migrated callers read
-                    from context (sync); the ones that genuinely need
-                    fresh data after a write call `refresh()`. */}
-                <UserProvider>
-                  <LocationProvider>
-                    <ThemedRoot />
-                  </LocationProvider>
-                </UserProvider>
-              </AuthGateProvider>
-            </ApiProvider>
-          </ErrorProvider>
-        </ThemeProvider>
+        {/* KeyboardProvider feeds every screen below a live, UI-thread
+            stream of the keyboard's height + animation progress. It's
+            what lets inputs, sticky footers, and drag-to-dismiss
+            gestures track the keyboard frame-for-frame instead of
+            snapping. Mounted once at the root so no screen has to set
+            it up. */}
+        <KeyboardProvider>
+          <ThemeProvider>
+            <ErrorProvider>
+              <ApiProvider>
+                <AuthGateProvider>
+                  {/* `UserProvider` hydrates `/user/details` ONCE per
+                      auth-state change and exposes the result via
+                      `useUser()`. Sits inside AuthGate so it can react
+                      to sign-in / sign-out, and inside Api so it has the
+                      apiUtil to make the call. Migrated callers read
+                      from context (sync); the ones that genuinely need
+                      fresh data after a write call `refresh()`. */}
+                  <UserProvider>
+                    <LocationProvider>
+                      <ThemedRoot />
+                    </LocationProvider>
+                  </UserProvider>
+                </AuthGateProvider>
+              </ApiProvider>
+            </ErrorProvider>
+          </ThemeProvider>
+        </KeyboardProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

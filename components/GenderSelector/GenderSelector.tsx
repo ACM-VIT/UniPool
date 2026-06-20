@@ -1,8 +1,9 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text } from "react-native";
 import { GenderSelectorProps } from "./GenderSelector.types";
 import styles from "./GenderSelector.styles";
 import { useThemeColors } from "../../contexts/ThemeContext";
+import PressableScale from "../PressableScale";
 
 const options = [
   ["Male", "Female"],
@@ -18,13 +19,15 @@ const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange }) => {
           {row.map((option) => {
             const isSelected = value === option;
             return (
-              <TouchableOpacity
+              <PressableScale
                 key={option}
                 style={[
                   styles.button,
                   { backgroundColor: colors.navFill },
                   isSelected && { backgroundColor: colors.surfaceElevated },
                 ]}
+                // Segmented value change → a crisp selection tick.
+                haptic="selection"
                 onPress={() => onChange(option)}
               >
                 <Text style={[
@@ -36,7 +39,7 @@ const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange }) => {
                 ]}>
                   {option}
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             );
           })}
         </View>

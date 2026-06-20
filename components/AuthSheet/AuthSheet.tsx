@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, Modal, Animated, Easing, ActivityIndicator, Platform, Pressable, Dimensions } from "react-native";
+import { View, Text, Modal, Animated, Easing, ActivityIndicator, Platform, Pressable, Dimensions } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import {
@@ -20,6 +20,7 @@ import type { RootStackParamList } from "../../navigation/RootStackParamList";
 import { appHref } from "../../navigation/routes";
 import BrandedAlert from "../BrandedAlert";
 import { haptic } from "../haptics";
+import PressableScale from "../PressableScale";
 import {
   isAuthenticationRedirectError,
   isProviderCollisionError,
@@ -286,12 +287,13 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
         {/* Grab handle */}
         <View style={{ alignSelf: "center", width: 44, height: 5, borderRadius: 3, backgroundColor: colors.inkLine, marginBottom: 18 }} />
 
-        {/* Close action — top right */}
-        <TouchableOpacity onPress={onDismiss} disabled={isSigningIn} activeOpacity={0.6} style={{ position: "absolute", top: 22, right: 18, width: 36, height: 36, borderRadius: 18, backgroundColor: colors.inkSubtle, alignItems: "center", justifyContent: "center", zIndex: 4 }}>
+        {/* Close action — top right. Dismiss is not a decision, so the
+            scale carries the press and the haptic stays muted. */}
+        <PressableScale onPress={onDismiss} disabled={isSigningIn} haptic={null} style={{ position: "absolute", top: 22, right: 18, width: 36, height: 36, borderRadius: 18, backgroundColor: colors.inkSubtle, alignItems: "center", justifyContent: "center", zIndex: 4 }}>
           <Svg width={14} height={14} viewBox="0 0 16 16">
             <Path d="M3 3 L 13 13 M13 3 L 3 13" stroke={colors.textPrimary} strokeWidth={2.2} strokeLinecap="round" />
           </Svg>
-        </TouchableOpacity>
+        </PressableScale>
 
         {/* Headline + subhead — visible immediately so the sheet
             doesn't slide up empty for a beat before the words land.
@@ -312,11 +314,12 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
 
         <View>
         {Platform.OS === "ios" && (
-          <TouchableOpacity
+          <PressableScale
             style={{ height: 56, borderRadius: 14, backgroundColor: primaryCtaBg, flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 12, opacity: signingIn === "google" ? 0.4 : 1, shadowColor: AppColors.basicBlack, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 2 }}
             onPress={handleApple}
             disabled={isSigningIn}
-            activeOpacity={0.85}
+            // Primary commit — a weightier tap as sign-in kicks off.
+            haptic="medium"
           >
             {signingIn === "apple" ? (
               <ActivityIndicator size="small" color={primaryCtaText} />
@@ -328,17 +331,18 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
             <Text style={{ fontFamily: "NunitoSans_700Bold", fontSize: 17, color: primaryCtaText, marginLeft: 10, letterSpacing: 0.2 }}>
               {signingIn === "apple" ? "Signing in…" : "Continue with Apple"}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         )}
 
         {/* Google — kept white per Google brand spec in both modes
             (their brand requires this surface). Border softens so it
             still reads as a distinct chip on the dark sheet. */}
-        <TouchableOpacity
+        <PressableScale
           style={{ height: 56, borderRadius: 14, backgroundColor: AppColors.basicWhite, borderWidth: 1, borderColor: "rgba(38,59,51,0.14)", flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 22, opacity: signingIn === "apple" ? 0.4 : 1, shadowColor: AppColors.basicBlack, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1 }}
           onPress={handleGoogle}
           disabled={isSigningIn}
-          activeOpacity={0.85}
+          // Primary commit — matches the Apple button's weight.
+          haptic="medium"
         >
           {signingIn === "google" ? (
             <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} />
@@ -355,7 +359,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
           <Text style={{ fontFamily: "NunitoSans_700Bold", fontSize: 17, color: AppColors.secondaryDarkGreen, marginLeft: 10, letterSpacing: 0.2 }}>
             {signingIn === "google" ? "Signing in…" : "Continue with Google"}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
 
         {/* Footer T&C — terse so the sheet stays compact */}
         <Text style={[

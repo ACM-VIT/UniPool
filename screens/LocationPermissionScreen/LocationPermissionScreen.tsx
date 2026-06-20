@@ -2,13 +2,13 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   Image,
   StatusBar,
   Platform,
   useWindowDimensions,
   ActivityIndicator,
 } from "react-native";
+import PressableScale from "../../components/PressableScale";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
@@ -173,11 +173,11 @@ const LocationPermissionScreen: React.FC = () => {
         </View>
 
         <View style={styles.ctaBlock}>
-          <TouchableOpacity
+          <PressableScale
             style={[styles.primaryBtn, { backgroundColor: colors.navFill }, busy && { opacity: 0.7 }]}
-            activeOpacity={0.88}
             onPress={handleContinue}
             disabled={busy}
+            haptic="medium"
             accessibilityRole="button"
             accessibilityLabel="Continue to location and notification permissions"
             accessibilityState={{ busy, disabled: busy }}
@@ -191,7 +191,7 @@ const LocationPermissionScreen: React.FC = () => {
             ) : (
               <Text style={[styles.primaryBtnText, { color: colors.navIconInactive }]}>Continue</Text>
             )}
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </View>
 

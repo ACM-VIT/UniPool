@@ -2,13 +2,14 @@ import React, { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   Animated,
   StatusBar,
   NativeScrollEvent,
   NativeSyntheticEvent,
 } from "react-native";
 import AsyncStorage from "../../utils/safeAsyncStorage";
+import PressableScale from "../../components/PressableScale";
+import { haptic } from "../../components/haptics";
 import { useRouter } from "expo-router";
 import styles, { SLIDE_WIDTH, HERO_SIZE } from "./OnboardingScreen.styles";
 import { useThemeColors } from "../../contexts/ThemeContext";
@@ -67,6 +68,11 @@ const OnboardingScreen: React.FC = () => {
   // Animated.ScrollView is required for native-driver scroll events on Fabric.
   const scrollRef = useRef<any>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
+  // JS-thread mirror of the scroll offset, used solely by the page
+  // indicator. The dots animate `width`, which the native animated
+  // module can't drive — so they read from this non-native value while
+  // `scrollX` stays on the native driver for the hero parallax above.
+  const scrollXDots = useRef(new Animated.Value(0)).current;
   const [index, setIndex] = useState(0);
 
   const onScroll = Animated.event(
@@ -74,7 +80,9 @@ const OnboardingScreen: React.FC = () => {
     {
       useNativeDriver: true,
       listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-        const i = Math.round(e.nativeEvent.contentOffset.x / SLIDE_WIDTH);
+        const x = e.nativeEvent.contentOffset.x;
+        scrollXDots.setValue(x);
+        const i = Math.round(x / SLIDE_WIDTH);
         if (i !== index) setIndex(i);
       },
     },
@@ -82,6 +90,8 @@ const OnboardingScreen: React.FC = () => {
 
   const finishOnboarding = useCallback(
     async (target: "HomeScreen" | "AuthScreen") => {
+      // Onboarding cleared — a small "you're in" confirmation as we hand off.
+      haptic("success");
       try {
         await AsyncStorage.setItem("hasSeenOnboarding", "true");
       } catch {}
@@ -217,14 +227,14 @@ const OnboardingScreen: React.FC = () => {
           it doesn't compete with the swipe-forward CTA below. */}
       <View style={styles.topBar} pointerEvents="box-none">
         <Text style={[styles.wordmark, { color: colors.primary }]}>UniPool</Text>
-        <TouchableOpacity
+        <PressableScale
           onPress={skip}
           style={styles.skipBtn}
-          activeOpacity={0.6}
           hitSlop={8}
+          haptic={null}
         >
           <Text style={[styles.skipText, { color: colors.textOnDark }]}>Skip</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       {/* Bottom chrome — page indicator that morphs the active dot
@@ -238,12 +248,12 @@ const OnboardingScreen: React.FC = () => {
               i * SLIDE_WIDTH,
               (i + 1) * SLIDE_WIDTH,
             ];
-            const dotWidth = scrollX.interpolate({
+            const dotWidth = scrollXDots.interpolate({
               inputRange,
               outputRange: [8, 28, 8],
               extrapolate: "clamp",
             });
-            const dotOpacity = scrollX.interpolate({
+            const dotOpacity = scrollXDots.interpolate({
               inputRange,
               outputRange: [0.32, 1, 0.32],
               extrapolate: "clamp",
@@ -267,15 +277,14 @@ const OnboardingScreen: React.FC = () => {
             label across the board matches the pattern used by
             Endel, Emma, Craft, Elevate, IRL, Babbel, etc. on their
             final onboarding screens. */}
-        <TouchableOpacity
+        <PressableScale
           style={[styles.primaryBtn, { backgroundColor: colors.primary }]}
-          activeOpacity={0.85}
           onPress={goNext}
         >
           <Text style={[styles.primaryBtnText, { color: colors.textOnAccent }]}>
             {isLastSlide ? "Get started" : "Continue"}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </View>
   );

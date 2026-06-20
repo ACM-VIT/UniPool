@@ -3,7 +3,6 @@ import {
   Modal,
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   Share,
   Platform,
@@ -14,6 +13,7 @@ import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import RouteStack from "./RouteStack";
 import { displayRideLocation } from "../utils/LocationService";
+import PressableScale from "./PressableScale";
 
 /** Base HTTPS host for ride share links and future app-link routing. */
 const SHARE_HOST = "https://unipool.acmvit.in";
@@ -158,25 +158,25 @@ const ShareRideSheet: React.FC<Props> = ({
             </View>
           </View>
 
-          <TouchableOpacity
+          <PressableScale
             style={[
               styles.primaryBtn,
               // Dark mode uses the app's primary CTA contrast.
               colors.mode === "dark" && { backgroundColor: colors.primary },
             ]}
-            activeOpacity={0.85}
+            haptic="medium"
             onPress={handleNativeShare}
           >
             <Text style={[styles.primaryBtnText, colors.mode === "dark" && { color: colors.textOnAccent }]}>Share link</Text>
-          </TouchableOpacity>
+          </PressableScale>
 
-          <TouchableOpacity
+          <PressableScale
             style={styles.secondaryBtn}
-            activeOpacity={0.7}
+            haptic={null}
             onPress={onClose}
           >
             <Text style={[styles.secondaryBtnText, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Done</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </Pressable>
       </Pressable>
     </Modal>

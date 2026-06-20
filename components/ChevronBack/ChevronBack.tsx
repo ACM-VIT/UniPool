@@ -1,9 +1,10 @@
 import React from "react";
-import { TouchableOpacity, Image } from "react-native";
+import { Image } from "react-native";
 import { useRouter } from "expo-router";
 import styles from "./ChevronBack.styles";
 import { ChevronBackProps } from "./ChevronBack.types";
 import { useThemeColors } from "../../contexts/ThemeContext";
+import PressableScale from "../PressableScale";
 
 const ChevronBack: React.FC<ChevronBackProps> = ({ onPress, style }) => {
   const { back } = useRouter();
@@ -18,9 +19,13 @@ const ChevronBack: React.FC<ChevronBackProps> = ({ onPress, style }) => {
   };
 
   return (
-    <TouchableOpacity
+    <PressableScale
       style={[styles.container, style]}
       onPress={handlePress}
+      // Back is navigation, not a state change — let the scale carry
+      // the press feedback but mute the haptic so going back never
+      // taps (haptics are for decisions, not chrome).
+      haptic={null}
       // ChevronBack renders a 24×24 icon with 8pt padding — about 40pt
       // of actual hit area, just below Apple's 44pt HIG minimum. We add
       // a 10pt hitSlop on each side so the *touch* target is ~60pt even
@@ -42,7 +47,7 @@ const ChevronBack: React.FC<ChevronBackProps> = ({ onPress, style }) => {
         style={[styles.icon, { tintColor: colors.textPrimary }]}
         resizeMode="contain"
       />
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 

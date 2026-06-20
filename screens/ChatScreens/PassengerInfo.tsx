@@ -8,6 +8,7 @@ import {
   ListRenderItem,
 } from 'react-native';
 import { useFocusEffect, useRouter } from "expo-router";
+import PressableScale from '../../components/PressableScale';
 import { passengerInfoStyles } from './ChatScreen.styles';
 import { PassengerInfoScreenProps, User } from './ChatScreen.types';
 import { useThemeColors } from '../../contexts/ThemeContext';
@@ -39,12 +40,12 @@ const PassengerRow = React.memo(function PassengerRow({
   }, [onPress, passenger]);
 
   return (
-    <TouchableOpacity
+    <PressableScale
       style={[passengerInfoStyles.destinationItem, { backgroundColor: rowColors.navFill }]}
       onPress={handlePress}
     >
       <Text style={[passengerInfoStyles.destinationText, { color: rowColors.navIconActive }]}>{passenger.name}</Text>
-    </TouchableOpacity>
+    </PressableScale>
   );
 });
 

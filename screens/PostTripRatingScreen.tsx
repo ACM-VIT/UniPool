@@ -5,9 +5,7 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Image,
   Animated,
 } from "react-native";
@@ -19,6 +17,9 @@ import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import BrandedAlert from "../components/BrandedAlert";
 import { haptic } from "../components/haptics";
+import PressableScale from "../components/PressableScale";
+import SkeletonBlock from "../components/Skeleton";
+import KeyboardAwareScreen from "../components/KeyboardAwareScreen";
 import { useDecodedLocalSearchParams } from "../navigation/routes";
 import { useTabletContentStyle } from "../utils/responsive";
 import { displayRideLocation } from "../utils/LocationService";
@@ -148,8 +149,26 @@ const PostTripRatingScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="small" color={colors.textPrimary} accessibilityLabel="Loading" />
+      // Skeleton outlines the heading + a rating card so the screen settles in place.
+      <View style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
+        <View style={[styles.scrollContent, { paddingTop: insets.top + 4 }]}>
+          <SkeletonBlock width="70%" height={28} radius={8} style={{ marginTop: 4 }} />
+          <SkeletonBlock width="55%" height={14} radius={6} style={{ marginTop: 12, marginBottom: 22 }} />
+          <View style={[styles.card, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
+            <View style={styles.cardHeader}>
+              <SkeletonBlock width={44} height={44} radius={22} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <SkeletonBlock width="60%" height={17} radius={6} />
+                <SkeletonBlock width="40%" height={12} radius={6} style={{ marginTop: 6 }} />
+              </View>
+            </View>
+            <View style={styles.starsRow}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <SkeletonBlock key={n} width={36} height={36} radius={8} />
+              ))}
+            </View>
+          </View>
+        </View>
       </View>
     );
   }
@@ -161,7 +180,7 @@ const PostTripRatingScreen: React.FC = () => {
         <Text style={[styles.body, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }, { textAlign: "center", marginTop: 8 }]}>
           {error || "This trip isn't open for ratings yet."}
         </Text>
-        <TouchableOpacity
+        <PressableScale
           style={[
             styles.primaryBtn,
             {
@@ -170,11 +189,11 @@ const PostTripRatingScreen: React.FC = () => {
               marginTop: 24,
             },
           ]}
-          activeOpacity={0.85}
+          haptic={null}
           onPress={() => back()}
         >
           <Text style={[styles.primaryBtnText, { color: colors.mode === "dark" ? colors.textOnAccent : colors.navIconInactive }]}>Got it</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     );
   }
@@ -189,7 +208,7 @@ const PostTripRatingScreen: React.FC = () => {
             : "You've already rated everyone on this trip."}
         </Text>
         {/* Stretch inside the centered empty state while capping tablet width. */}
-        <TouchableOpacity
+        <PressableScale
           style={[
             styles.primaryBtn,
             {
@@ -200,83 +219,74 @@ const PostTripRatingScreen: React.FC = () => {
               paddingHorizontal: 32,
             },
           ]}
-          activeOpacity={0.85}
+          haptic={null}
           onPress={() => back()}
         >
           <Text style={[styles.primaryBtnText, { color: colors.mode === "dark" ? colors.textOnAccent : colors.navIconInactive }]}>Done</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
-      <KeyboardAvoidingView
-        // Padding behavior moves the scroll content above the keyboard.
-        behavior="padding"
-        style={{ flex: 1 }}
-        keyboardVerticalOffset={0}
+      <KeyboardAwareScreen
+        contentContainerStyle={[
+          styles.scrollContent,
+          // Keep a small cushion above the modal content plus the safe area.
+          { paddingTop: insets.top + 4, paddingBottom: Math.max(insets.bottom, 16) + 12 },
+        ]}
       >
-        <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            // Keep a small cushion above the modal content plus the safe area.
-            { paddingTop: insets.top + 4, paddingBottom: Math.max(insets.bottom, 16) + 12 },
-          ]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Toolbar row: title left, close action right. */}
-          <View style={styles.topRow}>
-            <Text style={[styles.heading, { color: colors.textPrimary }]}>How was the ride?</Text>
-            <TouchableOpacity
-              onPress={() => back()}
-              activeOpacity={0.7}
-              style={[styles.closeBtn, { backgroundColor: colors.inkSubtle }]}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              accessibilityLabel="Close"
-            >
-              <Svg width={14} height={14} viewBox="0 0 16 16">
-                <Path d="M3 3 L 13 13 M13 3 L 3 13" stroke={colors.textPrimary} strokeWidth={2.2} strokeLinecap="round" />
-              </Svg>
-            </TouchableOpacity>
-          </View>
-
-          <Text style={[styles.routeLine, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]} numberOfLines={2}>
-            {displayRideLocation(eligibility.start_location)} to {displayRideLocation(eligibility.end_location)}
-          </Text>
-
-          {eligibility.targets.map((target) => (
-            <RatingCard
-              key={target.user_id}
-              target={target}
-              draft={drafts[target.user_id] || { stars: 0, comment: "" }}
-              onChange={(next) =>
-                setDrafts((d) => ({ ...d, [target.user_id]: next }))
-              }
-            />
-          ))}
-
-          {/* Submit stays inside the scroll view so the keyboard cannot cover it. */}
-          <TouchableOpacity
-            style={[
-              styles.primaryBtn,
-              { backgroundColor: colors.mode === "dark" ? colors.primary : colors.navFill },
-              styles.submitInline,
-              (!allRated || submitting) && styles.primaryBtnDisabled,
-            ]}
-            activeOpacity={0.85}
-            disabled={!allRated || submitting}
-            onPress={submit}
+        {/* Toolbar row: title left, close action right. */}
+        <View style={styles.topRow}>
+          <Text style={[styles.heading, { color: colors.textPrimary }]}>How was the ride?</Text>
+          <PressableScale
+            onPress={() => back()}
+            haptic={null}
+            style={[styles.closeBtn, { backgroundColor: colors.inkSubtle }]}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityLabel="Close"
           >
-            {submitting ? (
-              <ActivityIndicator size="small" color={colors.mode === "dark" ? colors.textOnAccent : colors.navIconInactive} accessibilityLabel="Loading" />
-            ) : (
-              <Text style={[styles.primaryBtnText, { color: colors.mode === "dark" ? colors.textOnAccent : colors.navIconInactive }]}>Submit</Text>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
+            <Svg width={14} height={14} viewBox="0 0 16 16">
+              <Path d="M3 3 L 13 13 M13 3 L 3 13" stroke={colors.textPrimary} strokeWidth={2.2} strokeLinecap="round" />
+            </Svg>
+          </PressableScale>
+        </View>
+
+        <Text style={[styles.routeLine, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]} numberOfLines={2}>
+          {displayRideLocation(eligibility.start_location)} to {displayRideLocation(eligibility.end_location)}
+        </Text>
+
+        {eligibility.targets.map((target) => (
+          <RatingCard
+            key={target.user_id}
+            target={target}
+            draft={drafts[target.user_id] || { stars: 0, comment: "" }}
+            onChange={(next) =>
+              setDrafts((d) => ({ ...d, [target.user_id]: next }))
+            }
+          />
+        ))}
+
+        {/* Submit stays inside the scroll body so the keyboard cannot cover it. */}
+        <PressableScale
+          style={[
+            styles.primaryBtn,
+            { backgroundColor: colors.mode === "dark" ? colors.primary : colors.navFill },
+            styles.submitInline,
+            (!allRated || submitting) && styles.primaryBtnDisabled,
+          ]}
+          haptic="medium"
+          disabled={!allRated || submitting}
+          onPress={submit}
+        >
+          {submitting ? (
+            <ActivityIndicator size="small" color={colors.mode === "dark" ? colors.textOnAccent : colors.navIconInactive} accessibilityLabel="Loading" />
+          ) : (
+            <Text style={[styles.primaryBtnText, { color: colors.mode === "dark" ? colors.textOnAccent : colors.navIconInactive }]}>Submit</Text>
+          )}
+        </PressableScale>
+      </KeyboardAwareScreen>
     </View>
   );
 };
@@ -294,7 +304,8 @@ type RatingCardProps = {
 const RatingCard: React.FC<RatingCardProps> = ({ target, draft, onChange }) => {
   const colors = useThemeColors();
   const setStars = (n: number) => {
-    haptic("light");
+    // Selection feedback — picking a star is a discrete choice, not a tap.
+    haptic("selection");
     onChange({ ...draft, stars: n });
   };
 

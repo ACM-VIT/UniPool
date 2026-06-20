@@ -5,15 +5,18 @@ import {
   TouchableOpacity,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
 import { appHref } from "../navigation/routes";
 import EmptyState from "../components/EmptyState";
+import PressableScale from "../components/PressableScale";
+import SkeletonBlock from "../components/Skeleton";
+import { enterStagger, LAYOUT } from "../components/motion";
 import BrandInfo from "../components/BrandInfo/BrandInfo";
 import ChevronBack from "../components/ChevronBack/ChevronBack";
 import profileStyles from "./ProfileScreen/ProfileScreen.styles";
@@ -143,12 +146,12 @@ const TripHistoryScreen: React.FC = () => {
     return out;
   }, [rides]);
 
-  const renderTrip = useCallback(({ item }: { item: TripHistoryRow }) => {
+  const renderTrip = useCallback(({ item, index }: { item: TripHistoryRow; index: number }) => {
     const needsRating = item.actions?.can_rate === true;
     return (
-      <View style={[styles.row, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
-        <TouchableOpacity
-          activeOpacity={0.7}
+      // Stagger rows in as the history loads so a fresh list reads top-down.
+      <Animated.View entering={enterStagger(index)} layout={LAYOUT} style={[styles.row, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
+        <PressableScale
           style={styles.rowMain}
           onPress={() =>
             navigate(appHref("RideDetailsScreen", { rideId: item.stableId }))
@@ -161,11 +164,10 @@ const TripHistoryScreen: React.FC = () => {
             {item.whenLabel} · {item.roleLabel}
             {item.total_price ? ` · ₹${item.total_price}` : ""}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
         {needsRating ? (
-          <TouchableOpacity
+          <PressableScale
             style={[styles.rateBtn, colors.mode === "dark" && { backgroundColor: colors.primary }]}
-            activeOpacity={0.85}
             onPress={() =>
               navigate(
                 appHref("PostTripRatingScreen", { rideId: item.stableId }),
@@ -173,9 +175,9 @@ const TripHistoryScreen: React.FC = () => {
             }
           >
             <Text style={[styles.rateBtnText, colors.mode === "dark" && { color: colors.textOnAccent }]}>Rate</Text>
-          </TouchableOpacity>
+          </PressableScale>
         ) : null}
-      </View>
+      </Animated.View>
     );
   }, [navigate, colors]);
 
@@ -192,8 +194,16 @@ const TripHistoryScreen: React.FC = () => {
       </View>
 
       {loading ? (
-        <View style={[styles.center, { flex: 1 }]}>
-          <ActivityIndicator size="small" color={colors.textPrimary} accessibilityLabel="Loading" />
+        // Skeleton rows mirror the trip-card shape so the layout doesn't jump in.
+        <View style={styles.listContent}>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <View key={i} style={[styles.row, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
+              <View style={styles.rowMain}>
+                <SkeletonBlock width="78%" height={16} radius={6} />
+                <SkeletonBlock width="55%" height={12} radius={6} style={{ marginTop: 8 }} />
+              </View>
+            </View>
+          ))}
         </View>
       ) : error ? (
         <View style={[styles.center, { flex: 1, paddingHorizontal: 24 }]}>

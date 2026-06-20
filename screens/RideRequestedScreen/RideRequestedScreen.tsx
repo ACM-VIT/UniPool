@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, View, Easing, Text, TouchableOpacity } from "react-native";
+import { Animated, View, Easing, Text } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import PressableScale from "../../components/PressableScale";
+import { haptic } from "../../components/haptics";
 import styles from "./RideRequestedScreen.styles";
 import { appHref } from "../../navigation/routes";
 import { useUser } from "../../contexts/UserContext";
@@ -39,6 +41,9 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
 
   useEffect(() => {
     if (props.setNavBarVariant) props.setNavBarVariant(0);
+
+    // Request landed — confirm the submit as the "done!" pulse plays.
+    haptic("success");
 
     Animated.parallel([
       Animated.spring(scale, {
@@ -145,32 +150,30 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
           moment they accept.
         </Text>
 
-        <TouchableOpacity
+        <PressableScale
           style={[styles.ctaPrimary, { backgroundColor: colors.navFill }]}
-          activeOpacity={0.85}
           onPress={viewRequestStatus}
         >
           <Text style={[styles.ctaPrimaryText, { color: colors.navIconInactive }]}>View request status</Text>
-        </TouchableOpacity>
+        </PressableScale>
 
-        <TouchableOpacity
+        <PressableScale
           style={[styles.ctaSecondary, { borderColor: colors.textPrimary }]}
-          activeOpacity={0.85}
           onPress={openHostChat}
           disabled={!hostUserId}
         >
           <Text style={[styles.ctaSecondaryText, { color: colors.textPrimary }]}>
             Message {hostFirstName}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
 
-        <TouchableOpacity
+        <PressableScale
           style={styles.ctaTertiary}
-          activeOpacity={0.7}
           onPress={() => replace(appHref("BookingScreen"))}
+          haptic={null}
         >
           <Text style={[styles.ctaTertiaryText, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Back to trips</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </Animated.View>
     </View>
   );

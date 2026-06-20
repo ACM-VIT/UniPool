@@ -11,6 +11,7 @@ import { UniversalSliderProps } from "./SlideToCreate.types";
 import styles from "./SlideToCreate.styles";
 import AppColors from "../../design_systems/colors";
 import { useThemeColors } from "../../contexts/ThemeContext";
+import { haptic } from "../haptics";
 
 const UniversalSlider: React.FC<UniversalSliderProps> = ({
   onSlideComplete,
@@ -107,6 +108,10 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
       const threshold = maxTranslation * 0.8; // 80% of the available slide distance
       
       if (translationX >= threshold && !disabled) {
+        // The thumb crossed the commit threshold — a heavy "thunk"
+        // confirms the slide landed, matching the weight of the action
+        // it kicks off (post a ride, accept/reject a rider).
+        haptic("heavy");
         Animated.spring(translateX, {
           toValue: maxTranslation,
           useNativeDriver: false,

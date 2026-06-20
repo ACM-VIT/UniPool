@@ -227,7 +227,7 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
                         showsHorizontalScrollIndicator={false}
                         onMomentumScrollEnd={handleScroll}
                     >
-                        {displayedRides.map((trip: UserRideData, index: number) => (
+                        {displayedRides.map((trip: UserRideData) => (
                             <View
                                 key={trip.ride_id}
                                 style={[
@@ -238,28 +238,28 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
                                 ]}
                             >
                                 <PreviousTripsCompressed
-                                    trip={trip}
-                                    // @ts-ignore: rideId is expected by RideDetailsScreen navigation.
-                                    onPress={() => router.navigate(appHref("RideDetailsScreen", { rideId: trip.ride_id }))}
-                                    onOpenChat={() => {
-                                        // Group chats use the ride id as chatId; the short
-                                        // destination keeps the header title compact.
-                                        const shortDest = (trip.end_location || "")
-                                            .split(",")[0]
-                                            .trim();
-                                        const title = shortDest
-                                            ? `Trip to ${shortDest}`
-                                            : "Ride chat";
-                                        router.navigate(
-                                            appHref("ChatMessages", {
-                                                chatId: String(trip.ride_id),
-                                                chatTitle: title,
-                                                userId: viewerUser?.id,
-                                                isGroupChat: true,
-                                            })
-                                        );
-                                    }}
-                                />
+                                        trip={trip}
+                                        // @ts-ignore: rideId is expected by RideDetailsScreen navigation.
+                                        onPress={() => router.navigate(appHref("RideDetailsScreen", { rideId: trip.ride_id }))}
+                                        onOpenChat={() => {
+                                            // Group chats use the ride id as chatId; the short
+                                            // destination keeps the header title compact.
+                                            const shortDest = (trip.end_location || "")
+                                                .split(",")[0]
+                                                .trim();
+                                            const title = shortDest
+                                                ? `Trip to ${shortDest}`
+                                                : "Ride chat";
+                                            router.navigate(
+                                                appHref("ChatMessages", {
+                                                    chatId: String(trip.ride_id),
+                                                    chatTitle: title,
+                                                    userId: viewerUser?.id,
+                                                    isGroupChat: true,
+                                                })
+                                            );
+                                        }}
+                                    />
                             </View>
                         ))}
                     </ScrollView>

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Animated,
   Easing,
   ActivityIndicator,
@@ -15,6 +14,7 @@ import AppColors from "../design_systems/colors";
 import { appHref } from "../navigation/routes";
 import { useApi } from "../utils/ApiUtil";
 import { haptic } from "../components/haptics";
+import PressableScale from "../components/PressableScale";
 
 type Phase = "pending" | "success" | "error";
 
@@ -203,13 +203,13 @@ export default function VerifyDeepLinkRoute() {
           </View>
           <Text style={styles.headline}>Couldn't verify</Text>
           <Text style={styles.bodyText}>{errorMessage}</Text>
-          <TouchableOpacity
+          <PressableScale
             style={styles.cta}
-            activeOpacity={0.85}
+            haptic={null}
             onPress={goHome}
           >
             <Text style={styles.ctaText}>Continue</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       ) : (
         <View style={styles.successCenter}>
@@ -301,13 +301,13 @@ export default function VerifyDeepLinkRoute() {
               alignItems: "center",
             }}
           >
-            <TouchableOpacity
+            <PressableScale
               style={styles.cta}
-              activeOpacity={0.85}
+              haptic={null}
               onPress={goHome}
             >
               <Text style={styles.ctaText}>Continue</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </Animated.View>
         </View>
       )}

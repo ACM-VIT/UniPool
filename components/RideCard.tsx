@@ -2,7 +2,6 @@ import React from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   Image,
   Dimensions,
@@ -11,6 +10,7 @@ import {
   TextStyle,
   ViewStyle,
 } from "react-native";
+import PressableScale from "./PressableScale";
 import Svg, { Circle, Ellipse, Defs, RadialGradient, Stop } from "react-native-svg";
 const clockIcon = require("../assets/clock.png");
 const walletIcon = require("../assets/wallet.png");
@@ -275,7 +275,7 @@ const RideCard: React.FC<RideCardProps> = ({
     : null;
 
   return (
-    <TouchableOpacity
+    <PressableScale
       style={[
         styles.card,
         { backgroundColor: baseBackground },
@@ -440,7 +440,7 @@ const RideCard: React.FC<RideCardProps> = ({
           startTime={startTimeIso || ""}
         />
       ) : null}
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 

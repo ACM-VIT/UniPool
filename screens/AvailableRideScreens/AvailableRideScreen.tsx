@@ -13,6 +13,7 @@ import RideCard from "../../components/RideCard";
 import RideCardSkeleton from "../../components/RideCardSkeleton";
 import MatchInsightsShelf, { MatchSignal } from "../../components/MatchInsightsShelf";
 import { DarkEmptyGlyph } from "../../components/EmptyState";
+import PressableScale from "../../components/PressableScale";
 import AppColors from "../../design_systems/colors";
 
 import { useApi } from "../../utils/ApiUtil";
@@ -665,6 +666,9 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   );
 
   const renderRideItem: ListRenderItem<VisibleRideItem> = useCallback(({ item }) => (
+    // Plain row: this list is virtualized (cells remount on scroll), so a
+    // per-row entrance would re-fire every time a row scrolls back into
+    // view. The cold-load wait is already covered by RideCardSkeleton.
     <AvailableRideResultRow
       item={item}
       selectedRideId={selectedRideId}
@@ -717,13 +721,14 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
           Try a wider time window, or post your own ride and let others jump in.
         </Text>
         <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
-          <TouchableOpacity
+          <PressableScale
             style={[styles.adjustFiltersButton, { backgroundColor: colors.navFill }]}
             onPress={() => setShowFilters(true)}
           >
             <Text style={[styles.adjustFiltersButtonText, { color: colors.navIconInactive, fontFamily: 'NunitoSans_800ExtraBold' }]}>Adjust filters</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </PressableScale>
+          <PressableScale
+            haptic="medium"
             style={[
               styles.adjustFiltersButton,
               { backgroundColor: colors.mode === "dark" ? colors.primary : AppColors.cardSurface },
@@ -744,7 +749,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
             }}
           >
             <Text style={[styles.adjustFiltersButtonText, { color: colors.textOnAccent, fontFamily: 'NunitoSans_800ExtraBold' }]}>Post a ride</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </View>
     );

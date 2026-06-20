@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   FlatList,
   ListRenderItem,
   ActivityIndicator,
@@ -15,6 +14,7 @@ import { useThemeColors } from "../contexts/ThemeContext";
 import BrandedAlert from "./BrandedAlert";
 import SheetShell from "./SheetShell";
 import { sheetUi } from "./SheetShell.styles";
+import PressableScale from "./PressableScale";
 import { haptic } from "./haptics";
 import { useApi } from "../utils/ApiUtil";
 
@@ -132,9 +132,11 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
 
   const renderInstituteResult = useCallback<ListRenderItem<PickedInstitute>>(
     ({ item: inst }) => (
-      <TouchableOpacity
+      // pickInstitute already fires a `selection` haptic on commit, so
+      // mute the press-in tap here to avoid a double-buzz.
+      <PressableScale
         style={[styles.resultRow, colors.mode === "dark" && { borderBottomColor: colors.inkSubtle }]}
-        activeOpacity={0.7}
+        haptic={null}
         onPress={() => pickInstitute(inst)}
       >
         <Text style={[styles.resultName, { color: colors.textPrimary }]} numberOfLines={2}>
@@ -145,7 +147,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
             .filter(Boolean)
             .join(" · ")}
         </Text>
-      </TouchableOpacity>
+      </PressableScale>
     ),
     [pickInstitute, colors],
   );
@@ -361,8 +363,8 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
             />
           </View>
 
-          <TouchableOpacity
-            activeOpacity={0.85}
+          <PressableScale
+            haptic="medium"
             disabled={busy}
             onPress={sendCode}
             style={[sheetUi.primaryBtn, busy && { opacity: 0.6 }]}
@@ -372,16 +374,16 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
             ) : (
               <Text style={sheetUi.primaryBtnText}>Send verification link</Text>
             )}
-          </TouchableOpacity>
+          </PressableScale>
 
-          <TouchableOpacity
-            activeOpacity={0.7}
+          <PressableScale
+            haptic={null}
             disabled={busy}
             onPress={() => setStep("pick")}
             style={sheetUi.linkBtn}
           >
             <Text style={sheetUi.linkBtnText}>Change university</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </>
       ) : (
         <>
@@ -415,8 +417,8 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
             />
           </View>
 
-          <TouchableOpacity
-            activeOpacity={0.85}
+          <PressableScale
+            haptic="medium"
             disabled={busy || code.length !== 6}
             onPress={submitCode}
             style={[sheetUi.primaryBtn, (busy || code.length !== 6) && { opacity: 0.4 }]}
@@ -426,20 +428,22 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
             ) : (
               <Text style={sheetUi.primaryBtnText}>Verify with code</Text>
             )}
-          </TouchableOpacity>
+          </PressableScale>
 
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 14 }}>
-            <TouchableOpacity
-              activeOpacity={0.7}
+            <PressableScale
+              haptic={null}
               disabled={busy}
               onPress={() => setStep("email")}
               style={sheetUi.linkBtn}
             >
               <Text style={sheetUi.linkBtnText}>Change email</Text>
-            </TouchableOpacity>
+            </PressableScale>
 
-            <TouchableOpacity
-              activeOpacity={0.7}
+            <PressableScale
+              // Resend re-runs sendCode, which fires its own
+              // success/error outcome haptic — mute the press-in tap.
+              haptic={null}
               disabled={busy || resendIn > 0}
               onPress={sendCode}
               style={sheetUi.linkBtn}
@@ -447,7 +451,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
               <Text style={[sheetUi.linkBtnText, resendIn > 0 && { opacity: 0.4 }]}>
                 {resendIn > 0 ? `Resend in ${resendIn}s` : "Resend"}
               </Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         </>
       )}

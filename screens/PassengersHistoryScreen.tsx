@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, ListRenderItem, TouchableOpacity } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { enterStagger, LAYOUT } from '../components/motion';
 import styles from './ProfileScreen/ProfileScreen.styles';
 import { useApi } from '../utils/ApiUtil';
 import BrandInfo from '../components/BrandInfo/BrandInfo';
@@ -81,10 +83,11 @@ const PassengersHistoryScreen: React.FC = () => {
     );
   }
 
-  const renderPassenger: ListRenderItem<Passenger> = ({ item }) => (
-    <View style={[styles.menuItem, colors.mode === "dark" && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}>
+  const renderPassenger: ListRenderItem<Passenger> = ({ item, index }) => (
+    // Stagger the co-riders in as the list loads.
+    <Animated.View entering={enterStagger(index)} layout={LAYOUT} style={[styles.menuItem, colors.mode === "dark" && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}>
       <Text style={[styles.menuItemText, { color: colors.textOnDark }]}>{item.name || 'No name available'}</Text>
-    </View>
+    </Animated.View>
   );
 
   return (

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Dimensions, Switch, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Dimensions, Switch } from "react-native";
 import { TouchableOpacity, ScrollView } from "react-native";
 import ChevronBack from "../components/ChevronBack/ChevronBack";
 import BrandInfo from "../components/BrandInfo/BrandInfo";
+import SkeletonBlock from "../components/Skeleton";
+import { haptic } from "../components/haptics";
 import AppColors from "../design_systems/colors";
 import { useApi } from "../utils/ApiUtil";
 import { useRouter } from "expo-router";
@@ -85,6 +87,8 @@ const NotificationsScreen: React.FC = () => {
 
   const updatePref = async (category: Category, value: boolean) => {
     const prior = prefs[category];
+    // Confirm the toggle decision the moment it flips.
+    haptic("selection");
     setPrefs((s) => ({ ...s, [category]: value }));
     try {
       await apiUtil.put("/user/notification-prefs", { category, enabled: value });
@@ -115,8 +119,34 @@ const NotificationsScreen: React.FC = () => {
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color={colors.textPrimary} accessibilityLabel="Loading" />
+        // Skeleton outlines the grouped preference cards so the layout settles in place.
+        <View style={[styles.scrollContent, tabletScrollContentStyle]}>
+          {[0, 1].map((s) => (
+            <View style={styles.section} key={s}>
+              <SkeletonBlock width={120} height={13} radius={6} style={{ marginBottom: height * 0.01, marginLeft: 2 }} />
+              <View style={[
+                styles.menuContainer,
+                colors.mode === "dark" && { backgroundColor: colors.surface, borderColor: colors.inkSubtle },
+              ]}>
+                {[0, 1].map((r) => (
+                  <View
+                    key={r}
+                    style={[
+                      styles.settingItem,
+                      colors.mode === "dark" && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle },
+                      r === 1 && { borderBottomWidth: 0 },
+                    ]}
+                  >
+                    <View style={styles.settingTextContainer}>
+                      <SkeletonBlock width="55%" height={15} radius={6} />
+                      <SkeletonBlock width="80%" height={12} radius={6} style={{ marginTop: 8 }} />
+                    </View>
+                    <SkeletonBlock width={44} height={26} radius={13} />
+                  </View>
+                ))}
+              </View>
+            </View>
+          ))}
         </View>
       ) : (
         <ScrollView
@@ -181,11 +211,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: width * 0.051,
     paddingBottom: height * 0.15,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
   },
   section: {
     marginBottom: height * 0.025,

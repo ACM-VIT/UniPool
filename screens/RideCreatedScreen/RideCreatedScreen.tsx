@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { View, Image } from "react-native";
 import { useRouter } from "expo-router";
+import { haptic } from "../../components/haptics";
 import styles from "./RideCreatedScreen.styles";
 import { appHref, useDecodedLocalSearchParams } from "../../navigation/routes";
 import { useTabletContentStyle } from "../../utils/responsive";
@@ -16,6 +17,9 @@ const RideCreatedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }>
     if (props.setNavBarVariant) {
       props.setNavBarVariant(0);
     }
+    // Ride is live — confirm the create with a success tap as the
+    // interstitial lands.
+    haptic("success");
     // Brief success interstitial → ride management screen (RideDetailsScreen
     // with the brand-new ride preloaded). Falls back to the bookings tab if
     // we somehow got here without an ID (defensive — shouldn't happen given
