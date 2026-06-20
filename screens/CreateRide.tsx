@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, TextInput, Animated, ScrollView } from "react-native";
+import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, TextInput, Animated, ScrollView, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
@@ -28,6 +28,12 @@ const DEBUG_CREATE_RIDE =
   typeof __DEV__ !== "undefined" &&
   __DEV__ &&
   process.env.EXPO_PUBLIC_DEBUG_CREATE_RIDE === "1";
+
+const clampFareDraft = (draft: string, fallback: number, min: number, max: number) => {
+  let value = parseInt(draft, 10);
+  if (Number.isNaN(value)) value = fallback;
+  return Math.min(max, Math.max(min, value));
+};
 
 interface CreateRideResponse {
   id: string;
@@ -159,6 +165,7 @@ const CreateRide: React.FC = () => {
   const [isEditingCost, setIsEditingCost] = useState<boolean>(false);
   const [customCost, setCustomCost] = useState<string>("");
   const costInputRef = useRef<TextInput>(null);
+  const customCostDraftRef = useRef<string>("");
 
   // Three ways to enter the trip fare:
   //   "per_seat" — original behaviour, host types the per-seat amount
@@ -181,6 +188,7 @@ const CreateRide: React.FC = () => {
   const [isEditingTotal, setIsEditingTotal] = useState<boolean>(false);
   const [customTotal, setCustomTotal] = useState<string>("");
   const totalInputRef = useRef<TextInput>(null);
+  const customTotalDraftRef = useRef<string>("");
   // Seat fares: one entry per SEAT IN THE CAR (host included).
   // Length always stays in sync with totalSeats via the effect
   // below; default 4 matches the totalSeats default of 4 (host + 3
@@ -189,6 +197,7 @@ const CreateRide: React.FC = () => {
   const [editingSeatIndex, setEditingSeatIndex] = useState<number | null>(null);
   const [seatFareDraft, setSeatFareDraft] = useState<string>("");
   const seatFareInputRef = useRef<TextInput>(null);
+  const seatFareDraftRef = useRef<string>("");
 
   // Bottom-sheet visibility for the fare editor. The fare details
   // (three split modes + steppers + per-seat list) live in a sheet
@@ -542,17 +551,21 @@ const CreateRide: React.FC = () => {
     costPerPerson > 25 && setCostPerPerson((c) => c - 25);
 
   const handleCostPress = () => {
-    setCustomCost(costPerPerson.toString());
+    const nextDraft = costPerPerson.toString();
+    customCostDraftRef.current = nextDraft;
+    setCustomCost(nextDraft);
     setIsEditingCost(true);
     setTimeout(() => costInputRef.current?.focus(), 100);
   };
-  const handleCostChange = (text: string) =>
-    /^\d*$/.test(text) && setCustomCost(text);
+  const handleCostChange = (text: string) => {
+    if (!/^\d*$/.test(text)) return;
+    customCostDraftRef.current = text;
+    setCustomCost(text);
+  };
+  const getPendingCostPerPerson = () =>
+    clampFareDraft(customCostDraftRef.current, costPerPerson, 25, 10000);
   const handleCostSubmit = () => {
-    let v = parseInt(customCost, 10);
-    if (isNaN(v)) v = costPerPerson;
-    v = Math.min(10000, Math.max(25, v));
-    setCostPerPerson(v);
+    setCostPerPerson(getPendingCostPerPerson());
     setIsEditingCost(false);
   };
 
@@ -568,17 +581,21 @@ const CreateRide: React.FC = () => {
 
   // Tap-to-edit mirrors Per seat mode and clamps to the stepper range.
   const handleTotalPress = () => {
-    setCustomTotal(totalFare.toString());
+    const nextDraft = totalFare.toString();
+    customTotalDraftRef.current = nextDraft;
+    setCustomTotal(nextDraft);
     setIsEditingTotal(true);
     setTimeout(() => totalInputRef.current?.focus(), 100);
   };
-  const handleTotalChange = (text: string) =>
-    /^\d*$/.test(text) && setCustomTotal(text);
+  const handleTotalChange = (text: string) => {
+    if (!/^\d*$/.test(text)) return;
+    customTotalDraftRef.current = text;
+    setCustomTotal(text);
+  };
+  const getPendingTotalFare = () =>
+    clampFareDraft(customTotalDraftRef.current, totalFare, totalMin, totalMax);
   const handleTotalSubmit = () => {
-    let v = parseInt(customTotal, 10);
-    if (isNaN(v)) v = totalFare;
-    v = Math.min(totalMax, Math.max(totalMin, v));
-    setTotalFare(v);
+    setTotalFare(getPendingTotalFare());
     setIsEditingTotal(false);
   };
 
@@ -586,18 +603,28 @@ const CreateRide: React.FC = () => {
   // numeric input (one at a time) so the host can punch in an exact
   // amount without juggling steppers for every seat.
   const openSeatEditor = (idx: number) => {
-    setSeatFareDraft(String(seatFares[idx] ?? 100));
+    const nextDraft = String(seatFares[idx] ?? 100);
+    seatFareDraftRef.current = nextDraft;
+    setSeatFareDraft(nextDraft);
     setEditingSeatIndex(idx);
     setTimeout(() => seatFareInputRef.current?.focus(), 100);
   };
+  const handleSeatFareDraftChange = (text: string) => {
+    if (!/^\d*$/.test(text)) return;
+    seatFareDraftRef.current = text;
+    setSeatFareDraft(text);
+  };
   const commitSeatEditor = () => {
     if (editingSeatIndex == null) return;
-    let v = parseInt(seatFareDraft, 10);
-    if (isNaN(v)) v = seatFares[editingSeatIndex] ?? 100;
-    v = Math.min(10000, Math.max(25, v));
+    const nextSeatFare = clampFareDraft(
+      seatFareDraftRef.current,
+      seatFares[editingSeatIndex] ?? 100,
+      25,
+      10000,
+    );
     setSeatFares((prev) => {
       const next = prev.slice();
-      next[editingSeatIndex] = v;
+      next[editingSeatIndex] = nextSeatFare;
       return next;
     });
     setEditingSeatIndex(null);
@@ -610,15 +637,65 @@ const CreateRide: React.FC = () => {
     });
   };
 
+  const pendingFareValues = () => {
+    const pendingCostPerPerson = isEditingCost
+      ? getPendingCostPerPerson()
+      : costPerPerson;
+    const pendingTotalFare = isEditingTotal ? getPendingTotalFare() : totalFare;
+    const pendingSeatFares = seatFares.slice();
+
+    if (editingSeatIndex != null) {
+      pendingSeatFares[editingSeatIndex] = clampFareDraft(
+        seatFareDraftRef.current,
+        pendingSeatFares[editingSeatIndex] ?? 100,
+        25,
+        10000,
+      );
+    }
+
+    return { pendingCostPerPerson, pendingTotalFare, pendingSeatFares };
+  };
+
+  const pendingEffectivePerSeat = () => {
+    const { pendingCostPerPerson, pendingTotalFare, pendingSeatFares } =
+      pendingFareValues();
+
+    if (splitMode === "total") {
+      return Math.max(25, perSeatFare(pendingTotalFare, totalSeats));
+    }
+    if (splitMode === "custom") {
+      const sum = pendingSeatFares.reduce((a, b) => a + b, 0);
+      return Math.max(25, perSeatFare(sum, totalSeats));
+    }
+    return pendingCostPerPerson;
+  };
+
+  // Closing or mode-switching can unmount the active TextInput before
+  // onBlur runs, so commit the draft explicitly first.
+  const commitActiveFareEditor = () => {
+    if (isEditingCost) handleCostSubmit();
+    if (isEditingTotal) handleTotalSubmit();
+    if (editingSeatIndex != null) commitSeatEditor();
+  };
+
+  const closeFareSheet = () => {
+    commitActiveFareEditor();
+    Keyboard.dismiss();
+    setShowFareSheet(false);
+  };
+
   // Seed each split mode from the current effective fare when switching modes.
   const switchSplitMode = (next: "per_seat" | "total" | "custom") => {
     if (next === splitMode) return;
+    const currentEffectivePerSeat = pendingEffectivePerSeat();
+    commitActiveFareEditor();
+
     if (next === "total") {
-      setTotalFare(costPerPerson * totalSeats);
+      setTotalFare(currentEffectivePerSeat * totalSeats);
     } else if (next === "custom") {
-      setSeatFares(Array.from({ length: totalSeats }, () => costPerPerson));
+      setSeatFares(Array.from({ length: totalSeats }, () => currentEffectivePerSeat));
     } else if (next === "per_seat") {
-      setCostPerPerson(effectivePerSeat);
+      setCostPerPerson(currentEffectivePerSeat);
     }
     setSplitMode(next);
   };
@@ -846,7 +923,7 @@ const CreateRide: React.FC = () => {
 
       <SheetShell
         visible={showFareSheet}
-        onDismiss={() => setShowFareSheet(false)}
+        onDismiss={closeFareSheet}
       >
         <Text
           style={[
@@ -1139,9 +1216,7 @@ const CreateRide: React.FC = () => {
                             ref={seatFareInputRef}
                             style={styles.customSeatValueInput}
                             value={seatFareDraft}
-                            onChangeText={(t) =>
-                              /^\d*$/.test(t) && setSeatFareDraft(t)
-                            }
+                            onChangeText={handleSeatFareDraftChange}
                             onBlur={commitSeatEditor}
                             onSubmitEditing={commitSeatEditor}
                             keyboardType="numeric"
@@ -1198,7 +1273,7 @@ const CreateRide: React.FC = () => {
             themeColors.mode === "dark" && { backgroundColor: themeColors.primary },
           ]}
           activeOpacity={0.85}
-          onPress={() => setShowFareSheet(false)}
+          onPress={closeFareSheet}
         >
           <Text
             style={[
