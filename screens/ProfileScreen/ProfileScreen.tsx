@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Image, ScrollView, TouchableOpacity, Platform, Share, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Constants from "expo-constants";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as Updates from "expo-updates";
 import { ProfileScreenProps } from "./ProfileScreen.types";
 import styles from "./ProfileScreen.styles";
 import AppColors from "../../design_systems/colors";
@@ -256,6 +258,39 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       distanceKm: userData?.distance_travelled ?? 0,
     };
   }, [userData]);
+
+  const appInfo = useMemo(() => {
+    const expoConfig = Constants.expoConfig;
+    const configuredRuntimeVersion =
+      typeof expoConfig?.runtimeVersion === "string" ? expoConfig.runtimeVersion : undefined;
+    const configuredBuildVersion =
+      Platform.OS === "ios"
+        ? expoConfig?.ios?.buildNumber
+        : expoConfig?.android?.versionCode?.toString();
+    const nativeBuildVersion = Constants.nativeBuildVersion
+      ? String(Constants.nativeBuildVersion)
+      : configuredBuildVersion;
+
+    return {
+      version: Constants.nativeAppVersion ?? expoConfig?.version ?? "Unknown",
+      build: nativeBuildVersion ?? "Unknown",
+      runtime: Updates.runtimeVersion ?? Constants.expoRuntimeVersion ?? configuredRuntimeVersion ?? "Unknown",
+      ota: Updates.updateId
+        ? Updates.updateId.slice(0, 8)
+        : Updates.isEmbeddedLaunch
+          ? "Embedded"
+          : "Not available",
+    };
+  }, []);
+
+  const appInfoRows = useMemo(
+    () => [
+      { label: "Version", value: `${appInfo.version} (${appInfo.build})` },
+      { label: "Runtime", value: appInfo.runtime },
+      { label: "OTA", value: appInfo.ota },
+    ],
+    [appInfo],
+  );
 
 
   // "Bookings" row was removed — the Trips tab in the main nav is the
@@ -693,6 +728,44 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
           <Text style={[styles.sectionTitle, { color: themeColors.textPrimary }]}>More</Text>
           <View style={[styles.menuContainer, { zIndex: 2000, elevation: 2000, position: 'relative' }]}>
             {moreItems.map(renderMenuItem)}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: themeColors.textPrimary }]}>Information</Text>
+          <View
+            style={[
+              styles.appInfoCard,
+              {
+                backgroundColor: themeColors.navFill,
+                borderColor: themeColors.inkSubtle,
+              },
+            ]}
+          >
+            <View style={styles.appInfoBrandRow}>
+              <Image
+                source={require("../../assets/icon2.png")}
+                style={styles.appInfoIcon}
+                resizeMode="contain"
+              />
+              <View style={styles.appInfoBrandText}>
+                <Text style={[styles.appInfoWordmark, { color: themeColors.textOnDark }]}>UniPool</Text>
+                <Text style={[styles.appInfoSubtitle, { color: themeColors.textOnDark }]}>ACM-VIT</Text>
+              </View>
+            </View>
+            <View style={[styles.appInfoDivider, { backgroundColor: themeColors.inkSubtle }]} />
+            {appInfoRows.map((row) => (
+              <View key={row.label} style={styles.appInfoRow}>
+                <Text style={[styles.appInfoLabel, { color: themeColors.textOnDark }]}>{row.label}</Text>
+                <Text
+                  style={[styles.appInfoValue, { color: themeColors.textOnDark }]}
+                  numberOfLines={1}
+                  ellipsizeMode="middle"
+                >
+                  {row.value}
+                </Text>
+              </View>
+            ))}
           </View>
         </View>
 
