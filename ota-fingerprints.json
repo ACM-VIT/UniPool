@@ -3,5 +3,9 @@
   "2.0.11": {
     "ios": "035465c561d61652ee76d2ba17bf2266e8ec71fd",
     "android": "37d12917262a08fd466f89401d3647bbb5e7de20"
+  },
+  "2.0.12": {
+    "ios": "c96736c8e6396984d3a64b90fcbc0669b5e70d17",
+    "android": "7da8a58c1d22af9e77e13dd14bcebf2c1df118c0"
   }
 }

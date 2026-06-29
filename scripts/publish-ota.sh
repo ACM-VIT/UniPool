@@ -106,7 +106,10 @@ if [[ ! -f dist/metadata.json ]]; then
 fi
 
 echo "==> tarballing dist/"
-tar -C dist -czf /tmp/ota-upload.tar.gz .
+# macOS tar otherwise includes AppleDouble `._*` sidecar files for extended
+# attributes, which the OTA server stores even though Expo never references
+# them from metadata.json.
+COPYFILE_DISABLE=1 tar -C dist -czf /tmp/ota-upload.tar.gz .
 
 SIZE=$(stat -f%z /tmp/ota-upload.tar.gz 2>/dev/null || stat -c%s /tmp/ota-upload.tar.gz)
 echo "==> uploading $SIZE bytes"
