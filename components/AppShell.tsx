@@ -31,6 +31,7 @@ import { getAuth, getIdTokenResult, onAuthStateChanged, GoogleAuthProvider, sign
 import * as Notifications from "expo-notifications";
 import * as SystemUI from "expo-system-ui";
 import * as Device from "expo-device";
+import * as Updates from "expo-updates";
 import AppColors from "../design_systems/colors";
 import { shouldShowPermissionsPrompt } from "../utils/permissionsPrompt";
 import {
@@ -46,6 +47,8 @@ const DEBUG_APP =
 const debugLog = (...args: any[]) => {
   if (DEBUG_APP) console.log(...args);
 };
+
+const OTA_FOREGROUND_CHECK_INTERVAL_MS = 15 * 60_000;
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 void SystemUI.setBackgroundColorAsync(AppColors.primaryLightGreen).catch(() => {});
@@ -171,6 +174,8 @@ const AppShell = () => {
     useState<"LocationPermissionScreen" | null | undefined>(undefined);
   const [authStateResolved, setAuthStateResolved] = useState(false);
   const lastPostedPushTokenRef = useRef<string | null>(null);
+  const otaCheckInflightRef = useRef(false);
+  const lastOtaCheckAtRef = useRef(0);
   const [lastUserVerification, setLastUserVerification] = useState<number | null>(null);
 
   const isCachedAuthValid = () => {
@@ -219,6 +224,52 @@ const AppShell = () => {
     // Brand wordmark face used by shared headers, splash, and error surfaces.
     "Trap-Bold": require("../assets/fonts/trap/Trap-Bold.otf"),
   });
+
+  useEffect(() => {
+    const checkAndApplyOTA = async (reason: "startup" | "foreground") => {
+      if (__DEV__ || !Updates.isEnabled || otaCheckInflightRef.current) {
+        return;
+      }
+
+      const now = Date.now();
+      if (
+        reason === "foreground" &&
+        now - lastOtaCheckAtRef.current < OTA_FOREGROUND_CHECK_INTERVAL_MS
+      ) {
+        return;
+      }
+
+      otaCheckInflightRef.current = true;
+      lastOtaCheckAtRef.current = now;
+      try {
+        const check = await Updates.checkForUpdateAsync();
+        if (!check.isAvailable) {
+          return;
+        }
+
+        const fetch = await Updates.fetchUpdateAsync();
+        if (fetch.isNew) {
+          await Updates.reloadAsync();
+        }
+      } catch (error) {
+        debugLog("OTA update check failed:", error);
+      } finally {
+        otaCheckInflightRef.current = false;
+      }
+    };
+
+    void checkAndApplyOTA("startup");
+
+    const appStateSub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void checkAndApplyOTA("foreground");
+      }
+    });
+
+    return () => {
+      appStateSub.remove();
+    };
+  }, []);
 
   const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
   const [navBarText, setNavBarText] = useState<string>("");

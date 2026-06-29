@@ -236,6 +236,14 @@ type NearbyCluster = {
   cheapestPrice: number;
 };
 
+type MarkerOffset = {
+  x: number;
+  y: number;
+};
+
+const OVERLAPPED_PICKUP_MARKER_OFFSET: MarkerOffset = { x: -12, y: 0 };
+const OVERLAPPED_DESTINATION_MARKER_OFFSET: MarkerOffset = { x: 12, y: 0 };
+
 const areNearbyClustersEqual = (
   previous: NearbyCluster[],
   next: NearbyCluster[],
@@ -275,34 +283,90 @@ const areNearbyClustersEqual = (
   return true;
 };
 
+// Group nearby rides onto shared coordinates. `by` selects which end of the
+// trip anchors the pin: "pickup" buckets rides by their start coordinate,
+// "destination" buckets them by their drop-off coordinate. 3 decimals is
+// roughly 110m, enough to group campus-scale points.
+const buildNearbyClusters = (
+  rides: NearbyRideSummary[],
+  viewerUserId: string | null,
+  nowMs: number,
+  by: "pickup" | "destination",
+): NearbyCluster[] => {
+  const byKey = new Map<string, NearbyCluster>();
+  for (const r of rides) {
+    // Hide the viewer's own rides; hosts cannot request their own seats.
+    if (viewerUserId && r.host_user_id === viewerUserId) continue;
+    // Drop stale rides from cached app-state or nearby responses.
+    if (!isRideUpcomingAt(r.start_time, nowMs)) continue;
+    const lat = by === "pickup" ? r.start_latitude : r.end_latitude;
+    const lng = by === "pickup" ? r.start_longitude : r.end_longitude;
+    if (typeof lat !== "number" || typeof lng !== "number") continue;
+    const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, {
+        key,
+        latitude: lat,
+        longitude: lng,
+        rides: [r],
+        cheapest: r,
+        cheapestPrice: r.total_price,
+      });
+    } else {
+      existing.rides.push(r);
+      if (r.total_price < existing.cheapestPrice) {
+        existing.cheapest = r;
+        existing.cheapestPrice = r.total_price;
+      }
+    }
+  }
+  return Array.from(byKey.values());
+};
+
 /**
- * Map pin for one pickup coordinate. Single-ride pins show the destination;
+ * Map pin for one clustered coordinate. Pickup pins ("from") are forest-green
+ * and labelled with the destination; destination pins ("to") are orange and
+ * labelled with the place itself. Single-ride pins preview the route on tap;
  * multi-ride pins show a count and open the cluster sheet.
  */
 const ClusterMarker = React.memo<{
   cluster: NearbyCluster;
+  variant: "pickup" | "destination";
+  offset?: MarkerOffset;
   onPress: (cluster: NearbyCluster) => void;
-}>(({ cluster, onPress }) => {
+}>(({ cluster, variant, offset, onPress }) => {
   const count = cluster.rides.length;
   const isMulti = count > 1;
+  const isDest = variant === "destination";
   const label = isMulti
     ? `${count} rides`
     : shortenDestination(cluster.cheapest.end_location);
   const handlePress = useCallback(() => onPress(cluster), [cluster, onPress]);
+  const offsetStyle = offset
+    ? { transform: [{ translateX: offset.x }, { translateY: offset.y }] }
+    : null;
 
   return (
     <MapLibreMarker
       lngLat={[cluster.longitude, cluster.latitude]}
       onPress={handlePress}
-      // Anchor the visual pin tip at the pickup coordinate.
+      // Anchor the visual pin tip at the clustered coordinate.
       anchor="bottom"
     >
-      <View style={styles.pinWrap}>
-        <View style={styles.pinBadge}>
-          <Text style={styles.pinBadgeText}>{label}</Text>
+      <View style={[styles.pinWrap, offsetStyle]}>
+        <View style={[styles.pinBadge, isDest && styles.pinBadgeDest]}>
+          {/* Reuse the app's route convention: outline ring = origin ("from"),
+              filled dot = destination ("to"). Tinted to the badge text. */}
+          <View
+            style={[styles.pinHintDot, isDest ? styles.pinHintTo : styles.pinHintFrom]}
+          />
+          <Text style={[styles.pinBadgeText, isDest && styles.pinBadgeTextDest]}>
+            {label}
+          </Text>
         </View>
-        <View style={styles.pinTail} />
-        <View style={styles.pinDot} />
+        <View style={[styles.pinTail, isDest && styles.pinTailDest]} />
+        <View style={[styles.pinDot, isDest && styles.pinDotDest]} />
       </View>
     </MapLibreMarker>
   );
@@ -341,6 +405,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const [clusterSheet, setClusterSheet] = useState<{
     pickup: string;
     rides: ClusteredRide[];
+    // "pickup" pins frame the header as "leaving from"; "destination" pins
+    // frame it as "going to" since the rides share a drop-off, not an origin.
+    mode: "pickup" | "destination";
   } | null>(null);
 
   // Route preview state shared by the map overlay and floating preview card.
@@ -408,41 +475,46 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const previousNearbyClustersRef = useRef<NearbyCluster[]>([]);
   const clusteredNearbyRides = React.useMemo<NearbyCluster[]>(() => {
-    const byKey = new Map<string, NearbyCluster>();
     const viewerUserId = viewerUser?.id ?? null;
-    const nowMs = nowTick;
-    for (const r of nearbyRides) {
-      // Hide the viewer's own rides; hosts cannot request their own seats.
-      if (viewerUserId && r.host_user_id === viewerUserId) continue;
-      // Drop stale rides from cached app-state or nearby responses.
-      if (!isRideUpcomingAt(r.start_time, nowMs)) continue;
-      // 3 decimals is roughly 110m, enough to group campus-scale pickups.
-      const key = `${r.start_latitude.toFixed(3)},${r.start_longitude.toFixed(3)}`;
-      const existing = byKey.get(key);
-      if (!existing) {
-        byKey.set(key, {
-          key,
-          latitude: r.start_latitude,
-          longitude: r.start_longitude,
-          rides: [r],
-          cheapest: r,
-          cheapestPrice: r.total_price,
-        });
-      } else {
-        existing.rides.push(r);
-        if (r.total_price < existing.cheapestPrice) {
-          existing.cheapest = r;
-          existing.cheapestPrice = r.total_price;
-        }
-      }
-    }
-    const nextClusters = Array.from(byKey.values());
+    const nextClusters = buildNearbyClusters(
+      nearbyRides,
+      viewerUserId,
+      nowTick,
+      "pickup",
+    );
     if (areNearbyClustersEqual(previousNearbyClustersRef.current, nextClusters)) {
       return previousNearbyClustersRef.current;
     }
     previousNearbyClustersRef.current = nextClusters;
     return nextClusters;
   }, [nearbyRides, viewerUser?.id, nowTick]);
+
+  // Destination ("to") clusters: the same nearby rides grouped by their
+  // drop-off coordinate so popular destinations surface as their own pins.
+  const previousDestinationClustersRef = useRef<NearbyCluster[]>([]);
+  const destinationClusters = React.useMemo<NearbyCluster[]>(() => {
+    const viewerUserId = viewerUser?.id ?? null;
+    const nextClusters = buildNearbyClusters(
+      nearbyRides,
+      viewerUserId,
+      nowTick,
+      "destination",
+    );
+    if (areNearbyClustersEqual(previousDestinationClustersRef.current, nextClusters)) {
+      return previousDestinationClustersRef.current;
+    }
+    previousDestinationClustersRef.current = nextClusters;
+    return nextClusters;
+  }, [nearbyRides, viewerUser?.id, nowTick]);
+
+  const overlappingClusterKeys = React.useMemo(() => {
+    const pickupKeys = new Set(clusteredNearbyRides.map((cluster) => cluster.key));
+    return new Set(
+      destinationClusters
+        .filter((cluster) => pickupKeys.has(cluster.key))
+        .map((cluster) => cluster.key),
+    );
+  }, [clusteredNearbyRides, destinationClusters]);
 
   const clusterSheetRides = React.useMemo(
     () =>
@@ -493,8 +565,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     [router],
   );
 
-  const handleNearbyClusterPress = useCallback(
-    (cluster: NearbyCluster) => {
+  const openCluster = useCallback(
+    (cluster: NearbyCluster, mode: "pickup" | "destination") => {
       const nowMs = Date.now();
       const activeRides = cluster.rides.filter((r) =>
         isRideUpcomingAt(r.start_time, nowMs),
@@ -506,8 +578,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           r.total_price < best.total_price ? r : best,
         );
         setClusterSheet({
-          pickup: cheapest.start_location,
+          // Destination clusters share a drop-off, so headline that place;
+          // pickup clusters headline the shared origin.
+          pickup:
+            mode === "destination"
+              ? cheapest.end_location
+              : cheapest.start_location,
           rides: activeRides,
+          mode,
         });
         return;
       }
@@ -515,6 +593,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       previewNearbyRide(activeRides[0]);
     },
     [previewNearbyRide],
+  );
+
+  const handleNearbyClusterPress = useCallback(
+    (cluster: NearbyCluster) => openCluster(cluster, "pickup"),
+    [openCluster],
+  );
+
+  const handleDestinationClusterPress = useCallback(
+    (cluster: NearbyCluster) => openCluster(cluster, "destination"),
+    [openCluster],
   );
 
   const [fromCoords, setFromCoords] = useState<LocationCoords | null>(null);
@@ -1219,10 +1307,29 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             )}
 
             {/* Nearby ride pins hide while the From/To route preview is active. */}
+            {!fromCoords && !toCoords && destinationClusters.map((c) => (
+              <ClusterMarker
+                key={`dest-${c.key}`}
+                cluster={c}
+                variant="destination"
+                offset={
+                  overlappingClusterKeys.has(c.key)
+                    ? OVERLAPPED_DESTINATION_MARKER_OFFSET
+                    : undefined
+                }
+                onPress={handleDestinationClusterPress}
+              />
+            ))}
             {!fromCoords && !toCoords && clusteredNearbyRides.map((c) => (
               <ClusterMarker
                 key={c.key}
                 cluster={c}
+                variant="pickup"
+                offset={
+                  overlappingClusterKeys.has(c.key)
+                    ? OVERLAPPED_PICKUP_MARKER_OFFSET
+                    : undefined
+                }
                 onPress={handleNearbyClusterPress}
               />
             ))}
@@ -1460,6 +1567,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       <RideClusterSheet
         visible={clusterSheet !== null && clusterSheetRides.length > 0}
         pickup={clusterSheet?.pickup || ""}
+        mode={clusterSheet?.mode || "pickup"}
         rides={clusterSheetRides}
         onClose={() => setClusterSheet(null)}
         onPickRide={(r: any) => {
@@ -1621,6 +1729,39 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: AppColors.secondaryDarkGreen,
     marginTop: -2,
+  },
+  // Destination ("to") pin variant: warm accent so drop-offs read distinctly
+  // from the forest-green pickup pins while staying on-brand.
+  pinBadgeDest: {
+    backgroundColor: AppColors.accentOrange,
+    borderColor: AppColors.secondaryDarkGreen,
+  },
+  pinBadgeTextDest: {
+    color: AppColors.secondaryDarkGreen,
+  },
+  pinTailDest: {
+    borderTopColor: AppColors.accentOrange,
+  },
+  pinDotDest: {
+    backgroundColor: AppColors.accentOrange,
+    borderColor: AppColors.secondaryDarkGreen,
+  },
+  // Leading from/to hint inside the badge, mirroring the route-selector
+  // convention (outline ring = origin, filled dot = destination).
+  pinHintDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  pinHintFrom: {
+    // Outline ring on the forest badge — tinted to the lime label.
+    borderWidth: 1.5,
+    borderColor: AppColors.primaryLightGreen,
+    backgroundColor: "transparent",
+  },
+  pinHintTo: {
+    // Filled dot on the orange badge — tinted to the forest label.
+    backgroundColor: AppColors.secondaryDarkGreen,
   },
   // Explicit size for image assets rendered inside MapLibre markers.
   routePinImage: {
