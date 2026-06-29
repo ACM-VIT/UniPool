@@ -417,8 +417,12 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
 
     const queryParams = buildQueryParams();
 
-    apiUtil
-      .get<ApiResponse>(`/ride/search?${queryParams}`)
+    const searchEndpoint = `/ride/search?${queryParams}`;
+    const searchRequest = refresh
+      ? apiUtil.getUncached<ApiResponse>(searchEndpoint)
+      : apiUtil.get<ApiResponse>(searchEndpoint);
+
+    searchRequest
       .then((response) => {
         if (DEBUG_RIDE_SEARCH) console.log("API response:", response);
         if (response && response.rides) {
