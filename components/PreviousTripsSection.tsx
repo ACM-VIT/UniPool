@@ -8,7 +8,6 @@ import { useAuthGate } from "../contexts/AuthGate";
 import { useUser } from "../contexts/UserContext";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
-import LoadingComponent from "./LoadingComponent";
 import PreviousTripsSkeleton from "./PreviousTripsSkeleton";
 import type { HomeRide } from "../utils/AppStateService";
 
@@ -20,13 +19,74 @@ const DEBUG_PREVIOUS_TRIPS =
     process.env.EXPO_PUBLIC_DEBUG_TRIPS === "1";
 
 interface PreviousTripsSectionProps {
-    // Fires whenever the "do we have trips to show?" answer changes —
-    // lets HomeScreen swap between this section and the "Rides around
-    // you" tile without showing both at once.
+    /** Reports whether the home carousel has visible trips. */
     onHasTripsChange?: (hasTrips: boolean) => void;
     ridesFromState?: UserRideData[];
     appStateResolved?: boolean;
 }
+
+type PaginationDotsProps = {
+    displayedRides: UserRideData[];
+    currentIndex: number;
+    maxDots: number;
+};
+
+const PaginationDots: React.FC<PaginationDotsProps> = ({
+    displayedRides,
+    currentIndex,
+    maxDots,
+}) => {
+    const colors = useThemeColors();
+    const totalItems = displayedRides.length;
+    const dotInactive = { backgroundColor: colors.inkLine };
+    const dotActive = { backgroundColor: colors.textPrimary };
+
+    if (totalItems <= maxDots) {
+        return (
+            <>
+                {displayedRides.map((ride, index) => (
+                    <View
+                        key={`dot-${ride.ride_id}`}
+                        style={[
+                            styles.paginationDot,
+                            dotInactive,
+                            currentIndex === index ? [styles.paginationDotActive, dotActive] : null,
+                        ]}
+                    />
+                ))}
+            </>
+        );
+    }
+
+    const dots = [];
+    for (let i = 0; i < maxDots; i++) {
+        let dotIndex;
+
+        if (currentIndex < 2) {
+            // Start of the list: show first 5 dots
+            dotIndex = i;
+        } else if (currentIndex > totalItems - 4) {
+            // End of the list: show last 5 dots
+            dotIndex = totalItems - (maxDots - i);
+        } else {
+            // Middle of the list: show current ±2 dots
+            dotIndex = currentIndex + (i - 2);
+        }
+
+        dots.push(
+            <View
+                key={dotIndex}
+                style={[
+                    styles.paginationDot,
+                    dotInactive,
+                    currentIndex === dotIndex ? [styles.paginationDotActive, dotActive] : null,
+                ]}
+            />,
+        );
+    }
+
+    return <>{dots}</>;
+};
 
 const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
     onHasTripsChange,
@@ -46,16 +106,8 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
     const maxDots = 5;
     const controlledByAppState = appStateResolved !== undefined;
 
-    // Memoize the de-dupe + filter + slice so re-renders driven by
-    // pagination dot taps (currentIndex changes) don't rebuild this
-    // work each time.
-    //
-    // Filter rule for the home carousel: only surface trips the user
-    // is *actually going on*. That means host + confirmed_passenger,
-    // plus the catch-all `available`/`full` for bookings whose state
-    // didn't resolve. Pending and rejected bookings are filtered out
-    // — they don't belong on the home headline; the dedicated Trips
-    // tab carries them with the proper pending/declined treatments.
+    // Home only highlights trips the viewer is actually taking. Pending
+    // and rejected requests stay in the dedicated Trips tab.
     const { uniqueRides, displayedRides } = useMemo(() => {
         const seen = new Map<string, UserRideData>();
         for (const ride of rideData) {
@@ -77,10 +129,7 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
         try {
             setLoading(true);
             setError(null);
-            // Home "Your trips" never wants finished rides — past
-            // trips live under Profile → Trip history. Server-side
-            // scope filter keeps the carousel honest even if a future
-            // viewer_state changes.
+            // Keep completed trips out of the home carousel; history owns them.
             const response = await apiUtil.get<UserRideData[]>("/user/rides?scope=upcoming");
             if (DEBUG_PREVIOUS_TRIPS) console.log("Raw API Response:", response);
             
@@ -120,7 +169,7 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
             return;
         }
 
-        // Guests have no rides — render the empty state without poking the API.
+        // Guests have no private rides, so avoid an authenticated request.
         if (isGuest) {
             setLoading(false);
             setRideData([]);
@@ -131,99 +180,24 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
 
     const handleScroll = (event: any) => {
         const contentOffset = event.nativeEvent.contentOffset.x;
-        // Page width matches the snapToInterval on the ScrollView so
-        // the active dot tracks which card is actually centered.
+        // Must match snapToInterval so the dot follows the centered card.
         const pageWidth = screenWidth * 0.95;
         const index = Math.round(contentOffset / pageWidth);
         setCurrentIndex(index);
     };
 
-    const renderPaginationDots = () => {
-        const totalItems = displayedRides.length;
-        // Dot tint follows the canvas: forest ink dim on lime in light,
-        // bright on-canvas ink in dark. inkLine ≈ historical 30% alpha.
-        const dotInactive = { backgroundColor: colors.inkLine };
-        const dotActive = { backgroundColor: colors.textPrimary };
-
-        if (totalItems <= maxDots) {
-            // If we have 5 or fewer items, show all dots
-            return Array(totalItems)
-                .fill(0)
-                .map((_, index) => (
-                    <View
-                        key={index}
-                        style={[
-                            styles.paginationDot,
-                            dotInactive,
-                            currentIndex === index ? [styles.paginationDotActive, dotActive] : null,
-                        ]}
-                    />
-                ));
-        } else {
-            // Show 5 dots with ellipsis behavior
-            const dots = [];
-
-            // Calculate which dots to show
-            for (let i = 0; i < maxDots; i++) {
-                let dotIndex;
-
-                if (currentIndex < 2) {
-                    // Start of the list: show first 5 dots
-                    dotIndex = i;
-                } else if (currentIndex > totalItems - 4) {
-                    // End of the list: show last 5 dots
-                    dotIndex = totalItems - (maxDots - i);
-                } else {
-                    // Middle of the list: show current ±2 dots
-                    dotIndex = currentIndex + (i - 2);
-                }
-
-                dots.push(
-                    <View
-                        key={dotIndex}
-                        style={[
-                            styles.paginationDot,
-                            dotInactive,
-                            currentIndex === dotIndex ? [styles.paginationDotActive, dotActive] : null,
-                        ]}
-                    />
-                );
-            }
-
-            return dots;
-        }
-    };
-
     const hasTrips = !loading && !error && displayedRides.length > 0;
 
-    // Notify the parent (HomeScreen) whenever the answer changes. The
-    // parent uses this to swap to the "Rides around you" tile when no
-    // trips exist.
-    //
-    // Crucial: skip the emit while we're still loading. Without this
-    // gate, the first render fires `onHasTripsChange(false)` (because
-    // `hasTrips` is `false` until the API resolves) which flips the
-    // parent's tri-state from `null` to `false` and paints the "Rides
-    // around you" tile. Then /user/rides comes back with trips, we
-    // fire `(true)`, parent yanks the nearby tile and slides "Your
-    // trips" in — that's the visible layout shift / flash. The
-    // parent's design treats `null` as "still loading, render neither
-    // tile" — we have to respect that until we actually know the
-    // answer.
+    // Preserve HomeScreen's tri-state loading contract. Emitting `false`
+    // before the rides request resolves would briefly show the nearby-rides
+    // tile and then replace it with this carousel.
     useEffect(() => {
         if (loading) return;
         onHasTripsChange?.(hasTrips);
     }, [hasTrips, loading, onHasTripsChange]);
 
-    // Return null during loading too. The old skeleton-while-loading
-    // approach left a ~200pt slot that VANISHED when /user/rides
-    // resolved empty (mirror of the NearbyTile-appearing-then-
-    // disappearing shift). Now: loading + error + empty all render
-    // nothing. The slot only fills once we KNOW there are trips, so
-    // the only layout change is content APPEARING (sheet expands,
-    // absorbed by its inner ScrollView) rather than disappearing
-    // (sheet shrinks, visible jump). Same approach as the parent
-    // delaying NearbyTile until hasUserTrips === false.
+    // Reserve no vertical space until there are trips to show; otherwise the
+    // home sheet visibly shrinks when the request resolves empty.
     if (loading || error || displayedRides.length === 0) {
         return null;
     }
@@ -237,56 +211,39 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
             </View>
 
             {loading ? (
-                // Skeleton matches the loaded trip card geometry exactly so
-                // the section doesn't grow + push the rest of the sheet
-                // down when /user/rides resolves.
+                // Matches the loaded card geometry if this branch is reached
+                // by a future loading-state change.
                 <PreviousTripsSkeleton />
             ) : (
                 <>
                     <ScrollView
                         horizontal
-                        // `pagingEnabled` snaps to the ScrollView's *viewport*
-                        // width, but each card is `screenWidth * 0.95` — so the
-                        // snap landed mid-card and the user saw two halves
-                        // overlapping during drag. `snapToInterval` snaps to
-                        // the actual card width regardless of viewport, with
-                        // `fast` deceleration so it still feels like paging.
+                        // Cards are narrower than the viewport, so snap to
+                        // card width instead of using pagingEnabled.
                         snapToInterval={screenWidth * 0.95}
                         snapToAlignment="start"
                         decelerationRate="fast"
                         disableIntervalMomentum
                         showsHorizontalScrollIndicator={false}
-                        onScroll={handleScroll}
-                        scrollEventThrottle={16}
+                        onMomentumScrollEnd={handleScroll}
                     >
                         {displayedRides.map((trip: UserRideData, index: number) => (
                             <View
                                 key={trip.ride_id}
                                 style={[
                                     styles.tripContainer,
-                                    // Each carousel page matches the parent
-                                    // ScrollView width — i.e. the same inner
-                                    // width as scrollableContent (screen
-                                    // minus 2 × 2.5% gutter on each side).
-                                    // Previously this was `screenWidth - 32`
-                                    // which didn't track the rest of the
-                                    // sheet's pill widths, so the "Your
-                                    // trips" card sat a different size from
-                                    // the buttons below.
+                                    // Match the sheet content width so the
+                                    // carousel aligns with the controls below.
                                     { width: screenWidth * 0.95 },
                                 ]}
                             >
                                 <PreviousTripsCompressed
                                     trip={trip}
-                                    // @ts-ignore: rideId is expected by RideDetailsScreen navigation
+                                    // @ts-ignore: rideId is expected by RideDetailsScreen navigation.
                                     onPress={() => router.navigate(appHref("RideDetailsScreen", { rideId: trip.ride_id }))}
                                     onOpenChat={() => {
-                                        // Match the canonical "open this ride's group chat"
-                                        // shape used by BookingsScreen + TripInfo: the chatId
-                                        // is the ride id, title is "Trip to <destination>"
-                                        // (first comma-separated part so "Vellore, India"
-                                        // shows as just "Vellore"). isGroupChat=true so the
-                                        // chat header renders the trip-info pane.
+                                        // Group chats use the ride id as chatId; the short
+                                        // destination keeps the header title compact.
                                         const shortDest = (trip.end_location || "")
                                             .split(",")[0]
                                             .trim();
@@ -306,10 +263,12 @@ const PreviousTripsSection: React.FC<PreviousTripsSectionProps> = ({
                             </View>
                         ))}
                     </ScrollView>
-
-                    {/* Pagination Indicators */}
                     <View style={styles.paginationContainer}>
-                        {renderPaginationDots()}
+                        <PaginationDots
+                            displayedRides={displayedRides}
+                            currentIndex={currentIndex}
+                            maxDots={maxDots}
+                        />
                     </View>
                 </>
             )}
@@ -324,10 +283,6 @@ const styles = StyleSheet.create({
     yourTripsSection: {
     },
     sectionTitle: {
-        // Matches the HomeScreen sectionTitle — same Bold weight and
-        // 0.95 opacity so "Your trips" reads at the same volume as
-        // "Where'd you like to go?" below it. The previous 0.7 dim
-        // was too faint on the lime canvas.
         paddingHorizontal: "2.5%",
         fontSize: 16,
         color: AppColors.secondaryDarkGreen,
@@ -336,12 +291,8 @@ const styles = StyleSheet.create({
         opacity: 0.95,
     },
     tripContainer: {
-        // Each carousel page is `screenWidth * 0.95` wide (set inline
-        // on the View). The inner padding here gives each card visible
-        // breathing room from its neighbour during drag — without it
-        // the leaving + arriving cards looked like one mashed slab.
-        // snapToInterval still matches page width so the snap lands
-        // cleanly on the next card.
+        // Keep a visible gap between adjacent cards while preserving the
+        // page width used by snapToInterval.
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -395,9 +346,6 @@ const styles = StyleSheet.create({
     },
     emptyContainer: {
         width: "100%",
-        // Forest card on the lime canvas — the same surface system that
-        // UpNextCard already nails. Bold dark slab on lime reads premium;
-        // washed cream tiles read cheap.
         backgroundColor: AppColors.secondaryDarkGreen,
         borderRadius: 18,
         justifyContent: "center",

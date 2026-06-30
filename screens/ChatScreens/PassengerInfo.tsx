@@ -10,9 +10,8 @@ import {
 import { useFocusEffect, useRouter } from "expo-router";
 import { passengerInfoStyles } from './ChatScreen.styles';
 import { PassengerInfoScreenProps, User } from './ChatScreen.types';
-import AppColors from '../../design_systems/colors';
 import { useThemeColors } from '../../contexts/ThemeContext';
-import BrandInfo from '../../components/BrandInfo';
+import BrandInfo from '../../components/BrandInfo/BrandInfo';
 import LoadingComponent from '../../components/LoadingComponent';
 import SmileyGlyph from '../../components/SmileyGlyph';
 import { useApi } from '../../utils/ApiUtil';

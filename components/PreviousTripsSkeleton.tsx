@@ -3,12 +3,8 @@ import { Animated, Easing, StyleSheet, View } from "react-native";
 import { useThemeColors } from "../contexts/ThemeContext";
 
 /**
- * Minimal placeholder for the home "Your trips" carousel. Previous
- * version painted a full forest card with fake route dots, dashed
- * connector, date chip and price pill — heavy for a transient loading
- * frame. This is just two faint pulsing lines on the lime canvas, in
- * the same horizontal rhythm as the real card so the layout doesn't
- * jump much when content arrives.
+ * Lightweight placeholder for the home "Your trips" carousel.
+ * The bars match the loaded card rhythm closely enough to avoid layout jump.
  */
 const PreviousTripsSkeleton: React.FC = () => {
   const colors = useThemeColors();

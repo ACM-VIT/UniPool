@@ -6,14 +6,14 @@ import { ChevronBackProps } from "./ChevronBack.types";
 import { useThemeColors } from "../../contexts/ThemeContext";
 
 const ChevronBack: React.FC<ChevronBackProps> = ({ onPress, style }) => {
-  const router = useRouter();
+  const { back } = useRouter();
   const colors = useThemeColors();
 
   const handlePress = () => {
     if (onPress) {
       onPress();
     } else {
-      router.back();
+      back();
     }
   };
 

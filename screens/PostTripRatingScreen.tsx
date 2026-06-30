@@ -8,10 +8,8 @@ import {
   ScrollView,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Image,
   Animated,
-  Easing,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -20,8 +18,8 @@ import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import BrandedAlert from "../components/BrandedAlert";
-import { haptic } from "../components/PressableScale";
-import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
+import { haptic } from "../components/haptics";
+import { useDecodedLocalSearchParams } from "../navigation/routes";
 import { useTabletContentStyle } from "../utils/responsive";
 import { displayRideLocation } from "../utils/LocationService";
 
@@ -48,19 +46,11 @@ type Draft = {
 };
 
 /**
- * Post-trip rating screen. Surfaces ~12h after a trip's scheduled
- * start, either via FCM tap or the in-app prompt. One card per
- * person you can rate (host carries up to N passengers, passenger
- * sees a single host card). Tap a star, optionally drop a quick
- * comment, slam Submit. ~5-second flow.
- *
- * Why it's stripped down: every rating UI I've used that asks for
- * a paragraph of feedback gets blank submissions; a five-tap-stars
- * UI gets a 5x higher response rate. Comment stays as an opt-in
- * sliver.
+ * Post-trip rating screen. Opens after the backend marks a trip eligible and
+ * renders one compact card for each person the viewer can rate.
  */
 const PostTripRatingScreen: React.FC = () => {
-  const router = useRouter();
+  const { back } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const insets = useSafeAreaInsets();
   const { apiUtil } = useApi();
@@ -144,7 +134,7 @@ const PostTripRatingScreen: React.FC = () => {
       }));
       await apiUtil.post(`/ride/${rideId}/rate`, { ratings });
       haptic("success");
-      router.back();
+      back();
     } catch (err: any) {
       haptic("error");
       BrandedAlert.alert(
@@ -175,16 +165,13 @@ const PostTripRatingScreen: React.FC = () => {
           style={[
             styles.primaryBtn,
             {
-              // Light: forest pill + lime label (navFill / navIconInactive
-              // resolve to the historical values). Dark: lime brand splash
-              // + forest ink, mirroring the Accept-button pattern used by
-              // every primary CTA elsewhere so the chrome doesn't go grey.
+              // Match the app's primary CTA contrast in each theme.
               backgroundColor: colors.mode === "dark" ? colors.primary : colors.navFill,
               marginTop: 24,
             },
           ]}
           activeOpacity={0.85}
-          onPress={() => router.back()}
+          onPress={() => back()}
         >
           <Text style={[styles.primaryBtnText, { color: colors.mode === "dark" ? colors.textOnAccent : colors.navIconInactive }]}>Got it</Text>
         </TouchableOpacity>
@@ -201,12 +188,7 @@ const PostTripRatingScreen: React.FC = () => {
             ? `Ratings open ${formatRelativeFromNow(eligibility.opens_at)}.`
             : "You've already rated everyone on this trip."}
         </Text>
-        {/* alignSelf: "stretch" overrides the centered parent's
-            shrink-to-content default so the button reads as a real
-            CTA pill (~full-width minus the screen padding) instead
-            of the pinched odd-shaped thing it was. minWidth +
-            paddingHorizontal cap it on iPad so it doesn't stretch
-            to 700pt and look like a banner. */}
+        {/* Stretch inside the centered empty state while capping tablet width. */}
         <TouchableOpacity
           style={[
             styles.primaryBtn,
@@ -219,7 +201,7 @@ const PostTripRatingScreen: React.FC = () => {
             },
           ]}
           activeOpacity={0.85}
-          onPress={() => router.back()}
+          onPress={() => back()}
         >
           <Text style={[styles.primaryBtnText, { color: colors.mode === "dark" ? colors.textOnAccent : colors.navIconInactive }]}>Done</Text>
         </TouchableOpacity>
@@ -230,10 +212,7 @@ const PostTripRatingScreen: React.FC = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>
       <KeyboardAvoidingView
-        // `padding` on both platforms — the previous Android
-        // `height` setting shrank the KAV but kept the Submit
-        // button parked below the keyboard. Padding pushes the
-        // entire content above the keyboard instead.
+        // Padding behavior moves the scroll content above the keyboard.
         behavior="padding"
         style={{ flex: 1 }}
         keyboardVerticalOffset={0}
@@ -241,26 +220,17 @@ const PostTripRatingScreen: React.FC = () => {
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
-            // iOS modal presentation already gives the sheet a top
-            // inset (the rounded-corner gap above the content), so
-            // adding the full safe-area inset on top of that was
-            // doubling the padding and parking the close button +
-            // heading way too far down. Just a small fixed cushion
-            // on top of whatever inset the system already provided.
+            // Keep a small cushion above the modal content plus the safe area.
             { paddingTop: insets.top + 4, paddingBottom: Math.max(insets.bottom, 16) + 12 },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Title + close on one row. Previously the X sat on its
-              own row at flex-end with the title underneath, which
-              parked the heading further from the top than it needed
-              to be and disconnected the two visually. Now they read
-              as one toolbar: title left, close right. */}
+          {/* Toolbar row: title left, close action right. */}
           <View style={styles.topRow}>
             <Text style={[styles.heading, { color: colors.textPrimary }]}>How was the ride?</Text>
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={() => back()}
               activeOpacity={0.7}
               style={[styles.closeBtn, { backgroundColor: colors.inkSubtle }]}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -287,13 +257,7 @@ const PostTripRatingScreen: React.FC = () => {
             />
           ))}
 
-          {/* Submit lives inside the ScrollView (not as a sticky
-              footer outside the KAV) so the keyboard physically
-              can't hide it — the scroll content shifts up with the
-              keyboard, the user scrolls one nudge if needed, the
-              button is right there. The previous sticky-footer
-              setup looked clean when the keyboard was closed but
-              broke the moment the comment field took focus. */}
+          {/* Submit stays inside the scroll view so the keyboard cannot cover it. */}
           <TouchableOpacity
             style={[
               styles.primaryBtn,
@@ -319,11 +283,7 @@ const PostTripRatingScreen: React.FC = () => {
 
 export default PostTripRatingScreen;
 
-// --------------------------------------------------------------------
-// RatingCard — one row per target. Star row with animated tap-in,
-// avatar/name header, optional inline comment that reveals on first
-// star tap so the unrated state stays minimal.
-// --------------------------------------------------------------------
+// RatingCard renders one rateable person with stars and an optional comment.
 
 type RatingCardProps = {
   target: RatingTarget;
@@ -439,9 +399,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    // Title + close on one row — see the JSX comment. No
-    // marginBottom: the routeLine below has its own marginTop, so
-    // we don't double-pad the gap.
+    // routeLine owns the vertical gap below the toolbar.
   },
   closeBtn: {
     width: 36,
@@ -526,10 +484,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 8,
   },
-  // Inline submit (lives inside ScrollView, not as a sticky footer)
-  // — see the JSX comment. marginTop matches the spacing between
-  // RatingCard rows so the button reads as the next item in the
-  // sequence rather than a detached overlay.
+  // Inline submit spacing matches the rating-card rhythm.
   submitInline: {
     marginTop: 6,
     alignSelf: "stretch",

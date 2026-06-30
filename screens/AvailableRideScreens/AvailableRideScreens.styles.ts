@@ -1,6 +1,6 @@
 import { StyleSheet, Dimensions } from "react-native";
 import AppColors from "../../design_systems/colors";
-import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar";
+import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar.constants";
 
 const { width, height } = Dimensions.get("window");
 
@@ -168,11 +168,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     marginTop: 0,
-    // Clear the floating bottom nav so the last card has room to
-    // breathe — without this the bottom card slides under the navbar
-    // and you can't see its lower edge. MAIN_NAV_BAR_TOP_OFFSET is
-    // the distance from the screen's bottom edge to the *top* of the
-    // floating nav; +24 gives a little extra air below the last card.
+    // Clear the floating bottom nav.
     paddingBottom: MAIN_NAV_BAR_TOP_OFFSET + 24,
   },
   navBarView: {
@@ -180,8 +176,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    // Lime canvas footer — matches the rest of the lime/forest system so the
-    // bottom action row doesn't read as a white pop-up against the screen.
+    // Canvas footer for the bottom action row.
     backgroundColor: AppColors.primaryLightGreen,
     paddingTop: 12,
     paddingBottom: 20,
@@ -229,20 +224,13 @@ const styles = StyleSheet.create({
     fontFamily: 'NunitoSans_600SemiBold',
   },
   rideCardWrapper: {
-    // The RideCard inside is already a forest tile with its own radius +
-    // shadow. The wrapper just needs spacing — no surface, no double-shadow.
+    // RideCard owns the surface; wrapper only provides spacing and badge anchor.
     marginBottom: 16,
     borderRadius: 12,
     backgroundColor: "transparent",
-    // `relative` so the absolutely-positioned "Best match" badge overlay
-    // anchors to this wrapper's top-right corner instead of escaping
-    // into the scroll view.
     position: "relative",
   },
-  // "Best match" overlay pill — sits on the top-right corner of cards
-  // the server flagged via /ride/search.strict_matches (route within
-  // 500m on both ends + ±3h of requested time). pointerEvents="none"
-  // on the wrap so the pill never eats a tap meant for the card.
+  // "Best match" overlay for server strict-match results.
   bestMatchBadgeWrap: {
     position: "absolute",
     top: -6,
@@ -257,11 +245,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: "#B5D750", // lime
+    backgroundColor: "#B5D750",
     borderWidth: 1.5,
-    borderColor: "#263B33", // forest outline so the pill reads on
-    // ANY card background (forest, blush, dim — all variants of
-    // RideCard surface).
+    borderColor: "#263B33",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18,
@@ -281,8 +267,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   rideEnhancements: {
-    // Sub-row that lives *under* the forest RideCard on the lime canvas.
-    // Forest-tinted body text reads strongly on lime without a tile.
     paddingVertical: 8,
     paddingHorizontal: 4,
     marginTop: -4,
@@ -342,9 +326,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   filterModal: {
-    // Legacy filter modal. Kept forest dark so the unified style holds if
-    // the old modal is ever rendered. The active modal uses
-    // `filterModalContent` below.
+    // Legacy modal surface kept for older filter entry points.
     backgroundColor: AppColors.secondaryDarkGreen,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -352,7 +334,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   
-  // New improved filter modal styles
+  // Filter modal styles.
   filterModalContainer: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -444,14 +426,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  // Option tile in the selector modal (Sort by / Min seats / Radius
-  // pickers). Pre-fix the base had `borderBottomWidth: 1` *and*
-  // `borderRadius: 8`, so the hairline got chopped by the rounded
-  // corners and read as a U-shape leaking past the bottom edge. The
-  // selected state then drew a full lime stroke ON TOP, doubling up
-  // the artifact. The selected tile now uses a clean full-frame
-  // forest+lime border with no base hairline; row separation comes
-  // from `marginBottom`, which is plenty given the dark surface.
+  // Selector option tile; selected state uses a full-frame border.
   selectorOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -460,9 +435,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     marginBottom: 6,
-    // 1pt transparent border placeholder so the layout doesn't shift
-    // by 2pt (1pt each side) when the selected state adds the lime
-    // ring. Without this the selected tile gets visibly narrower.
+    // Border placeholder prevents selected-state layout shift.
     borderWidth: 1,
     borderColor: 'transparent',
   },
@@ -481,10 +454,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'NunitoSans_600SemiBold',
   },
-  // Lime stroked check — same `check.png` asset used by the
-  // Accept button in RideDetailsScreen. Beats the unicode ✓ glyph,
-  // which rendered as a heavy serif tick depending on the system
-  // font.
+  // Asset checkmark avoids platform font differences.
   checkmark: {
     width: 18,
     height: 18,
@@ -498,7 +468,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    // Lime hairline on forest — matches the rest of the modal system.
     borderBottomColor: 'rgba(181,215,80,0.15)',
   },
   filterTitle: {
@@ -544,12 +513,7 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.basicBlack,
     color: AppColors.basicWhite,
   },
-  // Date picker bottom-sheet modal on iOS. Mirrors the same pattern
-  // used by RideDetailsSelector — forest surface, lime accents, dark
-  // themed spinner wheel — so the app's date input feels like one
-  // component across screens. The previous `display="inline"` calendar
-  // rendered a hard-coded white slab with washed-out faded dates on a
-  // dark filter sheet, which read as broken.
+  // iOS date picker bottom sheet.
   dateModalContainer: {
     flex: 1,
     justifyContent: "flex-end",
@@ -582,8 +546,7 @@ const styles = StyleSheet.create({
     color: AppColors.primaryLightGreen,
     opacity: 0.85,
   },
-  // Done CTA — same hue, fuller weight + opacity so the primary
-  // action reads louder than Cancel.
+  // Primary date-picker action.
   dateModalButtonTextStrong: {
     fontFamily: "NunitoSans_800ExtraBold",
     opacity: 1,
@@ -615,8 +578,7 @@ const styles = StyleSheet.create({
     borderColor: AppColors.primaryLightGreen,
     alignItems: "center",
   },
-  // "Any date" is a destructive-ish clear — ghosted to read as the
-  // odd-one-out instead of a primary suggestion.
+  // Secondary clear-date action.
   dateModalQuickButtonGhost: {
     backgroundColor: "transparent",
     borderColor: "rgba(181,215,80,0.35)",
@@ -647,8 +609,7 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     flex: 1,
-    // Lime-tint ghost button on the forest modal — same chip system as
-    // the rest of the surfaces.
+    // Secondary filter action.
     backgroundColor: 'rgba(181,215,80,0.15)',
     paddingVertical: 14,
     borderRadius: 12,
@@ -662,9 +623,7 @@ const styles = StyleSheet.create({
   },
   applyButton: {
     flex: 2,
-    // Inverse rule: on the forest modal, the primary CTA is lime with
-    // forest label — same pattern as RideCard's "Tap to view" / UpNextCard
-    // primary buttons.
+    // Primary filter action.
     backgroundColor: AppColors.primaryLightGreen,
     paddingVertical: 14,
     borderRadius: 12,
@@ -683,7 +642,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   
-  // Original styles from the old stylesheet
+  // Legacy shared controls.
   rideCard: {
     backgroundColor: AppColors.basicWhite,
     borderRadius: 16,
@@ -834,7 +793,7 @@ const styles = StyleSheet.create({
     color: AppColors.secondaryDarkGreen,
     fontFamily: "NunitoSans_400Regular",
   },
-  // Detail Screen Styles
+  // Detail screen styles.
   gradientHeader: {
     height: height * 0.3,
     justifyContent: "flex-end",

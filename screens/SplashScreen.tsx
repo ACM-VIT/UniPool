@@ -7,38 +7,20 @@ import { useThemeColors } from "../contexts/ThemeContext";
 const { width: screenWidth } = Dimensions.get("window");
 
 /**
- * Splash screen shown while the app boots (auth state resolves, JS
- * bundle attaches, fonts hydrate). Used to be a pixel-accurate
- * tracing of a Figma export with absolute coordinates scaled
- * against a 710×1524 design viewport — looked off on real devices
- * because the scale arithmetic rounded fonts to fractional pt and
- * positioned everything by hand. Now it's a flexbox layout that
- * just centers the brand mark and pins attribution to the bottom.
- *
- * Brand mark: the "UniPool" wordmark splits across two lines so
- * the "oo" of Pool can render in white-on-lime — that pair reads
- * as the two wheels in the spirit of the carpool product. Trap-Bold
- * is the brand display face; NunitoSans is the supporting body.
+ * Splash screen shown while auth, fonts, and the JS bundle are settling.
+ * The wordmark is split so the "oo" glyphs can carry the brand accent.
  */
 const SplashScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const isDark = colors.mode === "dark";
 
-  // Scale the wordmark to the device. iPhone Pro ~430 → ~88pt;
-  // smaller phones drop proportionally. The previous 1.0× lineHeight
-  // was clipping the descender on "i" and the ascender on "l" with
-  // Trap-Bold, which is why the wordmark sometimes rendered as
-  // "Un" / "Poo" on dark. Generous lineHeight + 0 letterspacing
-  // fixes that.
+  // Scale the wordmark to the device while keeping enough line height for
+  // Trap-Bold's tall ascenders and descenders.
   const wordmarkSize = Math.min(Math.round(screenWidth * 0.20), 92);
   const wordmarkLineHeight = Math.round(wordmarkSize * 1.18);
 
-  // Light mode: historical dual-line "Uni / Pool" with white "oo"
-  // wheels on lime — the brand pattern that gave the product its
-  // visual signature. Dark mode: same dual-line layout, cream
-  // letters with the "oo" still as the brightest pop (lime, the
-  // brand splash). Same brand idea, just the canvas swap.
+  // Keep the "oo" accent bright against both light and dark canvases.
   const letterColor = colors.brandText;
   const wheelsColor = isDark ? colors.primary : AppColors.basicWhite;
 
@@ -54,15 +36,7 @@ const SplashScreen: React.FC = () => {
         >
           Uni
         </Text>
-        {/* The outer Text carries the default colour for "P" and "l".
-            Nested <Text> only overrides the "oo" wheels. Previously
-            we wrapped EACH letter in its own <Text> with an explicit
-            colour — on iOS, certain nested colour-span sequences fail
-            to paint the trailing narrow glyph ("l"), which is why the
-            wordmark rendered as "Poo". Inheriting colour from the
-            outer Text and only overriding the centre two letters is
-            the simplest fix and matches React Native's documented
-            Text-nesting model. */}
+        {/* Inherit the base color from the outer Text and override only the accent glyphs. */}
         <Text
           style={[
             styles.wordmark,
@@ -127,12 +101,10 @@ const styles = StyleSheet.create({
   },
   wordmark: {
     fontFamily: "Trap-Bold",
-    // Relaxed letterspacing — the previous -2 was squeezing narrow
-    // glyphs ("i", "l") into their neighbours and they were getting
-    // clipped at certain font sizes on certain devices.
+    // Keep letter spacing relaxed so narrow Trap glyphs do not clip.
     letterSpacing: -0.5,
     textAlign: "center",
-    // Synthetic-bold off — `Trap-Bold` is already a weighted face.
+    // Trap-Bold already carries the weight.
     fontWeight: Platform.OS === "ios" ? "400" : "normal",
   },
   tagline: {
@@ -156,9 +128,7 @@ const styles = StyleSheet.create({
     opacity: 0.65,
     letterSpacing: 0.2,
   },
-  // Pulled out so we can hue-shift just the heart without affecting
-  // the surrounding text — keeps the attribution single-line and
-  // visually balanced (the heart is the only spot of accent color).
+  // Isolate the heart color without affecting the attribution text.
   heart: {
     color: AppColors.secondaryDarkGreen,
     fontSize: 14,

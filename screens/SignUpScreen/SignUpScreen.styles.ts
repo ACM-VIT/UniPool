@@ -3,12 +3,7 @@ import AppColors from "../../design_systems/colors";
 
 const { width, height } = Dimensions.get("window");
 
-// Light width-relative scale for typography. Tuned to a 390pt iPhone
-// 14 baseline: 1.0× on common phone widths, capped at 1.18× so iPads
-// and BlueStacks-large emulators (which used to render the form's
-// 14pt field labels as whispers) get a modest bump without
-// inflating into tablet-news territory. Floored at 1.0 so smaller
-// phones (older SE-class devices) aren't shrunk.
+// Width-relative typography scale, capped so tablets get only a modest bump.
 const fontScale = Math.min(Math.max(width / 390, 1.0), 1.18);
 const fs = (size: number) => Math.round(size * fontScale);
 
@@ -76,10 +71,7 @@ const styles = StyleSheet.create({
     fontSize: fs(15),
     letterSpacing: -0.1,
     color: AppColors.secondaryDarkGreen,
-    // Slightly higher than the previous 0.75 so labels read as
-    // proper labels instead of muted captions. Together with the
-    // size bump this lifts the form's visual confidence on the
-    // wider canvases (BlueStacks Air, iPads).
+    // Keep labels readable without competing with entered values.
     opacity: 0.85,
     marginBottom: 8,
     marginTop: 18,

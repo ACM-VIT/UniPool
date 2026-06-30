@@ -13,8 +13,9 @@ import {
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import BrandedAlert from "./BrandedAlert";
-import SheetShell, { sheetUi } from "./SheetShell";
-import { haptic } from "./PressableScale";
+import SheetShell from "./SheetShell";
+import { sheetUi } from "./SheetShell.styles";
+import { haptic } from "./haptics";
 import { useApi } from "../utils/ApiUtil";
 
 type PickedInstitute = {
@@ -203,12 +204,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
     }
     setBusy(true);
     try {
-      // `postSilent` so a network blip or 5xx during /verify/start
-      // doesn't slam the global "Uh Oh!" sheet on top of this
-      // bottom-sheet flow. The local catch below already surfaces a
-      // contextual BrandedAlert ("Couldn't send the code"); two
-      // overlapping error UIs make it look like the app is broken
-      // even though the user's path forward is obvious.
+      // Keep verification errors local to this bottom-sheet flow.
       await apiUtil.postSilent<{ status: string; expires_in: number }, { email: string }>(
         "/user/verify/start",
         { email: target },
@@ -243,11 +239,7 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
     }
     setBusy(true);
     try {
-      // Silent for the same reason as /verify/start — keeps the global
-      // error sheet from popping under this one when the verify path
-      // hiccups. The catch below has its own contextual recovery
-      // (re-checks /user/details to detect "succeeded but response
-      // dropped" before alerting).
+      // Silent for the same reason as /verify/start; recovery stays local.
       const resp = await apiUtil.postSilent<{ status: string; user?: any }, { email: string; code: string }>(
         "/user/verify/confirm",
         { email: target, code: digits },
@@ -256,16 +248,10 @@ const VerifyAcademicSheet: React.FC<VerifyAcademicSheetProps> = ({
       haptic("success");
       onDismiss();
     } catch (err: any) {
-      // Self-healing fallback for the common "network blip after the
-      // server already processed" case. The verify-confirm endpoint
-      // is fast server-side (~50ms), but on a slow client connection
-      // the response can be lost while the row already got marked
-      // verified. Re-fetch /user/details before alerting — if the
-      // user is now verified, treat the apparent failure as success
-      // and dismiss the sheet quietly. Otherwise surface the alert.
+      // If confirmation succeeded but the response was lost, the user row will
+      // already be verified. Check before showing a failure.
       const status = err?.response?.status;
-      // 4xx errors (wrong code / expired / cooldown) are real — show
-      // them immediately, don't waste a round-trip checking.
+      // 4xx errors are user-actionable; show them immediately.
       if (status && status >= 400 && status < 500) {
         haptic("error");
         BrandedAlert.alert(
@@ -509,8 +495,8 @@ const SearchSkeleton: React.FC = () => {
 
   return (
     <View style={[skeletonStyles.container, { backgroundColor: skColors.surfaceInset }]}>
-      {rows.map((w, i) => (
-        <View key={i} style={[skeletonStyles.row, { borderBottomColor: skColors.inkSubtle }]}>
+      {rows.map((w) => (
+        <View key={w} style={[skeletonStyles.row, { borderBottomColor: skColors.inkSubtle }]}>
           <Animated.View
             style={[skeletonStyles.nameBar, { width: w as any, opacity, backgroundColor: skColors.inkSoft }]}
           />

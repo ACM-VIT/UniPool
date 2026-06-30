@@ -43,7 +43,7 @@ const decodeParamValue = (value: any): any => {
   return value;
 };
 
-export const encodeRouteParams = (
+const encodeRouteParams = (
   params?: Params,
 ): Record<string, string | string[]> => {
   if (!params) return {};
@@ -59,7 +59,7 @@ export const encodeRouteParams = (
   );
 };
 
-export const decodeRouteParams = (params?: Params): Record<string, any> => {
+const decodeRouteParams = (params?: Params): Record<string, any> => {
   if (!params) return {};
 
   return Object.entries(params).reduce<Record<string, any>>((acc, [key, value]) => {

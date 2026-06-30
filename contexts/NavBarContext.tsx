@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from "react";
+import { createContext, use } from "react";
 import bottomNavItems from "../data/BottomNavigationItems";
 
 type NavBarControls = {
@@ -19,9 +19,9 @@ const NavBarContext = createContext<NavBarControls>({
 
 export const NavBarProvider = NavBarContext.Provider;
 
-export const useNavBarControls = () => useContext(NavBarContext);
+export const useNavBarControls = () => use(NavBarContext);
 
-export const resetNavBar = (controls: NavBarControls) => {
+const resetNavBar = (controls: NavBarControls) => {
   controls.setNavBarVariant(0);
   controls.setNavBarText("");
   controls.setNavBarIcon(require("../assets/wallet.png"));

@@ -19,10 +19,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   wordmark: {
-    // Brand display face. Trap-Bold is the wordmark family used on
-    // the splash + brand strip — switching here keeps the AuthScreen
-    // "UniPool" header consistent with how the brand name is rendered
-    // everywhere else.
+    // Brand display face shared with splash and header wordmarks.
     fontFamily: "Trap-Bold",
     fontSize: 22,
     letterSpacing: -0.6,
@@ -99,10 +96,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 12,
   },
-  // Apple HIG-compliant: black surface with the white Apple glyph
-  // and white "Sign in with Apple" label. The previous lime variant
-  // had a white glyph on a lime surface (invisible) and is also
-  // off-spec for App Store review purposes.
+  // Apple HIG-compliant contrast pairing.
   appleButton: {
     backgroundColor: "#000000",
   },

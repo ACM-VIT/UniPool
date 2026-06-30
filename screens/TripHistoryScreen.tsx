@@ -14,8 +14,8 @@ import { useApi } from "../utils/ApiUtil";
 import AppColors from "../design_systems/colors";
 import { appHref } from "../navigation/routes";
 import EmptyState from "../components/EmptyState";
-import BrandInfo from "../components/BrandInfo";
-import ChevronBack from "../components/ChevronBack";
+import BrandInfo from "../components/BrandInfo/BrandInfo";
+import ChevronBack from "../components/ChevronBack/ChevronBack";
 import profileStyles from "./ProfileScreen/ProfileScreen.styles";
 import { useTabletContentStyle } from "../utils/responsive";
 import { displayRideLocation } from "../utils/LocationService";
@@ -50,17 +50,16 @@ type TripHistoryRow = Ride & {
   startTimeMs: number;
 };
 
-const tripHistoryDateFormatter = (() => {
+let tripHistoryDateFormatter: Intl.DateTimeFormat | null = null;
   try {
-    return new Intl.DateTimeFormat("en-GB", {
+    tripHistoryDateFormatter = new Intl.DateTimeFormat("en-GB", {
       day: "2-digit",
       month: "short",
       year: "numeric",
     });
   } catch {
-    return null;
+    tripHistoryDateFormatter = null;
   }
-})();
 
 /**
  * Trip history — a calmly-presented log of past rides under Profile.
@@ -75,7 +74,7 @@ const tripHistoryDateFormatter = (() => {
  *     not screen-level
  */
 const TripHistoryScreen: React.FC = () => {
-  const router = useRouter();
+  const { navigate, back } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const insets = useSafeAreaInsets();
   const { apiUtil } = useApi();
@@ -152,7 +151,7 @@ const TripHistoryScreen: React.FC = () => {
           activeOpacity={0.7}
           style={styles.rowMain}
           onPress={() =>
-            router.navigate(appHref("RideDetailsScreen", { rideId: item.stableId }))
+            navigate(appHref("RideDetailsScreen", { rideId: item.stableId }))
           }
         >
           <Text style={[styles.route, { color: colors.textPrimary }]} numberOfLines={2}>
@@ -168,7 +167,7 @@ const TripHistoryScreen: React.FC = () => {
             style={[styles.rateBtn, colors.mode === "dark" && { backgroundColor: colors.primary }]}
             activeOpacity={0.85}
             onPress={() =>
-              router.navigate(
+              navigate(
                 appHref("PostTripRatingScreen", { rideId: item.stableId }),
               )
             }
@@ -178,14 +177,14 @@ const TripHistoryScreen: React.FC = () => {
         ) : null}
       </View>
     );
-  }, [router, colors]);
+  }, [navigate, colors]);
 
   return (
     <View style={[profileStyles.container, tabletContentStyle, { backgroundColor: colors.background }]}>
       <View style={profileStyles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={profileStyles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={[profileStyles.headerTitle, { color: colors.textPrimary }]}>Trip history</Text>
@@ -207,7 +206,7 @@ const TripHistoryScreen: React.FC = () => {
           title="No past trips yet"
           body="Your completed rides will land here once you've taken one."
           ctaLabel="Find a ride"
-          onPressCta={() => router.navigate(appHref("HomeScreen"))}
+          onPressCta={() => navigate(appHref("HomeScreen"))}
           topAlign
         />
       ) : (

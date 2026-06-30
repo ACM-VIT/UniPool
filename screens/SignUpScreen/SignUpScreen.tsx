@@ -39,7 +39,7 @@ type VerifiedUser = {
 
 const SignUpScreen: React.FC = () => {
   const { apiUtil } = useApi();
-  const router = useRouter();
+  const { replace } = useRouter();
   const routeParams = useDecodedLocalSearchParams<{
     newUser?: any;
     returnTo?: AppRouteTarget;
@@ -88,7 +88,7 @@ const SignUpScreen: React.FC = () => {
       } catch {
         // Google may not be the active provider.
       }
-      router.replace(appHref("AuthScreen", { returnTo }));
+      replace(appHref("AuthScreen", { returnTo }));
     } catch (error: any) {
       BrandedAlert.alert("Couldn't log out", error?.message || "Try again in a moment.");
     } finally {
@@ -145,7 +145,7 @@ const SignUpScreen: React.FC = () => {
       }
       if (error?.message === "AUTHENTICATION_REDIRECT") {
         BrandedAlert.alert("Let's get you back in", "Sign in again to continue.", [
-          { text: "OK", onPress: () => router.replace(appHref("AuthScreen", { returnTo })) },
+          { text: "OK", onPress: () => replace(appHref("AuthScreen", { returnTo })) },
         ]);
         return false;
       }
@@ -171,9 +171,9 @@ const SignUpScreen: React.FC = () => {
         console.warn("Permissions preflight failed; showing permission screen", e);
       }
       if (needsPermissionsStep) {
-        router.replace(appHref("LocationPermissionScreen", { returnTo }));
+        replace(appHref("LocationPermissionScreen", { returnTo }));
       } else {
-        router.replace(returnTo ? targetHref(returnTo) : appHref("HomeScreen"));
+        replace(returnTo ? targetHref(returnTo) : appHref("HomeScreen"));
       }
     }
   };

@@ -38,10 +38,7 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
   onOpenChat,
 }) => {
   const colors = useThemeColors();
-  // Locations often contain commas (e.g. "Assam, India") which break the
-  // old "FROM to TO" sentence-style format into mush. Render as a two-row
-  // origin / destination block with the standard outline/filled dot
-  // route idiom — mirrors RideDetailsSelector and RideCard.
+  // Render route endpoints as a two-row block so comma-heavy locations stay legible.
   const dateLabel = new Date(trip.start_time).toLocaleDateString("en-GB", {
     weekday: "short",
     day: "2-digit",
@@ -54,8 +51,7 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
       onPress={onPress}
       activeOpacity={0.85}
     >
-      {/* Canonical RouteStack idiom — single source of truth for the
-          start → end visual across every card surface in the app. */}
+      {/* Canonical RouteStack visual for start and end locations. */}
       <View style={styles.routeBlock}>
         <RouteStack
           tone="onForest"
@@ -65,12 +61,7 @@ const PreviousTripsCompressed: React.FC<PreviousTripsCompressedProps> = ({
       </View>
 
       <View style={styles.footer}>
-        {/* Dark mode: date text + chat icon read in cream/off-white
-            on the charcoal card so the card carries the same tonal
-            family as the From/To picker and RouteStack — no lime
-            accents scattered through the footer. Light mode: keep
-            the historical lime so the design is bit-for-bit
-            preserved on the brand canvas. */}
+        {/* Theme-aware footer date and chat icon colors. */}
         <Text
           style={[
             styles.dateText,
@@ -158,9 +149,7 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   routeText: {
-    // City names softened from 16/Bold to 15/SemiBold — still clearly
-    // the row's hero, but no longer "shouting" the way ExtraBold +
-    // 16 does next to everything else on the home sheet.
+    // Keep city names prominent without overpowering the compact card.
     flex: 1,
     color: AppColors.basicWhite,
     fontSize: 15,

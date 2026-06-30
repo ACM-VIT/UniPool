@@ -27,11 +27,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.051,
     marginBottom: height * 0.02,
   },
-  // Page title for all settings sub-pages (Profile, Personal Info,
-  // Passengers History, Account Settings, etc.). Dialed from 800
-  // ExtraBold @ 27pt to 700Bold @ 24pt — same pattern as the rest of
-  // the calmed-down typography pass. Confident page header, not a
-  // shouty banner.
+  // Page title for settings sub-pages.
   headerTitle: {
     fontSize: 24,
     color: AppColors.secondaryDarkGreen,
@@ -59,8 +55,7 @@ const styles = StyleSheet.create({
     width: width * 0.205,
     height: width * 0.205,
     borderRadius: width * 0.103,
-    // Forest avatar slot on the lime canvas — when no image is loaded,
-    // it reads as an empty slot, not a white pop.
+    // Forest avatar slot for the no-image state.
     backgroundColor: AppColors.secondaryDarkGreen,
     borderWidth: 2,
     borderColor: AppColors.primaryLightGreen,
@@ -78,9 +73,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.026,
   },
   statsCard: {
-    // Forest card on the lime canvas — bold, palette-matched, lifted
-    // by a deeper shadow. Inverts the typography (lime numerals on
-    // forest surface).
+    // Forest card on the lime canvas with inverted lime typography.
     backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: width * 0.04,
     paddingVertical: width * 0.045,
@@ -134,11 +127,7 @@ const styles = StyleSheet.create({
     marginRight: width * 0.064,
   },
   sectionTitle: {
-    // Matches the HomeScreen + chat-list section titles: sentence-
-    // case, 600SemiBold, dimmed. The point is that these are quiet
-    // mile-markers above their menu card, not headlines competing
-    // for the eye. Was 800ExtraBold uppercase — too "shouty" for the
-    // overall screen rhythm.
+    // Quiet section marker above each settings menu card.
     fontSize: 14,
     color: AppColors.secondaryDarkGreen,
     fontFamily: "NunitoSans_600SemiBold",
@@ -185,6 +174,106 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_600SemiBold",
     flex: 1,
     letterSpacing: -0.1,
+  },
+  appInfoCard: {
+    backgroundColor: AppColors.secondaryDarkGreen,
+    borderRadius: width * 0.04,
+    paddingHorizontal: width * 0.045,
+    paddingVertical: height * 0.018,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    shadowColor: AppColors.basicBlack,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  appInfoBrandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  appInfoIconTile: {
+    width: width * 0.155,
+    height: width * 0.155,
+    borderRadius: width * 0.032,
+    marginRight: width * 0.035,
+    overflow: "hidden",
+    backgroundColor: AppColors.primaryLightGreen,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  appInfoIconUni: {
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: "NunitoSans_900Black",
+    fontSize: width * 0.043,
+    lineHeight: width * 0.044,
+    letterSpacing: 0,
+  },
+  appInfoIconPoolRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: -1,
+  },
+  appInfoIconPoolLetter: {
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: "NunitoSans_900Black",
+    fontSize: width * 0.043,
+    lineHeight: width * 0.044,
+    letterSpacing: 0,
+  },
+  appInfoIconWheel: {
+    width: width * 0.023,
+    height: width * 0.023,
+    borderRadius: width * 0.012,
+    backgroundColor: AppColors.basicWhite,
+    marginHorizontal: 1,
+  },
+  appInfoBrandText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  appInfoWordmark: {
+    fontSize: width * 0.052,
+    color: AppColors.primaryLightGreen,
+    fontFamily: "Trap-Bold",
+    letterSpacing: 0,
+    lineHeight: width * 0.058,
+  },
+  appInfoSubtitle: {
+    marginTop: 2,
+    fontSize: width * 0.032,
+    color: AppColors.primaryLightGreen,
+    opacity: 0.68,
+    fontFamily: "NunitoSans_600SemiBold",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  appInfoDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    marginTop: height * 0.018,
+    marginBottom: height * 0.008,
+  },
+  appInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: height * 0.035,
+  },
+  appInfoLabel: {
+    fontSize: width * 0.036,
+    color: AppColors.primaryLightGreen,
+    opacity: 0.68,
+    fontFamily: "NunitoSans_600SemiBold",
+  },
+  appInfoValue: {
+    flex: 1,
+    marginLeft: width * 0.04,
+    fontSize: width * 0.036,
+    color: AppColors.primaryLightGreen,
+    fontFamily: "NunitoSans_700Bold",
+    textAlign: "right",
   },
   checkmarkIcon: {
     width: width * 0.041,

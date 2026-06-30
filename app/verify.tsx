@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,13 +8,13 @@ import {
   Easing,
   ActivityIndicator,
 } from "react-native";
-import Svg, { Path, Circle as SvgCircle } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppColors from "../design_systems/colors";
 import { appHref } from "../navigation/routes";
 import { useApi } from "../utils/ApiUtil";
-import { haptic } from "../components/PressableScale";
+import { haptic } from "../components/haptics";
 
 type Phase = "pending" | "success" | "error";
 
@@ -41,7 +41,7 @@ type Phase = "pending" | "success" | "error";
  * listener has been removed to avoid double-firing.
  */
 export default function VerifyDeepLinkRoute() {
-  const router = useRouter();
+  const { replace } = useRouter();
   const insets = useSafeAreaInsets();
   const { apiUtil, triggerRevalidation } = useApi();
   const params = useLocalSearchParams<{ t?: string; token?: string }>();
@@ -175,7 +175,7 @@ export default function VerifyDeepLinkRoute() {
   const instituteName = user?.institute?.name;
   const verifiedEmail = user?.institute_email;
 
-  const goHome = () => router.replace(appHref("HomeScreen") as any);
+  const goHome = () => replace(appHref("HomeScreen") as any);
 
   return (
     <View

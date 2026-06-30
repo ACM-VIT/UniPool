@@ -64,10 +64,15 @@ const sameLngLat = (a: [number, number], b: [number, number]) =>
 const buildLineString = (
   pts: Coord[],
 ): GeoJSON.Feature<GeoJSON.LineString> | null => {
-  const coordinates = pts
-    .filter(isValidCoord)
-    .map((p): [number, number] => [p.longitude, p.latitude])
-    .filter((point, index, points) => index === 0 || !sameLngLat(point, points[index - 1]));
+  const coordinates: [number, number][] = [];
+  for (const point of pts) {
+    if (!isValidCoord(point)) continue;
+    const lngLat: [number, number] = [point.longitude, point.latitude];
+    const previous = coordinates[coordinates.length - 1];
+    if (!previous || !sameLngLat(lngLat, previous)) {
+      coordinates.push(lngLat);
+    }
+  }
 
   if (coordinates.length < 2) return null;
 
