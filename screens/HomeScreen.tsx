@@ -244,6 +244,34 @@ type MarkerOffset = {
 const OVERLAPPED_PICKUP_MARKER_OFFSET: MarkerOffset = { x: -12, y: 0 };
 const OVERLAPPED_DESTINATION_MARKER_OFFSET: MarkerOffset = { x: 12, y: 0 };
 
+const isNearbyClusterInBounds = (
+  cluster: NearbyCluster,
+  bounds: RoutePreviewBounds,
+) => {
+  if (!bounds) return false;
+  const [west, south, east, north] = bounds;
+  const withinLatitude = cluster.latitude >= south && cluster.latitude <= north;
+  const withinLongitude = west <= east
+    ? cluster.longitude >= west && cluster.longitude <= east
+    : cluster.longitude >= west || cluster.longitude <= east;
+  return withinLatitude && withinLongitude;
+};
+
+const visibleRideIdsForClusters = (
+  clusters: NearbyCluster[],
+  bounds: RoutePreviewBounds,
+) => {
+  const ids = new Set<string>();
+  if (!bounds) return ids;
+  for (const cluster of clusters) {
+    if (!isNearbyClusterInBounds(cluster, bounds)) continue;
+    for (const ride of cluster.rides) {
+      ids.add(ride.id);
+    }
+  }
+  return ids;
+};
+
 const areNearbyClustersEqual = (
   previous: NearbyCluster[],
   next: NearbyCluster[],
@@ -507,14 +535,31 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     return nextClusters;
   }, [nearbyRides, viewerUser?.id, nowTick]);
 
+  const visiblePickupRideIds = React.useMemo(
+    () => visibleRideIdsForClusters(clusteredNearbyRides, mapBounds),
+    [clusteredNearbyRides, mapBounds],
+  );
+
+  const visibleDestinationClusters = React.useMemo(() => {
+    if (!mapBounds || visiblePickupRideIds.size === 0) {
+      return destinationClusters;
+    }
+    return destinationClusters.filter((cluster) => {
+      if (!isNearbyClusterInBounds(cluster, mapBounds)) {
+        return true;
+      }
+      return !cluster.rides.every((ride) => visiblePickupRideIds.has(ride.id));
+    });
+  }, [destinationClusters, mapBounds, visiblePickupRideIds]);
+
   const overlappingClusterKeys = React.useMemo(() => {
     const pickupKeys = new Set(clusteredNearbyRides.map((cluster) => cluster.key));
     return new Set(
-      destinationClusters
+      visibleDestinationClusters
         .filter((cluster) => pickupKeys.has(cluster.key))
         .map((cluster) => cluster.key),
     );
-  }, [clusteredNearbyRides, destinationClusters]);
+  }, [clusteredNearbyRides, visibleDestinationClusters]);
 
   const clusterSheetRides = React.useMemo(
     () =>
@@ -1307,7 +1352,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             )}
 
             {/* Nearby ride pins hide while the From/To route preview is active. */}
-            {!fromCoords && !toCoords && destinationClusters.map((c) => (
+            {!fromCoords && !toCoords && visibleDestinationClusters.map((c) => (
               <ClusterMarker
                 key={`dest-${c.key}`}
                 cluster={c}
