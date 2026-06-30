@@ -71,6 +71,23 @@ const runtimeVersionFromConfig = (
   return undefined;
 };
 
+const ProfileAppIcon = () => (
+  <View
+    style={styles.appInfoIconTile}
+    accessible
+    accessibilityRole="image"
+    accessibilityLabel="UniPool app icon"
+  >
+    <Text style={styles.appInfoIconUni}>Uni</Text>
+    <View style={styles.appInfoIconPoolRow}>
+      <Text style={styles.appInfoIconPoolLetter}>P</Text>
+      <View style={styles.appInfoIconWheel} />
+      <View style={styles.appInfoIconWheel} />
+      <Text style={styles.appInfoIconPoolLetter}>l</Text>
+    </View>
+  </View>
+);
+
 interface UserData {
   id: string;
   name: string;
@@ -807,13 +824,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
             ]}
           >
             <View style={styles.appInfoBrandRow}>
-              <View style={styles.appInfoIconTile}>
-                <Image
-                  source={require("../../assets/profile-app-icon.png")}
-                  style={styles.appInfoIcon}
-                  resizeMode="cover"
-                />
-              </View>
+              <ProfileAppIcon />
               <View style={styles.appInfoBrandText}>
                 <Text style={[styles.appInfoWordmark, { color: themeColors.textOnDark }]}>UniPool</Text>
                 <Text style={[styles.appInfoSubtitle, { color: themeColors.textOnDark }]}>ACM-VIT</Text>
