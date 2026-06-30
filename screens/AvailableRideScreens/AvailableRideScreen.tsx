@@ -23,7 +23,7 @@ import bottomNavItems from "../../data/BottomNavigationItems";
 import styles from "./AvailableRideScreens.styles";
 import BrandedAlert from "../../components/BrandedAlert";
 import { appHref, useDecodedLocalSearchParams } from "../../navigation/routes";
-import { seatsAvailableLabel } from "../../utils/seatMath";
+import { hasSeatsLeft, seatsAvailableLabel } from "../../utils/seatMath";
 import { useTabletContentStyle } from "../../utils/responsive";
 import { createDateTimeFormatter } from "../../utils/rideTime";
 
@@ -183,6 +183,7 @@ const AvailableRideResultRow = React.memo(function AvailableRideResultRow({
         price={ride.total_price}
         isSelected={selectedRideId === ride.id}
         seatsAvailable={seatsAvailableLabel(ride.total_seats, ride.booked_seats)}
+        totalSeats={ride.total_seats}
         onSelect={onSelect}
         pricePerPerson={false}
         matchReason={ride.match_reason}
@@ -270,7 +271,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const visibleRides = useMemo(
     () =>
       rides.flatMap((ride: RideData) =>
-        ride.total_seats > (ride.booked_seats + 1)
+        hasSeatsLeft(ride.total_seats, ride.booked_seats)
           ? [{
           ride,
           isBestMatch: strictMatchIds.has(ride.id),
