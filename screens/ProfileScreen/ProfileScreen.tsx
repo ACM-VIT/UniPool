@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Constants from "expo-constants";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Updates from "expo-updates";
+import appJson from "../../app.json";
 import { ProfileScreenProps } from "./ProfileScreen.types";
 import styles from "./ProfileScreen.styles";
 import AppColors from "../../design_systems/colors";
@@ -30,6 +31,44 @@ const DEBUG_PROFILE =
 
 const debugLog = (...args: any[]) => {
   if (DEBUG_PROFILE) console.log(...args);
+};
+
+type RuntimeVersionConfig = string | { policy?: string } | undefined;
+
+type AppVersionConfig = {
+  version?: string;
+  runtimeVersion?: RuntimeVersionConfig;
+  ios?: { buildNumber?: string };
+  android?: { versionCode?: number | string };
+};
+
+const bundledExpoConfig = appJson.expo as AppVersionConfig;
+
+const infoValue = (value: unknown): string | undefined => {
+  if (value === null || value === undefined) return undefined;
+  const text = String(value).trim();
+  return text.length > 0 ? text : undefined;
+};
+
+const firstInfoValue = (...values: unknown[]) => {
+  for (const value of values) {
+    const text = infoValue(value);
+    if (text) return text;
+  }
+  return undefined;
+};
+
+const runtimeVersionFromConfig = (
+  runtimeVersion: RuntimeVersionConfig,
+  appVersion?: string,
+) => {
+  if (typeof runtimeVersion === "string") {
+    return runtimeVersion;
+  }
+  if (runtimeVersion?.policy === "appVersion") {
+    return appVersion;
+  }
+  return undefined;
 };
 
 interface UserData {
@@ -260,21 +299,43 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   }, [userData]);
 
   const appInfo = useMemo(() => {
-    const expoConfig = Constants.expoConfig;
-    const configuredRuntimeVersion =
-      typeof expoConfig?.runtimeVersion === "string" ? expoConfig.runtimeVersion : undefined;
+    const expoConfig = Constants.expoConfig as AppVersionConfig | null;
     const configuredBuildVersion =
       Platform.OS === "ios"
         ? expoConfig?.ios?.buildNumber
         : expoConfig?.android?.versionCode?.toString();
-    const nativeBuildVersion = Constants.nativeBuildVersion
-      ? String(Constants.nativeBuildVersion)
-      : configuredBuildVersion;
+    const bundledBuildVersion =
+      Platform.OS === "ios"
+        ? bundledExpoConfig.ios?.buildNumber
+        : bundledExpoConfig.android?.versionCode?.toString();
+    const configRuntimeVersion = runtimeVersionFromConfig(
+      expoConfig?.runtimeVersion,
+      expoConfig?.version,
+    );
+    const bundledRuntimeVersion = runtimeVersionFromConfig(
+      bundledExpoConfig.runtimeVersion,
+      bundledExpoConfig.version,
+    );
 
     return {
-      version: Constants.nativeAppVersion ?? expoConfig?.version ?? "Unknown",
-      build: nativeBuildVersion ?? "Unknown",
-      runtime: Updates.runtimeVersion ?? Constants.expoRuntimeVersion ?? configuredRuntimeVersion ?? "Unknown",
+      version:
+        firstInfoValue(
+          Constants.nativeAppVersion,
+          expoConfig?.version,
+          bundledExpoConfig.version,
+        ) ?? "Unknown",
+      build: firstInfoValue(
+        Constants.nativeBuildVersion,
+        configuredBuildVersion,
+        bundledBuildVersion,
+      ),
+      runtime:
+        firstInfoValue(
+          Updates.runtimeVersion,
+          Constants.expoRuntimeVersion,
+          configRuntimeVersion,
+          bundledRuntimeVersion,
+        ) ?? "Unknown",
       ota: Updates.updateId
         ? Updates.updateId.slice(0, 8)
         : Updates.isEmbeddedLaunch
@@ -285,7 +346,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
 
   const appInfoRows = useMemo(
     () => [
-      { label: "Version", value: `${appInfo.version} (${appInfo.build})` },
+      {
+        label: "Version",
+        value: appInfo.build ? `${appInfo.version} (${appInfo.build})` : appInfo.version,
+      },
       { label: "Runtime", value: appInfo.runtime },
       { label: "OTA", value: appInfo.ota },
     ],
@@ -743,11 +807,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
             ]}
           >
             <View style={styles.appInfoBrandRow}>
-              <Image
-                source={require("../../assets/icon2.png")}
-                style={styles.appInfoIcon}
-                resizeMode="contain"
-              />
+              <View style={styles.appInfoIconTile}>
+                <Image
+                  source={require("../../assets/icon2.png")}
+                  style={styles.appInfoIcon}
+                  resizeMode="cover"
+                />
+              </View>
               <View style={styles.appInfoBrandText}>
                 <Text style={[styles.appInfoWordmark, { color: themeColors.textOnDark }]}>UniPool</Text>
                 <Text style={[styles.appInfoSubtitle, { color: themeColors.textOnDark }]}>ACM-VIT</Text>

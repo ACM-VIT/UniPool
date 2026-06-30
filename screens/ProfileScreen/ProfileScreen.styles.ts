@@ -192,11 +192,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  appInfoIcon: {
+  appInfoIconTile: {
     width: width * 0.12,
     height: width * 0.12,
     borderRadius: width * 0.026,
     marginRight: width * 0.035,
+    overflow: "hidden",
+    backgroundColor: AppColors.primaryLightGreen,
+  },
+  appInfoIcon: {
+    width: "100%",
+    height: "100%",
   },
   appInfoBrandText: {
     flex: 1,
