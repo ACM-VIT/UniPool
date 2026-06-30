@@ -1029,7 +1029,6 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       setRideDetails(prev => prev && ({
         ...prev,
         subtitle: `${list.length} participants`,
-        availableSeats: Math.max(0, (prev.totalSeats||0) - list.length),
       }));
 
       const missingProfileIds = list.flatMap(p =>

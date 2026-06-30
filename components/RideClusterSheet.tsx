@@ -13,6 +13,7 @@ import {
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { displayRideLocation } from "../utils/LocationService";
+import { passengerSeatsLeft } from "../utils/seatMath";
 import type { Palette } from "../design_systems/palettes";
 
 export type ClusteredRide = {
@@ -175,7 +176,7 @@ const RideClusterSheet: React.FC<Props> = ({
       const key = r.end_location;
       const ts = new Date(r.start_time).getTime();
       const { day, time } = formatChipLabel(r.start_time);
-      const seatsLeft = Math.max(0, r.total_seats - r.booked_seats);
+      const seatsLeft = passengerSeatsLeft(r.total_seats, r.booked_seats);
       const chip: ClusteredRideChip = {
         ...r,
         startTimeMs: ts,

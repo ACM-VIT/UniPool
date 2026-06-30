@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { appHref } from "../navigation/routes";
 import { haptic } from "./haptics";
 import { displayRideLocation } from "../utils/LocationService";
+import { passengerSeatsLeft } from "../utils/seatMath";
 
 type Match = {
   id: string;
@@ -122,7 +123,13 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
           `/ride/matching-create?${params.toString()}`,
         );
         if (id !== reqIdRef.current) return;
-        setMatches(Array.isArray(resp?.matches) ? resp.matches : []);
+        setMatches(
+          Array.isArray(resp?.matches)
+            ? resp.matches.filter(
+              (match) => passengerSeatsLeft(match.total_seats, match.booked_seats) > 0,
+            )
+            : [],
+        );
       } catch {
         if (id !== reqIdRef.current) return;
         setMatches([]);
@@ -349,7 +356,7 @@ function formatDistance(metres: number): string {
 }
 
 function seatsLabel(m: Match): string {
-  const open = Math.max(0, m.total_seats - m.booked_seats);
+  const open = passengerSeatsLeft(m.total_seats, m.booked_seats);
   return open === 1 ? "1 seat open" : `${open} seats open`;
 }
 

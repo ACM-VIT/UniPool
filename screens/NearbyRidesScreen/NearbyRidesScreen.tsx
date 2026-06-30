@@ -27,6 +27,7 @@ import { useApi } from "../../utils/ApiUtil";
 import { useUser } from "../../contexts/UserContext";
 import { useTabletContentStyle, useTabletScrollContentStyle } from "../../utils/responsive";
 import { isRideUpcomingAt } from "../../utils/rideTime";
+import { hasSeatsLeft, seatsAvailableLabel } from "../../utils/seatMath";
 
 const { width, height } = Dimensions.get("window");
 const isSmallDevice = width < 350;
@@ -69,7 +70,7 @@ type NearbyRideRow = Omit<NearbyRideWithComputed, "distanceKm"> & {
   dateLabel: string;
   timeLabel: string;
   distanceKm: number | null;
-  seatsLeft: number;
+  seatAvailability: string;
 };
 
 let nearbyDateFormatter: Intl.DateTimeFormat | null = null;
@@ -252,12 +253,13 @@ const NearbyRidesScreen: React.FC = () => {
         if (!isRideUpcomingAt(r.start_time, nowTick)) return [];
         // Client-side guard for cached responses that predate viewer context.
         if (viewerUserId && r.host_user_id === viewerUserId) return [];
+        if (!hasSeatsLeft(r.total_seats, r.booked_seats)) return [];
         return [{
           ...r,
           dateLabel: formatDate(r.start_time),
           timeLabel: formatTime(r.start_time),
           distanceKm: coords ? r.distanceKm : null,
-          seatsLeft: Math.max(0, r.total_seats - r.booked_seats),
+          seatAvailability: seatsAvailableLabel(r.total_seats, r.booked_seats),
         }];
       }),
     [coords, rides, nowTick, viewerUserId],
@@ -282,7 +284,7 @@ const NearbyRidesScreen: React.FC = () => {
       startTimeMs: _startTimeMs,
       dateLabel: _dateLabel,
       timeLabel: _timeLabel,
-      seatsLeft: _seatsLeft,
+      seatAvailability: _seatAvailability,
       ...ridePayload
     } = ride;
     navigate(appHref("AvailableRidesSelectedScreen", { ride: ridePayload } as any));
@@ -316,7 +318,7 @@ const NearbyRidesScreen: React.FC = () => {
         <View style={styles.cardFooter}>
           <Text style={styles.metaText}>
             {item.distanceKm !== null ? `${item.distanceKm.toFixed(1)} km away · ` : ""}
-            {item.seatsLeft} {item.seatsLeft === 1 ? "seat" : "seats"} left
+            {item.seatAvailability} seats available
           </Text>
           <View style={styles.pricePill}>
             <Text style={styles.priceText}>₹{item.total_price}</Text>
