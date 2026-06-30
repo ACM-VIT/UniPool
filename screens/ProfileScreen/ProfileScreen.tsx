@@ -809,7 +809,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
             <View style={styles.appInfoBrandRow}>
               <View style={styles.appInfoIconTile}>
                 <Image
-                  source={require("../../assets/icon2.png")}
+                  source={require("../../assets/profile-app-icon.png")}
                   style={styles.appInfoIcon}
                   resizeMode="cover"
                 />
