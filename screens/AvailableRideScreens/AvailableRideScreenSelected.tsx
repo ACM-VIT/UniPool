@@ -13,6 +13,7 @@ const DEBUG_SELECTED_RIDE =
 import ChevronBack from '../../components/ChevronBack/ChevronBack';
 import SlideToCreate from '../../components/SlideToCreate/SlideToCreate';
 import BrandInfo from '../../components/BrandInfo/BrandInfo';
+import BrandedAlert from '../../components/BrandedAlert';
 import RouteStack from '../../components/RouteStack';
 import AppColors from '../../design_systems/colors';
 import { useApi } from '../../utils/ApiUtil';
@@ -22,6 +23,7 @@ import { useThemeColors } from '../../contexts/ThemeContext';
 import { appHref, useDecodedLocalSearchParams } from '../../navigation/routes';
 import { seatsAvailableLabel } from '../../utils/seatMath';
 import { useTabletContentStyle } from "../../utils/responsive";
+import { describeBookingRequestError } from "../../utils/bookingRequestError";
 
 const customMapStyle = [
   {
@@ -290,32 +292,20 @@ type RootStackParamList = {
 };
 
 const AvailableRideScreenSelected: React.FC = () => {
-  const router = useRouter();
+  const { replace, navigate, back } = useRouter();
   const colors = useThemeColors();
   const tabletContentStyle = useTabletContentStyle();
   const routeParams = useDecodedLocalSearchParams<{ ride?: any }>();
   const { apiUtil } = useApi();
   const { requireAuth } = useAuthGate();
-  // For the edge case where someone lands on this screen with their
-  // own ride (deep link, stale cached navigation, etc.). The home-map
-  // filter already drops own rides from pins, but if we get here we
-  // want to detect it up front and skip the "Slide to request" UI.
+  // Detect self-hosted rides early so the request CTA never appears.
   const { user: viewerUser } = useUser();
   const [hasPermission, setHasPermission] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
   const [routeCoordinates, setRouteCoordinates] = useState<any[]>([]);
   const [estimatedDuration, setEstimatedDuration] = useState<string>('Estimating...');
-  // Server-computed UI state. May arrive via route params (when the
-  // user comes from search results) or be fetched fresh from
-  // /ride/details when they tap a map pin (the public /rides/nearby
-  // endpoint doesn't emit viewer_state). Either way we render off
-  // this single field instead of deriving from isHost / bookings.
-  //
-  // Seed "host" immediately if we can already prove ownership from
-  // the route params (the nearby payload carries host_user_id and we
-  // know the signed-in user's id). Without this, the slide-to-request
-  // flashes for the few hundred ms it takes /ride/details to come
-  // back, then snaps to the "You're hosting this ride" notice.
+  // Route params may omit viewer_state, so seed from known ownership and let
+  // the detail fetch below replace it with the server-computed value.
   const seededRide = routeParams?.ride as any;
   const seededIsOwn =
     !!viewerUser?.id &&
@@ -332,13 +322,8 @@ const AvailableRideScreenSelected: React.FC = () => {
     can_open_chat?: boolean;
     can_rate?: boolean;
   }>((routeParams?.ride as any)?.actions ?? {});
-  // Verification + same-campus + name signals — populated by the
-  // /ride/details fetch. Drives the host checkmark, "Same campus"
-  // chip, and the "Hosted by …" line. The name is pulled from the
-  // detail endpoint as well because the upstream entry points to
-  // this screen are inconsistent: /ride/search passes the full host
-  // name in route params, but /rides/nearby (cluster sheet path)
-  // doesn't — so we re-fetch to guarantee a populated name.
+  // Host verification, campus, and display-name details come from
+  // /ride/details because not every entry point carries them in params.
   const [hostVerified, setHostVerified] = useState<boolean>(false);
   const [hostInstituteName, setHostInstituteName] = useState<string | null>(null);
   const [hostSameInstituteAsViewer, setHostSameInstituteAsViewer] = useState<boolean>(false);
@@ -407,10 +392,7 @@ const AvailableRideScreenSelected: React.FC = () => {
     }
   };
 
-  // Routes through utils/seatMath so the format stays consistent
-  // with every other screen that surfaces seat availability — and
-  // so the `total_seats - 1` (host discount) is applied in exactly
-  // one place.
+  // Keep seat labels aligned with the shared total_seats contract.
   const getSeatsText = (totalSeats: number, bookedSeats: number): string => {
     return `${seatsAvailableLabel(totalSeats, bookedSeats)} seats available`;
   };
@@ -419,10 +401,7 @@ const AvailableRideScreenSelected: React.FC = () => {
     return `₹ ${price} pp`;
   };
 
-  // Vehicle illustration picker — same buckets as RideCard /
-  // CreateRide so a 4-seater shows the racer everywhere, an 8-seater
-  // the foodvan, etc. Single source of truth for "what's this ride's
-  // vehicle look like" lives across the app via this exact ladder.
+  // Matches the vehicle buckets used by RideCard and CreateRide.
   const getVehicleIcon = (maxSeats: number) => {
     if (maxSeats < 3) return require('../../assets/motorcycle.png');
     if (maxSeats === 3) return require('../../assets/Taxi.png');
@@ -503,9 +482,8 @@ const AvailableRideScreenSelected: React.FC = () => {
   };
 
   const requestLocationPermission = async () => {
-    // READ ONLY — the native prompt belongs exclusively to
-    // LocationPermissionScreen. Here we just check current state and
-    // silently no-op if the user hasn't granted it yet.
+    // LocationPermissionScreen owns the native prompt; this screen only reads
+    // the current grant state.
     const { status } = await Location.getForegroundPermissionsAsync();
     setHasPermission(status === "granted");
   };
@@ -525,11 +503,7 @@ const AvailableRideScreenSelected: React.FC = () => {
     }, []),
   );
 
-  // Backfill viewer_state from /ride/details/:id when it wasn't
-  // included in route params (e.g. map-pin taps from the public
-  // /rides/nearby endpoint don't carry viewer context). The detail
-  // endpoint always computes the freshest state so we trust it as
-  // the source of truth.
+  // Refresh viewer_state and host metadata from the canonical detail endpoint.
   useEffect(() => {
     if (!ride?.id) return;
     let cancelled = false;
@@ -540,9 +514,7 @@ const AvailableRideScreenSelected: React.FC = () => {
         if (details?.viewer_state) setViewerState(details.viewer_state);
         if (details?.actions) setViewerActions(details.actions);
         if (details?.viewer_booking_id) setViewerBookingId(details.viewer_booking_id);
-        // Verified-host + same-campus + name surfaces. Always read
-        // fresh — the params version of the ride row doesn't always
-        // carry them (e.g. cluster-sheet path lacks host_user_name).
+        // Params are partial on some entry points; details is the full record.
         setHostVerified(!!details?.host_is_verified);
         setHostInstituteName(details?.host_institute_name ?? null);
         setHostSameInstituteAsViewer(!!details?.host_same_institute_as_viewer);
@@ -557,16 +529,12 @@ const AvailableRideScreenSelected: React.FC = () => {
     };
   }, [apiUtil, detailsRefreshTick, ride?.id]);
 
-  // Pending / rejected viewers can't act here — there's no slide-to-
-  // request CTA, and the screen would be the awkward "notice card"
-  // layout. Redirect to RideDetailsScreen, which already has the
-  // proper waiting-on-host fallback view used everywhere else
-  // (RideCard taps, etc.). Keeps the two entry points consistent.
+  // Pending and rejected requests use RideDetailsScreen's status-specific UI.
   useEffect(() => {
     if (!ride?.id) return;
     if (viewerState !== "pending_passenger" && viewerState !== "rejected_passenger") return;
-    router.replace(appHref("RideDetailsScreen", { rideId: ride.id }));
-  }, [viewerState, ride?.id, router]);
+    replace(appHref("RideDetailsScreen", { rideId: ride.id }));
+  }, [viewerState, ride?.id, replace]);
 
   useEffect(() => {
     if (isValidCoordinate(ride.start_latitude, ride.start_longitude) && 
@@ -608,15 +576,13 @@ const AvailableRideScreenSelected: React.FC = () => {
   const handleRequestRide = async () => {
     if (isRequesting) return;
 
-    // Guests have to sign in before requesting a seat — bring them back here
-    // with the same ride params after sign-up completes.
+    // Sign-in returns guests to this exact ride preview.
     if (!requireAuth({ screen: "AvailableRidesSelectedScreen", params: routeParams as any }, "to book this ride")) {
       return;
     }
 
     setIsRequesting(true);
-    // Notification permission is owned by the onboarding permissions
-    // sheet now. No mid-action prompt here.
+    // Notification permission is handled by onboarding, not this action.
 
     try {
       const requestPayload: RideRequestPayload = {
@@ -626,18 +592,17 @@ const AvailableRideScreenSelected: React.FC = () => {
 
       if (DEBUG_SELECTED_RIDE) console.log('Requesting ride with payload:', requestPayload);
 
-      const response = await apiUtil.post('/bookings/request', requestPayload) as RideRequestResponse;
+      const response = await apiUtil.postSilent('/bookings/request', requestPayload) as RideRequestResponse;
       
       if (DEBUG_SELECTED_RIDE) console.log('Ride request response:', response);
 
       if (response && (response.success || response.id || response.booking_id)) {
-        // Flip the local viewer state immediately so the user sees
-        // the "Message host" affordance without waiting for a fetch
-        // round-trip. The next /ride/details/:id call will confirm.
+        // Optimistically expose the pending state; the next details fetch
+        // confirms it from the backend.
         setViewerState("pending_passenger");
         setViewerBookingId((response.id || response.booking_id) ?? null);
 
-        router.navigate(appHref("RideRequestedScreen", {
+        navigate(appHref("RideRequestedScreen", {
           rideId: ride.id,
           bookingId: response.id || response.booking_id,
           rideDetails: {
@@ -647,9 +612,7 @@ const AvailableRideScreenSelected: React.FC = () => {
             price: ride.total_price,
             driver: ride.host_user_name,
           },
-          // Carry the chat hand-off so RideRequestedScreen can route
-          // the user straight to the host's thread if they tap
-          // "Message host" there.
+          // RideRequestedScreen uses this to open the host thread.
           hostUserId: ride.host_user_id,
           hostUserName: ride.host_user_name,
         }));
@@ -659,32 +622,13 @@ const AvailableRideScreenSelected: React.FC = () => {
     } catch (error: any) {
       console.error('Error requesting ride:', error);
       
-      let errorMessage = 'Failed to request ride. Please try again.';
-      
-      const responseData = error?.response?.data || {};
-      const status = error?.response?.status;
-      const code = responseData?.code;
-      const serverMessage = responseData?.message || responseData?.error;
-
-      if (status === 400) {
-        errorMessage = serverMessage || 'Invalid request. Please check ride availability.';
-      } else if (error?.response?.status === 401) {
-        errorMessage = 'Please log in to request a ride.';
-      } else if (status === 409) {
-        if (code === "already_booked") {
-          errorMessage = "You've already requested this ride.";
-        } else if (code === "ride_full") {
-          errorMessage = "This ride is full.";
-        } else if (code === "ride_started") {
-          errorMessage = "This ride has already started.";
-        } else {
-          errorMessage = serverMessage || 'You have already requested this ride or the ride is full.';
-        }
-      } else if (error?.message) {
-        errorMessage = error.message;
+      const requestError = describeBookingRequestError(error);
+      if (requestError.blockState) {
+        setViewerState(requestError.blockState);
+        setViewerActions((actions) => ({ ...actions, can_request_seat: false }));
       }
-
-      console.error('Ride request error:', errorMessage);
+      setDetailsRefreshTick((tick) => tick + 1);
+      BrandedAlert.alert("Couldn't request", requestError.message);
     } finally {
       setIsRequesting(false);
     }
@@ -700,19 +644,12 @@ const AvailableRideScreenSelected: React.FC = () => {
         <View style={styles.navigationLeft}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => back()}
           >
             <ChevronBack />
           </TouchableOpacity>
-          {/* Header title — was missing entirely before, leaving an
-              orphan chevron in its own row. Sits next to the back
-              control like the rest of the app's secondary screens
-              (Booking Details, Ride Management, etc.). */}
           <Text style={[styles.navigationTitle, { color: colors.textPrimary }]}>Ride details</Text>
         </View>
-        {/* No right-side action — this screen is the *preview* for
-            booking someone else's ride. Sharing lives on the card
-            below (long-press) and on RideDetailsScreen. */}
       </View>
 
       <View style={styles.mainContent}>
@@ -731,9 +668,6 @@ const AvailableRideScreenSelected: React.FC = () => {
               </View>
               
               <View style={styles.scooterContainer}>
-                {/* Asset picked from the same ladder RideCard +
-                    CreateRide use — match the ride's actual seat
-                    capacity instead of always showing the Vespa. */}
                 <Image
                   source={getVehicleIcon(ride.total_seats || 0)}
                   style={styles.scooterImage}
@@ -779,7 +713,6 @@ const AvailableRideScreenSelected: React.FC = () => {
                 ) : null}
               </View>
             ) : null}
-            {/* YOB — same source-merge pattern as the host name. */}
             <Text style={styles.yobText}>
               {getAgeText(ride.host_user_yob || hostUserYobFetched || undefined)}
             </Text>
@@ -801,10 +734,7 @@ const AvailableRideScreenSelected: React.FC = () => {
           <View style={styles.mapSection}>
             {hasPermission && isValidCoordinate(ride.start_latitude, ride.start_longitude) &&
              isValidCoordinate(ride.end_latitude, ride.end_longitude) ? (
-              // Modular trip preview — same component used by
-              // RideDetailsScreen. Owns the camera framing + start dot +
-              // end arrow + dashed-red polyline. Runs on the OpenFreeMap
-              // tile stack the HomeScreen map switched to.
+              // TripPreviewMap owns camera, route line, and endpoint markers.
               <TripPreviewMap
                 style={styles.mapView}
                 start={{
@@ -819,7 +749,7 @@ const AvailableRideScreenSelected: React.FC = () => {
               />
             ) : (
               <View style={styles.mapPlaceholder}>
-                <Text style={styles.loadingText}>Loading map...</Text>
+                <Text style={styles.loadingText}>Loading map…</Text>
               </View>
             )}
           </View>
@@ -827,13 +757,8 @@ const AvailableRideScreenSelected: React.FC = () => {
       </View>
 
       <View style={[styles.bottomContainer, { backgroundColor: colors.background }]}>
-        {/* Bottom action zone — branches on the server-computed
-            viewer_state instead of the old "isHost && hasBooking &&
-            status === 'pending'" chain. One field in → one CTA out. */}
         {(() => {
-          // Default to "available" while we wait for the fetch to
-          // resolve — the slide is disabled so nothing actually
-          // fires; this just stops the layout from being empty.
+          // Keep layout stable while viewer_state is loading.
           const state = viewerState ?? "available";
 
           if (state === "host") {
@@ -842,7 +767,7 @@ const AvailableRideScreenSelected: React.FC = () => {
                 <Text style={[styles.viewerNoticeTitle, { color: colors.navIconInactive }]}>You're hosting this ride</Text>
                 <TouchableOpacity
                   style={[styles.viewerNoticeBtn, { backgroundColor: colors.primary }]}
-                  onPress={() => router.navigate(appHref("RideDetailsScreen", { rideId: ride.id }))}
+                  onPress={() => navigate(appHref("RideDetailsScreen", { rideId: ride.id }))}
                 >
                   <Text style={[styles.viewerNoticeBtnText, { color: colors.textOnAccent }]}>Manage</Text>
                 </TouchableOpacity>
@@ -850,10 +775,7 @@ const AvailableRideScreenSelected: React.FC = () => {
             );
           }
           if (state === "pending_passenger" || state === "rejected_passenger") {
-            // The useEffect above redirects these viewers to
-            // RideDetailsScreen. Render nothing in the bottom slot
-            // while the navigation transition is in flight so the old
-            // notice card doesn't flash on screen.
+            // Redirect is in flight; leave the bottom slot empty.
             return null;
           }
           if (state === "confirmed_passenger") {
@@ -862,15 +784,13 @@ const AvailableRideScreenSelected: React.FC = () => {
                 <Text style={[styles.viewerNoticeTitle, { color: colors.navIconInactive }]}>Your seat is confirmed</Text>
                 <TouchableOpacity
                   style={[styles.viewerNoticeBtn, { backgroundColor: colors.primary }]}
-                  onPress={() => router.navigate(appHref("RideDetailsScreen", { rideId: ride.id }))}
+                  onPress={() => navigate(appHref("RideDetailsScreen", { rideId: ride.id }))}
                 >
                   <Text style={[styles.viewerNoticeBtnText, { color: colors.textOnAccent }]}>View booking</Text>
                 </TouchableOpacity>
               </View>
             );
           }
-          // (rejected_passenger handled above — falls through to the
-          // redirect to RideDetailsScreen alongside pending.)
           if (state === "full") {
             return (
               <View style={[styles.viewerNoticeWrap, { backgroundColor: colors.navFill }]}>
@@ -886,7 +806,6 @@ const AvailableRideScreenSelected: React.FC = () => {
               </View>
             );
           }
-          // available
           return (
             <SlideToCreate
               onSlideComplete={handleRequestRide}
@@ -926,10 +845,7 @@ const styles = StyleSheet.create({
     marginRight: 1,
     marginTop: 7,
   },
-  // Title that sits next to the back chevron on screens that don't
-  // need a dedicated app bar. Matches the visual weight + colour of
-  // RideDetailsScreen's `headerTitle` so the navigation chrome reads
-  // consistently across the booking flow.
+  // Secondary-screen title aligned with the back chevron.
   navigationTitle: {
     fontSize: 18,
     fontFamily: 'NunitoSans_800ExtraBold',
@@ -1063,19 +979,11 @@ const styles = StyleSheet.create({
     color: AppColors.basicWhite,
     fontSize: 14,
     fontFamily: 'NunitoSans_400Regular',
-    // Explicit lineHeight makes the Text box height predictable so
-    // the row's `alignItems: 'center'` lines up the verified dot with
-    // the text's optical center instead of with the default
-    // platform-specific font metrics box. No vertical margin here —
-    // the row owns the bottom spacing.
+    // Fixed lineHeight keeps the verified dot centered across platforms.
     lineHeight: 18,
     includeFontPadding: false,
   },
-  // Host row — name + optional verified checkmark glyph. Sits in
-  // the forest dark trip card, so the checkmark is lime. The text
-  // owns its own line height, the dot is sized to match the text's
-  // cap height (~16pt) so the badge feels like a punctuation mark
-  // sitting next to the name rather than a clip-art element bolted on.
+  // Host name and optional verification mark.
   hostRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1098,7 +1006,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     textAlign: 'center',
   },
-  // Institute label + optional Same-campus chip on a second line.
+  // Institute label and optional same-campus chip.
   instituteRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1174,10 +1082,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  /* Custom map markers — black dot for start (white halo so it sits
-     clean against any tile colour), black navigation glyph for end
-     anchored to its base so the tip lands on the coordinate. Same
-     idiom as the RideDetailsScreen map. */
+  /* Map marker styles mirror the RideDetailsScreen preview markers. */
   routeStartDot: {
     width: 18,
     height: 18,
@@ -1236,8 +1141,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 10,
   },
-  // States the user can't act on (pending / declined / full / past)
-  // render a forest dark notice card here instead of the slide CTA.
+  // Non-requestable states render a notice card instead of the slide CTA.
   viewerNoticeWrap: {
     backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 16,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ScrollView, View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, Platform, Linking } from "react-native";
+import { ScrollView, View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
 import { Share } from 'react-native';
 // const shareIcon = require('../assets/megaphone.png');
 // `TripPreviewMap` owns the non-interactive A→B map composition that
@@ -28,6 +28,7 @@ import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
 import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/responsive";
 import { hasSeatsLeft, seatsAvailableLabel } from "../utils/seatMath";
 import { displayRideLocation } from "../utils/LocationService";
+import { describeBookingRequestError } from "../utils/bookingRequestError";
 
 /**
  * Small lime "open profile" eye icon. Stroke-only so it sits in the
@@ -445,20 +446,13 @@ type ViewerState =
 
 const RideDetailsScreen: React.FC = () => {
   const colors = useThemeColors();
-  const router = useRouter();
+  const { navigate, replace, back } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const tabletScrollContentStyle = useTabletScrollContentStyle();
   const routeParams = useDecodedLocalSearchParams<{
     rideId?: string;
     expectedViewerState?: ViewerState;
-    // True when this screen was opened from a flow that has no
-    // meaningful "back" target — ride creation / ride request
-    // success interstitials. The previous screen in the stack is
-    // the form the user just submitted, so falling back to it on
-    // chevron-tap is confusing. When set, the chevron is swapped
-    // for a Home glyph and tapping it lands on HomeScreen via
-    // router.replace (clearing the form from the stack along the
-    // way). See navigation/routes.ts for the param shape.
+    // True when the opening flow should return home instead of back to a form.
     backToHome?: boolean | string;
   }>();
   const { rideId } = routeParams;
@@ -492,10 +486,7 @@ const RideDetailsScreen: React.FC = () => {
   const [isHost, setIsHost] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
-  // (The earlier `bookingActionLoading` state has been removed —
-  // accept / reject / remove now apply optimistically to local state
-  // and the slider / profile sheet dismiss synchronously, so there's
-  // no API-wait window left to spin over.)
+  // Booking actions update optimistically and dismiss their sheet immediately.
   // Passenger profile sheet — opens when the host taps any passenger
   // row in the management list. Holds the passenger payload as state
   // so the sheet's accept/reject/remove handlers know who they're
@@ -806,7 +797,7 @@ const RideDetailsScreen: React.FC = () => {
         // Handle user not found error gracefully - redirect to signup without showing error modal
         if (err.status === 404 && err.message && err.message.includes("User not found")) {
           if (DEBUG_RIDE_DETAILS) console.log("User not found, redirecting to signup");
-          router.navigate(appHref("SignUpScreen"));
+          navigate(appHref("SignUpScreen"));
           return;
         }
         
@@ -818,7 +809,7 @@ const RideDetailsScreen: React.FC = () => {
     };
 
     fetchRideDetails();
-  }, [rideId, apiUtil, router, refreshTick, contextUser?.id]);
+  }, [rideId, apiUtil, navigate, refreshTick, contextUser?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -902,7 +893,7 @@ const RideDetailsScreen: React.FC = () => {
     const shortDest = (
       (rideData.end_location || "").split(",")[0] || ""
     ).trim();
-    router.navigate(
+    navigate(
       appHref("ChatMessages", {
         chatId: rideData.id || rideId || "",
         chatTitle: shortDest ? `Trip to ${shortDest}` : "Trip",
@@ -922,7 +913,7 @@ const RideDetailsScreen: React.FC = () => {
     const passengerName = req.passenger?.name || "Requester";
     const sorted = [currentUserId, req.passenger_id].sort();
     const dmRoomId = `dm_${sorted[0]}_${sorted[1]}`;
-    router.navigate(
+    navigate(
       appHref("ChatMessages", {
         chatId: dmRoomId,
         chatTitle: passengerName,
@@ -952,7 +943,7 @@ const RideDetailsScreen: React.FC = () => {
     if (isActionLoading || !rideData) return;
     setIsActionLoading(true);
     try {
-      const resp: any = await apiUtil.post("/bookings/request", {
+      const resp: any = await apiUtil.postSilent("/bookings/request", {
         ride_id: rideData.id || rideId,
         request_status: "pending",
       });
@@ -961,7 +952,7 @@ const RideDetailsScreen: React.FC = () => {
       // on the host" fallback UI without a refetch round-trip.
       setViewerState("pending_passenger");
       setUserBookingStatus("pending");
-      router.replace(
+      replace(
         appHref("RideRequestedScreen", {
           rideId: rideData.id || rideId,
           bookingId,
@@ -977,18 +968,16 @@ const RideDetailsScreen: React.FC = () => {
         } as any),
       );
     } catch (err: any) {
-      let msg = "Couldn't request the ride. Try again?";
-      if (err?.response?.status === 409 || err?.response?.status === 400) {
-        msg =
-          err?.response?.data?.message ||
-          err?.response?.data?.error ||
-          "You may have already requested this ride or it's full.";
-      } else if (err?.response?.status === 403) {
-        msg =
-          err?.response?.data?.error ||
-          "This ride isn't available to request.";
+      const requestError = describeBookingRequestError(err);
+      if (requestError.blockState === "full" || requestError.blockState === "past") {
+        setViewerState(requestError.blockState);
+        setViewerActions((actions) => ({ ...actions, can_request_seat: false }));
+      } else if (requestError.blockState === "pending_passenger") {
+        setViewerState("pending_passenger");
+        setUserBookingStatus("pending");
       }
-      BrandedAlert.alert("Couldn't request", msg);
+      setRefreshTick((tick) => tick + 1);
+      BrandedAlert.alert("Couldn't request", requestError.message);
     } finally {
       setIsActionLoading(false);
     }
@@ -1018,7 +1007,7 @@ const RideDetailsScreen: React.FC = () => {
                   BrandedAlert.alert("Ride deleted", "It's no longer visible to anyone.", [
                     {
                       text: "OK",
-                      onPress: () => router.back()
+                      onPress: () => back()
                     }
                   ]);
                 } catch (deleteError: any) {
@@ -1030,7 +1019,7 @@ const RideDetailsScreen: React.FC = () => {
                     BrandedAlert.alert("Ride deleted", "It's no longer visible to anyone.", [
                       {
                         text: "OK",
-                        onPress: () => router.back()
+                        onPress: () => back()
                       }
                     ]);
                   } else {
@@ -1097,7 +1086,7 @@ const RideDetailsScreen: React.FC = () => {
                     BrandedAlert.alert("Booking cancelled", "Your seat is no longer reserved.", [
                       {
                         text: "OK",
-                        onPress: () => router.back()
+                        onPress: () => back()
                       }
                     ]);
                   } catch (deleteError: any) {
@@ -1109,7 +1098,7 @@ const RideDetailsScreen: React.FC = () => {
                       BrandedAlert.alert("Booking cancelled", "Your seat is no longer reserved.", [
                         {
                           text: "OK",
-                          onPress: () => router.back()
+                          onPress: () => back()
                         }
                       ]);
                     } else {
@@ -1158,16 +1147,7 @@ const RideDetailsScreen: React.FC = () => {
     return msg || `Couldn't ${what}. Try again.`;
   };
 
-  // Optimistic accept. The previous flow awaited two round-trips
-  // (PUT /bookings/accept then GET /ride/details to verify) while
-  // showing an "Accepting…" loading state — a clean accept took
-  // 600-1200ms, and for a host processing 4 requests in a row the
-  // wait stacked into multi-second pause. This rewrite flips the
-  // row to "accepted" locally the instant the slider lands, fires
-  // the API in the background, and rolls back the local change if
-  // the request fails. Reconciliation with server truth happens
-  // via the periodic `refreshTick` refetch, so we don't need a
-  // synchronous verify-step.
+  // Accept optimistically, then let the background refetch reconcile server truth.
   const handleAcceptBooking = (bookingId: string) => {
     // Pre-flight: don't optimistically accept past capacity, since
     // the server will reject and we'd flash a phantom acceptance
@@ -1190,14 +1170,7 @@ const RideDetailsScreen: React.FC = () => {
     );
     setBookingError(null);
 
-    // Fire-and-forget. Wrapped in an IIFE so the outer handler stays
-    // synchronous and the slider / profile sheet that called us can
-    // dismiss immediately, before the API even leaves the device.
-    //
-    // putSilent — the global "Uh Oh!" sheet would compete with the
-    // local bookingError message and (on flaky mobile networks)
-    // pop up every time a packet drops. The optimistic UI here is
-    // the user-visible surface; we own the failure message inline.
+    // Fire-and-forget so the caller can dismiss synchronously; failures render inline.
     (async () => {
       try {
         await apiUtil.putSilent(`/bookings/accept/${bookingId}`, {});
@@ -1207,10 +1180,7 @@ const RideDetailsScreen: React.FC = () => {
         // the next refetch will correct it.
         setRefreshTick(tick => tick + 1);
       } catch (error: any) {
-        // Roll back the optimistic change. An empty-body response
-        // from the backend isn't a real failure (older versions
-        // returned 204 + empty body), so we treat that as success
-        // and let the refetch reconcile.
+        // Treat empty-body success responses as success and let refetch reconcile.
         const empty =
           error?.message?.includes("Empty response") ||
           error?.message?.includes("JSON Parse Error");
@@ -1259,12 +1229,7 @@ const RideDetailsScreen: React.FC = () => {
     }
   };
 
-  // Optimistic reject. Same pattern as `handleAcceptBooking` above:
-  // flip the row locally first, fire the API in the background, roll
-  // back on real failure. Rejected rows are filtered out of the
-  // visible list (the rendering branch upstream drops anything with
-  // `request_status === 'rejected'`), so the row disappears from
-  // the screen the moment we mark it rejected — no "Rejecting…" hold.
+  // Reject optimistically; rejected rows disappear from the host list.
   const handleRejectBooking = (bookingId: string) => {
     const prevRequests = requests;
 
@@ -1354,7 +1319,7 @@ const RideDetailsScreen: React.FC = () => {
           <Text style={[styles.errorText, { color: colors.textPrimary }]}>{error || "Ride not found"}</Text>
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: colors.navFill }]}
-            onPress={() => router.back()}
+            onPress={() => back()}
           >
             <Text style={[styles.retryButtonText, colors.mode === "dark" && { color: colors.textOnDark }]}>Go Back</Text>
           </TouchableOpacity>
@@ -1377,7 +1342,7 @@ const RideDetailsScreen: React.FC = () => {
           ) : (
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => back()}
             >
               <ChevronBack />
             </TouchableOpacity>
@@ -1466,7 +1431,7 @@ const RideDetailsScreen: React.FC = () => {
               const shortDest = (
                 (rideData.end_location || "").split(",")[0] || ""
               ).trim();
-              router.navigate(
+              navigate(
                 appHref("ChatMessages", {
                   chatId: rideData.id || rideId || "",
                   chatTitle: shortDest ? `Trip to ${shortDest}` : "Trip",
@@ -1480,7 +1445,7 @@ const RideDetailsScreen: React.FC = () => {
             // pending
             const sorted = [currentUserId, p.id].sort();
             const dmRoomId = `dm_${sorted[0]}_${sorted[1]}`;
-            router.navigate(
+            navigate(
               appHref("ChatMessages", {
                 chatId: dmRoomId,
                 chatTitle: p.name || "Requester",
@@ -1579,21 +1544,19 @@ const RideDetailsScreen: React.FC = () => {
             // host entry lands.
             null
           ) : (
-            // Filter out rejected bookings before rendering. The
-            // previous JSX fell through to the "accepted" branch for
-            // anything non-pending, which made rejected passengers
-            // visually indistinguishable from accepted ones — the
-            // "rejecting marks them as accepted" bug. Rejected rows
-            // shouldn't appear on the host's management screen at all
-            // (the rejection is the decision; they're done).
-            requests
-              .filter((r) => r.request_status !== "rejected")
-              .map((req, idx) => {
+            // Rejected passenger rows are not actionable in host management.
+            requests.flatMap((req) => {
+              if (req.request_status === "rejected") return [];
               const passengerName = req.passenger?.name || "Unknown User";
               const isCurrentUser = req.passenger_id === currentUserId;
               const isHostPassenger = rideData?.host_user_id === req.passenger_id;
               const isHostBooking = req.id === "host-booking";
               const canRemove = !isHostBooking && !isCurrentUser;
+              const requestKey =
+                req.id ||
+                req.booking_id ||
+                req.passenger_id ||
+                `${req.request_status}-${passengerName}`;
 
               let displayName = passengerName;
               if (isCurrentUser && isHostPassenger) {
@@ -1610,14 +1573,9 @@ const RideDetailsScreen: React.FC = () => {
                 // already on screen. Putting the name on remove (but
                 // not accept/reject) created an inconsistent feel.
                 return (
-                  <View key={req.id || idx} style={styles.sliderOnlyContainer}>
+                  <View key={requestKey} style={styles.sliderOnlyContainer}>
                     <SlideToCreate
-                      // Just the prompt — no "Accepting…/Rejecting…
-                      // /Removing…" loading variant any more. The
-                      // handlers below update local state
-                      // optimistically and we dismiss the slider
-                      // synchronously on slide-complete, so the
-                      // intermediate loading text is never visible.
+                      // Optimistic handlers dismiss this slider synchronously.
                       text={
                         showSlide === "accept"
                           ? "Slide to accept user"
@@ -1657,13 +1615,7 @@ const RideDetailsScreen: React.FC = () => {
                       // and 60pt height).
                       containerStyle={{ marginVertical: 0 }}
                       sliderStyle={{ borderRadius: 16 }}
-                      // No `holdAtEnd` any more — the optimistic
-                      // handlers dismiss the slider on slide-complete,
-                      // so there's no "API in flight" window to hold
-                      // the thumb for. Letting the thumb spring back
-                      // would be visible if the slider stayed mounted,
-                      // but it doesn't — onSlideComplete fires
-                      // setShowSlide(null) synchronously.
+                      // No holdAtEnd: the slider unmounts on slide-complete.
                     />
                     {bookingError ? <Text style={styles.inlineErrorText}>{bookingError}</Text> : null}
                   </View>
@@ -1692,7 +1644,7 @@ const RideDetailsScreen: React.FC = () => {
 
               if (req.request_status === "pending") {
                 return (
-                  <View key={req.id || idx} style={[styles.pendingRequestCard, { backgroundColor: colors.navFill }]}>
+                  <View key={requestKey} style={[styles.pendingRequestCard, { backgroundColor: colors.navFill }]}>
                     {/* Name takes the flex space; right cluster carries
                         the actions: View opens the profile sheet,
                         Reject/Accept drop the row into the slider
@@ -1768,7 +1720,7 @@ const RideDetailsScreen: React.FC = () => {
               // else gets View + Remove icon-buttons).
               return (
                 <View
-                  key={req.id || idx}
+                  key={requestKey}
                   style={[styles.confirmedPassengerCard, { backgroundColor: colors.navFill }]}
                 >
                   <Text style={styles.passengerName} numberOfLines={1}>
@@ -1867,7 +1819,7 @@ const RideDetailsScreen: React.FC = () => {
           ) : (
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => back()}
             >
               <ChevronBack />
             </TouchableOpacity>
@@ -1974,7 +1926,7 @@ const RideDetailsScreen: React.FC = () => {
                   // chat list's pending rows.
                   const sorted = [currentUserId, hostUserId].sort();
                   const dmRoomId = `dm_${sorted[0]}_${sorted[1]}`;
-                  router.navigate(appHref("ChatMessages", {
+                  navigate(appHref("ChatMessages", {
                     chatId: dmRoomId,
                     chatTitle: hostName || "Host",
                     chatSubtitle: `${displayRideLocation(rideData?.start_location)} → ${displayRideLocation(rideData?.end_location)}`,
@@ -2017,7 +1969,7 @@ const RideDetailsScreen: React.FC = () => {
                 shadowRadius: 12,
                 elevation: userBookingStatus === 'pending' ? 0 : 2,
               }}
-              onPress={() => router.navigate(appHref("HomeScreen"))}
+              onPress={() => navigate(appHref("HomeScreen"))}
             >
               <Text style={{
                 color: userBookingStatus === 'pending'
@@ -2631,10 +2583,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     marginRight: 8,
   },
-  // Right-side icon-button cluster used on both pending and accepted
-  // rows. View / Reject / Accept (pending) — View / Remove (accepted).
-  // Same visual rhythm as the previous text-icon buttons so the row
-  // reads as one composed action set.
+  // Right-side icon-button cluster for pending and accepted passenger rows.
   rowActionsCluster: {
     flexDirection: "row",
     alignItems: "center",

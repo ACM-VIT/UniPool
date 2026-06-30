@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { GenderSelectorProps } from "./GenderSelector.types";
 import styles from "./GenderSelector.styles";
@@ -13,13 +13,13 @@ const GenderSelector: React.FC<GenderSelectorProps> = ({ value, onChange }) => {
   const colors = useThemeColors();
   return (
     <View style={styles.container}>
-      {options.map((row, rowIndex) => (
-        <View key={rowIndex} style={styles.row}>
-          {row.map((option, index) => {
+      {options.map((row) => (
+        <View key={row.join("|")} style={styles.row}>
+          {row.map((option) => {
             const isSelected = value === option;
             return (
               <TouchableOpacity
-                key={index}
+                key={option}
                 style={[
                   styles.button,
                   { backgroundColor: colors.navFill },

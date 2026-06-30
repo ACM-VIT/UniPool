@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, View, Image, Easing, Text, TouchableOpacity } from "react-native";
+import { Animated, View, Easing, Text, TouchableOpacity } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import styles from "./RideRequestedScreen.styles";
 import { appHref } from "../../navigation/routes";
@@ -7,19 +7,7 @@ import { useUser } from "../../contexts/UserContext";
 import { useTabletContentStyle } from "../../utils/responsive";
 import { useThemeColors } from "../../contexts/ThemeContext";
 
-// Confirmation interstitial. Lands with a spring scale + fade-in,
-// holds briefly so the user registers the moment, then morphs into a
-// stacked action card. The heart-eyes Ride Requested artwork is kept
-// as the hero — it's the brand's celebration glyph for "your tap
-// went through". The action card carries three CTAs in priority
-// order:
-//   Primary   — View request status (deep-links to the ride details
-//               page, which shows the pending booking + host card +
-//               everything the user needs to track the request).
-//   Secondary — Message {host} (outlined pill, demoted from primary;
-//               most users at this moment want to know what happens
-//               next, not immediately DM a stranger).
-//   Tertiary  — Back to trips (quiet text link, escape hatch).
+// Confirmation interstitial shown after a ride request is submitted.
 const HOLD_MS = 1100;
 
 type RouteParams = {
@@ -30,7 +18,7 @@ type RouteParams = {
 };
 
 const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }> = (props) => {
-  const router = useRouter();
+  const { replace, navigate } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const params = useLocalSearchParams<RouteParams>();
   const colors = useThemeColors();
@@ -103,27 +91,23 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
   // rather than dead-ending.
   const viewRequestStatus = () => {
     if (rideId) {
-      router.replace(appHref("RideDetailsScreen", {
+      replace(appHref("RideDetailsScreen", {
         rideId,
         expectedViewerState: "pending_passenger",
-        // The previous screen in the stack is the search-results
-        // form the user submitted to request this ride. Tapping
-        // back from RideDetailsScreen there would dump them on
-        // that form — confusing. Setting this swaps the chevron
-        // for a Home glyph that lands on HomeScreen via replace.
+        // RideDetails should return home instead of back to the submitted form.
         backToHome: true,
       } as any));
     } else {
-      router.replace(appHref("BookingScreen"));
+      replace(appHref("BookingScreen"));
     }
   };
 
   const openHostChat = () => {
     if (!viewerId || !hostUserId) {
-      router.navigate(appHref("BookingScreen"));
+      navigate(appHref("BookingScreen"));
       return;
     }
-    router.replace(
+    replace(
       appHref("ChatMessages", {
         chatId: makeDMRoomId(viewerId, hostUserId),
         chatTitle: hostUserName,
@@ -183,7 +167,7 @@ const RideRequestedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void 
         <TouchableOpacity
           style={styles.ctaTertiary}
           activeOpacity={0.7}
-          onPress={() => router.replace(appHref("BookingScreen"))}
+          onPress={() => replace(appHref("BookingScreen"))}
         >
           <Text style={[styles.ctaTertiaryText, colors.mode === "dark" && { color: colors.textSecondary, opacity: 1 }]}>Back to trips</Text>
         </TouchableOpacity>

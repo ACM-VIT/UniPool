@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Linking, Platform } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Linking } from "react-native";
 import { useFocusEffect } from "expo-router";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";

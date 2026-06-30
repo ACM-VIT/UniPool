@@ -13,27 +13,20 @@ import { useThemeColors } from "../contexts/ThemeContext";
 import type { Palette } from "../design_systems/palettes";
 
 /**
- * Theme-aware sad-face glyph used in place of the baked lime-tile
- * PNGs (no-rides-emoji, sad, etc.) when dark mode is active.
- * The PNGs carry a hardcoded lime background that shouts on the
- * dark canvas; this SVG paints into whichever palette is active so
- * the empty state stays a calm brand reference instead of a
- * bright lime square.
+ * Theme-aware sad-face glyph used in place of fixed-background raster assets
+ * when dark mode is active.
  */
 export const DarkEmptyGlyph: React.FC<{ size: number; colors: Palette }> = ({ size, colors }) => (
   <View style={{ width: size, height: size }}>
     <Svg width={size} height={size} viewBox="0 0 100 100" fill="none">
-      {/* Subtle backdrop circle in the active surface tone — sits
-          quietly on the canvas instead of competing with it. */}
+      {/* Backdrop circle in the active surface tone. */}
       <Circle cx={50} cy={50} r={46} fill={colors.surface} />
-      {/* Outline ring + face strokes in the active primary text
-          colour so the glyph carries the palette voice without
-          re-introducing lime as a fill. */}
+      {/* Ring and face strokes follow the active text color. */}
       <Circle cx={50} cy={50} r={42} stroke={colors.textPrimary} strokeWidth={3.5} />
-      {/* Eyes — small dots that read across the smile/sad family. */}
+      {/* Eyes. */}
       <Circle cx={36} cy={42} r={3.2} fill={colors.textPrimary} />
       <Circle cx={64} cy={42} r={3.2} fill={colors.textPrimary} />
-      {/* Frown — single arc, gentle dip. */}
+      {/* Frown. */}
       <Path
         d="M34 68 Q50 56 66 68"
         stroke={colors.textPrimary}
@@ -46,15 +39,8 @@ export const DarkEmptyGlyph: React.FC<{ size: number; colors: Palette }> = ({ si
 );
 
 /**
- * Shared "no data" surface used wherever a list or section has
- * nothing to show. Three things make it land emotionally:
- *   1. A real illustration (asset) instead of a bare title.
- *   2. A short, human one-liner — not "No data" or an HTTP code.
- *   3. An optional CTA that points the user at the next useful action.
- *
- * Variants come from passing different `image` / `title` / `body` /
- * `ctaLabel` props. Keep it dumb — no fetching, no navigation glue;
- * the caller wires onPress to whatever makes sense.
+ * Shared empty-state surface for lists and sections. Callers provide the copy,
+ * optional illustration, and CTA handler.
  */
 export type EmptyStateProps = {
   /** Illustration above the title. Use `no-rides`, `happy-emoji`,
@@ -90,10 +76,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
   compact = false,
   topAlign = false,
 }) => {
-  // Theme-aware text + CTA so empty states are readable on both
-  // the lime canvas (light) and the charcoal canvas (dark). Module-
-  // scope styles still carry layout + typography; inline overrides
-  // below swap the colour tokens to whichever palette is active.
+  // Theme-aware text and CTA colors; layout stays in the static stylesheet.
   const colors = useThemeColors();
   return (
     <View
@@ -106,11 +89,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
       {glyph ? (
         <View style={{ marginBottom: 18 }}>{glyph}</View>
       ) : colors.mode === "dark" && image ? (
-        // Dark mode swaps every lime-tile PNG (no-rides-emoji, sad,
-        // happy-emoji, cool-emoji, smiling-emoji) for the
-        // theme-aware DarkEmptyGlyph — the brand voice in dark mode
-        // shouldn't be a bright lime square; this glyph reads as a
-        // calm tonal echo of the canvas.
+        // Dark mode avoids fixed-background PNGs.
         <View style={{ marginBottom: 18 }}>
           <DarkEmptyGlyph size={imageSize} colors={colors} />
         </View>
@@ -131,13 +110,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         <TouchableOpacity
           style={[
             styles.cta,
-            // Light: forest pill + lime label (the historical brand
-            // pairing — module-scope handles it). Dark: lime pill +
-            // forest ink, mirroring the PassengerProfileSheet Accept
-            // button so primary CTAs share one recognisable
-            // affordance across the app. The previous navFill +
-            // 45%-opacity cream label read as a near-invisible chip
-            // on the charcoal canvas.
+            // Dark mode uses the same primary CTA contrast as other sheets.
             colors.mode === "dark" && { backgroundColor: colors.primary },
           ]}
           onPress={onPressCta}

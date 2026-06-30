@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import styles from './ProfileScreen/ProfileScreen.styles';
-import BrandInfo from '../components/BrandInfo';
-import ChevronBack from '../components/ChevronBack';
+import BrandInfo from '../components/BrandInfo/BrandInfo';
+import ChevronBack from '../components/ChevronBack/ChevronBack';
 import { useRouter } from "expo-router";
 import { useApi } from '../utils/ApiUtil';
 import BrandedAlert from "../components/BrandedAlert";
@@ -16,7 +16,7 @@ import { useThemeColors } from "../contexts/ThemeContext";
 const DESTRUCTIVE = '#FF6B5B';
 
 const AccountSettingsScreen: React.FC = () => {
-  const router = useRouter();
+  const { replace, back, navigate } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const { apiUtil } = useApi();
   const colors = useThemeColors();
@@ -35,8 +35,10 @@ const AccountSettingsScreen: React.FC = () => {
             setLoading(true);
             try {
               await apiUtil.delete('/user/delete');
-              const { default: AsyncStorage } = await import('../utils/safeAsyncStorage');
-              const { getAuth, signOut } = await import('@react-native-firebase/auth');
+              const [{ default: AsyncStorage }, { getAuth, signOut }] = await Promise.all([
+                import('../utils/safeAsyncStorage'),
+                import('@react-native-firebase/auth'),
+              ]);
               try {
                 const auth = getAuth();
                 await signOut(auth);
@@ -55,7 +57,7 @@ const AccountSettingsScreen: React.FC = () => {
               }
 
               BrandedAlert.alert('Account deleted', 'See you around. We\'ve removed your data.');
-              router.replace(appHref("AuthScreen"));
+              replace(appHref("AuthScreen"));
             } catch (err) {
               console.error('Account deletion error:', err);
               BrandedAlert.alert('Couldn\'t delete', 'Something went wrong. Try again in a moment.');
@@ -73,7 +75,7 @@ const AccountSettingsScreen: React.FC = () => {
       <View style={styles.brandInfoHeaderRow}><BrandInfo /></View>
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => back()}>
             <ChevronBack />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Account Settings</Text>
@@ -83,7 +85,7 @@ const AccountSettingsScreen: React.FC = () => {
         <View style={[styles.menuContainer, colors.mode === "dark" && { backgroundColor: colors.surface }]}>
           <TouchableOpacity
             style={[styles.menuItem, colors.mode === "dark" && { backgroundColor: colors.surface, borderBottomColor: colors.inkSubtle }]}
-            onPress={() => router.navigate(appHref("NotificationsScreen"))}
+            onPress={() => navigate(appHref("NotificationsScreen"))}
             activeOpacity={0.7}
           >
             <Text style={[styles.menuItemText, { color: colors.textOnDark }]}>Notifications</Text>

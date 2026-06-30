@@ -7,11 +7,10 @@ import {
   StyleSheet,
   Animated,
   Easing,
-  Platform,
 } from "react-native";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
-import { haptic } from "./PressableScale";
+import { haptic } from "./haptics";
 
 /**
  * Brand-styled replacement for `Alert.alert`. The native iOS / Android

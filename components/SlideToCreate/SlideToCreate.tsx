@@ -26,11 +26,7 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
   sliderStyle,
   textStyle,
   sliderButtonStyle,
-  // Light-mode defaults match the historical brand pairing (lime track,
-  // forest thumb, black text). The hook below re-paints these only
-  // when the consumer hasn't passed an explicit override AND we're in
-  // dark mode — so callers that intentionally style the slider (e.g.
-  // the secondary "decline" sliders) still win.
+  // Default colors mirror the brand action slider; callers can override them.
   backgroundColor,
   borderColor,
   sliderButtonColor,
@@ -44,26 +40,11 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
   const textOpacity = useRef(new Animated.Value(1)).current;
   const [isSliding, setIsSliding] = useState(false);
 
-  // Theme-aware defaults — only used when the caller doesn't pass
-  // an explicit prop.
-  //
-  // Light mode: historical brand pairing — lime track, forest thumb,
-  // forest text. The slider IS the brand action moment.
-  //
-  // Dark mode: lime track shouts against the charcoal canvas and
-  // pulls the eye away from everything else on screen, which is
-  // the opposite of the calm dark palette we're going for. Switch
-  // the defaults to a raised-charcoal track (navFill) with the lime
-  // surfacing only on the thumb + thumb glyph — same Spotify-green-
-  // on-dark-grey pattern the rest of the dark palette uses for
-  // brand splashes.
+  // Resolve theme-aware defaults only when the caller has not provided colors.
   const isDark = colors.mode === "dark";
   const resolvedBg =
     backgroundColor ?? (isDark ? colors.navFill : AppColors.primaryLightGreen);
-  // Light mode: keep the historical forest border (= textPrimary).
-  // Dark mode: the bright cream border read as a "white box" framing
-  // the slider — switch to a subtle hairline that's barely there so
-  // the track blends with the canvas.
+  // Keep dark-mode borders subtle so the track blends with the canvas.
   const resolvedBorder =
     borderColor ?? (isDark ? "rgba(237,236,231,0.10)" : colors.textPrimary);
   const resolvedButton =
@@ -98,7 +79,6 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
         const { translationX } = event.nativeEvent;
         const maxTranslation = sliderWidth - 60; // Account for button width (56) + padding (4)
         
-        // Prevent sliding beyond boundaries
         if (translationX < 0) {
           translateX.setValue(0);
         } else if (translationX > maxTranslation) {
@@ -127,29 +107,14 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
       const threshold = maxTranslation * 0.8; // 80% of the available slide distance
       
       if (translationX >= threshold && !disabled) {
-        // Slide completed
         Animated.spring(translateX, {
           toValue: maxTranslation,
           useNativeDriver: false,
         }).start(() => {
           onSlideComplete();
-          // Auto-snap-back UNLESS the caller asked us to hold the
-          // thumb at the end. Holding is the right call when
-          // `onSlideComplete` is async and the slider should LOOK
-          // armed until the parent dismisses it — without holdAtEnd
-          // the thumb would zip back to the left mid-API-call, which
-          // looks broken.
+          // Keep the thumb pinned for async parent flows until loading takes over.
           if (holdAtEnd) {
-            // Bring the text opacity back to 1 even though the thumb
-            // stays pinned right. During the drag we fade text to 0
-            // (so "Slide to accept user" doesn't fight the thumb);
-            // without this reset, the parent's loading message
-            // ("Accepting...", "Rejecting...", "Removing...") would
-            // be invisible — the slider would just look blank with
-            // the thumb sitting at the end. The text container is
-            // positioned in the middle of the track and the thumb at
-            // maxTranslation only overlaps it by ~2pt, so the
-            // centered loading copy reads cleanly.
+            // Restore centered copy while the thumb remains at the end.
             Animated.timing(textOpacity, {
               toValue: 1,
               duration: 200,
@@ -224,7 +189,7 @@ const UniversalSlider: React.FC<UniversalSliderProps> = ({
         ]}
         onLayout={onLayout}
       >
-        {/* Background Text with Animated Opacity */}
+        {/* Background text with animated opacity. */}
         <Animated.View 
           style={[
             styles.customSlideTextContainer,

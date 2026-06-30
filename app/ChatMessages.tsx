@@ -1,4 +1,4 @@
-import { ChatConversationScreen } from "../screens/ChatScreens";
+import ChatConversationScreen from "../screens/ChatScreens/ChatMessages";
 import { useNavBarControls } from "../contexts/NavBarContext";
 
 export default function ChatMessagesRoute() {

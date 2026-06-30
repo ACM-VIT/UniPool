@@ -7,7 +7,7 @@ import { useTabletContentStyle } from "../../utils/responsive";
 import { useThemeColors } from "../../contexts/ThemeContext";
 
 const RideCreatedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }> = (props) => {
-  const router = useRouter();
+  const { replace } = useRouter();
   const tabletContentStyle = useTabletContentStyle();
   const params = useDecodedLocalSearchParams<{ rideId?: string }>();
   const colors = useThemeColors();
@@ -23,7 +23,7 @@ const RideCreatedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }>
     // where the host can share their ride link / QR with users.
     const timer = setTimeout(() => {
       if (params?.rideId) {
-        router.replace(appHref("RideDetailsScreen", {
+        replace(appHref("RideDetailsScreen", {
           rideId: params.rideId,
           expectedViewerState: "host",
           // The host arrived here by submitting the create-ride
@@ -35,11 +35,11 @@ const RideCreatedScreen: React.FC<{ setNavBarVariant?: (v: 0 | 1 | 2) => void }>
           backToHome: true,
         } as any) as any);
       } else {
-        router.replace(appHref("BookingScreen"));
+        replace(appHref("BookingScreen"));
       }
     }, 1800);
     return () => clearTimeout(timer);
-  }, [props.setNavBarVariant, router, params?.rideId]);
+  }, [props.setNavBarVariant, replace, params?.rideId]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }, tabletContentStyle]}>

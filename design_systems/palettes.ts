@@ -1,24 +1,9 @@
 /**
  * UniPool theme palettes.
  *
- * Two palettes ship:
- *
- *   • `lightPalette` — the original brand palette. Every token here
- *     resolves to the EXACT historical AppColors value at the site
- *     that uses it. Light mode is a feature freeze; this file's job
- *     for light mode is to look like nothing ever changed.
- *
- *   • `darkPalette` — a true dark mode, not a forest-tinted twin of
- *     the lime theme. The point of shipping dark mode is to give
- *     people who don't want the green look an actual escape from
- *     it. So the canvas is neutral warm-charcoal with no green
- *     undertone, the surfaces are clean greys, and the lime accent
- *     stays only as a brand splash on CTAs / selected state /
- *     filled buttons (the Spotify-green-on-dark-grey pattern).
- *     Someone who picks dark mode shouldn't feel like they're
- *     still inside the lime brand at lower brightness — they
- *     should feel like they're inside a calm dark app that
- *     happens to use lime as its action color.
+ * Light mode preserves the original lime/forest brand system. Dark mode keeps
+ * lime for actions and selected states while moving the canvas and surfaces to
+ * neutral charcoal tokens.
  */
 
 export type ThemeMode = "light" | "dark";
@@ -29,16 +14,14 @@ export interface Palette {
   mode: ThemeMode;
 
   // --- Brand --------------------------------------------------------------
-  /** Primary brand accent. The lime that defines UniPool's identity.
-   *  Unchanged across modes — brand consistency wins. */
+  /** Primary brand accent, unchanged across modes. */
   primary: string;
   /** Slightly brighter variant for accent-on-dark fills where the standard
-   *  lime needs more punch to clear contrast on a deep canvas. */
+   *  lime needs more contrast on a deep canvas. */
   primaryStrong: string;
-  /** Forest-on-cream ink in light mode; neutral dim grey in dark mode
-   *  (intentionally NOT a forest tint — that'd reintroduce the green). */
+  /** Secondary brand or neutral accent, depending on mode. */
   secondary: string;
-  /** Mid olive — used for "still on brand" thirds like self chat bubbles. */
+  /** Mid olive used for tertiary brand surfaces. */
   midAccent: string;
 
   // --- Canvas / surface hierarchy ----------------------------------------
@@ -54,18 +37,13 @@ export interface Palette {
   surfaceTinted: string;
 
   // --- Card state --------------------------------------------------------
-  /** Background for the "selected" RideCard. Light: deep forest
-   *  (#1e4620, the historical highlight). Dark: lime fill — the
-   *  brand splash IS the highlight in a neutral dark palette. */
+  /** Background for selected ride cards. */
   cardSelected: string;
-  /** Text/icons painted on top of `cardSelected`. Light: white on
-   *  forest. Dark: deep canvas on lime. */
+  /** Text/icons painted on top of `cardSelected`. */
   cardSelectedText: string;
 
   // --- Text / ink --------------------------------------------------------
-  /** Primary foreground text. Light: forest ink. Dark: warm off-white
-   *  with NO green undertone — explicitly avoiding the "forest at
-   *  night" feel. */
+  /** Primary foreground text. */
   textPrimary: string;
   /** Secondary body text (~65-70% opacity). */
   textSecondary: string;
@@ -73,13 +51,9 @@ export interface Palette {
   textTertiary: string;
   /** Disabled / placeholder text (~28% opacity). */
   textDisabled: string;
-  /** Foreground for content sitting on the lime accent fill (CTAs,
-   *  pills, selected dark-mode card). Forest ink in both modes —
-   *  this is the canonical "text on lime" pairing. */
+  /** Foreground for content sitting on the lime accent fill. */
   textOnAccent: string;
-  /** Foreground for content sitting on ANY dark surface (the legacy
-   *  forest navbar in light, the dark-mode canvas in dark). Always
-   *  a light cream / off-white. */
+  /** Foreground for content sitting on dark surfaces. */
   textOnDark: string;
 
   // --- Tinted ink hairlines (mirrors legacy AppColors.inkSubtle etc.) ----
@@ -98,8 +72,7 @@ export interface Palette {
   // --- Status bar / nav chrome ------------------------------------------
   statusBarStyle: "light-content" | "dark-content";
   statusBarBackground: string;
-  /** Nav-bar pill fill. Light: forest (the historical navbar
-   *  background — NOT cream). Dark: raised charcoal. */
+  /** Nav-bar pill fill. */
   navFill: string;
   /** Active tab icon / label color sitting on `navFill`. */
   navIconActive: string;
@@ -110,13 +83,9 @@ export interface Palette {
 }
 
 // ----------------------------------------------------------------------------
-// Light palette — EXACT historical AppColors values at every site.
-// Goal: light mode renders bit-for-bit identically to pre-theme.
-// Any token whose value here doesn't match what the original code
-// painted at the same site is a regression — keep this in lockstep
-// with the design_systems/colors.tsx defaults.
+// Light palette: original AppColors-compatible brand values.
 // ----------------------------------------------------------------------------
-export const lightPalette: Palette = {
+const lightPalette: Palette = {
   mode: "light",
 
   primary: "#B5D750",          // = AppColors.primaryLightGreen
@@ -130,8 +99,6 @@ export const lightPalette: Palette = {
   surfaceInset: "#FFFDF4",
   surfaceTinted: "rgba(255,253,244,0.65)", // = AppColors.cardSurfaceTinted
 
-  // Historical RideCard styles.selectedCard hardcoded these exact
-  // values — keep them so light-mode selection looks unchanged.
   cardSelected: "#1e4620",
   cardSelectedText: "#FFFFFF",
 
@@ -155,9 +122,6 @@ export const lightPalette: Palette = {
 
   statusBarStyle: "dark-content",
   statusBarBackground: "#B5D750",
-  // The historical MainNavBar pill was FOREST (#263B33), not cream.
-  // navIconActive (white) and navIconInactive (lime) match the old
-  // hardcoded basicWhite / primaryLightGreen.
   navFill: "#263B33",
   navIconActive: "#FFFFFF",
   navIconInactive: "#B5D750",
@@ -165,90 +129,51 @@ export const lightPalette: Palette = {
 };
 
 // ----------------------------------------------------------------------------
-// Dark palette — deep forest green canvas. The brand's secondary
-// (`#263B33`) is the daytime forest; the dark canvas sits a few
-// stops below it, near-black but unmistakably green-undertoned.
-// Lime stays as the brand splash on CTAs and selected states; the
-// background, surfaces, and elevated panels all tier within the
-// same forest family so the dark mode feels like a continuation of
-// the brand identity rather than a generic charcoal theme.
+// Dark palette: neutral charcoal surfaces with lime reserved for brand actions.
 // ----------------------------------------------------------------------------
-export const darkPalette: Palette = {
+const darkPalette: Palette = {
   mode: "dark",
 
-  // Brand splash only — lime appears on CTAs, selected cards, and
-  // chip fills. Never as the canvas. Brighter `primaryStrong` for
-  // filled buttons where the standard lime needs an extra nudge to
-  // clear contrast against the deep canvas.
+  // Lime appears on CTAs, selected states, and chip fills.
   primary: "#B5D750",
   primaryStrong: "#C8E664",
-  // Neutral mid-grey for the "secondary" role — deliberately NOT a
-  // forest tone. Pairs cleanly with primary text without
-  // re-introducing the green.
   secondary: "#9CA3A0",
   midAccent: "#7FA336",
 
-  // Canvas + surfaces — warm charcoal hierarchy. Tiny warmth bias
-  // (#11 / #12 instead of #10 / #11 across channels) keeps the
-  // greys from feeling clinical, without leaning green. The point
-  // of shipping dark mode is to ESCAPE the lime brand for users
-  // who don't enjoy the green look — anything forest-tinted would
-  // reintroduce the green and defeat the purpose.
+  // Canvas and surface hierarchy.
   background: "#0F0F12",         // app canvas — near-black, warm bias
   surface: "#18181C",            // raised card (+~6 brightness from canvas)
   surfaceElevated: "#22222A",    // modals / sheets (+~13)
   surfaceInset: "#08080B",       // recessed inputs (-~3)
   surfaceTinted: "rgba(24,24,28,0.80)",
 
-  // Selected-card highlight — used by the "tap to select" card in
-  // ride search results and the standalone card on Ride Management.
-  // Originally the lime brand splash in dark mode, but in practice
-  // a fully-lime card on a charcoal canvas reads as an iOS-style
-  // CTA pill rather than a "this is the active ride" affordance.
-  // Switched to a one-tier-brighter charcoal (#26262E) with the
-  // standard cream text on top — gives the card the lift the
-  // selected state needs without shouting at the user. The brand
-  // splash still lives on the price pill / slider thumb / CTAs.
+  // Selected ride cards use a raised dark surface; lime remains reserved
+  // for price pills, slider thumbs, and CTAs.
   cardSelected: "#26262E",
   cardSelectedText: "#F2EBD0",
 
-  // Warm off-white. The `#EDECE7` is chosen to feel like cream
-  // shifted into a true neutral — no green tint, slight cream/warm
-  // bias for personality. Pure white reads as sterile against the
-  // warm canvas.
+  // Warm off-white foreground on charcoal.
   textPrimary: "#EDECE7",
   textSecondary: "rgba(237,236,231,0.68)",
   textTertiary: "rgba(237,236,231,0.46)",
   textDisabled: "rgba(237,236,231,0.28)",
-  // Same forest stays the right text-on-lime — the brand splash
-  // pairing carries across both modes.
   textOnAccent: "#0F0F12",
   textOnDark: "#EDECE7",
 
-  // Neutral white hairlines — deliberately NOT lime-tinted. A
-  // lime-tinted hairline would pull the eye toward the brand
-  // accent on every divider, which is the opposite of restraint.
+  // Neutral white hairlines keep dividers separate from brand actions.
   inkSubtle: "rgba(237,236,231,0.05)",
   inkSoft: "rgba(237,236,231,0.10)",
   inkLine: "rgba(237,236,231,0.18)",
   inkMuted: "rgba(237,236,231,0.50)",
   inkStrong: "rgba(237,236,231,0.75)",
 
-  // Slightly warmer destructive — pure iOS red looks neon against a
-  // charcoal canvas; this warmer red sits more naturally.
   destructive: "#FF6B5B",
   warning: "#F4A55C",
-  // Lime echo for the "success" semantic so the brand voice still
-  // colors the "yes" moments — but the standard lime, no tinting.
   success: "#C8E664",
   accentOrange: "#E8995A",
 
   statusBarStyle: "light-content",
   statusBarBackground: "#0F0F12",
-  // Nav pill paints to a slightly elevated charcoal so it reads as
-  // a floating chip on the canvas rather than flat chrome. Active
-  // tabs use off-white text for high contrast; inactive sit at
-  // ~45% opacity to recede without disappearing.
   navFill: "#1F1F25",
   navIconActive: "#EDECE7",
   navIconInactive: "rgba(237,236,231,0.45)",

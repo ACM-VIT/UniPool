@@ -9,9 +9,8 @@ import {
   signInWithCredential,
 } from "@react-native-firebase/auth";
 import { router } from "expo-router";
-// Apple Sign-In via Expo's wrapper around AuthenticationServices —
-// more reliable on iPad / iPadOS 26 than the older invertase library
-// that produces a generic "Sign Up Not Completed" sheet during review.
+// Expo's AuthenticationServices wrapper handles Apple Sign-In consistently
+// across iPhone and iPad review devices.
 import * as AppleAuthentication from "expo-apple-authentication";
 
 import AppColors from "../../design_systems/colors";
@@ -20,7 +19,7 @@ import { useApi } from "../../utils/ApiUtil";
 import type { RootStackParamList } from "../../navigation/RootStackParamList";
 import { appHref } from "../../navigation/routes";
 import BrandedAlert from "../BrandedAlert";
-import { haptic } from "../PressableScale";
+import { haptic } from "../haptics";
 import {
   isAuthenticationRedirectError,
   isProviderCollisionError,
@@ -45,31 +44,16 @@ type Props = {
   onDismiss: () => void;
 };
 
-/**
- * Lightweight bottom-sheet sign-in (Vibecode / FotMob pattern from Mobbin).
- *
- * Triggered by gated actions — booking, posting, opening Trips/Profile/Chat.
- * Sits over the underlying screen with a dim backdrop so the user keeps
- * spatial context. Slides up ~46% of the viewport, has tap-to-dismiss on
- * the backdrop, swipe-down would be nice but is not strictly required.
- */
+/** Bottom-sheet sign-in surface used by auth-gated actions. */
 type SigningProvider = "apple" | "google" | null;
 
 const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) => {
   const colors = useThemeColors();
   const { apiUtil } = useApi();
-  // Apple HIG — the Sign in with Apple button must use one of Apple's
-  // approved colour pairings (black-on-white, white-on-black, white-
-  // on-white-with-outline). We can't tint it lime, forest, or any
-  // brand colour without violating the guideline. So the button is
-  // black in light mode (white glyph + label) and white in dark mode
-  // (black glyph + label). Same Apple-issued mark, just swapped for
-  // canvas contrast.
+  // Apple Sign-In must use one of Apple's approved contrast pairings.
   const primaryCtaBg = colors.mode === "dark" ? AppColors.basicWhite : AppColors.basicBlack;
   const primaryCtaText = colors.mode === "dark" ? AppColors.basicBlack : AppColors.basicWhite;
-  // Track which provider is mid-flow so only that button shows the spinner.
-  // (Both buttons showing "Signing in…" simultaneously confused users — they
-  // weren't sure which provider was actually authenticating.)
+  // Track the active provider so only the selected button shows progress.
   const [signingIn, setSigningIn] = useState<SigningProvider>(null);
   const isSigningIn = signingIn !== null;
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -77,16 +61,10 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
 
   useEffect(() => {
     if (visible) {
-      // Selection haptic the moment the sheet starts to rise. Light
-      // enough to feel like a confirmation, not an alert.
+      // Use a light haptic when the sheet starts to rise.
       haptic("selection");
-      // Force the start position before the spring. The previous
-      // close's native animation can be cancelled mid-flight when
-      // the Modal unmounts, leaving these Animated.Values stuck at
-      // the open position (translateY=0, backdrop=1). Without this
-      // reset, the next spring(translateY, 0) is a no-op and the
-      // sheet appears without animating on the second-and-later
-      // open.
+      // Reset animated values before each open; the modal can unmount while
+      // the close animation is still in flight.
       translateY.setValue(SCREEN_HEIGHT);
       backdrop.setValue(0);
       Animated.parallel([
@@ -119,10 +97,8 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
           useNativeDriver: true,
         }),
       ]).start(() => {
-        // Belt and braces in case the Modal unmounts before the
-        // animation hands over to the JS callback path. Guarantees
-        // the values land at their off-screen target so the open
-        // reset above is paired with a known final state.
+        // Keep the next open deterministic even if the modal unmounts before
+        // the native animation callback completes.
         translateY.setValue(SCREEN_HEIGHT);
         backdrop.setValue(0);
       });
@@ -176,11 +152,8 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
       }
       const cred = GoogleAuthProvider.credential(idToken);
       const result = await signInWithCredential(getAuth(), cred);
-      // signInWithCredential resolves with a user whose ID token is
-      // already fresh — the previous `getIdToken(true)` here was a
-      // redundant ~500-800ms network round-trip on Android. Using
-      // the returned credential user (rather than the global auth
-      // singleton) still avoids the race the comment described.
+      // Use the credential result directly; Firebase has already refreshed
+      // the ID token for this sign-in.
       await handleSuccess(result.user, "google");
     } catch (error: any) {
       const code = error?.code;
@@ -202,9 +175,7 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
   const handleApple = async () => {
     if (Platform.OS !== "ios" || isSigningIn) return;
 
-    // Apple Sign-In can be unavailable on iPad, restricted accounts,
-    // and managed devices. Show a specific message instead of letting
-    // Apple's own "Sign Up Not Completed" sheet surface.
+    // Apple Sign-In can be unavailable on restricted or managed devices.
     const available = await AppleAuthentication.isAvailableAsync();
     if (!available) {
       BrandedAlert.alert(
