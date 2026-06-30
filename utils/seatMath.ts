@@ -86,7 +86,7 @@ export function seatsAvailableLabel(
 /**
  * Compact seat availability label for tight spaces.
  */
-function seatsLeftLabel(
+export function seatsLeftLabel(
   totalSeats: number,
   bookedSeats: number,
 ): string {
