@@ -365,9 +365,15 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     setFromCoordinates(newFromCoordinates);
     setToCoordinates(newToCoordinates);
     setTargetTimeIso(newTargetTimeIso);
+    if (newTargetTimeIso && !Number.isNaN(new Date(newTargetTimeIso).getTime())) {
+      const routeDate = formatDateParam(new Date(newTargetTimeIso));
+      setFilters((current) =>
+        current.date === routeDate ? current : { ...current, date: routeDate },
+      );
+    }
   }, [routeParams]);
 
-  const buildQueryParams = () => {
+  const searchQueryParams = useMemo(() => {
     let queryParams = `start_location=${encodeURIComponent(fromLocation)}&end_location=${encodeURIComponent(toLocation)}`;
     const targetDate =
       targetTimeIso && !Number.isNaN(new Date(targetTimeIso).getTime())
@@ -405,7 +411,19 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     }
     
     return queryParams;
-  };
+  }, [
+    filters.date,
+    filters.maxPrice,
+    filters.minSeats,
+    filters.preferredTime,
+    filters.radius,
+    filters.sortBy,
+    fromCoordinates,
+    fromLocation,
+    targetTimeIso,
+    toCoordinates,
+    toLocation,
+  ]);
 
   const fetchRides = ({ refresh = false }: { refresh?: boolean } = {}) => {
     if (!fromLocation || !toLocation) {
@@ -429,15 +447,17 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     if (refresh) {
       setRefreshing(true);
     } else {
+      setRides([]);
+      setExternalRides([]);
+      setSearchMeta(null);
+      setStrictMatchIds(new Set());
       setLoading(true);
     }
     if (DEBUG_RIDE_SEARCH) {
       console.log("Fetching rides for:", { fromLocation, toLocation, fromCoordinates, toCoordinates, filters });
     }
 
-    const queryParams = buildQueryParams();
-
-    const searchEndpoint = `/ride/search?${queryParams}`;
+    const searchEndpoint = `/ride/search?${searchQueryParams}`;
     const searchRequest = refresh
       ? apiUtil.getUncached<ApiResponse>(searchEndpoint)
       : apiUtil.get<ApiResponse>(searchEndpoint);
@@ -499,7 +519,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       setNavBarIcon(require("../../assets/wallet.png"));
       setNavBarItems(bottomNavItems);
     };
-  }, [isFocused, fromLocation, toLocation, fromCoordinates, toCoordinates, targetTimeIso]);
+  }, [isFocused, searchQueryParams]);
 
   useEffect(() => {
     if (!isFocused) return;
@@ -536,7 +556,6 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
 
   const applyFilters = () => {
     setShowFilters(false);
-    fetchRides();
   };
 
   const clearFilters = () => {

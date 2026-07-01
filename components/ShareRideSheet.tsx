@@ -14,11 +14,7 @@ import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import RouteStack from "./RouteStack";
 import { displayRideLocation } from "../utils/LocationService";
-
-/** Base HTTPS host for ride share links and future app-link routing. */
-const SHARE_HOST = "https://unipool.acmvit.in";
-// Direct install target for first-time recipients and link preview clients.
-const DOWNLOAD_URL = "https://unipool.download";
+import { DOWNLOAD_URL, rideShareUrl } from "../config/share";
 const PERFORATION_DASH_KEYS = Array.from({ length: 18 }, (_, index) => `dash-${index}`);
 
 type Props = {
@@ -85,7 +81,7 @@ const ShareRideSheet: React.FC<Props> = ({
   startTime,
 }) => {
   const colors = useThemeColors();
-  const deeplink = `${SHARE_HOST}/ride/${rideId}`;
+  const deeplink = rideShareUrl(rideId);
   const dateLabel = useMemo(() => formatShareDate(startTime), [startTime]);
   const timeLabel = useMemo(() => formatShareTime(startTime), [startTime]);
 
