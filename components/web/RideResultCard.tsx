@@ -27,7 +27,7 @@ type Props = {
   dateLabel: string;
   timeLabel: string;
   seatsLabel: string;
-  price: number;
+  price?: number;
   hostName?: string;
   hostPhoto?: string | null;
   seats?: number;
@@ -62,11 +62,13 @@ const RideResultCard: React.FC<Props> = ({ origin, destination, dateLabel, timeL
         <View style={styles.top}>
           <Text style={styles.when}>{dateLabel} {"·"} {timeLabel}</Text>
           <View style={styles.priceCol}>
-            <View style={styles.pricePill}>
-              <Text style={styles.priceCurrency}>{"₹"}</Text>
-              <Text style={styles.price}>{price}</Text>
-              <Text style={styles.per}>/seat</Text>
-            </View>
+            {typeof price === "number" ? (
+              <View style={styles.pricePill}>
+                <Text style={styles.priceCurrency}>{"₹"}</Text>
+                <Text style={styles.price}>{price}</Text>
+                <Text style={styles.per}>/seat</Text>
+              </View>
+            ) : null}
             <Text style={styles.seats}>{seatsLabel}</Text>
           </View>
         </View>
