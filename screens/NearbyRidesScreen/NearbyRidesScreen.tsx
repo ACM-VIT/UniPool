@@ -25,12 +25,18 @@ import { MAIN_NAV_BAR_TOP_OFFSET } from "../../components/MainNavBar.constants";
 import { appHref } from "../../navigation/routes";
 import { useApi } from "../../utils/ApiUtil";
 import { useUser } from "../../contexts/UserContext";
-import { useTabletContentStyle, useTabletScrollContentStyle } from "../../utils/responsive";
+import { useTabletScrollContentStyle } from "../../utils/responsive";
 import { isRideUpcomingAt } from "../../utils/rideTime";
 import { hasSeatsLeft, passengerSeatsLeft, seatsAvailableLabel } from "../../utils/seatMath";
 import RideClusterSheet, { type ClusteredRide } from "../../components/RideClusterSheet";
 import ExternalRideCard from "../../components/ExternalRideCard";
 import type { ExternalRide } from "../../utils/ExternalRideService";
+import Svg, { Path } from "react-native-svg";
+import NearbyFiltersSheet, {
+  DEFAULT_NEARBY_FILTERS,
+  nearbyFiltersCount,
+  type NearbyFilters,
+} from "../../components/NearbyFiltersSheet";
 
 type NearbyCluster = {
   key: string;
@@ -43,6 +49,7 @@ type NearbyCluster = {
 
 type NearbyListItem =
   | { type: "ride"; ride: NearbyRideRow }
+  | { type: "external"; ride: NearbyExternalRideRow }
   | { type: "cluster"; cluster: NearbyCluster };
 
 const { width, height } = Dimensions.get("window");
@@ -88,6 +95,11 @@ type NearbyRideRow = Omit<NearbyRideWithComputed, "distanceKm"> & {
   distanceKm: number | null;
   seatAvailability: string;
   seatsLeftNum: number;
+};
+
+type NearbyExternalRideRow = ExternalRide & {
+  distanceKm: number | null;
+  startTimeMs: number;
 };
 
 let nearbyDateFormatter: Intl.DateTimeFormat | null = null;
@@ -144,6 +156,82 @@ const haversineKm = (
   return 2 * R * Math.asin(Math.sqrt(a));
 };
 
+// Distance / seats / fare predicate, shared by the rendered list and the
+// filter sheet's live result-count preview.
+const rideMatchesFilters = (r: NearbyRideRow, f: NearbyFilters): boolean => {
+  if (f.maxDistanceKm !== null && r.distanceKm !== null && r.distanceKm > f.maxDistanceKm) return false;
+  if (f.minSeats > 0 && r.seatsLeftNum < f.minSeats) return false;
+  if (f.maxPrice !== null && r.total_price > f.maxPrice) return false;
+  return true;
+};
+
+const externalRideMatchesFilters = (r: ExternalRide, f: NearbyFilters): boolean => {
+  if (!f.showExternal) return false;
+  if (f.maxDistanceKm !== null) {
+    if (typeof r.pickup_distance_km !== "number" || r.pickup_distance_km > f.maxDistanceKm) {
+      return false;
+    }
+  }
+  if (f.minSeats > 0 && r.available_seats < f.minSeats) return false;
+  if (f.maxPrice !== null) {
+    if (typeof r.total_price !== "number" || r.total_price > f.maxPrice) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const normalizedDistanceKm = (distanceKm: number | null | undefined): number =>
+  typeof distanceKm === "number" && Number.isFinite(distanceKm)
+    ? distanceKm
+    : Number.POSITIVE_INFINITY;
+
+const normalizedTimeMs = (timeMs: number): number =>
+  Number.isFinite(timeMs) ? timeMs : Number.POSITIVE_INFINITY;
+
+const externalDistanceKm = (ride: ExternalRide): number | null =>
+  typeof ride.pickup_distance_km === "number" && Number.isFinite(ride.pickup_distance_km)
+    ? ride.pickup_distance_km
+    : null;
+
+const externalDepartureMs = (ride: ExternalRide): number => {
+  const timeMs = new Date(ride.departure_time).getTime();
+  return Number.isFinite(timeMs) ? timeMs : Number.POSITIVE_INFINITY;
+};
+
+const compareNearbyRows = (
+  a: { id: string; distanceKm: number | null; startTimeMs: number },
+  b: { id: string; distanceKm: number | null; startTimeMs: number },
+  sortBy: NearbyFilters["sortBy"],
+): number => {
+  const aDistance = normalizedDistanceKm(a.distanceKm);
+  const bDistance = normalizedDistanceKm(b.distanceKm);
+  const aTime = normalizedTimeMs(a.startTimeMs);
+  const bTime = normalizedTimeMs(b.startTimeMs);
+
+  if (sortBy === "time") {
+    if (aTime !== bTime) return aTime - bTime;
+    if (aDistance !== bDistance) return aDistance - bDistance;
+  } else {
+    if (aDistance !== bDistance) return aDistance - bDistance;
+    if (aTime !== bTime) return aTime - bTime;
+  }
+
+  return a.id.localeCompare(b.id);
+};
+
+const FilterGlyph: React.FC<{ color: string }> = ({ color }) => (
+  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M4 5 H20 L14 12.5 V19.5 L10 21.5 V12.5 L4 5 Z"
+      stroke={color}
+      strokeWidth={1.8}
+      strokeLinejoin="round"
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
 /**
  * Public nearby-rides list for signed-in and guest users.
  * Requesting a seat is still gated by AvailableRidesSelectedScreen.
@@ -151,7 +239,6 @@ const haversineKm = (
 const NearbyRidesScreen: React.FC = () => {
   const { navigate, back } = useRouter();
   const colors = useThemeColors();
-  const tabletContentStyle = useTabletContentStyle();
   const tabletScrollContentStyle = useTabletScrollContentStyle();
   const { requireAuth } = useAuthGate();
   const { apiUtil } = useApi();
@@ -167,6 +254,8 @@ const NearbyRidesScreen: React.FC = () => {
   const [needsLocation, setNeedsLocation] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [clusterSheet, setClusterSheet] = useState<{ pickup: string; rides: ClusteredRide[] } | null>(null);
+  const [filters, setFilters] = useState<NearbyFilters>(DEFAULT_NEARBY_FILTERS);
+  const [showFilters, setShowFilters] = useState(false);
 
   const getCurrentCoords = useCallback(async (forceFresh: boolean) => {
     const cached = nearbyLocationCache;
@@ -284,12 +373,51 @@ const NearbyRidesScreen: React.FC = () => {
     [coords, rides, nowTick, viewerUserId],
   );
 
+  // Apply the user's filters (distance / seats / fare) and chosen sort. All
+  // client-side: the nearby fetch already returned everything within 10 km.
+  const filteredRides = useMemo<NearbyRideRow[]>(() => {
+    return visibleRides
+      .filter((r) => rideMatchesFilters(r, filters))
+      .sort((a, b) => compareNearbyRows(a, b, filters.sortBy));
+  }, [visibleRides, filters]);
+
+  const filteredExternalRides = useMemo<NearbyExternalRideRow[]>(
+    () =>
+      externalRides
+        .filter((r) => externalRideMatchesFilters(r, filters))
+        .map((ride) => ({
+          ...ride,
+          distanceKm: externalDistanceKm(ride),
+          startTimeMs: externalDepartureMs(ride),
+        })),
+    [externalRides, filters],
+  );
+
   // The list shows every nearby ride as its own card, no clustering, so
   // riders can see and pick each one directly. (The home map still clusters
   // its pins; this list intentionally does not.)
   const listItems = useMemo<NearbyListItem[]>(
-    () => visibleRides.map((ride) => ({ type: "ride", ride })),
-    [visibleRides],
+    () => {
+      const rows: NearbyListItem[] = [
+        ...filteredRides.map((ride) => ({ type: "ride" as const, ride })),
+        ...filteredExternalRides.map((ride) => ({ type: "external" as const, ride })),
+      ];
+
+      return rows.sort((a, b) => {
+        if (a.type === "cluster" || b.type === "cluster") return 0;
+        return compareNearbyRows(a.ride, b.ride, filters.sortBy);
+      });
+    },
+    [filteredRides, filteredExternalRides, filters.sortBy],
+  );
+
+  // Preview count for an arbitrary filter set (the sheet's live draft), so the
+  // apply button can read "Show N rides" before committing.
+  const countForFilters = useCallback(
+    (f: NearbyFilters) =>
+      visibleRides.filter((r) => rideMatchesFilters(r, f)).length +
+      externalRides.filter((r) => externalRideMatchesFilters(r, f)).length,
+    [visibleRides, externalRides],
   );
 
   const onRefresh = useCallback(async () => {
@@ -373,6 +501,15 @@ const NearbyRidesScreen: React.FC = () => {
       );
     }
 
+    if (item.type === "external") {
+      return (
+        <ExternalRideCard
+          ride={item.ride}
+          authReturnTo={{ screen: "NearbyRidesScreen" }}
+        />
+      );
+    }
+
     const ride = item.ride;
     return (
       <TouchableOpacity
@@ -410,30 +547,12 @@ const NearbyRidesScreen: React.FC = () => {
     );
   }, [openRide, openCluster, colors]);
 
-  const renderExternalFooter = useCallback(() => {
-    if (externalRides.length === 0) return null;
-    return (
-      <View style={externalStyles.section}>
-        <View style={externalStyles.divider}>
-          <View style={[externalStyles.dividerLine, { backgroundColor: colors.inkLine }]} />
-          <Text style={[externalStyles.dividerLabel, { color: colors.textSecondary }]}>
-            More rides nearby
-          </Text>
-          <View style={[externalStyles.dividerLine, { backgroundColor: colors.inkLine }]} />
-        </View>
-        <Text style={[externalStyles.disclaimer, { color: colors.textTertiary }]}>
-          These aren't on UniPool. Contact the host directly to arrange.
-        </Text>
-        {externalRides.map((r) => (
-          <ExternalRideCard key={r.id} ride={r} authReturnTo={{ screen: "NearbyRidesScreen" }} />
-        ))}
-      </View>
-    );
-  }, [externalRides, colors]);
-
-  const nearbyRideCount = visibleRides.length + externalRides.length;
+  const activeFilterCount = nearbyFiltersCount(filters);
+  // Only offer filtering once there's actually a nearby list to narrow.
+  const canFilter = !loading && !needsLocation && !error && (rides.length > 0 || externalRides.length > 0);
+  const nearbyRideCount = listItems.length;
   const headerCount = !loading && nearbyRideCount > 0
-    ? `${nearbyRideCount} carpool${nearbyRideCount === 1 ? "" : "s"} within 10 km`
+    ? `${nearbyRideCount} carpool${nearbyRideCount === 1 ? "" : "s"}${activeFilterCount > 0 ? " match" : " within 10 km"}`
     : null;
 
   return (
@@ -442,10 +561,28 @@ const NearbyRidesScreen: React.FC = () => {
 
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 10, backgroundColor: colors.background }]}>
         <View style={styles.headerTopRow}>
-          <TouchableOpacity onPress={() => back()}>
-            <ChevronBack />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Rides around you</Text>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity onPress={() => back()}>
+              <ChevronBack />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: colors.textPrimary }]} numberOfLines={1}>Rides around you</Text>
+          </View>
+          {canFilter ? (
+            <TouchableOpacity
+              onPress={() => setShowFilters(true)}
+              style={[styles.filterBtn, { backgroundColor: colors.inkSubtle }]}
+              accessibilityRole="button"
+              accessibilityLabel="Filter rides"
+              activeOpacity={0.85}
+            >
+              <FilterGlyph color={colors.textPrimary} />
+              {activeFilterCount > 0 ? (
+                <View style={[styles.filterBadge, { backgroundColor: colors.primary, borderColor: colors.background }]}>
+                  <Text style={[styles.filterBadgeText, { color: colors.secondary }]}>{activeFilterCount}</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          ) : null}
         </View>
         {headerCount ? (
           <Text style={[styles.headerSubtitle, colors.mode === "dark" && { color: colors.textSecondary }]}>{headerCount}</Text>
@@ -488,12 +625,20 @@ const NearbyRidesScreen: React.FC = () => {
             navigate(appHref("CreateRide"));
           }}
         />
+      ) : nearbyRideCount === 0 ? (
+        // Rides exist nearby, but the active filters exclude them all.
+        <EmptyState
+          image={require("../../assets/no-rides-emoji.png")}
+          title="No rides match your filters"
+          body="Try widening the distance, fare, or seats to see more carpools around you."
+          ctaLabel="Clear filters"
+          onPressCta={() => setFilters(DEFAULT_NEARBY_FILTERS)}
+        />
       ) : (
         <FlatList
           data={listItems}
           keyExtractor={(it) => it.type === "cluster" ? it.cluster.key : it.ride.id}
           renderItem={renderListItem}
-          ListFooterComponent={renderExternalFooter}
           contentContainerStyle={[styles.listContent, tabletScrollContentStyle]}
           ItemSeparatorComponent={NearbyRideSeparator}
           showsVerticalScrollIndicator={false}
@@ -516,6 +661,14 @@ const NearbyRidesScreen: React.FC = () => {
           onPickRide={onPickClusteredRide}
         />
       )}
+
+      <NearbyFiltersSheet
+        visible={showFilters}
+        onDismiss={() => setShowFilters(false)}
+        value={filters}
+        onApply={setFilters}
+        countFor={countForFilters}
+      />
     </View>
   );
 };
@@ -536,14 +689,46 @@ const styles = StyleSheet.create({
   headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  headerLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   headerTitle: {
+    flexShrink: 1,
     fontSize: 24,
     color: AppColors.secondaryDarkGreen,
     fontFamily: "NunitoSans_700Bold",
     letterSpacing: -0.3,
     marginLeft: 6,
+  },
+  filterBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    paddingHorizontal: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterBadgeText: {
+    fontSize: 10.5,
+    fontFamily: "NunitoSans_800ExtraBold",
+    lineHeight: 13,
   },
   headerSubtitle: {
     marginTop: 8,
@@ -729,35 +914,6 @@ const styles = StyleSheet.create({
     fontFamily: "NunitoSans_800ExtraBold",
     fontSize: 13,
     letterSpacing: -0.2,
-  },
-});
-
-const externalStyles = StyleSheet.create({
-  section: {
-    marginTop: 20,
-    paddingBottom: 8,
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 8,
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-  },
-  dividerLabel: {
-    fontFamily: "NunitoSans_700Bold",
-    fontSize: 12.5,
-    letterSpacing: 0.2,
-  },
-  disclaimer: {
-    fontFamily: "NunitoSans_600SemiBold",
-    fontSize: 11.5,
-    textAlign: "center",
-    marginBottom: 14,
-    lineHeight: 16,
   },
 });
 

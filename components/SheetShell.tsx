@@ -7,6 +7,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   LayoutChangeEvent,
+  PanResponder,
   Platform,
   Pressable,
   Dimensions,
@@ -142,7 +143,7 @@ const SheetShell: React.FC<Props> = ({
           damping: 22,
           stiffness: 180,
           mass: 0.9,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]).start();
     } else {
@@ -157,7 +158,7 @@ const SheetShell: React.FC<Props> = ({
           toValue: SCREEN_HEIGHT,
           duration: 220,
           easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]).start(() => {
         // Belt and braces — guarantee the values land at their
@@ -170,6 +171,69 @@ const SheetShell: React.FC<Props> = ({
   }, [visible]);
 
   const canDismiss = dismissible && !busy;
+
+  // Drag-to-dismiss. The PanResponder is created once, so it reads the live
+  // `canDismiss` / `onDismiss` through refs rather than a stale closure. The
+  // handlers live on the grab handle (below), so scroll/tap gestures in the
+  // sheet body stay with their own controls. A downward drag tracks the
+  // finger; releasing past a distance/velocity threshold flings the sheet
+  // closed, otherwise it springs back. translateY runs on the JS driver so
+  // `setValue` during the drag actually moves the card frame-by-frame.
+  const canDismissRef = useRef(canDismiss);
+  canDismissRef.current = canDismiss;
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
+  const springToRest = useCallback(() => {
+    Animated.spring(translateY, {
+      toValue: 0,
+      damping: 22,
+      stiffness: 180,
+      mass: 0.9,
+      useNativeDriver: false,
+    }).start();
+  }, [translateY]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      // Never grab on touch-down — taps on buttons/rows must pass through.
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      // Bubble phase only on the grab handle, so sheet body scroll/tap
+      // gestures stay with their own controls.
+      onMoveShouldSetPanResponder: (_evt, g) =>
+        canDismissRef.current && g.dy > 6 && g.dy > Math.abs(g.dx) * 1.5,
+      onPanResponderGrant: () => {
+        translateY.stopAnimation();
+      },
+      onPanResponderMove: (_evt, g) => {
+        translateY.setValue(Math.max(0, g.dy));
+      },
+      onPanResponderRelease: (_evt, g) => {
+        const flungDown = g.dy > 110 || g.vy > 0.9;
+        if (flungDown && canDismissRef.current) {
+          Animated.parallel([
+            Animated.timing(translateY, {
+              toValue: SCREEN_HEIGHT,
+              duration: 220,
+              easing: Easing.in(Easing.cubic),
+              useNativeDriver: false,
+            }),
+            Animated.timing(backdrop, {
+              toValue: 0,
+              duration: 180,
+              easing: Easing.in(Easing.quad),
+              useNativeDriver: true,
+            }),
+          ]).start(() => onDismissRef.current());
+        } else {
+          springToRest();
+        }
+      },
+      onPanResponderTerminate: () => springToRest(),
+      onPanResponderTerminationRequest: () => false,
+    }),
+  ).current;
 
   // The bottom-sheet card. Extracted so it can be dropped into either
   // the iOS padded container or the Android KeyboardAvoidingView
@@ -197,17 +261,25 @@ const SheetShell: React.FC<Props> = ({
         maxHeight: sheetMaxHeight,
       }}
     >
-      {/* Grab handle */}
+      {/* Grab handle — visual affordance and hit target for drag-to-dismiss. */}
       <View
+        {...panResponder.panHandlers}
         style={{
           alignSelf: "center",
-          width: 44,
-          height: 5,
-          borderRadius: 3,
-          backgroundColor: colors.inkLine,
-          marginBottom: 18,
+          paddingHorizontal: 32,
+          paddingBottom: 14,
+          marginBottom: 4,
         }}
-      />
+      >
+        <View
+          style={{
+            width: 44,
+            height: 5,
+            borderRadius: 3,
+            backgroundColor: colors.inkLine,
+          }}
+        />
+      </View>
 
       {dismissible ? (
         <TouchableOpacity
