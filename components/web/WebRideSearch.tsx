@@ -6,9 +6,9 @@
 // search followed by a readable LIST of options (BlaBlaCar, Booking,
 // Uber's "choose a ride"). This renders that, wearing the UniPool skin:
 // a brand hero, a forest From/To card (the app's search card), and a
-// grid of cream ride cards on the lime canvas. All inventory is sourced from
-// /ride/search — it carries host names + external rides; "near you" is just
-// that list filtered to a radius around the visitor.
+// grid of cream ride cards on the lime canvas. Reuses the shared data layer:
+// /ride/search for routes + "all rides", /rides/nearby for the server-side
+// radius-filtered "near you" list. Both carry host names + external rides.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Image, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import Svg, { Path } from "react-native-svg";
@@ -41,9 +41,9 @@ type RideData = {
 };
 
 // External (off-platform) rides ride alongside UniPool rides in the
-// /ride/search response's `external_rides`. On the list they render as plain
-// ride cards (indistinguishable from UniPool rides, by design); the ride-info
-// page is where the off-platform contact flow kicks in.
+// `external_rides` array of both /ride/search and /rides/nearby. On the list
+// they render as plain ride cards (indistinguishable from UniPool rides, by
+// design); the ride-info page is where the off-platform contact flow kicks in.
 type ExternalRideData = {
   id: string;
   source_label: string;
@@ -68,8 +68,6 @@ type ResultItem = {
   total_price?: number;
   total_seats: number;
   booked_seats: number;
-  start_latitude?: number;
-  start_longitude?: number;
   host_user_name?: string;
   host_user_profile_picture_url?: string | null;
   external?: boolean;
@@ -131,52 +129,6 @@ const sortByDeparture = <T extends WithDeparture>(list: T[]): T[] => {
       if (timeDiff !== 0) return timeDiff;
       return String(a.id ?? "").localeCompare(String(b.id ?? ""));
     });
-};
-
-type WithStart = { start_latitude?: number; start_longitude?: number };
-
-// Order by proximity to a center. Anything without coordinates (e.g. external
-// feed rides) sinks to the end.
-const sortByProximity = <T extends WithStart>(list: T[], center: [number, number]): T[] => {
-  const [clng, clat] = center;
-  const cosLat = Math.cos((clat * Math.PI) / 180);
-  const dist2 = (r: T) => {
-    if (typeof r.start_latitude !== "number" || typeof r.start_longitude !== "number") {
-      return Number.POSITIVE_INFINITY;
-    }
-    const dx = (r.start_longitude - clng) * cosLat;
-    const dy = r.start_latitude - clat;
-    return dx * dx + dy * dy;
-  };
-  return [...list].sort((a, b) => dist2(a) - dist2(b));
-};
-
-// Real-distance radius filter (metres) so "near you" stays a location-relevant
-// subset. We source it from /ride/search (which carries host names + external
-// rides), not /rides/nearby (which does neither), then filter here.
-const NEARBY_RADIUS_M = 25000;
-const metersBetween = (aLat: number, aLng: number, bLat: number, bLng: number): number => {
-  const R = 6371000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(bLat - aLat);
-  const dLng = toRad(bLng - aLng);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
-};
-const withinRadius = <T extends WithStart>(
-  list: T[],
-  center: [number, number],
-  radiusM = NEARBY_RADIUS_M,
-): T[] => {
-  const [clng, clat] = center;
-  return list.filter(
-    (r) =>
-      typeof r.start_latitude === "number" &&
-      typeof r.start_longitude === "number" &&
-      metersBetween(clat, clng, r.start_latitude, r.start_longitude) <= radiusM,
-  );
 };
 
 type SearchResponse = { rides?: RideData[]; external_rides?: ExternalRideData[] };
@@ -272,11 +224,13 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
           const geo = await getGrantedLocation();
           if (geo) {
             setCoords(geo);
-            // Source from /ride/search (carries host names + external rides)
-            // and keep "near you" a subset by filtering to a radius. We avoid
-            // /rides/nearby because it returns neither host names nor externals.
-            const res = await apiUtil.get<SearchResponse>(`/ride/search?limit=${NEARBY_LIMIT}&sort_by=time`);
-            setRides(withinRadius(res?.rides ?? [], geo));
+            // /rides/nearby returns a server-side radius-filtered subset, with
+            // host names joined in + external rides — lighter than pulling the
+            // whole list and filtering client-side.
+            const res = await apiUtil.get<SearchResponse>(
+              `/rides/nearby?lat=${geo[1].toFixed(4)}&lng=${geo[0].toFixed(4)}&radius=25000&limit=${NEARBY_LIMIT}`,
+            );
+            setRides(res?.rides ?? []);
             setExternals(res?.external_rides ?? []);
             setNear(true);
           } else {
@@ -313,10 +267,10 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
       setCoords(center);
       setLocBlocked(false);
       try {
-        // /ride/search carries host names + external rides; radius-filter here
-        // so "near you" stays local. (/rides/nearby lacks both.)
-        const res = await apiUtil.get<SearchResponse>(`/ride/search?limit=${NEARBY_LIMIT}&sort_by=time`);
-        setRides(withinRadius(res?.rides ?? [], center));
+        const res = await apiUtil.get<SearchResponse>(
+          `/rides/nearby?lat=${center[1].toFixed(4)}&lng=${center[0].toFixed(4)}&radius=25000&limit=${NEARBY_LIMIT}`,
+        );
+        setRides(res?.rides ?? []);
         setExternals(res?.external_rides ?? []);
       } catch {
         setRides([]);
@@ -374,13 +328,13 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
   );
   const canSearch = from.trim().length > 0 && to.trim().length > 0;
 
-  // External rides render as ordinary cards mixed in with UniPool rides. In
-  // "near you" mode we order by proximity (rides are already radius-filtered);
-  // otherwise by departure so the soonest upcoming rides lead.
+  // External rides render as ordinary cards mixed in with UniPool rides,
+  // ordered by departure so the soonest upcoming rides lead regardless of
+  // source. "Near you" just feeds a server-side radius-filtered subset
+  // (/rides/nearby) into the same ordering.
   const results = useMemo<ResultItem[]>(() => {
-    const items: ResultItem[] = [...rides, ...externals.map(externalToItem)].filter(isUpcoming);
-    return near && coords ? sortByProximity(items, coords) : sortByDeparture(items);
-  }, [rides, externals, near, coords]);
+    return sortByDeparture([...rides, ...externals.map(externalToItem)]);
+  }, [rides, externals]);
 
   const total = results.length;
   const rideWord = total === 1 ? "ride" : "rides";

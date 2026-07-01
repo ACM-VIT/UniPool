@@ -4443,11 +4443,24 @@ export const getCityCoordinates = (cityName: string): { lat: number; lon: number
     return cityCoordinates[normalizedCity];
   }
 
-  // partial match
+  // Partial match — prefer the most specific (longest) matching key. Iterating
+  // in insertion order and returning the first hit let a broad city name shadow
+  // a campus alias: "VIT Vellore ..." contains "vellore", so the central-city
+  // "vellore" entry (declared first) was winning over "vit vellore" and the pin
+  // landed in central Vellore instead of on campus. Longest key wins fixes this
+  // generally (nit trichy > trichy, iit kharagpur > kharagpur, etc.).
+  let bestCoords: { lat: number; lon: number } | null = null;
+  let bestKeyLength = 0;
   for (const [key, coords] of Object.entries(cityCoordinates)) {
     if (key.includes(normalizedCity) || normalizedCity.includes(key)) {
-      return coords;
+      if (key.length > bestKeyLength) {
+        bestCoords = coords;
+        bestKeyLength = key.length;
+      }
     }
+  }
+  if (bestCoords) {
+    return bestCoords;
   }
 
   // fallback
