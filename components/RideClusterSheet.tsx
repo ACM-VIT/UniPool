@@ -441,6 +441,14 @@ const styles = StyleSheet.create({
     color: AppColors.secondaryDarkGreen,
     letterSpacing: -0.2,
   },
+  chipPrice: {
+    marginTop: 2,
+    fontFamily: "NunitoSans_700Bold",
+    fontSize: 12,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.85,
+    letterSpacing: -0.1,
+  },
   chipDivider: {
     width: 24,
     height: 1,
