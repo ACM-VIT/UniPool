@@ -25,6 +25,8 @@ import { useUser } from "../contexts/UserContext";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { appHref } from "../navigation/routes";
 import AppColors from "../design_systems/colors";
+import positronLightStyle from "../assets/map/positron-light.json";
+import darkMatterDarkStyle from "../assets/map/dark-matter-dark.json";
 import { RideDetailsSelector } from "../components/RideDetailsSelector";
 import PreviousTripsSection from "../components/PreviousTripsSection";
 import ActiveTripCard from "../components/ActiveTripCard";
@@ -123,9 +125,12 @@ const FALLBACK_REGION = {
   longitudeDelta: 0.06,
 };
 
-// OpenFreeMap styles used for unauthenticated tile loading.
-const MAP_STYLE_URL_LIGHT = "https://tiles.openfreemap.org/styles/liberty";
-const MAP_STYLE_URL_DARK = "https://tiles.openfreemap.org/styles/dark";
+// Carto's basemaps (Positron light, Dark Matter dark), bundled into
+// assets/map so the map never depends on a third-party style endpoint
+// being up. Replaced OpenFreeMap, whose host went fully unreachable and
+// blanked the map. Tiles/sprites/glyphs still stream from Carto's CDN.
+const MAP_STYLE_URL_LIGHT = positronLightStyle as any;
+const MAP_STYLE_URL_DARK = darkMatterDarkStyle as any;
 
 // MapLibre uses [longitude, latitude] + zoom. Approximate zoom from
 // react-native-maps-style latitudeDelta values:
