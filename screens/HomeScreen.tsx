@@ -242,6 +242,10 @@ type NearbyCluster = {
   overlapKey: string;
   latitude: number;
   longitude: number;
+  // Normalized names of the anchor and opposite ends of the seed ride, used
+  // to merge rides that share a landmark even when its coordinates drift.
+  anchorName: string;
+  otherName: string;
   // Coordinate of the opposite trip end (destination for a pickup cluster,
   // pickup for a destination cluster). Used only while clustering so two
   // rides that leave the same corner but head to different cities don't
@@ -279,6 +283,17 @@ const CLUSTER_ANCHOR_RADIUS_M = 150;
 // ...and only when their opposite ends are also close, so VIT→Chennai and
 // VIT→Bangalore stay on separate pins even though they share a pickup.
 const CLUSTER_OTHER_END_RADIUS_M = 2000;
+// A named place ("Katpadi Junction") often geocodes to points a few hundred
+// metres apart across rides, which splits obviously-together rides onto
+// separate overlapping pins. When the anchor NAMES match we merge within
+// this wider radius — bounded so two same-named places in different cities
+// still stay apart.
+const CLUSTER_NAME_RADIUS_M = 1500;
+
+// Normalized place key: first comma segment, lowercased. Lets rides that
+// share a landmark name cluster together despite coordinate drift.
+const placeKey = (loc: string): string =>
+  ((loc || "").split(",")[0] || "").trim().toLowerCase();
 
 type MarkerOffset = {
   x: number;
@@ -384,21 +399,29 @@ const buildNearbyClusters = (
     const otherLat = by === "pickup" ? r.end_latitude : r.start_latitude;
     const otherLng = by === "pickup" ? r.end_longitude : r.start_longitude;
     const hasOther = typeof otherLat === "number" && typeof otherLng === "number";
+    const anchorName = placeKey(by === "pickup" ? r.start_location : r.end_location);
+    const otherName = placeKey(by === "pickup" ? r.end_location : r.start_location);
 
     const target = clusters.find((c) => {
-      if (metersBetween(lat, lng, c.latitude, c.longitude) > CLUSTER_ANCHOR_RADIUS_M) {
-        return false;
-      }
+      const anchorMeters = metersBetween(lat, lng, c.latitude, c.longitude);
+      // Same anchor: within the tight radius, OR the same named place within
+      // a wider one (fixes a landmark that geocodes a few hundred metres off).
+      const anchorMatches =
+        anchorMeters <= CLUSTER_ANCHOR_RADIUS_M ||
+        (!!anchorName && c.anchorName === anchorName && anchorMeters <= CLUSTER_NAME_RADIUS_M);
+      if (!anchorMatches) return false;
       // Only compare opposite ends when both are known; otherwise anchor
-      // proximity alone decides.
+      // proximity alone decides. Same-named destinations can use the wider
+      // name radius too, so minor geocoder drift does not split pins.
       if (
         hasOther &&
         typeof c.otherLatitude === "number" &&
         typeof c.otherLongitude === "number"
       ) {
+        const otherMeters = metersBetween(otherLat, otherLng, c.otherLatitude, c.otherLongitude);
         return (
-          metersBetween(otherLat, otherLng, c.otherLatitude, c.otherLongitude) <=
-          CLUSTER_OTHER_END_RADIUS_M
+          otherMeters <= CLUSTER_OTHER_END_RADIUS_M ||
+          (!!otherName && c.otherName === otherName && otherMeters <= CLUSTER_NAME_RADIUS_M)
         );
       }
       return true;
@@ -416,6 +439,8 @@ const buildNearbyClusters = (
         },${hasOther ? otherLng.toFixed(2) : "_"}`,
         latitude: lat,
         longitude: lng,
+        anchorName,
+        otherName,
         otherLatitude: hasOther ? otherLat : undefined,
         otherLongitude: hasOther ? otherLng : undefined,
         rides: [r],
