@@ -81,9 +81,30 @@ type ExternalPreview = {
 type InviteState = "idle" | "sending" | "sent" | "already" | "no_email" | "error";
 
 // Rides this browser has already notified for, so revisiting the page shows the
-// done state immediately. The backend is the hard guarantee (one email per user
-// + ride); this is only the local UX shortcut, mirroring the mobile sheet.
-const invitedExternalRideIds = new Set<string>();
+// done state immediately — persisted to localStorage so it survives reloads
+// too. The backend is the hard guarantee (one email per user + ride); this is
+// only the local UX shortcut, mirroring the mobile sheet.
+const INVITED_STORAGE_KEY = "unipool.invitedExternalRides";
+const loadInvitedIds = (): Set<string> => {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(INVITED_STORAGE_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
+};
+const invitedExternalRideIds = loadInvitedIds();
+const markInvited = (id: string) => {
+  invitedExternalRideIds.add(id);
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(INVITED_STORAGE_KEY, JSON.stringify([...invitedExternalRideIds]));
+  } catch {
+    // Storage disabled or full — the in-memory set still covers this session.
+  }
+};
 
 const externalFirstNameOf = (name: string) =>
   (name || "").replace(/\s+\d{2}[A-Z]{3}\d{4,}$/, "").trim().split(/\s+/)[0] || "the host";
@@ -331,7 +352,7 @@ const RideDetailsScreenWeb: React.FC = () => {
         },
       );
       if (res?.sent) {
-        invitedExternalRideIds.add(external.id);
+        markInvited(external.id);
         setInviteState(res.already ? "already" : "sent");
       } else {
         setInviteState(res?.error === "no_email" ? "no_email" : "error");
@@ -489,7 +510,16 @@ const RideDetailsScreenWeb: React.FC = () => {
 
             <View style={[styles.right, stacked && styles.rightStacked]}>
               <View style={styles.fareCard}>
-                <Text style={styles.extSourcePill}>Posted on {external.source_label || "another app"}</Text>
+                {typeof external.total_price === "number" ? (
+                  <View style={styles.fareRow}>
+                    <Text style={styles.fareAmount}>{"₹"}{external.total_price}</Text>
+                    <Text style={styles.fareUnit}>per seat</Text>
+                  </View>
+                ) : null}
+                <Text style={[styles.seatsLine, !seatsOpen && styles.seatsLineFull, typeof external.total_price !== "number" && styles.seatsLineNoFare]}>
+                  {seatsOpen ? `${external.available_seats} ${external.available_seats === 1 ? "seat" : "seats"} left` : "Fully booked"}
+                </Text>
+                <Text style={[styles.extSourcePill, styles.extSourcePillSpaced]}>Posted on {external.source_label || "another app"}</Text>
 
                 <View style={styles.hostRow}>
                   <View style={styles.hostAvatar}>
@@ -910,6 +940,8 @@ const styles = StyleSheet.create({
 
   // External-ride variant.
   extSourcePill: { alignSelf: "flex-start", backgroundColor: WEB.fieldFill, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, fontFamily: FONT.bold, fontSize: 12.5, color: WEB.inkStrong },
+  extSourcePillSpaced: { marginTop: 14 },
+  seatsLineNoFare: { marginTop: 0 },
   extNotesBody: { fontFamily: FONT.semibold, fontSize: 13.5, lineHeight: 20, color: WEB.inkStrong },
   inviteRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   inviteDone: { backgroundColor: "rgba(122,153,90,0.16)" },

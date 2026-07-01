@@ -29,6 +29,7 @@ import { useTabletContentStyle, useTabletScrollContentStyle } from "../utils/res
 import { hasSeatsLeft, seatsAvailableLabel } from "../utils/seatMath";
 import { displayRideLocation } from "../utils/LocationService";
 import { describeBookingRequestError } from "../utils/bookingRequestError";
+import { DOWNLOAD_URL, rideShareUrl } from "../config/share";
 
 /**
  * Small lime "open profile" eye icon. Stroke-only so it sits in the
@@ -1212,12 +1213,11 @@ const RideDetailsScreen: React.FC = () => {
 
   const handleShare = async () => {
     if (!rideData) return;
-    const deepLink = `https://unipool.acmvit.in/ride/${rideData.id || rideId}`;
+    const deepLink = rideShareUrl(rideData.id || rideId);
     // Direct store URL for first-time recipients. Kept symmetric with
     // ShareRideSheet.shareMessage so both share surfaces read the same
     // in a recipient's inbox.
-    const downloadUrl = "https://unipool.download";
-    const message = `I'm on a UniPool ride from ${displayRideLocation(rideData.start_location)} to ${displayRideLocation(rideData.end_location)} on ${formatDate(rideData.start_time)} at ${formatTimeDisplay(rideData.start_time)}.\n\nNew to UniPool?\n${downloadUrl}\n\nHop in:\n${deepLink}`;
+    const message = `I'm on a UniPool ride from ${displayRideLocation(rideData.start_location)} to ${displayRideLocation(rideData.end_location)} on ${formatDate(rideData.start_time)} at ${formatTimeDisplay(rideData.start_time)}.\n\nNew to UniPool?\n${DOWNLOAD_URL}\n\nHop in:\n${deepLink}`;
     try {
       await Share.share({
         message,

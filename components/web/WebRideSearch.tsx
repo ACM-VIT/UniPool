@@ -106,9 +106,30 @@ const coordinatesFromLocationResult = (result?: LocationResult): LocationCoordin
   return { latitude, longitude };
 };
 
-// /rides/nearby filters to within `radius` but orders by start_time, not
-// distance — so sort by proximity here (the response carries start coords)
-// to genuinely surface the closest rides first. center is [lng, lat].
+type WithDeparture = { id?: string; start_time: string };
+
+const departureMs = (r: WithDeparture) => {
+  const t = new Date(r.start_time).getTime();
+  return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+};
+
+const sortByDeparture = <T extends WithDeparture>(list: T[]): T[] => {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  return [...list]
+    .filter((r) => {
+      const t = departureMs(r);
+      return t === Number.POSITIVE_INFINITY || t >= cutoff;
+    })
+    .sort((a, b) => {
+      const timeDiff = departureMs(a) - departureMs(b);
+      if (timeDiff !== 0) return timeDiff;
+      return String(a.id ?? "").localeCompare(String(b.id ?? ""));
+    });
+};
+
+// /rides/nearby filters to within `radius`. This keeps the raw UniPool list
+// distance-aware, while the rendered mixed list below still sorts by departure
+// so the soonest days are always above later rides.
 const sortByProximity = (list: RideData[], center: [number, number]): RideData[] => {
   const [clng, clat] = center;
   const cosLat = Math.cos((clat * Math.PI) / 180);
@@ -121,16 +142,6 @@ const sortByProximity = (list: RideData[], center: [number, number]): RideData[]
     return dx * dx + dy * dy;
   };
   return [...list].sort((a, b) => dist2(a) - dist2(b));
-};
-
-// Keep genuinely upcoming rides (small grace for ones mid-departure). The
-// backend already time-sorts /ride/search, so we preserve that order.
-const upcomingFirst = (list: RideData[]): RideData[] => {
-  const cutoff = Date.now() - 60 * 60 * 1000;
-  return list.filter((r) => {
-    const t = new Date(r.start_time).getTime();
-    return !Number.isFinite(t) || t >= cutoff;
-  });
 };
 
 type SearchResponse = { rides?: RideData[]; external_rides?: ExternalRideData[] };
@@ -234,7 +245,7 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
             setNear(true);
           } else {
             const res = await apiUtil.get<SearchResponse>(`/ride/search?limit=${NEARBY_LIMIT}&sort_by=time`);
-            setRides(upcomingFirst(res?.rides ?? []));
+            setRides(sortByDeparture(res?.rides ?? []));
             setExternals(res?.external_rides ?? []);
             setNear(false);
           }
@@ -291,7 +302,7 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
     setLocBlocked(false);
     try {
       const res = await apiUtil.get<SearchResponse>(`/ride/search?limit=${NEARBY_LIMIT}&sort_by=time`);
-      setRides(upcomingFirst(res?.rides ?? []));
+      setRides(sortByDeparture(res?.rides ?? []));
       setExternals(res?.external_rides ?? []);
     } catch {
       setRides([]);
@@ -327,12 +338,13 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
   );
   const canSearch = from.trim().length > 0 && to.trim().length > 0;
 
-  // External rides render as ordinary cards, appended after UniPool rides so
-  // the existing time/proximity sort of the primary list is preserved.
-  const results = useMemo<ResultItem[]>(
-    () => [...rides, ...externals.map(externalToItem)],
-    [rides, externals],
-  );
+  // External rides render as ordinary cards mixed in with UniPool rides. All
+  // web lists are ordered by departure time so the closest upcoming days are
+  // always ahead of later inventory, regardless of source.
+  const results = useMemo<ResultItem[]>(() => {
+    const ext = externals.map(externalToItem);
+    return sortByDeparture([...rides, ...ext]);
+  }, [rides, externals]);
 
   const total = results.length;
   const rideWord = total === 1 ? "ride" : "rides";

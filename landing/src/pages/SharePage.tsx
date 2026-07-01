@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { openInApp, WEBAPP_URL } from "@/config";
+import { openInApp, SHARE_HOST, WEBAPP_URL } from "@/config";
 // QR rendered as a remote SVG image. Two reasons over a JS library:
 //   1. Zero runtime dependency — survives lockfile cleanups and
 //      keeps the website's prod bundle smaller.
@@ -32,13 +32,6 @@ function buildQrSrc(text: string, size = 320): string {
  * callers.
  */
 const API_BASE = "https://unidev.acmvit.in";
-
-/**
- * Where deep links bounce back to. Mirrors `SHARE_HOST` inside the
- * in-app ShareRideSheet so the URL the QR encodes is the same string
- * the host saw when they shared.
- */
-const SHARE_HOST = "https://unipool.acmvit.in";
 
 // Store URLs. iOS shipped to the App Store (v2.0.10), so iOS visitors
 // now get the App Store link instead of being dumped on Google Play.
