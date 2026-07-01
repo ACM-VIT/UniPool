@@ -476,7 +476,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   };
 
   const openRateApp = () => {
-    const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.carpoolitapp';
+    const playStoreUrl = 'https://unipool.download';
     // Replace with the App Store listing URL after first iOS submission.
     const appStoreUrl = 'https://apps.apple.com/app/unipool/id6740000000';
     const url = Platform.OS === 'ios' ? appStoreUrl : playStoreUrl;

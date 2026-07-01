@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions, Platform, RefreshControl, FlatList, ListRenderItem, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -256,6 +256,12 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   // Real safe-area inset keeps the header below system chrome.
   const insets = useSafeAreaInsets();
 
+  // Monotonic id for search requests. Only the response from the newest
+  // request is applied, so an earlier (stale/empty) request that resolves out
+  // of order can't overwrite the latest results — that's the "no results, then
+  // results on the same search" race.
+  const fetchSeqRef = useRef(0);
+
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
   const [rides, setRides] = useState<RideData[]>([]);
   const [externalRides, setExternalRides] = useState<ExternalRide[]>([]);
@@ -404,10 +410,20 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const fetchRides = ({ refresh = false }: { refresh?: boolean } = {}) => {
     if (!fromLocation || !toLocation) {
       if (DEBUG_RIDE_SEARCH) console.log("No locations provided, not fetching rides.");
+      // Invalidate any in-flight request so its late response can't land.
+      fetchSeqRef.current += 1;
       setRides([]);
       setExternalRides([]);
+      setSearchMeta(null);
+      setStrictMatchIds(new Set());
+      setLoading(false);
+      setRefreshing(false);
       return;
     }
+
+    // Claim this request as the newest; its response is the only one applied.
+    const seq = ++fetchSeqRef.current;
+    const isCurrent = () => seq === fetchSeqRef.current;
 
     // First fetch uses the page loader; refreshes use the inline spinner.
     if (refresh) {
@@ -428,6 +444,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
 
     searchRequest
       .then((response) => {
+        if (!isCurrent()) return; // a newer search superseded this one
         if (DEBUG_RIDE_SEARCH) console.log("API response:", response);
         if (response && response.rides) {
           setRides(response.rides);
@@ -446,6 +463,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         }
       })
       .catch((err: any) => {
+        if (!isCurrent()) return; // a newer search superseded this one
         // Auth redirects are handled by the auth flow, not this result list.
         const isAuthRedirect =
           err instanceof Error && err.message === "AUTHENTICATION_REDIRECT";
@@ -459,6 +477,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         }
       })
       .finally(() => {
+        if (!isCurrent()) return; // keep the newest request's spinner state
         setLoading(false);
         setRefreshing(false);
       });

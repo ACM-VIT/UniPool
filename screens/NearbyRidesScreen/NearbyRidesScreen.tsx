@@ -32,8 +32,6 @@ import RideClusterSheet, { type ClusteredRide } from "../../components/RideClust
 import ExternalRideCard from "../../components/ExternalRideCard";
 import type { ExternalRide } from "../../utils/ExternalRideService";
 
-const CLUSTER_RADIUS_KM = 1.5;
-
 type NearbyCluster = {
   key: string;
   destination: string;
@@ -286,47 +284,13 @@ const NearbyRidesScreen: React.FC = () => {
     [coords, rides, nowTick, viewerUserId],
   );
 
-  const listItems = useMemo<NearbyListItem[]>(() => {
-    const items: NearbyListItem[] = [];
-    const used = new Set<string>();
-
-    for (let i = 0; i < visibleRides.length; i++) {
-      const r = visibleRides[i];
-      if (used.has(r.id)) continue;
-
-      const peers = visibleRides.filter(
-        (o) =>
-          o.id !== r.id &&
-          !used.has(o.id) &&
-          o.end_location === r.end_location &&
-          haversineKm(r.start_latitude, r.start_longitude, o.start_latitude, o.start_longitude) < CLUSTER_RADIUS_KM,
-      );
-
-      if (peers.length > 0) {
-        const group = [r, ...peers];
-        for (const g of group) used.add(g.id);
-        const closestKm = group.reduce<number | null>(
-          (best, g) => (g.distanceKm !== null && (best === null || g.distanceKm < best) ? g.distanceKm : best),
-          null,
-        );
-        items.push({
-          type: "cluster",
-          cluster: {
-            key: `cluster-${r.end_location}-${r.id}`,
-            destination: r.end_location,
-            pickup: r.start_location,
-            rides: group,
-            closestKm,
-            totalSeats: group.reduce((s, g) => s + g.seatsLeftNum, 0),
-          },
-        });
-      } else {
-        used.add(r.id);
-        items.push({ type: "ride", ride: r });
-      }
-    }
-    return items;
-  }, [visibleRides]);
+  // The list shows every nearby ride as its own card, no clustering, so
+  // riders can see and pick each one directly. (The home map still clusters
+  // its pins; this list intentionally does not.)
+  const listItems = useMemo<NearbyListItem[]>(
+    () => visibleRides.map((ride) => ({ type: "ride", ride })),
+    [visibleRides],
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

@@ -30,7 +30,7 @@ export const WEB_HEADER_HEIGHT = 60;
 export const WEB_MAX_WIDTH = WEB_CONTENT_MAX;
 
 const APP_STORE_URL = "https://apps.apple.com/app/id6756426249";
-const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.carpoolitapp&hl=en_IN";
+const PLAY_STORE_URL = "https://unipool.download";
 
 const openExternal = (url: string) => {
   if (typeof window !== "undefined") window.open(url, "_blank", "noopener,noreferrer");
