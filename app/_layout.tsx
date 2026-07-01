@@ -1,6 +1,7 @@
 import "react-native-gesture-handler";
 import * as Notifications from "expo-notifications";
-import { StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
+import Head from "expo-router/head";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AppShell from "../components/AppShell";
@@ -84,9 +85,37 @@ const ThemedRoot: React.FC = () => {
   );
 };
 
+// Web document head (title, theme colour, share meta). Injected at runtime via
+// expo-router/head — the supported path for output:"single", where the static
+// `app/+html.tsx` shell is NOT applied. Gated to web so native screen titles
+// are untouched. The favicon is handled by `web.favicon` in app.json.
+const WebHead: React.FC = () => {
+  if (Platform.OS !== "web") return null;
+  return (
+    <Head>
+      <title>UniPool</title>
+      <meta
+        name="description"
+        content="UniPool is a campus carpool app built by students, for students. Find a verified ride, share the trip, split the cost."
+      />
+      <meta name="theme-color" content="#B5D750" />
+      <meta name="color-scheme" content="light" />
+      <meta name="apple-mobile-web-app-title" content="UniPool" />
+      <meta property="og:title" content="UniPool" />
+      <meta
+        property="og:description"
+        content="Verified student-only rides. Find a seat, split the cost, get home safe."
+      />
+      <meta property="og:type" content="website" />
+    </Head>
+  );
+};
+
 export default function RootLayout() {
   return (
-    <SafeAreaProvider style={styles.root}>
+    <>
+      <WebHead />
+      <SafeAreaProvider style={styles.root}>
       <GestureHandlerRootView style={styles.root}>
         <ThemeProvider>
           <ErrorProvider>
@@ -110,6 +139,7 @@ export default function RootLayout() {
         </ThemeProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
+    </>
   );
 }
 
