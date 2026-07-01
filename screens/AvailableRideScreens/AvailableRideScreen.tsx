@@ -365,20 +365,22 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     setFromCoordinates(newFromCoordinates);
     setToCoordinates(newToCoordinates);
     setTargetTimeIso(newTargetTimeIso);
-    if (newTargetTimeIso && !Number.isNaN(new Date(newTargetTimeIso).getTime())) {
-      const routeDate = formatDateParam(new Date(newTargetTimeIso));
-      setFilters((current) =>
-        current.date === routeDate ? current : { ...current, date: routeDate },
-      );
-    }
+    const targetTimeDate = newTargetTimeIso ? new Date(newTargetTimeIso) : null;
+    const routeDate =
+      targetTimeDate && !Number.isNaN(targetTimeDate.getTime())
+        ? formatDateParam(targetTimeDate)
+        : "";
+    setFilters((current) =>
+      current.date === routeDate ? current : { ...current, date: routeDate },
+    );
   }, [routeParams]);
 
   const searchQueryParams = useMemo(() => {
     let queryParams = `start_location=${encodeURIComponent(fromLocation)}&end_location=${encodeURIComponent(toLocation)}`;
-    const targetDate =
-      targetTimeIso && !Number.isNaN(new Date(targetTimeIso).getTime())
-        ? formatDateParam(new Date(targetTimeIso))
-        : "";
+    const targetTimeDate = targetTimeIso ? new Date(targetTimeIso) : null;
+    const hasValidTargetTime =
+      !!targetTimeDate && !Number.isNaN(targetTimeDate.getTime());
+    const targetDate = hasValidTargetTime ? formatDateParam(targetTimeDate) : "";
     
     if (fromCoordinates) {
       queryParams += `&start_lat=${fromCoordinates.latitude}&start_lon=${fromCoordinates.longitude}`;
@@ -406,7 +408,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     if (effectiveDate) {
       queryParams += `&date=${effectiveDate}`;
     }
-    if (targetTimeIso && (!filters.date || filters.date === targetDate)) {
+    if (hasValidTargetTime && (!filters.date || filters.date === targetDate)) {
       queryParams += `&target_time=${encodeURIComponent(targetTimeIso)}`;
     }
     
