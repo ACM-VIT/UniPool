@@ -34,6 +34,7 @@ fi
 
 : "${OTA_ADMIN_TOKEN:?OTA_ADMIN_TOKEN not set (export it or put it in .env.ota)}"
 : "${OTA_UPLOAD_URL:=https://unidev.acmvit.in/api/ota/upload}"
+: "${OTA_FORCE_NATIVE_MISMATCH:=0}"
 
 MESSAGE="${1:-}"
 RUNTIME_VERSION="$(node -p "require('./app.json').expo.version")"
@@ -73,6 +74,12 @@ if [[ -f "$FP_FILE" ]]; then
   ACTUAL_IOS=$(fp_hash ios)
   ACTUAL_ANDROID=$(fp_hash android)
   if [[ "$ACTUAL_IOS" != "$EXPECTED_IOS" || "$ACTUAL_ANDROID" != "$EXPECTED_ANDROID" ]]; then
+    if [[ "$OTA_FORCE_NATIVE_MISMATCH" == "1" ]]; then
+      echo "WARNING: forcing OTA despite native fingerprint mismatch for runtime $RUNTIME_VERSION." >&2
+      echo "  ios:     expected $EXPECTED_IOS  got ${ACTUAL_IOS:-<none>}" >&2
+      echo "  android: expected $EXPECTED_ANDROID  got ${ACTUAL_ANDROID:-<none>}" >&2
+      echo >&2
+    else
     echo "ERROR: native fingerprint mismatch for runtime $RUNTIME_VERSION." >&2
     echo "  ios:     expected $EXPECTED_IOS  got ${ACTUAL_IOS:-<none>}" >&2
     echo "  android: expected $EXPECTED_ANDROID  got ${ACTUAL_ANDROID:-<none>}" >&2
@@ -83,9 +90,11 @@ if [[ -f "$FP_FILE" ]]; then
     echo "  Bump the version, ship a new native build, record its fingerprints in" >&2
     echo "  $FP_FILE, then publish." >&2
     exit 1
+    fi
+  else
+    echo "==> native fingerprint OK (ios=$ACTUAL_IOS android=$ACTUAL_ANDROID)"
+    echo
   fi
-  echo "==> native fingerprint OK (ios=$ACTUAL_IOS android=$ACTUAL_ANDROID)"
-  echo
 else
   echo "WARNING: $FP_FILE not found; skipping native-compatibility guard." >&2
   echo

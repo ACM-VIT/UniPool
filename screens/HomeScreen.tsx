@@ -229,12 +229,51 @@ const shortenDestination = (s: string) => {
 
 type NearbyCluster = {
   key: string;
+  // Coordinate-derived key (anchor rounded to ~110m + opposite end to ~1km).
+  // A pickup cluster and a destination cluster share this when they sit on the
+  // same spot for a reversed route (X→Y vs Y→X), which is how coinciding
+  // pickup/destination pins get nudged apart. Kept separate from `key`, which
+  // is unique per cluster for React identity + equality.
+  overlapKey: string;
   latitude: number;
   longitude: number;
+  // Coordinate of the opposite trip end (destination for a pickup cluster,
+  // pickup for a destination cluster). Used only while clustering so two
+  // rides that leave the same corner but head to different cities don't
+  // merge onto one pin.
+  otherLatitude?: number;
+  otherLongitude?: number;
   rides: NearbyRideSummary[];
   cheapest: NearbyRideSummary;
   cheapestPrice: number;
 };
+
+// Great-circle distance in metres between two lat/lng points (haversine).
+const metersBetween = (
+  aLat: number,
+  aLng: number,
+  bLat: number,
+  bLng: number,
+): number => {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const lat1 = toRad(aLat);
+  const lat2 = toRad(bLat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+};
+
+// A pickup cluster gathers rides whose anchor points sit within this radius
+// of each other. Campus-gate-scale, but distance-based (not grid-snapped) so
+// two pickups a few metres apart never split across a rounding boundary.
+const CLUSTER_ANCHOR_RADIUS_M = 150;
+// ...and only when their opposite ends are also close, so VIT→Chennai and
+// VIT→Bangalore stay on separate pins even though they share a pickup.
+const CLUSTER_OTHER_END_RADIUS_M = 2000;
 
 type MarkerOffset = {
   x: number;
@@ -313,15 +352,22 @@ const areNearbyClustersEqual = (
 
 // Group nearby rides onto shared coordinates. `by` selects which end of the
 // trip anchors the pin: "pickup" buckets rides by their start coordinate,
-// "destination" buckets them by their drop-off coordinate. 3 decimals is
-// roughly 110m, enough to group campus-scale points.
+// "destination" by their drop-off coordinate.
+//
+// Clustering is distance-based, not grid-snapped: each ride joins the first
+// existing cluster whose anchor is within CLUSTER_ANCHOR_RADIUS_M (and whose
+// opposite end is within CLUSTER_OTHER_END_RADIUS_M), otherwise it seeds a new
+// one. The old `toFixed(3)` key put two pickups a few metres apart into
+// different cells whenever they straddled a rounding boundary, so obviously-
+// together rides showed as separate single pins. Measuring real distance fixes
+// that while still keeping trips to different cities on their own pins.
 const buildNearbyClusters = (
   rides: NearbyRideSummary[],
   viewerUserId: string | null,
   nowMs: number,
   by: "pickup" | "destination",
 ): NearbyCluster[] => {
-  const byKey = new Map<string, NearbyCluster>();
+  const clusters: NearbyCluster[] = [];
   for (const r of rides) {
     // Hide the viewer's own rides; hosts cannot request their own seats.
     if (viewerUserId && r.host_user_id === viewerUserId) continue;
@@ -332,26 +378,54 @@ const buildNearbyClusters = (
     if (typeof lat !== "number" || typeof lng !== "number") continue;
     const otherLat = by === "pickup" ? r.end_latitude : r.start_latitude;
     const otherLng = by === "pickup" ? r.end_longitude : r.start_longitude;
-    const key = `${lat.toFixed(3)},${lng.toFixed(3)}|${otherLat.toFixed(2)},${otherLng.toFixed(2)}`;
-    const existing = byKey.get(key);
-    if (!existing) {
-      byKey.set(key, {
-        key,
+    const hasOther = typeof otherLat === "number" && typeof otherLng === "number";
+
+    const target = clusters.find((c) => {
+      if (metersBetween(lat, lng, c.latitude, c.longitude) > CLUSTER_ANCHOR_RADIUS_M) {
+        return false;
+      }
+      // Only compare opposite ends when both are known; otherwise anchor
+      // proximity alone decides.
+      if (
+        hasOther &&
+        typeof c.otherLatitude === "number" &&
+        typeof c.otherLongitude === "number"
+      ) {
+        return (
+          metersBetween(otherLat, otherLng, c.otherLatitude, c.otherLongitude) <=
+          CLUSTER_OTHER_END_RADIUS_M
+        );
+      }
+      return true;
+    });
+
+    if (!target) {
+      clusters.push({
+        // Anchor coordinates + seed ride id make a stable, unique key; later
+        // rides that join don't change it.
+        key: `${lat.toFixed(5)},${lng.toFixed(5)}|${r.id}`,
+        // Coordinate-only key so a reversed-route pin at the same spot can be
+        // detected and offset (see overlappingClusterKeys).
+        overlapKey: `${lat.toFixed(3)},${lng.toFixed(3)}|${
+          hasOther ? otherLat.toFixed(2) : "_"
+        },${hasOther ? otherLng.toFixed(2) : "_"}`,
         latitude: lat,
         longitude: lng,
+        otherLatitude: hasOther ? otherLat : undefined,
+        otherLongitude: hasOther ? otherLng : undefined,
         rides: [r],
         cheapest: r,
         cheapestPrice: r.total_price,
       });
     } else {
-      existing.rides.push(r);
-      if (r.total_price < existing.cheapestPrice) {
-        existing.cheapest = r;
-        existing.cheapestPrice = r.total_price;
+      target.rides.push(r);
+      if (r.total_price < target.cheapestPrice) {
+        target.cheapest = r;
+        target.cheapestPrice = r.total_price;
       }
     }
   }
-  return Array.from(byKey.values());
+  return clusters;
 };
 
 /**
@@ -555,11 +629,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   }, [destinationClusters, mapBounds, visiblePickupRideIds]);
 
   const overlappingClusterKeys = React.useMemo(() => {
-    const pickupKeys = new Set(clusteredNearbyRides.map((cluster) => cluster.key));
+    const pickupKeys = new Set(clusteredNearbyRides.map((cluster) => cluster.overlapKey));
     return new Set(
       visibleDestinationClusters
-        .filter((cluster) => pickupKeys.has(cluster.key))
-        .map((cluster) => cluster.key),
+        .filter((cluster) => pickupKeys.has(cluster.overlapKey))
+        .map((cluster) => cluster.overlapKey),
     );
   }, [clusteredNearbyRides, visibleDestinationClusters]);
 
@@ -1360,7 +1434,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 cluster={c}
                 variant="destination"
                 offset={
-                  overlappingClusterKeys.has(c.key)
+                  overlappingClusterKeys.has(c.overlapKey)
                     ? OVERLAPPED_DESTINATION_MARKER_OFFSET
                     : undefined
                 }
@@ -1373,7 +1447,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 cluster={c}
                 variant="pickup"
                 offset={
-                  overlappingClusterKeys.has(c.key)
+                  overlappingClusterKeys.has(c.overlapKey)
                     ? OVERLAPPED_PICKUP_MARKER_OFFSET
                     : undefined
                 }

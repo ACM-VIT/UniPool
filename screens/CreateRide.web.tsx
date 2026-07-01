@@ -12,12 +12,26 @@ import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
 import { appHref } from "../navigation/routes";
 import { WEB, RADIUS, FONT, cardFloat } from "../components/web/theme";
+import type { LocationResult } from "../utils/LocationService";
+
+type LocationCoordinates = {
+  latitude: number;
+  longitude: number;
+};
 
 // A two-hours-from-now default keeps the picker off a past time.
 const defaultWhen = () => {
   const d = new Date(Date.now() + 2 * 60 * 60 * 1000);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+const coordinatesFromLocationResult = (result?: LocationResult): LocationCoordinates | null => {
+  if (!result?.lat || !result?.lon) return null;
+  const latitude = Number(result.lat);
+  const longitude = Number(result.lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { latitude, longitude };
 };
 
 const CreateRideWeb: React.FC = () => {
@@ -27,6 +41,8 @@ const CreateRideWeb: React.FC = () => {
 
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [fromCoordinates, setFromCoordinates] = useState<LocationCoordinates | null>(null);
+  const [toCoordinates, setToCoordinates] = useState<LocationCoordinates | null>(null);
   const [when, setWhen] = useState(defaultWhen());
   const [seats, setSeats] = useState(3);
   const [fare, setFare] = useState("");
@@ -51,10 +67,10 @@ const CreateRideWeb: React.FC = () => {
         start_time: new Date(when).toISOString(),
         total_seats: seats,
         total_price: fareNum,
-        start_latitude: null,
-        start_longitude: null,
-        end_latitude: null,
-        end_longitude: null,
+        start_latitude: fromCoordinates?.latitude ?? null,
+        start_longitude: fromCoordinates?.longitude ?? null,
+        end_latitude: toCoordinates?.latitude ?? null,
+        end_longitude: toCoordinates?.longitude ?? null,
       });
       router.replace(appHref("TripsListScreen"));
     } catch (err: any) {
@@ -73,16 +89,28 @@ const CreateRideWeb: React.FC = () => {
         <View style={styles.routeCard}>
           <WebLocationInput
             value={from}
-            onChangeText={setFrom}
-            onSelect={(label) => setFrom(label)}
+            onChangeText={(text) => {
+              setFrom(text);
+              setFromCoordinates(null);
+            }}
+            onSelect={(label, result) => {
+              setFrom(label);
+              setFromCoordinates(coordinatesFromLocationResult(result));
+            }}
             placeholder="Leaving from"
             icon={<View style={styles.fromDot} />}
           />
           <View style={styles.routeSep} />
           <WebLocationInput
             value={to}
-            onChangeText={setTo}
-            onSelect={(label) => setTo(label)}
+            onChangeText={(text) => {
+              setTo(text);
+              setToCoordinates(null);
+            }}
+            onSelect={(label, result) => {
+              setTo(label);
+              setToCoordinates(coordinatesFromLocationResult(result));
+            }}
             placeholder="Going to"
             icon={(
               <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
