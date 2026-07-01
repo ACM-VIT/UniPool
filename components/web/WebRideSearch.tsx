@@ -20,8 +20,8 @@ import { appHref } from "../../navigation/routes";
 import { seatsLeftLabel } from "../../utils/seatMath";
 import { titleCaseLocation } from "./format";
 import { WEB, RADIUS, FONT, cardBorder, cardFloat } from "./theme";
+import type { LocationResult } from "../../utils/LocationService";
 
-const FALLBACK_CENTER: [number, number] = [79.1559, 12.9698]; // VIT Vellore
 const NEARBY_LIMIT = 50; // backend clamps /rides/nearby `limit` to ≤50 (else default 30)
 const PAGE_SIZE = 6;     // cards revealed per "Load more"
 
@@ -39,6 +39,24 @@ type RideData = {
   host_user_profile_picture_url?: string | null;
 };
 
+type LocationCoordinates = {
+  latitude: number;
+  longitude: number;
+};
+
+type SearchOptions = {
+  fromCoordinates?: LocationCoordinates | null;
+  toCoordinates?: LocationCoordinates | null;
+};
+
+const coordinatesFromLocationResult = (result?: LocationResult): LocationCoordinates | null => {
+  if (!result?.lat || !result?.lon) return null;
+  const latitude = Number(result.lat);
+  const longitude = Number(result.lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { latitude, longitude };
+};
+
 // /rides/nearby filters to within `radius` but orders by start_time, not
 // distance — so sort by proximity here (the response carries start coords)
 // to genuinely surface the closest rides first. center is [lng, lat].
@@ -54,6 +72,16 @@ const sortByProximity = (list: RideData[], center: [number, number]): RideData[]
     return dx * dx + dy * dy;
   };
   return [...list].sort((a, b) => dist2(a) - dist2(b));
+};
+
+// Keep genuinely upcoming rides (small grace for ones mid-departure). The
+// backend already time-sorts /ride/search, so we preserve that order.
+const upcomingFirst = (list: RideData[]): RideData[] => {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  return list.filter((r) => {
+    const t = new Date(r.start_time).getTime();
+    return !Number.isFinite(t) || t >= cutoff;
+  });
 };
 
 type SearchResponse = { rides?: RideData[] };
@@ -97,28 +125,66 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
 
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
+  const [fromCoordinates, setFromCoordinates] = useState<LocationCoordinates | null>(null);
+  const [toCoordinates, setToCoordinates] = useState<LocationCoordinates | null>(null);
   const [rides, setRides] = useState<RideData[]>([]);
   const [loading, setLoading] = useState(true);
   const [routed, setRouted] = useState(Boolean(initialFrom.trim() && initialTo.trim()));
+  // Whether the current list is genuinely proximity-based (geolocation
+  // granted) vs. the default "all upcoming rides" list.
+  const [near, setNear] = useState(false);
+  // The visitor's granted location, kept so they can toggle between
+  // "near you" and "all rides" without re-requesting permission.
+  const [coords, setCoords] = useState<[number, number] | null>(null);
+  // Set when the visitor taps "Near you" but location is denied/off, so we
+  // can explain rather than silently doing nothing.
+  const [locBlocked, setLocBlocked] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const searchedRef = useRef(false);
 
   const runSearch = useCallback(
-    async (f: string, t: string) => {
+    async (f: string, t: string, options: SearchOptions = {}) => {
+      const searchFromCoordinates = options.fromCoordinates === undefined ? fromCoordinates : options.fromCoordinates;
+      const searchToCoordinates = options.toCoordinates === undefined ? toCoordinates : options.toCoordinates;
       setLoading(true);
       setVisibleCount(PAGE_SIZE);
       setRouted(Boolean(f.trim() && t.trim()));
       try {
         if (f.trim() && t.trim()) {
-          const qs = `start_location=${encodeURIComponent(f.trim())}&end_location=${encodeURIComponent(t.trim())}`;
-          const res = await apiUtil.get<SearchResponse>(`/ride/search?${qs}`);
+          setNear(false);
+          const qs = new URLSearchParams({
+            start_location: f.trim(),
+            end_location: t.trim(),
+            limit: String(NEARBY_LIMIT),
+            sort_by: "time",
+          });
+          if (searchFromCoordinates) {
+            qs.set("start_lat", searchFromCoordinates.latitude.toFixed(6));
+            qs.set("start_lon", searchFromCoordinates.longitude.toFixed(6));
+          }
+          if (searchToCoordinates) {
+            qs.set("end_lat", searchToCoordinates.latitude.toFixed(6));
+            qs.set("end_lon", searchToCoordinates.longitude.toFixed(6));
+          }
+          const res = await apiUtil.get<SearchResponse>(`/ride/search?${qs.toString()}`);
           setRides(res?.rides ?? []);
         } else {
-          const center = await getViewerCenter();
-          const res = await apiUtil.get<SearchResponse>(
-            `/rides/nearby?lat=${center[1].toFixed(4)}&lng=${center[0].toFixed(4)}&radius=25000&limit=${NEARBY_LIMIT}`,
-          );
-          setRides(sortByProximity(res?.rides ?? [], center));
+          // No route entered. Only surface "near you" when the visitor has
+          // already granted geolocation; otherwise show all upcoming rides
+          // instead of faking proximity to a default campus location.
+          const geo = await getGrantedLocation();
+          if (geo) {
+            setCoords(geo);
+            const res = await apiUtil.get<SearchResponse>(
+              `/rides/nearby?lat=${geo[1].toFixed(4)}&lng=${geo[0].toFixed(4)}&radius=25000&limit=${NEARBY_LIMIT}`,
+            );
+            setRides(sortByProximity(res?.rides ?? [], geo));
+            setNear(true);
+          } else {
+            const res = await apiUtil.get<SearchResponse>(`/ride/search?limit=${NEARBY_LIMIT}&sort_by=time`);
+            setRides(upcomingFirst(res?.rides ?? []));
+            setNear(false);
+          }
         }
       } catch {
         setRides([]);
@@ -126,7 +192,7 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
         setLoading(false);
       }
     },
-    [apiUtil],
+    [apiUtil, fromCoordinates, toCoordinates],
   );
 
   useEffect(() => {
@@ -142,6 +208,9 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
       setLoading(true);
       setVisibleCount(PAGE_SIZE);
       setRouted(false);
+      setNear(true);
+      setCoords(center);
+      setLocBlocked(false);
       try {
         const res = await apiUtil.get<SearchResponse>(
           `/rides/nearby?lat=${center[1].toFixed(4)}&lng=${center[0].toFixed(4)}&radius=25000&limit=${NEARBY_LIMIT}`,
@@ -156,15 +225,58 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
     [apiUtil],
   );
 
+  // Show all upcoming rides (used by the Near you / All rides toggle when
+  // location is available, and as the default when it isn't).
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    setVisibleCount(PAGE_SIZE);
+    setRouted(false);
+    setNear(false);
+    setLocBlocked(false);
+    try {
+      const res = await apiUtil.get<SearchResponse>(`/ride/search?limit=${NEARBY_LIMIT}&sort_by=time`);
+      setRides(upcomingFirst(res?.rides ?? []));
+    } catch {
+      setRides([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiUtil]);
+
+  // Switch to nearby. If we already have the location, reuse it; otherwise
+  // ask now (a click prompts reliably). If it's denied/off, flag it so the
+  // toggle can explain instead of silently doing nothing.
+  const requestNear = useCallback(() => {
+    setLocBlocked(false);
+    if (coords) {
+      void runNearbyAt(coords);
+      return;
+    }
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocBlocked(true);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => void runNearbyAt([pos.coords.longitude, pos.coords.latitude]),
+      () => setLocBlocked(true),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
+    );
+  }, [coords, runNearbyAt]);
+
   const openRide = useCallback(
     (id: string) => router.push(appHref("RideDetailsScreen", { rideId: id } as any)),
     [router],
   );
   const canSearch = from.trim().length > 0 && to.trim().length > 0;
 
+  const rideWord = rides.length === 1 ? "ride" : "rides";
   const resultsHeader = loading
     ? "Searching…"
-    : `${rides.length} ${rides.length === 1 ? "ride" : "rides"} ${routed ? "on your route" : "near you"}`;
+    : routed
+    ? `${rides.length} ${rideWord} on your route`
+    : near
+    ? `${rides.length} ${rideWord} near you`
+    : `${rides.length} upcoming ${rideWord}`;
 
   // Render only the revealed slice, and memoise it so typing in the search
   // box (which re-renders this component) doesn't re-render every card.
@@ -203,8 +315,16 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
       <View style={[styles.searchCard, narrow && styles.searchCardNarrow]}>
         <WebLocationInput
           value={from}
-          onChangeText={setFrom}
-          onSelect={(label) => { setFrom(label); if (to.trim()) runSearch(label, to); }}
+          onChangeText={(text) => {
+            setFrom(text);
+            setFromCoordinates(null);
+          }}
+          onSelect={(label, result) => {
+            const selectedCoordinates = coordinatesFromLocationResult(result);
+            setFrom(label);
+            setFromCoordinates(selectedCoordinates);
+            if (to.trim()) runSearch(label, to, { fromCoordinates: selectedCoordinates, toCoordinates });
+          }}
           placeholder="Leaving from"
           icon={<View style={styles.fromDot} />}
           onSubmit={() => runSearch(from, to)}
@@ -214,8 +334,16 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
 
         <WebLocationInput
           value={to}
-          onChangeText={setTo}
-          onSelect={(label) => { setTo(label); if (from.trim()) runSearch(from, label); }}
+          onChangeText={(text) => {
+            setTo(text);
+            setToCoordinates(null);
+          }}
+          onSelect={(label, result) => {
+            const selectedCoordinates = coordinatesFromLocationResult(result);
+            setTo(label);
+            setToCoordinates(selectedCoordinates);
+            if (from.trim()) runSearch(from, label, { fromCoordinates, toCoordinates: selectedCoordinates });
+          }}
           placeholder="Going to"
           icon={(
             <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
@@ -223,7 +351,18 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
             </Svg>
           )}
           trailing={!narrow ? (
-            <Pressable style={styles.swapButton} onPress={() => { const a = from; setFrom(to); setTo(a); }} accessibilityLabel="Swap from and to">
+            <Pressable
+              style={styles.swapButton}
+              onPress={() => {
+                const oldFrom = from;
+                const oldFromCoordinates = fromCoordinates;
+                setFrom(to);
+                setFromCoordinates(toCoordinates);
+                setTo(oldFrom);
+                setToCoordinates(oldFromCoordinates);
+              }}
+              accessibilityLabel="Swap from and to"
+            >
               <SwapIcon />
             </Pressable>
           ) : undefined}
@@ -239,7 +378,36 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
         </Pressable>
       </View>
 
-      <Text style={styles.resultsHeader}>{resultsHeader}</Text>
+      <View style={styles.resultsRow}>
+        <Text style={styles.resultsHeader}>{resultsHeader}</Text>
+        {/* Always available (unless searching a route). "Near you" asks for
+            location if we don't have it yet, so it's the way back to
+            proximity even after the location nudge is dismissed or blocked. */}
+        {!routed ? (
+          <View style={styles.scopeToggle}>
+            <Pressable
+              onPress={requestNear}
+              style={[styles.scopeBtn, near && styles.scopeBtnActive]}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.scopeBtnText, near && styles.scopeBtnTextActive]}>Near you</Text>
+            </Pressable>
+            <Pressable
+              onPress={loadAll}
+              style={[styles.scopeBtn, !near && styles.scopeBtnActive]}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.scopeBtnText, !near && styles.scopeBtnTextActive]}>All rides</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+
+      {!routed && locBlocked && !near ? (
+        <Text style={styles.locHint}>
+          Location is off. Allow it in your browser to see the rides nearest you.
+        </Text>
+      ) : null}
 
       {loading ? (
         <View style={[styles.grid, !twoCol && styles.gridSingle]}>
@@ -250,7 +418,9 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
         </View>
       ) : rides.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>No rides {routed ? "on this route" : "near you"} yet</Text>
+          <Text style={styles.emptyTitle}>
+            {routed ? "No rides on this route yet" : near ? "No rides near you yet" : "No upcoming rides yet"}
+          </Text>
           <Pressable
             style={({ hovered }: any) => [styles.emptyBtn, hovered && styles.emptyBtnHover]}
             onPress={() => router.push(appHref("CreateRide"))}
@@ -293,30 +463,28 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
         </View>
       )}
 
-      {!routed && <WebLocationNudge onAllow={runNearbyAt} />}
+      {!routed && !near && <WebLocationNudge onAllow={runNearbyAt} />}
     </View>
   );
 };
 
-// Resolve a map center from the browser geolocation, falling back to the
-// campus center when it is unavailable or denied. Used only to seed the
-// "rides near you" query; there is no map to center.
-async function getViewerCenter(): Promise<[number, number]> {
-  if (typeof navigator === "undefined" || !navigator.geolocation) return FALLBACK_CENTER;
-  // Never trigger an unprompted permission dialog on load — only read GPS
-  // if the visitor has already granted it. The WebLocationNudge asks for
-  // permission on a click instead.
+// The visitor's location, but only if they've ALREADY granted browser
+// geolocation — returns null otherwise (never triggers an unprompted
+// permission dialog on load; the WebLocationNudge asks on a click). Null
+// means "show all upcoming rides" rather than faking a campus location.
+async function getGrantedLocation(): Promise<[number, number] | null> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) return null;
   try {
-    if (!navigator.permissions) return FALLBACK_CENTER;
+    if (!navigator.permissions) return null;
     const p = await navigator.permissions.query({ name: "geolocation" as any });
-    if (p.state !== "granted") return FALLBACK_CENTER;
+    if (p.state !== "granted") return null;
   } catch {
-    return FALLBACK_CENTER;
+    return null;
   }
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve([pos.coords.longitude, pos.coords.latitude]),
-      () => resolve(FALLBACK_CENTER),
+      () => resolve(null),
       { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 },
     );
   });
@@ -353,7 +521,14 @@ const styles = StyleSheet.create({
   searchBtnText: { fontFamily: FONT.black, fontSize: 15.5, color: WEB.forest },
   searchBtnTextDisabled: { color: WEB.onForestMuted },
 
-  resultsHeader: { fontFamily: FONT.black, fontSize: 14.5, color: WEB.inkStrong, marginTop: 30, marginBottom: 14, textTransform: "uppercase", letterSpacing: 0.4 },
+  resultsRow: { marginTop: 30, marginBottom: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 },
+  resultsHeader: { fontFamily: FONT.black, fontSize: 14.5, color: WEB.inkStrong, textTransform: "uppercase", letterSpacing: 0.4 },
+  scopeToggle: { flexDirection: "row", backgroundColor: WEB.surface, borderRadius: RADIUS.pill, padding: 3, ...cardBorder },
+  scopeBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: RADIUS.pill },
+  scopeBtnActive: { backgroundColor: WEB.forest },
+  scopeBtnText: { fontFamily: FONT.black, fontSize: 12.5, color: WEB.inkMuted, letterSpacing: 0.2 },
+  scopeBtnTextActive: { color: WEB.lime },
+  locHint: { fontFamily: FONT.semibold, fontSize: 13, color: WEB.inkMuted, marginTop: -4, marginBottom: 14 },
 
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
   gridSingle: { flexDirection: "column" },
