@@ -54,7 +54,8 @@ export type MapRef = {
 
 type MapProps = {
   children?: React.ReactNode;
-  mapStyle?: string;
+  // A style URL, or a full style-spec object (bundled styles pass an object).
+  mapStyle?: string | object;
   onRegionDidChange?: (event: { nativeEvent: { bounds: Bounds } }) => void;
   onDidFinishLoadingMap?: () => void;
   // Native-only ornament / a11y props are accepted and ignored on web;
@@ -134,7 +135,7 @@ export const Map = forwardRef<MapRef, MapProps>(function Map(props, ref) {
       <MapGL
         ref={rmRef}
         initialViewState={INDIA_VIEW}
-        mapStyle={mapStyle as string}
+        mapStyle={mapStyle as any}
         attributionControl={false}
         style={{ width: "100%", height: "100%" }}
         onLoad={handleLoaded}
