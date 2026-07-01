@@ -19,6 +19,7 @@ import { useAuthGate } from "../contexts/AuthGate";
 import { useUser } from "../contexts/UserContext";
 import { useDecodedLocalSearchParams, appHref } from "../navigation/routes";
 import { getCoordinatesForLocation, getInstantLocationResults } from "../utils/LocationService";
+import { openWhatsApp, dialPhone, whatsappDigits } from "../utils/ExternalRideService";
 
 // maplibre-gl is ~the heaviest dependency in the app. Lazy-load it so the
 // ride detail page paints instantly (title, route, fare card) and the map
@@ -56,6 +57,36 @@ type Preview = {
 };
 
 type Coords = { start_latitude: number; start_longitude: number; end_latitude: number; end_longitude: number };
+
+// An external (off-platform) ride. The /ride/preview/:id endpoint 404s for
+// these, so we fall back to /external/preview/:id — the same sanitized card the
+// nearby/search lists use (host email stays server-side). The page then renders
+// a "reach out / notify them" variant instead of the request-a-seat card.
+type ExternalPreview = {
+  id: string;
+  source: string;
+  source_label: string;
+  pickup_point: string;
+  destination: string;
+  departure_time: string;
+  host_name: string;
+  host_phone: string;
+  vehicle_type: string;
+  total_seats: number;
+  available_seats: number;
+  total_price?: number;
+  journey_notes?: string;
+};
+
+type InviteState = "idle" | "sending" | "sent" | "already" | "no_email" | "error";
+
+// Rides this browser has already notified for, so revisiting the page shows the
+// done state immediately. The backend is the hard guarantee (one email per user
+// + ride); this is only the local UX shortcut, mirroring the mobile sheet.
+const invitedExternalRideIds = new Set<string>();
+
+const externalFirstNameOf = (name: string) =>
+  (name || "").replace(/\s+\d{2}[A-Z]{3}\d{4,}$/, "").trim().split(/\s+/)[0] || "the host";
 
 // The gated /ride/details/:id response carries the server-computed
 // `viewer_state` — the single source of truth for what the viewer should
@@ -118,6 +149,22 @@ const RouteBlock: React.FC<{ from: string; to: string; meta: string }> = ({ from
   </View>
 );
 
+const WhatsAppIcon = ({ color }: { color: string }) => (
+  <Svg width={18} height={18} viewBox="0 0 24 24" fill={color}>
+    <Path d="M12.04 2c-5.5 0-9.97 4.47-9.97 9.97 0 1.76.46 3.48 1.34 5L2 22l5.2-1.36a9.9 9.9 0 0 0 4.84 1.24h.01c5.5 0 9.97-4.47 9.97-9.97 0-2.66-1.04-5.17-2.92-7.05A9.9 9.9 0 0 0 12.04 2zm0 1.67c2.23 0 4.32.87 5.9 2.44a8.3 8.3 0 0 1 2.44 5.87c0 4.58-3.73 8.3-8.32 8.3a8.3 8.3 0 0 1-4.23-1.16l-.3-.18-3.08.81.82-3-.2-.31a8.24 8.24 0 0 1-1.27-4.42c0-4.58 3.73-8.3 8.32-8.3zm-2.5 4.5c-.16 0-.42.06-.64.3-.22.24-.85.83-.85 2.02 0 1.2.87 2.35.99 2.51.12.16 1.7 2.6 4.13 3.55 2.02.8 2.43.64 2.87.6.44-.04 1.42-.58 1.62-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28-.24-.12-1.42-.7-1.64-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.63-1.2-1.42-1.34-1.66-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.53-1.32-.74-1.8-.19-.46-.39-.4-.53-.4z" />
+  </Svg>
+);
+const PhoneIcon = ({ color }: { color: string }) => (
+  <Svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" />
+  </Svg>
+);
+const CheckIcon = ({ color }: { color: string }) => (
+  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M4 12.5 9 17.5 20 6.5" />
+  </Svg>
+);
+
 const RideDetailsScreenWeb: React.FC = () => {
   const router = useRouter();
   const { apiUtil } = useApi();
@@ -135,6 +182,8 @@ const RideDetailsScreenWeb: React.FC = () => {
   const narrowActions = width < 560;
 
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [external, setExternal] = useState<ExternalPreview | null>(null);
+  const [inviteState, setInviteState] = useState<InviteState>("idle");
   const [coords, setCoords] = useState<Coords | null>(null);
   const [viewerState, setViewerState] = useState<ViewerState | null>(null);
   const [hostUserId, setHostUserId] = useState<string | null>(null);
@@ -148,6 +197,20 @@ const RideDetailsScreenWeb: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setNotFound(false);
+    setPreview(null);
+    setExternal(null);
+    setInviteState("idle");
+    setCoords(null);
+    setViewerState(null);
+    setHostUserId(null);
+    setDetails(null);
+    setActing(null);
+    setRequesting(false);
+    setRequestSent(false);
+    setRequestError(null);
+
     if (!rideId) {
       setNotFound(true);
       setLoading(false);
@@ -155,18 +218,32 @@ const RideDetailsScreenWeb: React.FC = () => {
     }
     (async () => {
       let previewRes: Preview | null = null;
+      let externalRes: ExternalPreview | null = null;
       try {
         previewRes = await apiUtil.get<Preview>(`/ride/preview/${rideId}`);
         if (!cancelled) setPreview(previewRes);
       } catch {
-        if (!cancelled) setNotFound(true);
+        // A UniPool ride wasn't found under this id — it may be an external
+        // (off-platform) ride shared through the same /ride/<id> link. Fall
+        // back to the public external preview before giving up.
+        try {
+          externalRes = await apiUtil.get<ExternalPreview>(`/external/preview/${rideId}`);
+          if (!cancelled) {
+            setExternal(externalRes);
+            setInviteState(invitedExternalRideIds.has(externalRes.id) ? "already" : "idle");
+          }
+        } catch {
+          if (!cancelled) setNotFound(true);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
       // The route is public — a ride is just an A→B. Geocode the stop names
       // so EVERYONE (guests included) sees the route preview, the way the
       // app does. Signed-in viewers then get the exact stored coordinates.
-      if (previewRes) {
+      const startName = previewRes?.start_location ?? externalRes?.pickup_point;
+      const endName = previewRes?.end_location ?? externalRes?.destination;
+      if (startName && endName) {
         // Try the local popular-locations index first — campus stops resolve
         // instantly with zero network, so the map shows immediately.
         const instant = (name: string): { lat: number; lon: number } | null => {
@@ -175,15 +252,15 @@ const RideDetailsScreenWeb: React.FC = () => {
           const lat = parseFloat(r.lat), lon = parseFloat(r.lon);
           return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
         };
-        const si = instant(previewRes.start_location);
-        const ei = instant(previewRes.end_location);
+        const si = instant(startName);
+        const ei = instant(endName);
         if (!cancelled && si && ei) {
           setCoords({ start_latitude: si.lat, start_longitude: si.lon, end_latitude: ei.lat, end_longitude: ei.lon });
         } else {
           try {
             const [s, e] = await Promise.all([
-              si ? Promise.resolve(si) : getCoordinatesForLocation(previewRes.start_location),
-              ei ? Promise.resolve(ei) : getCoordinatesForLocation(previewRes.end_location),
+              si ? Promise.resolve(si) : getCoordinatesForLocation(startName),
+              ei ? Promise.resolve(ei) : getCoordinatesForLocation(endName),
             ]);
             if (!cancelled && s && e) {
               setCoords({ start_latitude: s.lat, start_longitude: s.lon, end_latitude: e.lat, end_longitude: e.lon });
@@ -193,7 +270,7 @@ const RideDetailsScreenWeb: React.FC = () => {
           }
         }
       }
-      if (!isGuest) {
+      if (!isGuest && previewRes) {
         try {
           const full = await apiUtil.get<Details>(`/ride/details/${rideId}`);
           if (!cancelled) {
@@ -229,6 +306,39 @@ const RideDetailsScreenWeb: React.FC = () => {
       setRequestError(err?.response?.data?.message || "Could not request the ride. Try again.");
     } finally {
       setRequesting(false);
+    }
+  };
+
+  // Notify an external host through UniPool ("wants to ride with you"). Auth-
+  // gated like the mobile sheet; the backend guarantees one email per user +
+  // ride, so re-taps read as "already notified".
+  const sendInvite = async () => {
+    if (!external) return;
+    if (inviteState === "sending" || inviteState === "sent" || inviteState === "already") return;
+    if (isGuest) {
+      requireAuth({ screen: "RideDetailsScreen", params: { rideId } } as any, "to notify this host");
+      return;
+    }
+    setInviteState("sending");
+    try {
+      const res = await apiUtil.post<{ sent: boolean; already?: boolean; error?: string }, unknown>(
+        "/external/invite",
+        {
+          external_ride_id: external.id,
+          host_name: external.host_name,
+          start_location: external.pickup_point,
+          end_location: external.destination,
+        },
+      );
+      if (res?.sent) {
+        invitedExternalRideIds.add(external.id);
+        setInviteState(res.already ? "already" : "sent");
+      } else {
+        setInviteState(res?.error === "no_email" ? "no_email" : "error");
+      }
+    } catch (err: any) {
+      const code = err?.response?.data?.error || err?.response?.data?.message;
+      setInviteState(code === "no_email" ? "no_email" : "error");
     }
   };
 
@@ -293,6 +403,157 @@ const RideDetailsScreenWeb: React.FC = () => {
         </View>
       );
     }
+
+    // External (off-platform) ride: the host isn't on UniPool yet, so instead
+    // of a request-a-seat card we render the ways to actually reach them
+    // (WhatsApp, phone) plus the one-tap "notify them through UniPool" invite,
+    // mirroring the mobile ExternalContactSheet.
+    if (external) {
+      const first = externalFirstNameOf(external.host_name);
+      const fromLabel = titleCaseLocation(external.pickup_point);
+      const toLabel = titleCaseLocation(external.destination);
+      const seatsOpen = external.available_seats > 0;
+      const seatMeta = seatsOpen
+        ? `${external.available_seats} of ${external.total_seats} seats open`
+        : "Fully booked";
+      const hasWhatsApp = !!whatsappDigits(external.host_phone);
+      const hasPhone = !!external.host_phone;
+      const waMessage =
+        `Hi ${first}, I found your ride from ${external.pickup_point} to ${external.destination} on UniPool ` +
+        `and would love to ride with you. Is there room for one more?`;
+
+      const invite = (() => {
+        if (!seatsOpen) {
+          return { label: "Ride is full", muted: true, disabled: true };
+        }
+        switch (inviteState) {
+          case "sent":
+            return { label: `${first} has been notified`, done: true, disabled: true };
+          case "already":
+            return { label: `${first} already knows`, done: true, disabled: true };
+          case "sending":
+            return { label: "Letting them know...", spinner: true, disabled: true };
+          case "no_email":
+            return { label: "No email on file", muted: true, disabled: true };
+          case "error":
+            return { label: "Didn't send, tap to retry", disabled: false };
+          default:
+            return { label: `Let ${first} know you want in`, disabled: false };
+        }
+      })();
+
+      return (
+        <View style={styles.wrap}>
+          <Pressable style={styles.backLink} onPress={() => router.push(appHref("AvailableRidesScreen", {} as any))}>
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+              <Path d="M15 5 L8 12 L15 19" stroke={WEB.inkStrong} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+            <Text style={styles.backLinkText}>All rides</Text>
+          </Pressable>
+
+          <View style={[styles.layout, stacked && styles.layoutStacked]}>
+            <View style={styles.left}>
+              <Text style={styles.routeTitle}>
+                {fromLabel} <Text style={styles.routeArrow}>to</Text> {toLabel}
+              </Text>
+              <Text style={styles.routeWhen}>
+                {fmtDate(external.departure_time)} {"·"} {fmtTime(external.departure_time)}
+              </Text>
+
+              <View style={styles.mapCard}>
+                {coords ? (
+                  <Suspense fallback={<View style={styles.mapPlaceholder}><ActivityIndicator color={WEB.inkMuted} /></View>}>
+                    <TripPreviewMap
+                      start={{ latitude: coords.start_latitude, longitude: coords.start_longitude }}
+                      end={{ latitude: coords.end_latitude, longitude: coords.end_longitude }}
+                      style={styles.mapInner}
+                    />
+                  </Suspense>
+                ) : (
+                  <View style={styles.mapPlaceholder}>
+                    <ActivityIndicator color={WEB.inkMuted} />
+                    <Text style={styles.mapPlaceholderText}>Loading route…</Text>
+                  </View>
+                )}
+              </View>
+
+              <RouteBlock from={fromLabel} to={toLabel} meta={seatMeta} />
+
+              {external.journey_notes ? (
+                <View style={styles.sideCard}>
+                  <Text style={styles.sideTitle}>Notes</Text>
+                  <Text style={styles.extNotesBody}>{external.journey_notes}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={[styles.right, stacked && styles.rightStacked]}>
+              <View style={styles.fareCard}>
+                <Text style={styles.extSourcePill}>Posted on {external.source_label || "another app"}</Text>
+
+                <View style={styles.hostRow}>
+                  <View style={styles.hostAvatar}>
+                    <Text style={styles.hostInitial}>{(external.host_name || "H").trim().charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.hostName} numberOfLines={1}>{external.host_name || "Off-platform host"}</Text>
+                    <Text style={styles.hostSub} numberOfLines={1}>Not on UniPool yet</Text>
+                  </View>
+                </View>
+
+                {external.vehicle_type ? (
+                  <View style={styles.vehicleRow}>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none"><Path d="M5 13 L6.5 8 H17.5 L19 13 M5 13 H19 V17 H5 Z M7.5 17 V19 M16.5 17 V19" stroke={WEB.inkStrong} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" /></Svg>
+                    <Text style={styles.vehicleText} numberOfLines={1}>{external.vehicle_type}</Text>
+                  </View>
+                ) : null}
+
+                <Pressable
+                  style={[styles.requestBtn, invite.done && styles.inviteDone, invite.muted && styles.inviteMuted]}
+                  onPress={invite.disabled ? undefined : sendInvite}
+                  disabled={invite.disabled}
+                >
+                  {invite.spinner ? (
+                    <ActivityIndicator color={WEB.lime} />
+                  ) : (
+                    <View style={styles.inviteRow}>
+                      {invite.done ? <CheckIcon color={WEB.midOlive} /> : null}
+                      <Text style={[styles.requestBtnText, invite.done && styles.inviteDoneText, invite.muted && styles.inviteMutedText]} numberOfLines={1}>
+                        {invite.label}
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
+
+                {seatsOpen && (hasWhatsApp || hasPhone) ? (
+                  <View style={styles.contactRow}>
+                    {hasWhatsApp ? (
+                      <Pressable style={styles.contactBtn} onPress={() => openWhatsApp(external.host_phone, waMessage)}>
+                        <WhatsAppIcon color={WEB.midOlive} />
+                        <Text style={styles.contactBtnText}>WhatsApp</Text>
+                      </Pressable>
+                    ) : null}
+                    {hasPhone ? (
+                      <Pressable style={styles.contactBtn} onPress={() => dialPhone(external.host_phone)}>
+                        <PhoneIcon color={WEB.forest} />
+                        <Text style={styles.contactBtnText}>Call</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                <Text style={styles.fareNote}>
+                  {seatsOpen
+                    ? `${first} posted this ride elsewhere. Reach out directly, or let them know you found them on UniPool.`
+                    : "This ride is already full. Find another ride on this route instead."}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
     if (notFound || !preview) {
       return (
         <View style={styles.centered}>
@@ -646,4 +907,16 @@ const styles = StyleSheet.create({
   statusBoxAccent: { backgroundColor: "rgba(181,215,80,0.20)" },
   statusTitle: { fontFamily: FONT.black, fontSize: 15, color: WEB.forest, marginBottom: 4 },
   statusBody: { fontFamily: FONT.semibold, fontSize: 13, lineHeight: 19, color: WEB.inkStrong },
+
+  // External-ride variant.
+  extSourcePill: { alignSelf: "flex-start", backgroundColor: WEB.fieldFill, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, fontFamily: FONT.bold, fontSize: 12.5, color: WEB.inkStrong },
+  extNotesBody: { fontFamily: FONT.semibold, fontSize: 13.5, lineHeight: 20, color: WEB.inkStrong },
+  inviteRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  inviteDone: { backgroundColor: "rgba(122,153,90,0.16)" },
+  inviteDoneText: { color: WEB.midOlive },
+  inviteMuted: { backgroundColor: WEB.inkSubtle },
+  inviteMutedText: { color: WEB.inkMuted },
+  contactRow: { flexDirection: "row", gap: 10, marginTop: 10 },
+  contactBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 48, borderRadius: RADIUS.button, borderWidth: 1.5, borderColor: WEB.hairline, backgroundColor: WEB.surface },
+  contactBtnText: { fontFamily: FONT.bold, fontSize: 14, color: WEB.forest },
 });

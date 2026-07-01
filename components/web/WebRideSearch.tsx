@@ -39,6 +39,55 @@ type RideData = {
   host_user_profile_picture_url?: string | null;
 };
 
+// External (off-platform) rides ride alongside UniPool rides in the same
+// /ride/search and /rides/nearby responses. On the list they render as plain
+// ride cards (indistinguishable from UniPool rides, by design); the ride-info
+// page is where the off-platform contact flow kicks in.
+type ExternalRideData = {
+  id: string;
+  source_label: string;
+  pickup_point: string;
+  destination: string;
+  departure_time: string;
+  host_name?: string;
+  vehicle_type?: string;
+  total_seats: number;
+  available_seats: number;
+  total_price?: number;
+};
+
+// Normalise an external ride into the same shape the card consumes, so the two
+// kinds interleave in one list. `external` flags it purely for the seats label
+// (external feeds give seats-available, not seats-booked).
+type ResultItem = {
+  id: string;
+  start_location: string;
+  end_location: string;
+  start_time: string;
+  total_price?: number;
+  total_seats: number;
+  booked_seats: number;
+  host_user_name?: string;
+  host_user_profile_picture_url?: string | null;
+  external?: boolean;
+};
+
+const externalToItem = (e: ExternalRideData): ResultItem => ({
+  id: e.id,
+  start_location: e.pickup_point,
+  end_location: e.destination,
+  start_time: e.departure_time,
+  total_price: e.total_price,
+  total_seats: e.total_seats,
+  // seatMath treats total_seats as host-inclusive (passenger capacity =
+  // total - 1), while external feeds give passenger seats-available directly.
+  // Back into booked_seats so the card's "seats left" equals available_seats
+  // rather than being one short (which mislabelled 1-seat rides as "Full").
+  booked_seats: Math.max(0, e.total_seats - 1 - e.available_seats),
+  host_user_name: e.host_name,
+  external: true,
+});
+
 type LocationCoordinates = {
   latitude: number;
   longitude: number;
@@ -84,7 +133,7 @@ const upcomingFirst = (list: RideData[]): RideData[] => {
   });
 };
 
-type SearchResponse = { rides?: RideData[] };
+type SearchResponse = { rides?: RideData[]; external_rides?: ExternalRideData[] };
 
 const formatTime = (iso: string) => {
   try {
@@ -128,6 +177,7 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
   const [fromCoordinates, setFromCoordinates] = useState<LocationCoordinates | null>(null);
   const [toCoordinates, setToCoordinates] = useState<LocationCoordinates | null>(null);
   const [rides, setRides] = useState<RideData[]>([]);
+  const [externals, setExternals] = useState<ExternalRideData[]>([]);
   const [loading, setLoading] = useState(true);
   const [routed, setRouted] = useState(Boolean(initialFrom.trim() && initialTo.trim()));
   // Whether the current list is genuinely proximity-based (geolocation
@@ -168,6 +218,7 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
           }
           const res = await apiUtil.get<SearchResponse>(`/ride/search?${qs.toString()}`);
           setRides(res?.rides ?? []);
+          setExternals(res?.external_rides ?? []);
         } else {
           // No route entered. Only surface "near you" when the visitor has
           // already granted geolocation; otherwise show all upcoming rides
@@ -179,15 +230,18 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
               `/rides/nearby?lat=${geo[1].toFixed(4)}&lng=${geo[0].toFixed(4)}&radius=25000&limit=${NEARBY_LIMIT}`,
             );
             setRides(sortByProximity(res?.rides ?? [], geo));
+            setExternals(res?.external_rides ?? []);
             setNear(true);
           } else {
             const res = await apiUtil.get<SearchResponse>(`/ride/search?limit=${NEARBY_LIMIT}&sort_by=time`);
             setRides(upcomingFirst(res?.rides ?? []));
+            setExternals(res?.external_rides ?? []);
             setNear(false);
           }
         }
       } catch {
         setRides([]);
+        setExternals([]);
       } finally {
         setLoading(false);
       }
@@ -216,8 +270,10 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
           `/rides/nearby?lat=${center[1].toFixed(4)}&lng=${center[0].toFixed(4)}&radius=25000&limit=${NEARBY_LIMIT}`,
         );
         setRides(sortByProximity(res?.rides ?? [], center));
+        setExternals(res?.external_rides ?? []);
       } catch {
         setRides([]);
+        setExternals([]);
       } finally {
         setLoading(false);
       }
@@ -236,8 +292,10 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
     try {
       const res = await apiUtil.get<SearchResponse>(`/ride/search?limit=${NEARBY_LIMIT}&sort_by=time`);
       setRides(upcomingFirst(res?.rides ?? []));
+      setExternals(res?.external_rides ?? []);
     } catch {
       setRides([]);
+      setExternals([]);
     } finally {
       setLoading(false);
     }
@@ -269,20 +327,28 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
   );
   const canSearch = from.trim().length > 0 && to.trim().length > 0;
 
-  const rideWord = rides.length === 1 ? "ride" : "rides";
+  // External rides render as ordinary cards, appended after UniPool rides so
+  // the existing time/proximity sort of the primary list is preserved.
+  const results = useMemo<ResultItem[]>(
+    () => [...rides, ...externals.map(externalToItem)],
+    [rides, externals],
+  );
+
+  const total = results.length;
+  const rideWord = total === 1 ? "ride" : "rides";
   const resultsHeader = loading
     ? "Searching…"
     : routed
-    ? `${rides.length} ${rideWord} on your route`
+    ? `${total} ${rideWord} on your route`
     : near
-    ? `${rides.length} ${rideWord} near you`
-    : `${rides.length} upcoming ${rideWord}`;
+    ? `${total} ${rideWord} near you`
+    : `${total} upcoming ${rideWord}`;
 
   // Render only the revealed slice, and memoise it so typing in the search
   // box (which re-renders this component) doesn't re-render every card.
   const visibleCards = useMemo(
     () =>
-      rides.slice(0, visibleCount).map((ride) => (
+      results.slice(0, visibleCount).map((ride) => (
         <View key={ride.id} style={twoCol ? styles.gridHalf : styles.gridFull}>
           <RideResultCard
             origin={titleCaseLocation(ride.start_location)}
@@ -298,7 +364,7 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
           />
         </View>
       )),
-    [rides, visibleCount, twoCol, openRide],
+    [results, visibleCount, twoCol, openRide],
   );
 
   return (
@@ -416,7 +482,7 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
           <View style={[styles.skeleton, twoCol ? styles.gridHalf : styles.gridFull]} />
           <View style={[styles.skeleton, twoCol ? styles.gridHalf : styles.gridFull]} />
         </View>
-      ) : rides.length === 0 ? (
+      ) : total === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>
             {routed ? "No rides on this route yet" : near ? "No rides near you yet" : "No upcoming rides yet"}
@@ -431,7 +497,7 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
       ) : (
         <>
           <View style={[styles.grid, !twoCol && styles.gridSingle]}>{visibleCards}</View>
-          {rides.length > visibleCount ? (
+          {total > visibleCount ? (
             <View style={styles.loadMoreWrap}>
               <Pressable
                 style={({ hovered }: any) => [styles.loadMore, hovered && styles.loadMoreHover]}
@@ -439,7 +505,7 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
               >
                 <Text style={styles.loadMoreText}>Load more rides</Text>
               </Pressable>
-              <Text style={styles.loadMoreCount}>Showing {Math.min(visibleCount, rides.length)} of {rides.length}</Text>
+              <Text style={styles.loadMoreCount}>Showing {Math.min(visibleCount, total)} of {total}</Text>
             </View>
           ) : null}
         </>
