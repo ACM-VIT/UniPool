@@ -221,7 +221,13 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   const searchRequestRef = useRef(0);
   const searchAbortRef = useRef<AbortController | null>(null);
 
-  const submitRideDetails = (from: string, to: string, date: Date, fromCoords?: LocationCoordinates, toCoords?: LocationCoordinates) => {
+  const submitRideDetails = (
+    from: string,
+    to: string,
+    date: Date,
+    fromCoords?: LocationCoordinates | null,
+    toCoords?: LocationCoordinates | null,
+  ) => {
     // In manualSubmit mode the consumer wants a tap-to-go flow —
     // never auto-fire just because all three fields happen to be
     // filled. The footer "Search rides" button (rendered at the
@@ -240,12 +246,17 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
     if (DEBUG_RIDE_SELECTOR) console.log('submitRideDetails called with date:', date);
     if (DEBUG_RIDE_SELECTOR) console.log('Current selectedDate state:', selectedDate);
     
+    const submittedFromCoordinates =
+      fromCoords === undefined ? fromCoordinates : fromCoords;
+    const submittedToCoordinates =
+      toCoords === undefined ? toCoordinates : toCoords;
+
     const rideDetails: RideDetails = {
       from,
       to,
       date: date, // Use the passed date directly
-      fromCoordinates: (fromCoords ?? fromCoordinates) ?? undefined,
-      toCoordinates: (toCoords ?? toCoordinates) ?? undefined
+      fromCoordinates: submittedFromCoordinates ?? undefined,
+      toCoordinates: submittedToCoordinates ?? undefined
     };
     
     if (DEBUG_RIDE_SELECTOR) console.log('Submitting ride details with coordinates:', rideDetails);
@@ -357,8 +368,8 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         updatedFrom,
         updatedTo,
         selectedDate,
-        updatedFromCoords ?? undefined,
-        updatedToCoords ?? undefined
+        updatedFromCoords,
+        updatedToCoords
       );
     }
 
@@ -369,15 +380,15 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         if (!resolved) return;
         if (coordinateResolveRequestRef.current.from !== resolveId) return;
         setFromLocation(resolved);
-        const finalFromCoords = immediateCoords ?? fromCoordinates;
+        const finalFromCoords = immediateCoords;
         const finalToCoords = toCoordinates;
         if (resolved && updatedTo && selectedDate) {
           submitRideDetails(
             resolved,
             updatedTo,
             selectedDate,
-            finalFromCoords ?? undefined,
-            finalToCoords ?? undefined,
+            finalFromCoords,
+            finalToCoords,
           );
         }
       });
@@ -410,8 +421,8 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
           updatedFrom,
           updatedTo,
           selectedDate,
-          finalFromCoords ?? undefined,
-          finalToCoords ?? undefined
+          finalFromCoords,
+          finalToCoords
         );
       }
     }).catch((error) => {
@@ -748,8 +759,8 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
         toLocation,
         tempLocation,
         selectedDate,
-        (toCoordinates ?? undefined),
-        (tempCoordinates ?? undefined)
+        toCoordinates,
+        tempCoordinates
       );
     }
   };
@@ -814,18 +825,27 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
   useEffect(() => {
     if (externalFromLocation !== undefined) {
+      const requestId = ++coordinateResolveRequestRef.current.from;
       setFromLocation(externalFromLocation);
+      setFromCoordinates(null);
+
+      if (!externalFromLocation) return;
       
       const fetchCoords = async () => {
         try {
           const coords = await getCoordinatesForLocation(externalFromLocation);
+          if (coordinateResolveRequestRef.current.from !== requestId) return;
           if (coords) {
             setFromCoordinates({
               latitude: coords.lat,
               longitude: coords.lon
             });
+          } else {
+            setFromCoordinates(null);
           }
         } catch (error) {
+          if (coordinateResolveRequestRef.current.from !== requestId) return;
+          setFromCoordinates(null);
           console.error('Error fetching coordinates for external from location:', error);
         }
       };
@@ -836,18 +856,27 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
 
   useEffect(() => {
     if (externalToLocation !== undefined) {
+      const requestId = ++coordinateResolveRequestRef.current.to;
       setToLocation(externalToLocation);
+      setToCoordinates(null);
+
+      if (!externalToLocation) return;
       
       const fetchCoords = async () => {
         try {
           const coords = await getCoordinatesForLocation(externalToLocation);
+          if (coordinateResolveRequestRef.current.to !== requestId) return;
           if (coords) {
             setToCoordinates({
               latitude: coords.lat,
               longitude: coords.lon
             });
+          } else {
+            setToCoordinates(null);
           }
         } catch (error) {
+          if (coordinateResolveRequestRef.current.to !== requestId) return;
+          setToCoordinates(null);
           console.error('Error fetching coordinates for external to location:', error);
         }
       };
