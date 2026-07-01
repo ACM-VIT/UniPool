@@ -28,7 +28,7 @@ import { titleCaseLocation } from "../components/web/format";
 import { WEB, RADIUS, FONT, cardBorder, cardFloat, floatShadow } from "../components/web/theme";
 
 const APP_STORE_URL = "https://apps.apple.com/app/id6756426249";
-const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.carpoolitapp&hl=en_IN";
+const PLAY_STORE_URL = "https://unipool.download";
 const openApp = () => {
   if (typeof window === "undefined") return;
   const url = /android/i.test(navigator.userAgent || "") ? PLAY_STORE_URL : APP_STORE_URL;

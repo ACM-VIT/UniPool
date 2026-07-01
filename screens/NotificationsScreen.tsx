@@ -15,7 +15,13 @@ const { width, height } = Dimensions.get("window");
 
 // Canonical categories, mirrored from helpers.AllNotifCategories on
 // the backend. Order here drives the order rendered in the UI.
-type Category = "chat_messages" | "ride_updates" | "trip_reminders" | "rating_prompts";
+type Category =
+  | "chat_messages"
+  | "direct_messages"
+  | "ride_updates"
+  | "trip_reminders"
+  | "rating_prompts"
+  | "booking_emails";
 
 const CATEGORY_META: { key: Category; title: string; description: string; sectionTitle: string }[] = [
   {
@@ -23,6 +29,12 @@ const CATEGORY_META: { key: Category; title: string; description: string; sectio
     sectionTitle: "Communication",
     title: "Chat messages",
     description: "New messages from your ride hosts and passengers",
+  },
+  {
+    key: "direct_messages",
+    sectionTitle: "Communication",
+    title: "Direct messages",
+    description: "One-to-one messages about pending ride requests",
   },
   {
     key: "ride_updates",
@@ -42,15 +54,23 @@ const CATEGORY_META: { key: Category; title: string; description: string; sectio
     title: "Rate-your-ride prompts",
     description: "A reminder ~12 hours after a trip to leave a rating",
   },
+  {
+    key: "booking_emails",
+    sectionTitle: "Email",
+    title: "Booking emails",
+    description: "Email copies of ride requests, accepts, declines, and seat changes",
+  },
 ];
 
 type PrefsState = Record<Category, boolean>;
 
 const DEFAULT_STATE: PrefsState = {
   chat_messages: true,
+  direct_messages: true,
   ride_updates: true,
   trip_reminders: true,
   rating_prompts: true,
+  booking_emails: true,
 };
 
 const NotificationsScreen: React.FC = () => {
