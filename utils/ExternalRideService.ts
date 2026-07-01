@@ -13,6 +13,7 @@ export interface ExternalRide {
   total_seats: number;
   available_seats: number;
   total_price?: number;
+  pickup_distance_km?: number | null;
   journey_notes?: string;
 }
 
