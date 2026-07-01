@@ -90,9 +90,19 @@ const AuthScreenWeb: React.FC = () => {
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+
     const render = () => {
       const g = (window as any).google;
       if (cancelled || !g?.accounts?.id || !gisRef.current) return;
+      // GIS renderButton takes a fixed pixel width (200–400). Fit it to the
+      // card so it never overflows the forest card on narrow phones — a
+      // hardcoded width spilled past the card edges on mobile.
+      const avail =
+        gisRef.current.clientWidth ||
+        gisRef.current.parentElement?.clientWidth ||
+        300;
+      const btnWidth = Math.max(200, Math.min(400, Math.floor(avail)));
       try {
         g.accounts.id.initialize({ client_id: WEB_CLIENT_ID, callback: handleCredential, ux_mode: "popup" });
         gisRef.current.innerHTML = "";
@@ -103,16 +113,30 @@ const AuthScreenWeb: React.FC = () => {
           shape: "pill",
           text: "continue_with",
           logo_alignment: "center",
-          width: 360,
+          width: btnWidth,
         });
         setGisReady(true);
       } catch {
         setError("Google sign-in could not load. Refresh and try again.");
       }
     };
+
+    // Re-fit the button when the viewport changes (rotation / resize).
+    const onResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(render, 200);
+    };
+    window.addEventListener("resize", onResize);
+
+    const cleanup = () => {
+      cancelled = true;
+      clearTimeout(resizeTimer);
+      window.removeEventListener("resize", onResize);
+    };
+
     if ((window as any).google?.accounts?.id) {
       render();
-      return () => { cancelled = true; };
+      return cleanup;
     }
     let script = document.getElementById("gis-client") as HTMLScriptElement | null;
     const onError = () => {
@@ -129,7 +153,7 @@ const AuthScreenWeb: React.FC = () => {
     script.addEventListener("load", render);
     script.addEventListener("error", onError);
     return () => {
-      cancelled = true;
+      cleanup();
       script?.removeEventListener("load", render);
       script?.removeEventListener("error", onError);
     };
@@ -165,7 +189,7 @@ const AuthScreenWeb: React.FC = () => {
           ) : (
             <>
               {/* Google Identity Services renders its native button here. */}
-              <div ref={gisRef} style={{ display: "flex", justifyContent: "center", minHeight: gisReady ? 44 : 0 }} />
+              <div ref={gisRef} style={{ display: "flex", justifyContent: "center", width: "100%", maxWidth: "100%", overflow: "hidden", minHeight: gisReady ? 44 : 0 }} />
               {!gisReady && (
                 <View style={styles.busyRow}>
                   <ActivityIndicator color={WEB.cream} />

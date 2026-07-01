@@ -461,7 +461,7 @@ const NearbyRidesScreen: React.FC = () => {
           These aren't on UniPool. Contact the host directly to arrange.
         </Text>
         {externalRides.map((r) => (
-          <ExternalRideCard key={r.id} ride={r} />
+          <ExternalRideCard key={r.id} ride={r} authReturnTo={{ screen: "NearbyRidesScreen" }} />
         ))}
       </View>
     );

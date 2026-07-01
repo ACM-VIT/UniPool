@@ -775,6 +775,16 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
 
   const renderExternalRidesFooter = useCallback(() => {
     if (externalRides.length === 0) return null;
+    const authReturnTo = {
+      screen: "AvailableRidesScreen" as const,
+      params: {
+        fromLocation,
+        toLocation,
+        fromCoordinates,
+        toCoordinates,
+        targetTime: targetTimeIso || undefined,
+      },
+    };
     return (
       <View style={{ marginTop: 20, paddingBottom: 8 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }}>
@@ -788,11 +798,19 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
           These aren't on UniPool. Contact the host directly to arrange.
         </Text>
         {externalRides.map((r) => (
-          <ExternalRideCard key={r.id} ride={r} />
+          <ExternalRideCard key={r.id} ride={r} authReturnTo={authReturnTo} />
         ))}
       </View>
     );
-  }, [externalRides, colors]);
+  }, [
+    colors,
+    externalRides,
+    fromCoordinates,
+    fromLocation,
+    targetTimeIso,
+    toCoordinates,
+    toLocation,
+  ]);
 
   const totalRideCount = rides.length + externalRides.length;
 
