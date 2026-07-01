@@ -3799,7 +3799,7 @@ type BackendLocationCacheEntry = {
   locations: LocationResult[]
 }
 
-const LOCATION_SEARCH_CACHE_PREFIX = "unipool:location-search:v1:"
+const LOCATION_SEARCH_CACHE_PREFIX = "unipool:location-search:v2:"
 const LOCATION_SEARCH_TTL_MS = 12 * 60 * 60_000
 const LOCATION_SEARCH_MEMORY_MAX = 150
 const SEARCH_CACHE_MEMORY_MAX = 200
@@ -3906,6 +3906,63 @@ const normalizeSearch = (value: string) =>
 const safeNumber = (value: string | number): number | null => {
   const num = typeof value === "number" ? value : Number(value)
   return Number.isFinite(num) ? num : null
+}
+
+const locationSourceRank = (source?: string) => {
+  switch (source) {
+    case "current":
+      return 5
+    case "curated":
+      return 4
+    case "local":
+      return 3
+    case "ride_history":
+      return 2
+    default:
+      return 1
+  }
+}
+
+const locationNameKey = (location: LocationResult) =>
+  normalizeSearch(location.name || location.display_name.split(",")[0] || "")
+
+const locationDisplayKey = (location: LocationResult) =>
+  normalizeSearch(location.display_name)
+
+const locationDedupeAliases = (location: LocationResult) => {
+  if (location.source === "current") return ["current"]
+
+  const name = locationNameKey(location)
+  const display = locationDisplayKey(location)
+  const lat = safeNumber(location.lat)
+  const lon = safeNumber(location.lon)
+  const aliases: string[] = []
+
+  if (name && lat !== null && lon !== null) {
+    // Roughly 1km buckets collapse "same campus / gate / road centroid"
+    // geocoder variants while keeping same-named places in different
+    // parts of a city separate.
+    aliases.push(`name-near:${name}:${lat.toFixed(2)}:${lon.toFixed(2)}`)
+  }
+  if (display) aliases.push(`display:${display}`)
+
+  return aliases
+}
+
+const betterLocationResult = (existing: LocationResult, next: LocationResult) => {
+  const existingScore = existing.score ?? 0
+  const nextScore = next.score ?? 0
+  if (Math.abs(nextScore - existingScore) > 0.001) {
+    return nextScore > existingScore ? next : existing
+  }
+
+  const existingRank = locationSourceRank(existing.source)
+  const nextRank = locationSourceRank(next.source)
+  if (existingRank !== nextRank) {
+    return nextRank > existingRank ? next : existing
+  }
+
+  return next.display_name.length < existing.display_name.length ? next : existing
 }
 
 const searchLocationBucket = (userLocation?: UserLocation) => {
@@ -4043,6 +4100,7 @@ const dedupeAndRankLocations = (
   userLocation?: UserLocation,
   limit = 10
 ) => {
+  const aliasToKey = new Map<string, string>()
   const byKey = new Map<string, LocationResult>()
 
   locations.forEach((location) => {
@@ -4053,13 +4111,16 @@ const dedupeAndRankLocations = (
     // up with two of them, no matter what the backend sends or how
     // lat/lon precision drifts. The first one in wins (the client
     // injects its own canonical entry at the head of the list).
-    const key =
-      location.source === "current"
-        ? "current"
-        : `${normalizeSearch(location.name || location.display_name.split(",")[0])}|${Number(location.lat).toFixed(5)}|${Number(location.lon).toFixed(5)}`
     const next = { ...location, score }
+    const aliases = locationDedupeAliases(next)
+    if (aliases.length === 0) return
+
+    const existingKey = aliases.map((alias) => aliasToKey.get(alias)).find(Boolean)
+    const key = existingKey ?? aliases[0]
     const existing = byKey.get(key)
-    if (!existing || (existing.score ?? 0) < score) byKey.set(key, next)
+    const winner = existing ? betterLocationResult(existing, next) : next
+    byKey.set(key, winner)
+    aliases.forEach((alias) => aliasToKey.set(alias, key))
   })
 
   return Array.from(byKey.values())

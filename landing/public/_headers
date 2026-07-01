@@ -1,0 +1,44 @@
+/app/_index
+  Content-Type: text/html; charset=utf-8
+
+/app/_expo/static/js/*
+  Content-Type: application/javascript; charset=utf-8
+
+/app/_expo/static/css/*
+  Content-Type: text/css; charset=utf-8
+
+/app/
+  Content-Type: text/html; charset=utf-8
+
+/app/ride/*
+  Content-Type: text/html; charset=utf-8
+
+/app/account-settings
+  Content-Type: text/html; charset=utf-8
+
+/app/bookings
+  Content-Type: text/html; charset=utf-8
+
+/app/chat
+  Content-Type: text/html; charset=utf-8
+
+/app/personal-information
+  Content-Type: text/html; charset=utf-8
+
+/app/post
+  Content-Type: text/html; charset=utf-8
+
+/app/profile
+  Content-Type: text/html; charset=utf-8
+
+/app/search
+  Content-Type: text/html; charset=utf-8
+
+/app/sign-in
+  Content-Type: text/html; charset=utf-8
+
+/app/trips
+  Content-Type: text/html; charset=utf-8
+
+/app/welcome
+  Content-Type: text/html; charset=utf-8

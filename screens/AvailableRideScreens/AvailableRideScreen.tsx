@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions, Platform, RefreshControl, FlatList, ListRenderItem } from "react-native";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Image, Dimensions, Platform, RefreshControl, FlatList, ListRenderItem, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import DateTimePicker, {
@@ -23,9 +23,11 @@ import bottomNavItems from "../../data/BottomNavigationItems";
 import styles from "./AvailableRideScreens.styles";
 import BrandedAlert from "../../components/BrandedAlert";
 import { appHref, useDecodedLocalSearchParams } from "../../navigation/routes";
-import { seatsAvailableLabel } from "../../utils/seatMath";
+import { hasSeatsLeft, seatsAvailableLabel } from "../../utils/seatMath";
 import { useTabletContentStyle } from "../../utils/responsive";
 import { createDateTimeFormatter } from "../../utils/rideTime";
+import ExternalRideCard from "../../components/ExternalRideCard";
+import type { ExternalRide } from "../../utils/ExternalRideService";
 
 interface AvailableRideScreenProps {
   setNavBarVariant: (variant: 0 | 1 | 2) => void;
@@ -76,6 +78,7 @@ interface ApiResponse {
   rides: RideData[];
   /** Rides the server marked as tight route/time matches. */
   strict_matches?: { id: string; start_distance_m: number; end_distance_m: number }[];
+  external_rides?: ExternalRide[];
   meta: {
     total_found: number;
     used_radius_km: number;
@@ -183,6 +186,7 @@ const AvailableRideResultRow = React.memo(function AvailableRideResultRow({
         price={ride.total_price}
         isSelected={selectedRideId === ride.id}
         seatsAvailable={seatsAvailableLabel(ride.total_seats, ride.booked_seats)}
+        totalSeats={ride.total_seats}
         onSelect={onSelect}
         pricePerPerson={false}
         matchReason={ride.match_reason}
@@ -252,10 +256,16 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   // Real safe-area inset keeps the header below system chrome.
   const insets = useSafeAreaInsets();
 
+  // Monotonic id for search requests. Only the response from the newest
+  // request is applied, so an earlier (stale/empty) request that resolves out
+  // of order can't overwrite the latest results — that's the "no results, then
+  // results on the same search" race.
+  const fetchSeqRef = useRef(0);
+
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
   const [rides, setRides] = useState<RideData[]>([]);
+  const [externalRides, setExternalRides] = useState<ExternalRide[]>([]);
   const [loading, setLoading] = useState(false);
-  // Pull-to-refresh keeps the current result list mounted.
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -270,7 +280,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const visibleRides = useMemo(
     () =>
       rides.flatMap((ride: RideData) =>
-        ride.total_seats > (ride.booked_seats + 1)
+        hasSeatsLeft(ride.total_seats, ride.booked_seats)
           ? [{
           ride,
           isBestMatch: strictMatchIds.has(ride.id),
@@ -400,9 +410,20 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
   const fetchRides = ({ refresh = false }: { refresh?: boolean } = {}) => {
     if (!fromLocation || !toLocation) {
       if (DEBUG_RIDE_SEARCH) console.log("No locations provided, not fetching rides.");
+      // Invalidate any in-flight request so its late response can't land.
+      fetchSeqRef.current += 1;
       setRides([]);
+      setExternalRides([]);
+      setSearchMeta(null);
+      setStrictMatchIds(new Set());
+      setLoading(false);
+      setRefreshing(false);
       return;
     }
+
+    // Claim this request as the newest; its response is the only one applied.
+    const seq = ++fetchSeqRef.current;
+    const isCurrent = () => seq === fetchSeqRef.current;
 
     // First fetch uses the page loader; refreshes use the inline spinner.
     if (refresh) {
@@ -416,12 +437,18 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
 
     const queryParams = buildQueryParams();
 
-    apiUtil
-      .get<ApiResponse>(`/ride/search?${queryParams}`)
+    const searchEndpoint = `/ride/search?${queryParams}`;
+    const searchRequest = refresh
+      ? apiUtil.getUncached<ApiResponse>(searchEndpoint)
+      : apiUtil.get<ApiResponse>(searchEndpoint);
+
+    searchRequest
       .then((response) => {
+        if (!isCurrent()) return; // a newer search superseded this one
         if (DEBUG_RIDE_SEARCH) console.log("API response:", response);
         if (response && response.rides) {
           setRides(response.rides);
+          setExternalRides(response.external_rides ?? []);
           setSearchMeta(response.meta);
           const ids = new Set<string>();
           for (const m of response.strict_matches ?? []) {
@@ -429,18 +456,20 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
           }
           setStrictMatchIds(ids);
         } else {
-          // Legacy API shape returned the ride array directly.
           setRides(Array.isArray(response) ? response : []);
+          setExternalRides([]);
           setSearchMeta(null);
           setStrictMatchIds(new Set());
         }
       })
       .catch((err: any) => {
+        if (!isCurrent()) return; // a newer search superseded this one
         // Auth redirects are handled by the auth flow, not this result list.
         const isAuthRedirect =
           err instanceof Error && err.message === "AUTHENTICATION_REDIRECT";
         console.error("API error:", err);
         setRides([]);
+        setExternalRides([]);
         setSearchMeta(null);
         setStrictMatchIds(new Set());
         if (!isAuthRedirect) {
@@ -448,6 +477,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         }
       })
       .finally(() => {
+        if (!isCurrent()) return; // keep the newest request's spinner state
         setLoading(false);
         setRefreshing(false);
       });
@@ -688,7 +718,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       );
     }
 
-    if (rides.length !== 0 || loading) return null;
+    if (rides.length !== 0 || externalRides.length !== 0 || loading) return null;
 
     return (
       <View style={styles.noRidesContainer}>
@@ -755,11 +785,53 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     loading,
     requireAuth,
     rides.length,
+    externalRides.length,
     navigate, toCoordinates,
     toLocation,
     // Re-render when theme tokens used by the empty state change.
     colors,
   ]);
+
+  const renderExternalRidesFooter = useCallback(() => {
+    if (externalRides.length === 0) return null;
+    const authReturnTo = {
+      screen: "AvailableRidesScreen" as const,
+      params: {
+        fromLocation,
+        toLocation,
+        fromCoordinates,
+        toCoordinates,
+        targetTime: targetTimeIso || undefined,
+      },
+    };
+    return (
+      <View style={{ marginTop: 20, paddingBottom: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }}>
+          <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.inkLine }} />
+          <Text style={{ fontFamily: "NunitoSans_700Bold", fontSize: 12.5, letterSpacing: 0.2, color: colors.textSecondary }}>
+            More rides nearby
+          </Text>
+          <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.inkLine }} />
+        </View>
+        <Text style={{ fontFamily: "NunitoSans_600SemiBold", fontSize: 11.5, textAlign: "center", marginBottom: 14, lineHeight: 16, color: colors.textTertiary }}>
+          These aren't on UniPool. Contact the host directly to arrange.
+        </Text>
+        {externalRides.map((r) => (
+          <ExternalRideCard key={r.id} ride={r} authReturnTo={authReturnTo} />
+        ))}
+      </View>
+    );
+  }, [
+    colors,
+    externalRides,
+    fromCoordinates,
+    fromLocation,
+    targetTimeIso,
+    toCoordinates,
+    toLocation,
+  ]);
+
+  const totalRideCount = rides.length + externalRides.length;
 
   const renderFilterModal = () => (
     <Modal
@@ -996,7 +1068,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
           </TouchableOpacity>
           <View>
             <Text style={[styles.ridesCountText, { color: colors.textPrimary }]}>
-              {loading ? "Searching..." : `${rides.length} rides found`}
+              {loading ? "Searching..." : `${totalRideCount} ride${totalRideCount !== 1 ? "s" : ""} found`}
             </Text>
             {searchMeta && (
               <Text style={[styles.searchMetaText, { color: colors.textSecondary }]}>
@@ -1014,6 +1086,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
         keyExtractor={rideKeyExtractor}
         renderItem={renderRideItem}
         ListEmptyComponent={renderEmptyResults}
+        ListFooterComponent={renderExternalRidesFooter}
         contentContainerStyle={[
           styles.contentContainer,
           { backgroundColor: colors.background },

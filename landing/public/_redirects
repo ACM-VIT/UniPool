@@ -1,0 +1,9 @@
+# Cloudflare Pages routing. Two SPAs share this project:
+#   /app/ride/* -> dynamic expo ride-detail routes
+#   /*      -> the marketing + satellite-domain site (react-router)
+#
+# Static route entrypoints for the app are materialized by
+# scripts/stage-expo-app.mjs. Keep this fallback narrow so app assets under
+# /app/_expo/... are served as JavaScript/CSS instead of rewritten to HTML.
+/app/ride/*  /app/_index  200
+/*      /index.html      200

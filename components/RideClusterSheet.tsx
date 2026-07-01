@@ -13,6 +13,7 @@ import {
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
 import { displayRideLocation } from "../utils/LocationService";
+import { passengerSeatsLeft } from "../utils/seatMath";
 import type { Palette } from "../design_systems/palettes";
 
 export type ClusteredRide = {
@@ -28,7 +29,13 @@ export type ClusteredRide = {
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /** The headline place: the shared origin (pickup) or drop-off (destination). */
   pickup: string;
+  /**
+   * Whether the grouped rides share an origin ("pickup", default) or a
+   * drop-off ("destination"). Only changes the header framing.
+   */
+  mode?: "pickup" | "destination";
   rides: ClusteredRide[];
   /** Called when the user taps a specific time chip. */
   onPickRide: (ride: ClusteredRide) => void;
@@ -156,6 +163,7 @@ const RideClusterSheet: React.FC<Props> = ({
   visible,
   onClose,
   pickup,
+  mode = "pickup",
   rides,
   onPickRide,
 }) => {
@@ -168,7 +176,7 @@ const RideClusterSheet: React.FC<Props> = ({
       const key = r.end_location;
       const ts = new Date(r.start_time).getTime();
       const { day, time } = formatChipLabel(r.start_time);
-      const seatsLeft = Math.max(0, r.total_seats - r.booked_seats);
+      const seatsLeft = passengerSeatsLeft(r.total_seats, r.booked_seats);
       const chip: ClusteredRideChip = {
         ...r,
         startTimeMs: ts,
@@ -241,7 +249,8 @@ const RideClusterSheet: React.FC<Props> = ({
 
           <View style={styles.headerBlock}>
             <Text style={[styles.eyebrow, { color: colors.textSecondary }]}>
-              {rides.length} {rides.length === 1 ? "ride" : "rides"} leaving from
+              {rides.length} {rides.length === 1 ? "ride" : "rides"}{" "}
+              {mode === "destination" ? "going to" : "leaving from"}
             </Text>
             <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>
               {shorten(pickup, 48)}

@@ -1216,8 +1216,7 @@ const RideDetailsScreen: React.FC = () => {
     // Direct store URL for first-time recipients. Kept symmetric with
     // ShareRideSheet.shareMessage so both share surfaces read the same
     // in a recipient's inbox.
-    const downloadUrl =
-      "https://play.google.com/store/apps/details?id=com.carpoolitapp&hl=en_IN";
+    const downloadUrl = "https://unipool.download";
     const message = `I'm on a UniPool ride from ${displayRideLocation(rideData.start_location)} to ${displayRideLocation(rideData.end_location)} on ${formatDate(rideData.start_time)} at ${formatTimeDisplay(rideData.start_time)}.\n\nNew to UniPool?\n${downloadUrl}\n\nHop in:\n${deepLink}`;
     try {
       await Share.share({
