@@ -3,7 +3,7 @@
     "name": "UniPool",
     "slug": "UniPool",
     "scheme": "unipool",
-    "version": "2.0.11",
+    "version": "2.0.12",
     "orientation": "portrait",
     "icon": "./assets/icon2.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
       "usesAppleSignIn": true,
-      "buildNumber": "18",
+      "buildNumber": "19",
       "bundleIdentifier": "com.carpoolitapp"
     },
     "android": {
@@ -30,7 +30,7 @@
         "resizeMode": "contain",
         "backgroundColor": "#B5D750"
       },
-      "versionCode": 18,
+      "versionCode": 19,
       "package": "com.carpoolitapp",
       "config": {
         "googleMaps": {
@@ -39,7 +39,9 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
     },
     "updates": {
       "enabled": true,

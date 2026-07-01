@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Image, ScrollView, TouchableOpacity, Platform, Share, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Constants from "expo-constants";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as Updates from "expo-updates";
+import appJson from "../../app.json";
 import { ProfileScreenProps } from "./ProfileScreen.types";
 import styles from "./ProfileScreen.styles";
 import AppColors from "../../design_systems/colors";
@@ -29,6 +32,61 @@ const DEBUG_PROFILE =
 const debugLog = (...args: any[]) => {
   if (DEBUG_PROFILE) console.log(...args);
 };
+
+type RuntimeVersionConfig = string | { policy?: string } | undefined;
+
+type AppVersionConfig = {
+  version?: string;
+  runtimeVersion?: RuntimeVersionConfig;
+  ios?: { buildNumber?: string };
+  android?: { versionCode?: number | string };
+};
+
+const bundledExpoConfig = appJson.expo as AppVersionConfig;
+
+const infoValue = (value: unknown): string | undefined => {
+  if (value === null || value === undefined) return undefined;
+  const text = String(value).trim();
+  return text.length > 0 ? text : undefined;
+};
+
+const firstInfoValue = (...values: unknown[]) => {
+  for (const value of values) {
+    const text = infoValue(value);
+    if (text) return text;
+  }
+  return undefined;
+};
+
+const runtimeVersionFromConfig = (
+  runtimeVersion: RuntimeVersionConfig,
+  appVersion?: string,
+) => {
+  if (typeof runtimeVersion === "string") {
+    return runtimeVersion;
+  }
+  if (runtimeVersion?.policy === "appVersion") {
+    return appVersion;
+  }
+  return undefined;
+};
+
+const ProfileAppIcon = () => (
+  <View
+    style={styles.appInfoIconTile}
+    accessible
+    accessibilityRole="image"
+    accessibilityLabel="UniPool app icon"
+  >
+    <Text style={styles.appInfoIconUni}>Uni</Text>
+    <View style={styles.appInfoIconPoolRow}>
+      <Text style={styles.appInfoIconPoolLetter}>P</Text>
+      <View style={styles.appInfoIconWheel} />
+      <View style={styles.appInfoIconWheel} />
+      <Text style={styles.appInfoIconPoolLetter}>l</Text>
+    </View>
+  </View>
+);
 
 interface UserData {
   id: string;
@@ -257,6 +315,64 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     };
   }, [userData]);
 
+  const appInfo = useMemo(() => {
+    const expoConfig = Constants.expoConfig as AppVersionConfig | null;
+    const configuredBuildVersion =
+      Platform.OS === "ios"
+        ? expoConfig?.ios?.buildNumber
+        : expoConfig?.android?.versionCode?.toString();
+    const bundledBuildVersion =
+      Platform.OS === "ios"
+        ? bundledExpoConfig.ios?.buildNumber
+        : bundledExpoConfig.android?.versionCode?.toString();
+    const configRuntimeVersion = runtimeVersionFromConfig(
+      expoConfig?.runtimeVersion,
+      expoConfig?.version,
+    );
+    const bundledRuntimeVersion = runtimeVersionFromConfig(
+      bundledExpoConfig.runtimeVersion,
+      bundledExpoConfig.version,
+    );
+
+    return {
+      version:
+        firstInfoValue(
+          Constants.nativeAppVersion,
+          expoConfig?.version,
+          bundledExpoConfig.version,
+        ) ?? "Unknown",
+      build: firstInfoValue(
+        Constants.nativeBuildVersion,
+        configuredBuildVersion,
+        bundledBuildVersion,
+      ),
+      runtime:
+        firstInfoValue(
+          Updates.runtimeVersion,
+          Constants.expoRuntimeVersion,
+          configRuntimeVersion,
+          bundledRuntimeVersion,
+        ) ?? "Unknown",
+      ota: Updates.updateId
+        ? Updates.updateId.slice(0, 8)
+        : Updates.isEmbeddedLaunch
+          ? "Embedded"
+          : "Not available",
+    };
+  }, []);
+
+  const appInfoRows = useMemo(
+    () => [
+      {
+        label: "Version",
+        value: appInfo.build ? `${appInfo.version} (${appInfo.build})` : appInfo.version,
+      },
+      { label: "Runtime", value: appInfo.runtime },
+      { label: "OTA", value: appInfo.ota },
+    ],
+    [appInfo],
+  );
+
 
   // "Bookings" row was removed — the Trips tab in the main nav is the
   // canonical surface for booked / hosted / past rides, so a second
@@ -360,7 +476,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   };
 
   const openRateApp = () => {
-    const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.carpoolitapp';
+    const playStoreUrl = 'https://unipool.download';
     // Replace with the App Store listing URL after first iOS submission.
     const appStoreUrl = 'https://apps.apple.com/app/unipool/id6740000000';
     const url = Platform.OS === 'ios' ? appStoreUrl : playStoreUrl;
@@ -693,6 +809,40 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
           <Text style={[styles.sectionTitle, { color: themeColors.textPrimary }]}>More</Text>
           <View style={[styles.menuContainer, { zIndex: 2000, elevation: 2000, position: 'relative' }]}>
             {moreItems.map(renderMenuItem)}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: themeColors.textPrimary }]}>Information</Text>
+          <View
+            style={[
+              styles.appInfoCard,
+              {
+                backgroundColor: themeColors.navFill,
+                borderColor: themeColors.inkSubtle,
+              },
+            ]}
+          >
+            <View style={styles.appInfoBrandRow}>
+              <ProfileAppIcon />
+              <View style={styles.appInfoBrandText}>
+                <Text style={[styles.appInfoWordmark, { color: themeColors.textOnDark }]}>UniPool</Text>
+                <Text style={[styles.appInfoSubtitle, { color: themeColors.textOnDark }]}>ACM-VIT</Text>
+              </View>
+            </View>
+            <View style={[styles.appInfoDivider, { backgroundColor: themeColors.inkSubtle }]} />
+            {appInfoRows.map((row) => (
+              <View key={row.label} style={styles.appInfoRow}>
+                <Text style={[styles.appInfoLabel, { color: themeColors.textOnDark }]}>{row.label}</Text>
+                <Text
+                  style={[styles.appInfoValue, { color: themeColors.textOnDark }]}
+                  numberOfLines={1}
+                  ellipsizeMode="middle"
+                >
+                  {row.value}
+                </Text>
+              </View>
+            ))}
           </View>
         </View>
 

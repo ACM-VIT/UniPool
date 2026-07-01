@@ -10,6 +10,8 @@ import {
 } from "@maplibre/maplibre-react-native";
 import AppColors from "../design_systems/colors";
 import { useThemeColors } from "../contexts/ThemeContext";
+import positronLightStyle from "../assets/map/positron-light.json";
+import darkMatterDarkStyle from "../assets/map/dark-matter-dark.json";
 
 // `TripPreviewMap` — modular, non-interactive map that shows the
 // route between two coordinates (A→B). Lifted out of HomeScreen's
@@ -39,12 +41,13 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-// Same tile stack as HomeScreen — OpenFreeMap's donation-funded
-// liberty (light) and dark styles. The component picks one based
-// on the active theme so the trip-preview map matches the
-// surrounding canvas in both modes.
-const MAP_STYLE_URL_LIGHT = "https://tiles.openfreemap.org/styles/liberty";
-const MAP_STYLE_URL_DARK = "https://tiles.openfreemap.org/styles/dark";
+// Same tile stack as HomeScreen — Carto's basemaps (Positron light,
+// Dark Matter dark), bundled into assets/map so the map never depends on
+// a third-party STYLE endpoint being up (OpenFreeMap's host went fully
+// unreachable and blanked the map). Tiles, sprites, and glyphs still
+// stream from Carto's CDN (absolute URLs inside the style JSON).
+const MAP_STYLE_URL_LIGHT = positronLightStyle as any;
+const MAP_STYLE_URL_DARK = darkMatterDarkStyle as any;
 const MIN_LINE_DELTA = 0.000001;
 
 const isValidCoord = (coord: Coord) =>

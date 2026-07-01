@@ -19,18 +19,13 @@ import { useUser } from "../contexts/UserContext";
 
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { useFonts } from "expo-font";
-import {
-  NunitoSans_400Regular,
-  NunitoSans_600SemiBold,
-  NunitoSans_700Bold,
-  NunitoSans_800ExtraBold,
-} from "@expo-google-fonts/nunito-sans";
 import * as SplashScreen from "expo-splash-screen";
 import { getAuth, getIdTokenResult, onAuthStateChanged, GoogleAuthProvider, signInWithCredential } from "@react-native-firebase/auth";
 
 import * as Notifications from "expo-notifications";
 import * as SystemUI from "expo-system-ui";
 import * as Device from "expo-device";
+import * as Updates from "expo-updates";
 import AppColors from "../design_systems/colors";
 import { shouldShowPermissionsPrompt } from "../utils/permissionsPrompt";
 import {
@@ -46,6 +41,8 @@ const DEBUG_APP =
 const debugLog = (...args: any[]) => {
   if (DEBUG_APP) console.log(...args);
 };
+
+const OTA_FOREGROUND_CHECK_INTERVAL_MS = 15 * 60_000;
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 void SystemUI.setBackgroundColorAsync(AppColors.primaryLightGreen).catch(() => {});
@@ -171,6 +168,8 @@ const AppShell = () => {
     useState<"LocationPermissionScreen" | null | undefined>(undefined);
   const [authStateResolved, setAuthStateResolved] = useState(false);
   const lastPostedPushTokenRef = useRef<string | null>(null);
+  const otaCheckInflightRef = useRef(false);
+  const lastOtaCheckAtRef = useRef(0);
   const [lastUserVerification, setLastUserVerification] = useState<number | null>(null);
 
   const isCachedAuthValid = () => {
@@ -210,15 +209,73 @@ const AppShell = () => {
     loadCachedVerification();
   }, []);
 
-  const [fontsLoaded] = useFonts({
-    NunitoSans_400Regular,
-    NunitoSans_600SemiBold,
-    NunitoSans_700Bold,
-    NunitoSans_800ExtraBold,
-    NunitoSans: NunitoSans_600SemiBold,
+  const [fontsLoaded, fontLoadError] = useFonts({
+    NunitoSans_400Regular: require("../assets/fonts/nunito-sans/NunitoSans_400Regular.ttf"),
+    NunitoSans_600SemiBold: require("../assets/fonts/nunito-sans/NunitoSans_600SemiBold.ttf"),
+    NunitoSans_700Bold: require("../assets/fonts/nunito-sans/NunitoSans_700Bold.ttf"),
+    NunitoSans_800ExtraBold: require("../assets/fonts/nunito-sans/NunitoSans_800ExtraBold.ttf"),
+    NunitoSans: require("../assets/fonts/nunito-sans/NunitoSans_600SemiBold.ttf"),
     // Brand wordmark face used by shared headers, splash, and error surfaces.
     "Trap-Bold": require("../assets/fonts/trap/Trap-Bold.otf"),
+    // Heavier + medium display cuts. Used by the web surfaces for a
+    // richer headline hierarchy (oversized Trap-Black heroes, Trap-Medium
+    // subheads); harmless on native, which simply has them available.
+    "Trap-Black": require("../assets/fonts/trap/Trap-Black.otf"),
+    "Trap-Medium": require("../assets/fonts/trap/Trap-Medium.otf"),
   });
+  const fontsReady = fontsLoaded || !!fontLoadError;
+
+  useEffect(() => {
+    if (fontLoadError) {
+      console.warn("Font loading failed; continuing app boot with fallback fonts.", fontLoadError);
+    }
+  }, [fontLoadError]);
+
+  useEffect(() => {
+    const checkAndApplyOTA = async (reason: "startup" | "foreground") => {
+      if (__DEV__ || !Updates.isEnabled || otaCheckInflightRef.current) {
+        return;
+      }
+
+      const now = Date.now();
+      if (
+        reason === "foreground" &&
+        now - lastOtaCheckAtRef.current < OTA_FOREGROUND_CHECK_INTERVAL_MS
+      ) {
+        return;
+      }
+
+      otaCheckInflightRef.current = true;
+      lastOtaCheckAtRef.current = now;
+      try {
+        const check = await Updates.checkForUpdateAsync();
+        if (!check.isAvailable) {
+          return;
+        }
+
+        const fetch = await Updates.fetchUpdateAsync();
+        if (fetch.isNew) {
+          await Updates.reloadAsync();
+        }
+      } catch (error) {
+        debugLog("OTA update check failed:", error);
+      } finally {
+        otaCheckInflightRef.current = false;
+      }
+    };
+
+    void checkAndApplyOTA("startup");
+
+    const appStateSub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void checkAndApplyOTA("foreground");
+      }
+    });
+
+    return () => {
+      appStateSub.remove();
+    };
+  }, []);
 
   const [navBarVariant, setNavBarVariant] = useState<0 | 1 | 2>(0);
   const [navBarText, setNavBarText] = useState<string>("");
@@ -238,7 +295,7 @@ const AppShell = () => {
   const currentRouteName = routeNameFromPath(pathname) ?? initialRoute ?? "SplashScreen";
   const isBootstrapping =
     showCustomSplash ||
-    !fontsLoaded ||
+    !fontsReady ||
     loading ||
     !initialRoute ||
     !authStateResolved ||
@@ -529,7 +586,9 @@ const AppShell = () => {
             setInitialRoute("HomeScreen");
           } else {
             debugLog("No user, first run — OnboardingScreen");
-            setInitialRoute("OnboardingScreen");
+            // Web has a landing page on HomeScreen for signed-out
+            // visitors, so it skips the mobile onboarding carousel.
+            setInitialRoute(Platform.OS === "web" ? "HomeScreen" : "OnboardingScreen");
           }
         } catch (e) {
           debugLog("Onboarding flag check failed, defaulting to OnboardingScreen", e);
@@ -608,9 +667,11 @@ const AppShell = () => {
           try {
             const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
             const seen = await AsyncStorage.getItem("hasSeenOnboarding");
-            setInitialRoute(seen === "true" ? "HomeScreen" : "OnboardingScreen");
+            setInitialRoute(seen === "true" || Platform.OS === "web" ? "HomeScreen" : "OnboardingScreen");
           } catch (e) {
-            setInitialRoute("OnboardingScreen");
+            // Web has a landing page on HomeScreen for signed-out
+            // visitors, so it skips the mobile onboarding carousel.
+            setInitialRoute(Platform.OS === "web" ? "HomeScreen" : "OnboardingScreen");
           }
         }
         setAuthStateResolved(true);
@@ -695,7 +756,7 @@ const AppShell = () => {
   }, [apiUtil, authStateResolved]);
 
   useEffect(() => {
-    if (fontsLoaded && !loading && initialRoute && authStateResolved) {
+    if (fontsReady && !loading && initialRoute && authStateResolved) {
       // First-run users get a brief splash beat before onboarding.
       const minDurationMs = initialRoute === "OnboardingScreen" ? 900 : 100;
       const timer = setTimeout(() => {
@@ -704,7 +765,7 @@ const AppShell = () => {
       }, minDurationMs);
       return () => clearTimeout(timer);
     }
-  }, [fontsLoaded, loading, initialRoute, authStateResolved]);
+  }, [fontsReady, loading, initialRoute, authStateResolved]);
 
   // Decide whether the user should land on LocationPermissionScreen
   // FIRST instead of their normal initial route. Runs once `initialRoute`
@@ -716,6 +777,13 @@ const AppShell = () => {
     let cancelled = false;
     (async () => {
       try {
+        if (Platform.OS === "web") {
+          // The web build relies on the browser's own geolocation prompt;
+          // detouring through the native LocationPermissionScreen reads as a
+          // barrier on the web entrypoint, so go straight to the home.
+          if (!cancelled) setLocationDetour(null);
+          return;
+        }
         if (initialRoute !== "HomeScreen") {
           if (!cancelled) setLocationDetour(null);
           return;
@@ -753,8 +821,12 @@ const AppShell = () => {
     }
   }, [initialRoute, isBootstrapping, pathname, replace, locationDetour]);
 
+  // The mobile floating tab bar is replaced on web by the top
+  // navigation in WebShell, so it never renders on the web build.
   const showNavBar =
-    !isBootstrapping && !NAVBAR_HIDDEN_ROUTES.includes(currentRouteName as string);
+    !isBootstrapping &&
+    !NAVBAR_HIDDEN_ROUTES.includes(currentRouteName as string) &&
+    Platform.OS !== "web";
   
   return (
     <View style={globalStyles.shellRoot}>

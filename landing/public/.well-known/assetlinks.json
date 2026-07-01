@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.carpoolitapp",
+      "sha256_cert_fingerprints": ["2C:B5:59:38:F4:B0:F8:11:73:F1:1E:C6:37:BE:6D:20:E6:1E:85:F2:2A:81:E6:D4:04:6A:EC:43:EA:02:66:26"]
+    }
+  }
+]

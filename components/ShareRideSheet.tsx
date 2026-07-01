@@ -18,8 +18,7 @@ import { displayRideLocation } from "../utils/LocationService";
 /** Base HTTPS host for ride share links and future app-link routing. */
 const SHARE_HOST = "https://unipool.acmvit.in";
 // Direct install target for first-time recipients and link preview clients.
-const DOWNLOAD_URL =
-  "https://play.google.com/store/apps/details?id=com.carpoolitapp&hl=en_IN";
+const DOWNLOAD_URL = "https://unipool.download";
 const PERFORATION_DASH_KEYS = Array.from({ length: 18 }, (_, index) => `dash-${index}`);
 
 type Props = {

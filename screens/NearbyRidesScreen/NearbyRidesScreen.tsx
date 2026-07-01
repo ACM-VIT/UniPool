@@ -27,6 +27,23 @@ import { useApi } from "../../utils/ApiUtil";
 import { useUser } from "../../contexts/UserContext";
 import { useTabletContentStyle, useTabletScrollContentStyle } from "../../utils/responsive";
 import { isRideUpcomingAt } from "../../utils/rideTime";
+import { hasSeatsLeft, passengerSeatsLeft, seatsAvailableLabel } from "../../utils/seatMath";
+import RideClusterSheet, { type ClusteredRide } from "../../components/RideClusterSheet";
+import ExternalRideCard from "../../components/ExternalRideCard";
+import type { ExternalRide } from "../../utils/ExternalRideService";
+
+type NearbyCluster = {
+  key: string;
+  destination: string;
+  pickup: string;
+  rides: NearbyRideRow[];
+  closestKm: number | null;
+  totalSeats: number;
+};
+
+type NearbyListItem =
+  | { type: "ride"; ride: NearbyRideRow }
+  | { type: "cluster"; cluster: NearbyCluster };
 
 const { width, height } = Dimensions.get("window");
 const isSmallDevice = width < 350;
@@ -69,7 +86,8 @@ type NearbyRideRow = Omit<NearbyRideWithComputed, "distanceKm"> & {
   dateLabel: string;
   timeLabel: string;
   distanceKm: number | null;
-  seatsLeft: number;
+  seatAvailability: string;
+  seatsLeftNum: number;
 };
 
 let nearbyDateFormatter: Intl.DateTimeFormat | null = null;
@@ -141,13 +159,14 @@ const NearbyRidesScreen: React.FC = () => {
   const viewerUserId = viewerUser?.id ?? "";
   const insets = useSafeAreaInsets();
   const [rides, setRides] = useState<NearbyRideWithComputed[]>([]);
+  const [externalRides, setExternalRides] = useState<ExternalRide[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Permission-gate state is separate from network failures.
   const [needsLocation, setNeedsLocation] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [clusterSheet, setClusterSheet] = useState<{ pickup: string; rides: ClusteredRide[] } | null>(null);
 
   const getCurrentCoords = useCallback(async (forceFresh: boolean) => {
     const cached = nearbyLocationCache;
@@ -202,8 +221,9 @@ const NearbyRidesScreen: React.FC = () => {
         : "";
       const endpoint = `/rides/nearby?lat=${c.latitude.toFixed(4)}&lng=${c.longitude.toFixed(4)}&radius=10000&limit=60${excludeParam}`;
       const json = forceNetwork
-        ? await apiUtil.getUncached<{ rides?: NearbyRide[] }>(endpoint)
-        : await apiUtil.get<{ rides?: NearbyRide[] }>(endpoint);
+        ? await apiUtil.getUncached<{ rides?: NearbyRide[]; external_rides?: ExternalRide[] }>(endpoint)
+        : await apiUtil.get<{ rides?: NearbyRide[]; external_rides?: ExternalRide[] }>(endpoint);
+      setExternalRides(Array.isArray(json?.external_rides) ? json.external_rides : []);
       const nowMs = Date.now();
       const list: NearbyRideWithComputed[] = [];
       for (const r of Array.isArray(json?.rides) ? json.rides : []) {
@@ -250,17 +270,26 @@ const NearbyRidesScreen: React.FC = () => {
     () =>
       rides.flatMap((r) => {
         if (!isRideUpcomingAt(r.start_time, nowTick)) return [];
-        // Client-side guard for cached responses that predate viewer context.
         if (viewerUserId && r.host_user_id === viewerUserId) return [];
+        if (!hasSeatsLeft(r.total_seats, r.booked_seats)) return [];
         return [{
           ...r,
           dateLabel: formatDate(r.start_time),
           timeLabel: formatTime(r.start_time),
           distanceKm: coords ? r.distanceKm : null,
-          seatsLeft: Math.max(0, r.total_seats - r.booked_seats),
+          seatAvailability: seatsAvailableLabel(r.total_seats, r.booked_seats),
+          seatsLeftNum: passengerSeatsLeft(r.total_seats, r.booked_seats),
         }];
       }),
     [coords, rides, nowTick, viewerUserId],
+  );
+
+  // The list shows every nearby ride as its own card, no clustering, so
+  // riders can see and pick each one directly. (The home map still clusters
+  // its pins; this list intentionally does not.)
+  const listItems = useMemo<NearbyListItem[]>(
+    () => visibleRides.map((ride) => ({ type: "ride", ride })),
+    [visibleRides],
   );
 
   const onRefresh = useCallback(async () => {
@@ -282,51 +311,129 @@ const NearbyRidesScreen: React.FC = () => {
       startTimeMs: _startTimeMs,
       dateLabel: _dateLabel,
       timeLabel: _timeLabel,
-      seatsLeft: _seatsLeft,
+      seatAvailability: _seatAvailability,
+      seatsLeftNum: _seatsLeftNum,
       ...ridePayload
     } = ride;
     navigate(appHref("AvailableRidesSelectedScreen", { ride: ridePayload } as any));
   }, [navigate]);
 
-  const renderRide = useCallback(({ item }: { item: NearbyRideRow }) => (
+  const openCluster = useCallback((cluster: NearbyCluster) => {
+    setClusterSheet({
+      pickup: cluster.pickup,
+      rides: cluster.rides.map((ride) => {
+        const {
+          distanceKm: _distanceKm,
+          startTimeMs: _startTimeMs,
+          dateLabel: _dateLabel,
+          timeLabel: _timeLabel,
+          seatAvailability: _seatAvailability,
+          seatsLeftNum: _seatsLeftNum,
+          ...ridePayload
+        } = ride;
+        return ridePayload;
+      }),
+    });
+  }, []);
+
+  const onPickClusteredRide = useCallback((ride: ClusteredRide) => {
+    setClusterSheet(null);
+    navigate(appHref("AvailableRidesSelectedScreen", { ride } as any));
+  }, [navigate]);
+
+  const renderListItem = useCallback(({ item }: { item: NearbyListItem }) => {
+    if (item.type === "cluster") {
+      const { cluster } = item;
+      return (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={[styles.card, { backgroundColor: colors.navFill }]}
+          onPress={() => openCluster(cluster)}
+        >
+          <View style={styles.cardTop}>
+            <View style={styles.routeBlock}>
+              <RouteStack
+                tone="onForest"
+                start={cluster.pickup}
+                end={cluster.destination}
+                numberOfLines={1}
+              />
+            </View>
+            <View style={styles.clusterBadge}>
+              <Text style={styles.clusterBadgeText}>{cluster.rides.length}</Text>
+            </View>
+          </View>
+          <View style={styles.cardFooter}>
+            <Text style={styles.metaText}>
+              {cluster.closestKm !== null ? `${cluster.closestKm.toFixed(1)} km away · ` : ""}
+              {cluster.totalSeats} {cluster.totalSeats === 1 ? "seat" : "seats"} across {cluster.rides.length} rides
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
+    const ride = item.ride;
+    return (
       <TouchableOpacity
         activeOpacity={0.85}
         style={[styles.card, { backgroundColor: colors.navFill }]}
-        onPress={() => openRide(item)}
+        onPress={() => openRide(ride)}
       >
         <View style={styles.cardTop}>
           <View style={styles.routeBlock}>
             <RouteStack
               tone="onForest"
-              start={item.start_location}
-              end={item.end_location}
+              start={ride.start_location}
+              end={ride.end_location}
               numberOfLines={1}
             />
           </View>
-
           <View style={styles.right}>
             <View style={styles.timeRow}>
               <Image source={clockIcon} style={styles.timeIcon} resizeMode="contain" />
-              <Text style={styles.timeText}>{item.timeLabel}</Text>
+              <Text style={styles.timeText}>{ride.timeLabel}</Text>
             </View>
-            <Text style={styles.dateText}>{item.dateLabel}</Text>
+            <Text style={styles.dateText}>{ride.dateLabel}</Text>
           </View>
         </View>
-
         <View style={styles.cardFooter}>
           <Text style={styles.metaText}>
-            {item.distanceKm !== null ? `${item.distanceKm.toFixed(1)} km away · ` : ""}
-            {item.seatsLeft} {item.seatsLeft === 1 ? "seat" : "seats"} left
+            {ride.distanceKm !== null ? `${ride.distanceKm.toFixed(1)} km away · ` : ""}
+            {ride.seatAvailability} seats available
           </Text>
           <View style={styles.pricePill}>
-            <Text style={styles.priceText}>₹{item.total_price}</Text>
+            <Text style={styles.priceText}>₹{ride.total_price}</Text>
           </View>
         </View>
       </TouchableOpacity>
-  ), [openRide, colors]);
+    );
+  }, [openRide, openCluster, colors]);
 
-  const headerCount = !loading && visibleRides.length > 0
-    ? `${visibleRides.length} carpool${visibleRides.length === 1 ? "" : "s"} within 10 km`
+  const renderExternalFooter = useCallback(() => {
+    if (externalRides.length === 0) return null;
+    return (
+      <View style={externalStyles.section}>
+        <View style={externalStyles.divider}>
+          <View style={[externalStyles.dividerLine, { backgroundColor: colors.inkLine }]} />
+          <Text style={[externalStyles.dividerLabel, { color: colors.textSecondary }]}>
+            More rides nearby
+          </Text>
+          <View style={[externalStyles.dividerLine, { backgroundColor: colors.inkLine }]} />
+        </View>
+        <Text style={[externalStyles.disclaimer, { color: colors.textTertiary }]}>
+          These aren't on UniPool. Contact the host directly to arrange.
+        </Text>
+        {externalRides.map((r) => (
+          <ExternalRideCard key={r.id} ride={r} authReturnTo={{ screen: "NearbyRidesScreen" }} />
+        ))}
+      </View>
+    );
+  }, [externalRides, colors]);
+
+  const nearbyRideCount = visibleRides.length + externalRides.length;
+  const headerCount = !loading && nearbyRideCount > 0
+    ? `${nearbyRideCount} carpool${nearbyRideCount === 1 ? "" : "s"} within 10 km`
     : null;
 
   return (
@@ -370,24 +477,23 @@ const NearbyRidesScreen: React.FC = () => {
           ctaLabel="Try again"
           onPressCta={onRefresh}
         />
-      ) : visibleRides.length === 0 ? (
+      ) : visibleRides.length === 0 && externalRides.length === 0 ? (
         <EmptyState
-          // Use the caption-less asset so EmptyState owns the copy.
           image={require("../../assets/no-rides-emoji.png")}
           title="No carpools near you"
-          body="Be the first to post one going your way — your co-riders will roll in."
+          body="Be the first to post one going your way -- your co-riders will roll in."
           ctaLabel="Post a ride"
           onPressCta={() => {
-            // Posting requires auth; AuthSheet resumes this intent after sign-in.
             if (!requireAuth({ screen: "CreateRide" }, "to post a ride")) return;
             navigate(appHref("CreateRide"));
           }}
         />
       ) : (
         <FlatList
-          data={visibleRides}
-          keyExtractor={(it) => it.id}
-          renderItem={renderRide}
+          data={listItems}
+          keyExtractor={(it) => it.type === "cluster" ? it.cluster.key : it.ride.id}
+          renderItem={renderListItem}
+          ListFooterComponent={renderExternalFooter}
           contentContainerStyle={[styles.listContent, tabletScrollContentStyle]}
           ItemSeparatorComponent={NearbyRideSeparator}
           showsVerticalScrollIndicator={false}
@@ -398,6 +504,16 @@ const NearbyRidesScreen: React.FC = () => {
               tintColor={AppColors.secondaryDarkGreen}
             />
           }
+        />
+      )}
+
+      {clusterSheet && (
+        <RideClusterSheet
+          visible
+          onClose={() => setClusterSheet(null)}
+          pickup={clusterSheet.pickup}
+          rides={clusterSheet.rides}
+          onPickRide={onPickClusteredRide}
         />
       )}
     </View>
@@ -598,6 +714,50 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "NunitoSans_800ExtraBold",
     letterSpacing: 0.2,
+  },
+
+  clusterBadge: {
+    backgroundColor: AppColors.primaryLightGreen,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  clusterBadgeText: {
+    color: AppColors.secondaryDarkGreen,
+    fontFamily: "NunitoSans_800ExtraBold",
+    fontSize: 13,
+    letterSpacing: -0.2,
+  },
+});
+
+const externalStyles = StyleSheet.create({
+  section: {
+    marginTop: 20,
+    paddingBottom: 8,
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 8,
+  },
+  dividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+  },
+  dividerLabel: {
+    fontFamily: "NunitoSans_700Bold",
+    fontSize: 12.5,
+    letterSpacing: 0.2,
+  },
+  disclaimer: {
+    fontFamily: "NunitoSans_600SemiBold",
+    fontSize: 11.5,
+    textAlign: "center",
+    marginBottom: 14,
+    lineHeight: 16,
   },
 });
 
