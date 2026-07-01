@@ -330,7 +330,9 @@ const buildNearbyClusters = (
     const lat = by === "pickup" ? r.start_latitude : r.end_latitude;
     const lng = by === "pickup" ? r.start_longitude : r.end_longitude;
     if (typeof lat !== "number" || typeof lng !== "number") continue;
-    const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+    const otherLat = by === "pickup" ? r.end_latitude : r.start_latitude;
+    const otherLng = by === "pickup" ? r.end_longitude : r.start_longitude;
+    const key = `${lat.toFixed(3)},${lng.toFixed(3)}|${otherLat.toFixed(2)},${otherLng.toFixed(2)}`;
     const existing = byKey.get(key);
     if (!existing) {
       byKey.set(key, {

@@ -19,7 +19,9 @@ import { useApi } from "../../utils/ApiUtil";
 import type { RootStackParamList } from "../../navigation/RootStackParamList";
 import { appHref } from "../../navigation/routes";
 import BrandedAlert from "../BrandedAlert";
+import GoogleSignInButton from "../web/GoogleSignInButton";
 import { haptic } from "../haptics";
+import { signInToFirebaseWithGoogleIdToken } from "../../utils/webGoogleAuth";
 import {
   isAuthenticationRedirectError,
   isProviderCollisionError,
@@ -167,6 +169,30 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
         return;
       }
       BrandedAlert.alert("Couldn't sign you in", error?.message || "Try again in a moment.");
+    } finally {
+      setSigningIn(null);
+    }
+  };
+
+  // Web only: Google Identity Services returns an ID token directly (no
+  // firebaseapp.com popup). The backend exchanges it for a Firebase custom
+  // token, then the browser signs in with that custom token.
+  const handleGoogleCredential = async (idToken: string) => {
+    if (isSigningIn) return;
+    setSigningIn("google");
+    try {
+      const result = await signInToFirebaseWithGoogleIdToken(idToken);
+      await handleSuccess(result.user, "google");
+    } catch (error: any) {
+      if (isProviderCollisionError(error)) {
+        await rollbackFirebaseSession(apiUtil, "google");
+        BrandedAlert.alert(
+          "Use your existing sign-in",
+          "That email is already attached to another sign-in method. Sign in with the method you used before for this UniPool account.",
+        );
+      } else {
+        BrandedAlert.alert("Couldn't sign you in", error?.message || "Try again in a moment.");
+      }
     } finally {
       setSigningIn(null);
     }
@@ -334,28 +360,48 @@ const AuthSheet: React.FC<Props> = ({ visible, reason, returnTo, onDismiss }) =>
         {/* Google — kept white per Google brand spec in both modes
             (their brand requires this surface). Border softens so it
             still reads as a distinct chip on the dark sheet. */}
-        <TouchableOpacity
-          style={{ height: 56, borderRadius: 14, backgroundColor: AppColors.basicWhite, borderWidth: 1, borderColor: "rgba(38,59,51,0.14)", flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 22, opacity: signingIn === "apple" ? 0.4 : 1, shadowColor: AppColors.basicBlack, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1 }}
-          onPress={handleGoogle}
-          disabled={isSigningIn}
-          activeOpacity={0.85}
-        >
-          {signingIn === "google" ? (
-            <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} />
+        {(() => {
+          const googleButton = (
+            <TouchableOpacity
+              style={{ height: 56, borderRadius: 14, backgroundColor: AppColors.basicWhite, borderWidth: 1, borderColor: "rgba(38,59,51,0.14)", flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 22, opacity: signingIn === "apple" ? 0.4 : 1, shadowColor: AppColors.basicBlack, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1 }}
+              onPress={handleGoogle}
+              disabled={isSigningIn}
+              activeOpacity={0.85}
+            >
+              {signingIn === "google" ? (
+                <ActivityIndicator size="small" color={AppColors.secondaryDarkGreen} />
+              ) : (
+                <Svg width={20} height={20} viewBox="0 0 48 48">
+                  <Path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
+                  <Path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" />
+                  <Path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
+                  <Path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
+                </Svg>
+              )}
+              {/* Label stays forest because the Google card surface stays
+                  white (their brand) — high contrast in both themes. */}
+              <Text style={{ fontFamily: "NunitoSans_700Bold", fontSize: 17, color: AppColors.secondaryDarkGreen, marginLeft: 10, letterSpacing: 0.2 }}>
+                {signingIn === "google" ? "Signing in…" : "Continue with Google"}
+              </Text>
+            </TouchableOpacity>
+          );
+          // On web, use Google Identity Services (no firebaseapp.com popup).
+          // Native keeps the real @react-native-google-signin button.
+          return Platform.OS === "web" ? (
+            <GoogleSignInButton
+              enabled={visible}
+              busy={signingIn === "google"}
+              onIdToken={handleGoogleCredential}
+              fallback={
+                <View style={{ height: 48, alignItems: "center", justifyContent: "center", marginBottom: 22 }}>
+                  <ActivityIndicator color={AppColors.secondaryDarkGreen} />
+                </View>
+              }
+            />
           ) : (
-            <Svg width={20} height={20} viewBox="0 0 48 48">
-              <Path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
-              <Path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" />
-              <Path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
-              <Path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
-            </Svg>
-          )}
-          {/* Label stays forest because the Google card surface stays
-              white (their brand) — high contrast in both themes. */}
-          <Text style={{ fontFamily: "NunitoSans_700Bold", fontSize: 17, color: AppColors.secondaryDarkGreen, marginLeft: 10, letterSpacing: 0.2 }}>
-            {signingIn === "google" ? "Signing in…" : "Continue with Google"}
-          </Text>
-        </TouchableOpacity>
+            googleButton
+          );
+        })()}
 
         {/* Footer T&C — terse so the sheet stays compact */}
         <Text style={[

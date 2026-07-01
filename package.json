@@ -37,19 +37,26 @@
     "expo-updates": "~56.0.19",
     "google-auth-library": "^10.6.2",
     "lottie-react-native": "^7.3.8",
+    "lottie-web": "^5.13.0",
     "lucide-react-native": "^1.16.0",
+    "maplibre-gl": "^4.7.1",
+    "pmtiles": "^4.4.1",
+    "prop-types": "^15.8.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-map-gl": "^7.1.9",
     "react-native": "^0.85.3",
     "react-native-gesture-handler": "~2.31.1",
     "react-native-maps": "^1.27.2",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "^4.25.2",
-    "react-native-svg": "15.15.4"
+    "react-native-svg": "15.15.4",
+    "react-native-web": "^0.21.2"
   },
   "devDependencies": {
     "@types/react": "^19.2.15",
+    "playwright-core": "^1.60.0",
     "typescript": "^6.0.3"
   },
   "private": true

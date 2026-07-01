@@ -38,8 +38,17 @@ module.exports = () => {
   const config = appJson.expo;
   const androidMapsApiKey = mapsKeyOrFallback("GOOGLE_MAPS_API_KEY_ANDROID", "${MAPS_API_KEY}");
 
+  // Optional web sub-path mount. Set EXPO_WEB_BASE_URL=/app to build the
+  // web bundle for serving under a path (e.g. unipool.in/app). Gated
+  // behind the env var so `expo start --web` and every native build are
+  // unaffected when it's unset.
+  const webBaseUrl = (process.env.EXPO_WEB_BASE_URL || "").trim();
+
   return {
     ...config,
+    ...(webBaseUrl
+      ? { experiments: { ...(config.experiments || {}), baseUrl: webBaseUrl } }
+      : {}),
     plugins: Array.from(
       new Set([...(config.plugins || []), "@react-native-community/datetimepicker"])
     ),
