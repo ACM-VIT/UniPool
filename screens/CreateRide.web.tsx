@@ -1,32 +1,24 @@
-// Web variant of the create-ride screen. A focused web form that posts
-// to the same /ride/create endpoint as mobile. Coordinates are optional
-// on the backend, so the web form collects readable locations, time,
-// seats, and the per-seat fare. Guests are sent to sign in first.
+// Web variant of the create-ride screen, styled to match the mobile
+// "Create a Ride" flow: forest cards on the lime canvas (route, seats
+// stepper, fare), minimal labels, no marketing copy. Posts to the same
+// /ride/create endpoint. Guests are sent to sign in first.
 import React, { useMemo, useState } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { useRouter } from "expo-router";
 import WebShell from "../components/web/WebShell";
-import Reveal from "../components/web/Reveal";
+import WebLocationInput from "../components/web/WebLocationInput";
 import { useApi } from "../utils/ApiUtil";
 import { useAuthGate } from "../contexts/AuthGate";
 import { appHref } from "../navigation/routes";
-import { WEB, RADIUS, FONT, cardBorder } from "../components/web/theme";
+import { WEB, RADIUS, FONT, cardFloat } from "../components/web/theme";
 
-// A two-hours-from-now default keeps the picker from defaulting to a
-// time in the past. We pass it as a local datetime-local string.
+// A two-hours-from-now default keeps the picker off a past time.
 const defaultWhen = () => {
   const d = new Date(Date.now() + 2 * 60 * 60 * 1000);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
-
-const Field: React.FC<{ label: string; children: React.ReactNode; style?: any }> = ({ label, children, style }) => (
-  <View style={[styles.field, style]}>
-    <Text style={styles.fieldLabel}>{label}</Text>
-    {children}
-  </View>
-);
 
 const CreateRideWeb: React.FC = () => {
   const router = useRouter();
@@ -53,7 +45,7 @@ const CreateRideWeb: React.FC = () => {
     setBusy(true);
     setError(null);
     try {
-      const payload = {
+      await apiUtil.post("/ride/create", {
         start_location: from.trim(),
         end_location: to.trim(),
         start_time: new Date(when).toISOString(),
@@ -63,8 +55,7 @@ const CreateRideWeb: React.FC = () => {
         start_longitude: null,
         end_latitude: null,
         end_longitude: null,
-      };
-      await apiUtil.post("/ride/create", payload);
+      });
       router.replace(appHref("TripsListScreen"));
     } catch (err: any) {
       setError(err?.response?.data?.message || "Could not post the ride. Check the details and try again.");
@@ -76,64 +67,74 @@ const CreateRideWeb: React.FC = () => {
   return (
     <WebShell active="CreateRide">
       <View style={styles.wrap}>
-        <Reveal>
-          <Text style={styles.title}>Post a ride</Text>
-          <Text style={styles.subtitle}>Share your route and let students heading the same way ride along.</Text>
-        </Reveal>
+        <Text style={styles.title}>Create a Ride</Text>
 
-        <Reveal delay={100}>
-          <View style={styles.card}>
-            {/* Route — connected from/to, matching the search selector */}
-            <Text style={styles.fieldLabel}>Route</Text>
-            <View style={styles.routeStack}>
-              <View style={styles.routeRow}>
-                <View style={styles.fromDot} />
-                <TextInput style={styles.routeInput} value={from} onChangeText={setFrom} placeholder="Leaving from" placeholderTextColor={WEB.inkMuted} />
-              </View>
-              <View style={styles.routeSep} />
-              <View style={styles.routeRow}>
-                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                  <Path d="M3 11 L21 3 L13 21 L11 13 Z" fill={WEB.forest} />
-                </Svg>
-                <TextInput style={styles.routeInput} value={to} onChangeText={setTo} placeholder="Going to" placeholderTextColor={WEB.inkMuted} />
-              </View>
-            </View>
+        {/* Route — forest card with connected From / To */}
+        <View style={styles.routeCard}>
+          <WebLocationInput
+            value={from}
+            onChangeText={setFrom}
+            onSelect={(label) => setFrom(label)}
+            placeholder="Leaving from"
+            icon={<View style={styles.fromDot} />}
+          />
+          <View style={styles.routeSep} />
+          <WebLocationInput
+            value={to}
+            onChangeText={setTo}
+            onSelect={(label) => setTo(label)}
+            placeholder="Going to"
+            icon={(
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                <Path d="M3 11 L21 3 L13 21 L11 13 Z" fill={WEB.lime} />
+              </Svg>
+            )}
+          />
+        </View>
 
-            <Field label="When" style={{ marginTop: 18 }}>
-              {/* Native datetime picker on web for an accurate, familiar control. */}
-              <input
-                type="datetime-local"
-                value={when}
-                onChange={(e: any) => setWhen(e.target.value)}
-                style={webInputStyle}
-              />
-            </Field>
+        <Text style={styles.label}>When</Text>
+        <input type="datetime-local" value={when} onChange={(e: any) => setWhen(e.target.value)} style={webInputStyle} />
 
-            <View style={styles.twoCol}>
-              <Field label="Total seats (including you)" style={{ flex: 1 }}>
-                <View style={styles.stepper}>
-                  <Pressable style={styles.stepBtn} onPress={() => setSeats((s) => Math.max(2, s - 1))}>
-                    <Text style={styles.stepBtnText}>-</Text>
-                  </Pressable>
-                  <Text style={styles.stepValue}>{seats}</Text>
-                  <Pressable style={styles.stepBtn} onPress={() => setSeats((s) => Math.min(20, s + 1))}>
-                    <Text style={styles.stepBtnText}>+</Text>
-                  </Pressable>
-                </View>
-              </Field>
-              <Field label="Fare per seat (₹)" style={{ flex: 1 }}>
-                <TextInput style={styles.input} value={fare} onChangeText={(t) => setFare(t.replace(/[^0-9]/g, ""))} placeholder="e.g. 250" placeholderTextColor={WEB.inkMuted} keyboardType="numeric" />
-              </Field>
-            </View>
-
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-
-            <Pressable style={[styles.submit, (!canSubmit || busy) && styles.submitDisabled]} onPress={submit} disabled={busy}>
-              {busy ? <ActivityIndicator color={WEB.lime} /> : <Text style={styles.submitText}>{isGuest ? "Sign in to post" : "Post ride"}</Text>}
-            </Pressable>
-            <Text style={styles.note}>Riders pay you per seat over UPI after the trip. You can cancel any time before it leaves.</Text>
+        <Text style={styles.label}>Total seats <Text style={styles.labelHint}>(including you)</Text></Text>
+        <View style={styles.forestCard}>
+          <Pressable style={styles.stepBtn} onPress={() => setSeats((s) => Math.max(2, s - 1))}>
+            <Text style={styles.stepBtnText}>{"−"}</Text>
+          </Pressable>
+          <View style={styles.stepValueWrap}>
+            <Text style={styles.stepValue}>{seats}</Text>
+            <Text style={styles.stepUnit}>{seats === 1 ? "seat" : "seats"}</Text>
           </View>
-        </Reveal>
+          <Pressable style={styles.stepBtn} onPress={() => setSeats((s) => Math.min(20, s + 1))}>
+            <Text style={styles.stepBtnText}>+</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.label}>Fare per seat</Text>
+        <View style={styles.fareCard}>
+          <Text style={styles.fareCurrency}>{"₹"}</Text>
+          <TextInput
+            style={styles.fareInput}
+            value={fare}
+            onChangeText={(t) => setFare(t.replace(/[^0-9]/g, ""))}
+            placeholder="250"
+            placeholderTextColor={WEB.onForestMuted}
+            keyboardType="numeric"
+          />
+        </View>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <Pressable
+          style={({ hovered }: any) => [
+            styles.submit,
+            hovered && (isGuest || canSubmit) && styles.submitHover,
+            (busy || (!isGuest && !canSubmit)) && styles.submitDisabled,
+          ]}
+          onPress={submit}
+          disabled={busy || (!isGuest && !canSubmit)}
+        >
+          {busy ? <ActivityIndicator color={WEB.lime} /> : <Text style={styles.submitText}>{isGuest ? "Sign in to post" : "Post ride"}</Text>}
+        </Pressable>
       </View>
     </WebShell>
   );
@@ -142,51 +143,48 @@ const CreateRideWeb: React.FC = () => {
 export default CreateRideWeb;
 
 const webInputStyle: any = {
-  height: 52,
-  borderRadius: RADIUS.field,
+  height: 56,
+  borderRadius: RADIUS.card,
   border: "none",
-  padding: "0 16px",
+  padding: "0 18px",
   fontFamily: "NunitoSans_700Bold, sans-serif",
   fontSize: 15.5,
-  color: WEB.forest,
-  background: WEB.fieldFill,
+  color: WEB.onForest,
+  background: WEB.forest,
+  colorScheme: "dark",
   outline: "none",
   width: "100%",
   boxSizing: "border-box",
+  marginBottom: 8,
 };
 
 const styles = StyleSheet.create({
-  wrap: { width: "100%", maxWidth: 560, alignSelf: "center", paddingTop: 36, paddingBottom: 56 },
-  title: { fontFamily: FONT.display, fontSize: 28, color: WEB.forest, letterSpacing: -0.6 },
-  subtitle: { fontFamily: FONT.semibold, fontSize: 15.5, lineHeight: 23, color: WEB.inkMuted, marginTop: 8, marginBottom: 24, maxWidth: 460 },
-  card: { backgroundColor: WEB.surface, borderRadius: RADIUS.card, padding: 24, ...cardBorder },
+  wrap: { width: "100%", maxWidth: 520, alignSelf: "center", paddingTop: 32, paddingBottom: 64 },
+  title: { fontFamily: FONT.displayBlack, fontSize: 38, color: WEB.forest, letterSpacing: -1, marginBottom: 22 },
 
-  routeStack: { backgroundColor: WEB.fieldFill, borderRadius: RADIUS.field, paddingHorizontal: 16, marginTop: 8 },
-  routeRow: { flexDirection: "row", alignItems: "center", gap: 13, height: 54 },
-  fromDot: { width: 15, height: 15, borderRadius: 8, borderWidth: 3, borderColor: WEB.forest },
-  routeInput: { flex: 1, fontFamily: FONT.bold, fontSize: 15.5, color: WEB.forest, outlineStyle: "none" as any },
-  routeSep: { height: 1, backgroundColor: WEB.inkSoft, marginLeft: 28 },
+  label: { fontFamily: FONT.black, fontSize: 14, color: WEB.forest, marginTop: 22, marginBottom: 10 },
+  labelHint: { fontFamily: FONT.semibold, fontSize: 13, color: WEB.inkMuted },
 
-  field: { marginBottom: 18 },
-  fieldLabel: { fontFamily: FONT.black, fontSize: 12.5, color: WEB.inkStrong, marginBottom: 8, letterSpacing: 0.2 },
-  input: {
-    height: 52,
-    borderRadius: RADIUS.field,
-    paddingHorizontal: 16,
-    fontFamily: FONT.bold,
-    fontSize: 15.5,
-    color: WEB.forest,
-    backgroundColor: WEB.fieldFill,
-    outlineStyle: "none" as any,
-  },
-  twoCol: { flexDirection: "row", gap: 16 },
-  stepper: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", height: 52, backgroundColor: WEB.fieldFill, borderRadius: RADIUS.field, paddingHorizontal: 8 },
-  stepBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: WEB.lime, alignItems: "center", justifyContent: "center" },
-  stepBtnText: { fontFamily: FONT.black, fontSize: 22, color: WEB.forest, lineHeight: 24 },
-  stepValue: { fontFamily: FONT.display, fontSize: 20, color: WEB.forest, minWidth: 24, textAlign: "center" },
-  error: { fontFamily: FONT.semibold, fontSize: 13.5, color: WEB.orange, marginBottom: 12 },
-  submit: { marginTop: 8, backgroundColor: WEB.forest, borderRadius: RADIUS.button, height: 56, alignItems: "center", justifyContent: "center" },
-  submitDisabled: { opacity: 0.5 },
+  // position+zIndex so the location autocomplete dropdown stacks ABOVE the
+  // When / seats / fare cards that follow it in the form.
+  routeCard: { backgroundColor: WEB.forest, borderRadius: RADIUS.card, paddingHorizontal: 6, position: "relative", zIndex: 30, ...cardFloat },
+  fromDot: { width: 13, height: 13, borderRadius: 7, borderWidth: 3, borderColor: WEB.onForest },
+  routeSep: { height: 1, backgroundColor: WEB.onForestLine, marginLeft: 20 },
+
+  forestCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: WEB.forest, borderRadius: RADIUS.card, height: 64, paddingHorizontal: 12, ...cardFloat },
+  stepBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: WEB.lime, alignItems: "center", justifyContent: "center" },
+  stepBtnText: { fontFamily: FONT.black, fontSize: 24, color: WEB.forest, lineHeight: 26 },
+  stepValueWrap: { flexDirection: "row", alignItems: "baseline", gap: 7 },
+  stepValue: { fontFamily: FONT.displayBlack, fontSize: 26, color: WEB.cream, letterSpacing: -0.5 },
+  stepUnit: { fontFamily: FONT.bold, fontSize: 14, color: WEB.onForestMuted },
+
+  fareCard: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: WEB.forest, borderRadius: RADIUS.card, height: 64, paddingHorizontal: 20, ...cardFloat },
+  fareCurrency: { fontFamily: FONT.displayBlack, fontSize: 22, color: WEB.lime },
+  fareInput: { flex: 1, fontFamily: FONT.black, fontSize: 20, color: WEB.onForest, outlineStyle: "none" as any },
+
+  error: { fontFamily: FONT.semibold, fontSize: 13.5, color: WEB.orange, marginTop: 16 },
+  submit: { marginTop: 28, backgroundColor: WEB.forest, borderRadius: RADIUS.button, height: 56, alignItems: "center", justifyContent: "center", ...cardFloat },
+  submitHover: { backgroundColor: WEB.forestDeep },
+  submitDisabled: { opacity: 0.45 },
   submitText: { fontFamily: FONT.black, fontSize: 16, color: WEB.lime },
-  note: { fontFamily: FONT.semibold, fontSize: 12.5, lineHeight: 18, color: WEB.inkMuted, marginTop: 14, textAlign: "center" },
 });

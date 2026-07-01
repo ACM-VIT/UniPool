@@ -20,11 +20,15 @@ type User = {
   email?: string;
   contact_number?: string;
   gender?: string;
+  yob?: number;
   upi_vpa?: string;
   is_email_verified?: boolean;
   institute_email?: string;
   institute?: { name?: string } | null;
 };
+
+const GENDERS = ["Male", "Female"];
+const CURRENT_YEAR = new Date().getFullYear();
 
 const InfoRow: React.FC<{ label: string; value?: string; last?: boolean }> = ({ label, value, last }) => (
   <View style={[styles.infoRow, !last && styles.infoRowBorder]}>
@@ -52,6 +56,14 @@ const PersonalInformationScreenWeb: React.FC = () => {
   const [vCode, setVCode] = useState("");
   const [vBusy, setVBusy] = useState(false);
   const [vErr, setVErr] = useState<string | null>(null);
+
+  // Editable identity details (gender + year of birth — the optional signup
+  // fields a user may have skipped, so they can set them here later).
+  const [editing, setEditing] = useState(false);
+  const [genderDraft, setGenderDraft] = useState<string | null>(null);
+  const [yobDraft, setYobDraft] = useState("");
+  const [detailsBusy, setDetailsBusy] = useState(false);
+  const [detailsErr, setDetailsErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -81,13 +93,43 @@ const PersonalInformationScreenWeb: React.FC = () => {
     setUpiBusy(true);
     setUpiErr(null);
     try {
-      const resp = await apiUtil.patch<{ user: User }>("/user/profile", { upi_vpa: upiDraft.trim() });
+      const resp = await apiUtil.patch<{ user: User }, { upi_vpa: string }>("/user/profile", { upi_vpa: upiDraft.trim() });
       setUser(resp?.user ?? user);
       setUpiEditing(false);
     } catch {
       setUpiErr("Could not save your UPI ID. Try again.");
     } finally {
       setUpiBusy(false);
+    }
+  };
+
+  const startEditDetails = () => {
+    setGenderDraft(user?.gender ?? null);
+    setYobDraft(user?.yob ? String(user.yob) : "");
+    setDetailsErr(null);
+    setEditing(true);
+  };
+
+  const saveDetails = async () => {
+    const y = yobDraft.trim();
+    if (y && (!/^\d{4}$/.test(y) || parseInt(y, 10) < 1900 || parseInt(y, 10) > CURRENT_YEAR)) {
+      setDetailsErr("Enter a valid 4 digit year.");
+      return;
+    }
+    setDetailsBusy(true);
+    setDetailsErr(null);
+    const payload = {
+      gender: genderDraft ?? "",
+      yob: y ? parseInt(y, 10) : 0,
+    };
+    try {
+      const resp = await apiUtil.patch<{ user: User }, typeof payload>("/user/profile", payload);
+      setUser(resp?.user ?? { ...(user || {}), gender: genderDraft || undefined, yob: y ? parseInt(y, 10) : undefined });
+      setEditing(false);
+    } catch {
+      setDetailsErr("Could not save. Try again.");
+    } finally {
+      setDetailsBusy(false);
     }
   };
 
@@ -117,7 +159,7 @@ const PersonalInformationScreenWeb: React.FC = () => {
     setVBusy(true);
     setVErr(null);
     try {
-      const resp = await apiUtil.post<{ status: string; user?: User }>("/user/verify/confirm", { email: vEmail.trim(), code: vCode.trim() });
+      const resp = await apiUtil.post<{ status: string; user?: User }, { email: string; code: string }>("/user/verify/confirm", { email: vEmail.trim(), code: vCode.trim() });
       setUser((u) => ({ ...(u || {}), is_email_verified: true, institute_email: vEmail.trim(), ...(resp?.user || {}) }));
       setVStep("idle");
     } catch {
@@ -161,10 +203,58 @@ const PersonalInformationScreenWeb: React.FC = () => {
         ) : (
           <Reveal delay={90}>
             <View style={styles.card}>
+              <View style={styles.cardHead}>
+                <Text style={styles.cardTitle}>Details</Text>
+                {!editing ? (
+                  <Pressable onPress={startEditDetails}>
+                    <Text style={styles.editLink}>Edit</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
               <InfoRow label="Name" value={user?.name} />
               <InfoRow label="Email" value={user?.email} />
               <InfoRow label="Contact" value={user?.contact_number} />
-              <InfoRow label="Gender" value={user?.gender} last />
+
+              {!editing ? (
+                <>
+                  <InfoRow label="Gender" value={user?.gender} />
+                  <InfoRow label="Year of birth" value={user?.yob ? String(user.yob) : undefined} last />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.editLabel}>Gender</Text>
+                  <View style={styles.chipRow}>
+                    {GENDERS.map((g) => {
+                      const on = genderDraft === g;
+                      return (
+                        <Pressable key={g} style={[styles.chip, on && styles.chipOn]} onPress={() => setGenderDraft(on ? null : g)}>
+                          <Text style={[styles.chipText, on && styles.chipTextOn]}>{g}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <Text style={[styles.editLabel, { marginTop: 16 }]}>Year of birth <Text style={styles.optional}>(optional)</Text></Text>
+                  <TextInput
+                    style={styles.input}
+                    value={yobDraft}
+                    onChangeText={(t) => setYobDraft(t.replace(/[^0-9]/g, "").slice(0, 4))}
+                    placeholder="e.g. 2005"
+                    placeholderTextColor={WEB.inkMuted}
+                    keyboardType="numeric"
+                  />
+                  {detailsErr ? <Text style={styles.error}>{detailsErr}</Text> : null}
+                  <View style={styles.editActions}>
+                    <Pressable style={styles.saveBtn} onPress={saveDetails} disabled={detailsBusy}>
+                      {detailsBusy ? <ActivityIndicator color={WEB.lime} /> : <Text style={styles.saveBtnText}>Save</Text>}
+                    </Pressable>
+                    <Pressable style={styles.cancelBtn} onPress={() => { setEditing(false); setDetailsErr(null); }}>
+                      <Text style={styles.cancelBtnText}>Cancel</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
             </View>
 
             {/* UPI */}
@@ -289,6 +379,13 @@ const styles = StyleSheet.create({
   infoValue: { fontFamily: FONT.black, fontSize: 15, color: WEB.forest, maxWidth: "60%" },
 
   input: { height: 50, borderRadius: RADIUS.field, backgroundColor: WEB.fieldFill, paddingHorizontal: 16, fontFamily: FONT.bold, fontSize: 15.5, color: WEB.forest, outlineStyle: "none" as any },
+  editLabel: { fontFamily: FONT.black, fontSize: 12.5, color: WEB.inkStrong, marginTop: 14, marginBottom: 8, letterSpacing: 0.2 },
+  optional: { fontFamily: FONT.semibold, color: WEB.inkMuted, letterSpacing: 0 },
+  chipRow: { flexDirection: "row", gap: 10 },
+  chip: { flex: 1, height: 46, borderRadius: RADIUS.field, backgroundColor: WEB.fieldFill, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
+  chipOn: { backgroundColor: WEB.lime, borderColor: WEB.forest },
+  chipText: { fontFamily: FONT.black, fontSize: 14.5, color: WEB.inkStrong },
+  chipTextOn: { color: WEB.forest },
   editActions: { flexDirection: "row", gap: 10, marginTop: 12 },
   saveBtn: { backgroundColor: WEB.forest, borderRadius: RADIUS.button, height: 46, paddingHorizontal: 24, alignItems: "center", justifyContent: "center", marginTop: 12 },
   saveBtnText: { fontFamily: FONT.black, fontSize: 15, color: WEB.lime },

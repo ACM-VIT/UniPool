@@ -3,14 +3,12 @@
 // On native this wraps the Google Sign-In SDK. On web we implement the
 // same small surface the app uses (configure / signIn / signInSilently /
 // getCurrentUser / getTokens / signOut / hasPlayServices) on top of the
-// firebase/auth web SDK. signIn() opens the standard Google popup and
-// returns an idToken in the same shape the native module does, so the
-// shared caller code (which builds a GoogleAuthProvider credential and
-// calls signInWithCredential) works unchanged.
+// Google Identity Services. signIn() returns a Google ID token in the same
+// shape the native module does, so shared caller code can pass it through
+// GoogleAuthProvider.credential; the firebase-auth web shim exchanges that
+// GIS token through UniPool's backend instead of Firebase's OAuth popup.
 import {
   getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
   signOut as firebaseSignOut,
 } from "firebase/auth";
 
@@ -23,6 +21,7 @@ type ConfigureOptions = {
 };
 
 let configuredOptions: ConfigureOptions = {};
+let gisScriptPromise: Promise<any> | null = null;
 
 const shapeUser = (user: {
   uid: string;
@@ -37,6 +36,40 @@ const shapeUser = (user: {
   familyName: null,
   givenName: null,
 });
+
+const loadGoogleIdentityServices = () => {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Google Identity Services is only available in the browser"));
+  }
+
+  const existing = (window as any).google?.accounts?.id;
+  if (existing) return Promise.resolve(existing);
+
+  if (gisScriptPromise) return gisScriptPromise;
+
+  gisScriptPromise = new Promise((resolve, reject) => {
+    let script = document.getElementById("gis-client") as HTMLScriptElement | null;
+    const onLoad = () => {
+      const gis = (window as any).google?.accounts?.id;
+      gis ? resolve(gis) : reject(new Error("Google Identity Services did not initialize"));
+    };
+    const onError = () => reject(new Error("Google Identity Services failed to load"));
+
+    if (!script) {
+      script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.id = "gis-client";
+      document.head.appendChild(script);
+    }
+
+    script.addEventListener("load", onLoad, { once: true });
+    script.addEventListener("error", onError, { once: true });
+  });
+
+  return gisScriptPromise;
+};
 
 export const GoogleSignin = {
   configure(options: ConfigureOptions = {}) {
@@ -69,13 +102,58 @@ export const GoogleSignin = {
   },
 
   async signIn() {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: "select_account" });
-    const result = await signInWithPopup(getAuth(), provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    const idToken = credential?.idToken ?? (await result.user.getIdToken());
-    const user = shapeUser(result.user);
-    return { type: "success" as const, idToken, data: { idToken, user }, user };
+    const gis = await loadGoogleIdentityServices();
+    const clientId = configuredOptions.webClientId;
+    if (!clientId) {
+      throw new Error("GoogleSignin.configure({ webClientId }) must be called before signIn()");
+    }
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let timeout: ReturnType<typeof setTimeout>;
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        fn();
+      };
+      const cancelError: any = new Error("Google sign-in was cancelled");
+      cancelError.code = statusCodes.SIGN_IN_CANCELLED;
+
+      timeout = setTimeout(() => {
+        finish(() => reject(cancelError));
+      }, 60_000);
+
+      gis.initialize({
+        client_id: clientId,
+        callback: (resp: any) => {
+          const idToken = resp?.credential;
+          if (!idToken) {
+            finish(() => reject(cancelError));
+            return;
+          }
+          const currentUser = getAuth().currentUser;
+          const user = currentUser
+            ? shapeUser(currentUser)
+            : {
+                id: "",
+                name: null,
+                email: null,
+                photo: null,
+                familyName: null,
+                givenName: null,
+              };
+          finish(() => resolve({ type: "success" as const, idToken, data: { idToken, user }, user }));
+        },
+        ux_mode: "popup",
+      });
+
+      gis.prompt((notification: any) => {
+        if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
+          finish(() => reject(cancelError));
+        }
+      });
+    });
   },
 
   async signOut() {

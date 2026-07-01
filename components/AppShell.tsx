@@ -19,12 +19,6 @@ import { useUser } from "../contexts/UserContext";
 
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { useFonts } from "expo-font";
-import {
-  NunitoSans_400Regular,
-  NunitoSans_600SemiBold,
-  NunitoSans_700Bold,
-  NunitoSans_800ExtraBold,
-} from "@expo-google-fonts/nunito-sans";
 import * as SplashScreen from "expo-splash-screen";
 import { getAuth, getIdTokenResult, onAuthStateChanged, GoogleAuthProvider, signInWithCredential } from "@react-native-firebase/auth";
 
@@ -215,12 +209,12 @@ const AppShell = () => {
     loadCachedVerification();
   }, []);
 
-  const [fontsLoaded] = useFonts({
-    NunitoSans_400Regular,
-    NunitoSans_600SemiBold,
-    NunitoSans_700Bold,
-    NunitoSans_800ExtraBold,
-    NunitoSans: NunitoSans_600SemiBold,
+  const [fontsLoaded, fontLoadError] = useFonts({
+    NunitoSans_400Regular: require("../assets/fonts/nunito-sans/NunitoSans_400Regular.ttf"),
+    NunitoSans_600SemiBold: require("../assets/fonts/nunito-sans/NunitoSans_600SemiBold.ttf"),
+    NunitoSans_700Bold: require("../assets/fonts/nunito-sans/NunitoSans_700Bold.ttf"),
+    NunitoSans_800ExtraBold: require("../assets/fonts/nunito-sans/NunitoSans_800ExtraBold.ttf"),
+    NunitoSans: require("../assets/fonts/nunito-sans/NunitoSans_600SemiBold.ttf"),
     // Brand wordmark face used by shared headers, splash, and error surfaces.
     "Trap-Bold": require("../assets/fonts/trap/Trap-Bold.otf"),
     // Heavier + medium display cuts. Used by the web surfaces for a
@@ -229,6 +223,13 @@ const AppShell = () => {
     "Trap-Black": require("../assets/fonts/trap/Trap-Black.otf"),
     "Trap-Medium": require("../assets/fonts/trap/Trap-Medium.otf"),
   });
+  const fontsReady = fontsLoaded || !!fontLoadError;
+
+  useEffect(() => {
+    if (fontLoadError) {
+      console.warn("Font loading failed; continuing app boot with fallback fonts.", fontLoadError);
+    }
+  }, [fontLoadError]);
 
   useEffect(() => {
     const checkAndApplyOTA = async (reason: "startup" | "foreground") => {
@@ -294,7 +295,7 @@ const AppShell = () => {
   const currentRouteName = routeNameFromPath(pathname) ?? initialRoute ?? "SplashScreen";
   const isBootstrapping =
     showCustomSplash ||
-    !fontsLoaded ||
+    !fontsReady ||
     loading ||
     !initialRoute ||
     !authStateResolved ||
@@ -755,7 +756,7 @@ const AppShell = () => {
   }, [apiUtil, authStateResolved]);
 
   useEffect(() => {
-    if (fontsLoaded && !loading && initialRoute && authStateResolved) {
+    if (fontsReady && !loading && initialRoute && authStateResolved) {
       // First-run users get a brief splash beat before onboarding.
       const minDurationMs = initialRoute === "OnboardingScreen" ? 900 : 100;
       const timer = setTimeout(() => {
@@ -764,7 +765,7 @@ const AppShell = () => {
       }, minDurationMs);
       return () => clearTimeout(timer);
     }
-  }, [fontsLoaded, loading, initialRoute, authStateResolved]);
+  }, [fontsReady, loading, initialRoute, authStateResolved]);
 
   // Decide whether the user should land on LocationPermissionScreen
   // FIRST instead of their normal initial route. Runs once `initialRoute`
@@ -776,6 +777,13 @@ const AppShell = () => {
     let cancelled = false;
     (async () => {
       try {
+        if (Platform.OS === "web") {
+          // The web build relies on the browser's own geolocation prompt;
+          // detouring through the native LocationPermissionScreen reads as a
+          // barrier on the web entrypoint, so go straight to the home.
+          if (!cancelled) setLocationDetour(null);
+          return;
+        }
         if (initialRoute !== "HomeScreen") {
           if (!cancelled) setLocationDetour(null);
           return;
