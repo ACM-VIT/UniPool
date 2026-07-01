@@ -6,7 +6,7 @@ import AppColors from "../../design_systems/colors";
 
 /**
  * Deep-link landing for ride share links shaped
- * `https://unipool.acmvit.in/ride/<rideId>` (and the equivalent
+ * `https://unipool.in/ride/<rideId>` (and the equivalent
  * `unipool://ride/<rideId>` custom scheme).
  *
  * ShareRideSheet emits this URL into the QR + the native share

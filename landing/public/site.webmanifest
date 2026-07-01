@@ -1,0 +1,31 @@
+{
+  "name": "UniPool",
+  "short_name": "UniPool",
+  "description": "Campus carpooling for students. Find a verified ride to class, the airport, or home. Share the trip, split the cost.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFDF4",
+  "theme_color": "#B5D750",
+  "icons": [
+    { "src": "/favicon-16x16.png", "sizes": "16x16", "type": "image/png" },
+    { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/favicon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable.png", "sizes": "1024x1024", "type": "image/png", "purpose": "maskable" }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.carpoolitapp",
+      "id": "com.carpoolitapp"
+    },
+    {
+      "platform": "itunes",
+      "url": "https://apps.apple.com/app/id6756426249"
+    }
+  ]
+}

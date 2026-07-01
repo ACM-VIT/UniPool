@@ -84,14 +84,24 @@ type ClusteredRideChip = ClusteredRide & {
 };
 
 type DestinationGroup = {
+  // Stable grouping key (normalized destination).
+  key: string;
   destination: string;
-  // Lowest price across rides in this destination group.
-  cheapestPrice: number;
+  // Price spread across rides in this destination group. Rides to the same
+  // place can cost very differently, so the header shows a range and each
+  // chip carries its own price.
+  priceMin: number;
+  priceMax: number;
   // All rides going to this destination, sorted by departure time.
   rides: ClusteredRideChip[];
   // Earliest departure timestamp; drives group sort order.
   nextDeparture: number;
 };
+
+// Normalize a destination so "VIT Vellore", "VIT Vellore, India" and
+// "VIT Vellore, Vellore" collapse into one group instead of three.
+const destKey = (loc: string): string =>
+  (displayRideLocation(loc).split(",")[0] || "").trim().toLowerCase();
 
 type DestinationGroupRowProps = {
   group: DestinationGroup;
@@ -115,7 +125,9 @@ const DestinationGroupRow = React.memo(function DestinationGroupRow({
         </Text>
         <View style={styles.groupMeta}>
           <Text style={[styles.groupPrice, colors.mode === "dark" && { color: colors.textPrimary, opacity: 0.85 }]}>
-            ₹{group.cheapestPrice}
+            {group.priceMin === group.priceMax
+              ? `₹${group.priceMin}`
+              : `₹${group.priceMin}–₹${group.priceMax}`}
           </Text>
         </View>
       </View>
@@ -136,6 +148,7 @@ const DestinationGroupRow = React.memo(function DestinationGroupRow({
           >
             <Text style={[styles.chipDay, colors.mode === "dark" && { color: colors.textTertiary }]}>{ride.chipDay}</Text>
             <Text style={[styles.chipTime, { color: colors.textPrimary }]}>{ride.chipTime}</Text>
+            <Text style={[styles.chipPrice, { color: colors.textPrimary }]}>₹{ride.total_price}</Text>
             <View style={[styles.chipDivider, colors.mode === "dark" && { backgroundColor: colors.inkSubtle }]} />
             <Text
               style={[
@@ -173,7 +186,7 @@ const RideClusterSheet: React.FC<Props> = ({
   const groups = React.useMemo<DestinationGroup[]>(() => {
     const byDest = new Map<string, DestinationGroup>();
     for (const r of rides) {
-      const key = r.end_location;
+      const key = destKey(r.end_location);
       const ts = new Date(r.start_time).getTime();
       const { day, time } = formatChipLabel(r.start_time);
       const seatsLeft = passengerSeatsLeft(r.total_seats, r.booked_seats);
@@ -188,12 +201,15 @@ const RideClusterSheet: React.FC<Props> = ({
       const existing = byDest.get(key);
       if (existing) {
         existing.rides.push(chip);
-        if (r.total_price < existing.cheapestPrice) existing.cheapestPrice = r.total_price;
+        if (r.total_price < existing.priceMin) existing.priceMin = r.total_price;
+        if (r.total_price > existing.priceMax) existing.priceMax = r.total_price;
         if (ts < existing.nextDeparture) existing.nextDeparture = ts;
       } else {
         byDest.set(key, {
+          key,
           destination: r.end_location,
-          cheapestPrice: r.total_price,
+          priceMin: r.total_price,
+          priceMax: r.total_price,
           rides: [chip],
           nextDeparture: ts,
         });
@@ -221,7 +237,7 @@ const RideClusterSheet: React.FC<Props> = ({
     [groups.length, onPickRide, colors],
   );
 
-  const keyExtractor = React.useCallback((group: DestinationGroup) => group.destination, []);
+  const keyExtractor = React.useCallback((group: DestinationGroup) => group.key, []);
 
   return (
     <Modal
@@ -424,6 +440,14 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     color: AppColors.secondaryDarkGreen,
     letterSpacing: -0.2,
+  },
+  chipPrice: {
+    marginTop: 2,
+    fontFamily: "NunitoSans_700Bold",
+    fontSize: 12,
+    color: AppColors.secondaryDarkGreen,
+    opacity: 0.85,
+    letterSpacing: -0.1,
   },
   chipDivider: {
     width: 24,
