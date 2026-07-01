@@ -128,12 +128,14 @@ const styles = StyleSheet.create({
   top: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 },
   when: { fontFamily: FONT.bold, fontSize: 13.5, color: WEB.inkMuted, paddingTop: 5 },
   priceCol: { alignItems: "flex-end", gap: 5 },
-  pricePill: { flexDirection: "row", alignItems: "baseline", backgroundColor: WEB.lime, borderRadius: RADIUS.pill, paddingHorizontal: 13, paddingVertical: 6 },
+  pricePill: { flexDirection: "row", alignItems: "baseline", height: 37, paddingTop: 6, backgroundColor: WEB.lime, borderRadius: RADIUS.pill, paddingHorizontal: 13 },
   priceCurrency: { fontFamily: FONT.black, fontSize: 13, color: WEB.forest, marginRight: 1 },
   price: { fontFamily: FONT.black, fontSize: 18, color: WEB.forest, letterSpacing: -0.3 },
   per: { fontFamily: FONT.bold, fontSize: 11.5, color: WEB.forest, opacity: 0.7, marginLeft: 2 },
-  // Muted counterpart to the lime price pill, for rides with no set fare.
-  askPill: { backgroundColor: WEB.inkSubtle, borderRadius: RADIUS.pill, paddingHorizontal: 13, paddingVertical: 7 },
+  // Muted counterpart to the lime price pill, for rides with no set fare. The
+  // fixed height matches the price pill (whose 18px figure makes it 37 tall),
+  // so the top-right lines up whether or not a card has a fare.
+  askPill: { height: 37, alignItems: "center", justifyContent: "center", backgroundColor: WEB.inkSubtle, borderRadius: RADIUS.pill, paddingHorizontal: 13 },
   askText: { fontFamily: FONT.bold, fontSize: 13, color: WEB.inkStrong, letterSpacing: -0.1 },
   seats: { fontFamily: FONT.bold, fontSize: 12.5, color: WEB.midOlive },
 
