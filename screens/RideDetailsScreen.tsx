@@ -1213,7 +1213,12 @@ const RideDetailsScreen: React.FC = () => {
 
   const handleShare = async () => {
     if (!rideData) return;
-    const deepLink = rideShareUrl(rideData.id || rideId);
+    const shareRideId = rideData.id || rideId;
+    if (!shareRideId) {
+      BrandedAlert.alert('Error', 'Could not share ride details.');
+      return;
+    }
+    const deepLink = rideShareUrl(shareRideId);
     // Direct store URL for first-time recipients. Kept symmetric with
     // ShareRideSheet.shareMessage so both share surfaces read the same
     // in a recipient's inbox.
