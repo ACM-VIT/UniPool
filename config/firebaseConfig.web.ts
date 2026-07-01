@@ -1,19 +1,18 @@
 // Firebase web SDK config for the UniPool web build.
 //
-// Values are taken from google-services.json (project acm-carpoolit).
-// On native, react-native-firebase reads google-services.json /
-// GoogleService-Info.plist automatically; the web SDK has no such file
-// so we pass the config object explicitly here.
+// This is the registered Firebase "Web app" config (project acm-carpoolit)
+// from the Firebase console. On native, react-native-firebase reads
+// google-services.json / GoogleService-Info.plist automatically; the web
+// SDK has no such file, so we pass the config object explicitly here.
 //
-// appId is intentionally omitted: it is only required for Analytics and
-// for a registered Firebase "Web app". Auth (the only Firebase product
-// this app uses) works with apiKey + authDomain + projectId. Add the
-// web appId here once a Web app is registered in the Firebase console
-// if Analytics is ever wired up.
+// The web apiKey + appId here are the Web-app credentials (distinct from the
+// Android/iOS keys) — required for the signInWithPopup / signInWithRedirect
+// OAuth flow to work in the browser.
 export const firebaseConfig = {
-  apiKey: "AIzaSyB3VCeLwky9HstgyVKKOUqHTblLOnRym3g",
+  apiKey: "AIzaSyDXSLiYHX1Znhx1XukTyCvc2uYvZmLAqGM",
   authDomain: "acm-carpoolit.firebaseapp.com",
   projectId: "acm-carpoolit",
   storageBucket: "acm-carpoolit.firebasestorage.app",
   messagingSenderId: "290309531485",
+  appId: "1:290309531485:web:a3c6f527b7c5bd5ffe6ab4",
 };

@@ -1,12 +1,12 @@
 // Web-only app chrome. Provides the sticky top navigation that replaces
-// the mobile floating tab bar, plus a responsive content area. Web
+// the mobile floating tab bar, the lime canvas the app lives on, and a
+// forest footer that gently points visitors to the native app. Web
 // screen variants (screens/*.web.tsx) render their content inside this
-// so every page shares one header, brand, and max-width rhythm.
+// so every page shares one header, brand, canvas, and footer.
 //
-// The bar is forest (#263B33) — the same dark chrome the app paints on
-// its floating nav pill — sitting over the lime canvas the rest of the
-// app lives on, so the web reads as the same product rather than a
-// separate white site.
+// The bar + footer are forest (#263B33) — the same dark chrome the app
+// paints on its floating nav pill — sitting over the lime canvas the
+// rest of the app lives on, so the web reads as the same product.
 //
 // This file is only ever imported from *.web.tsx modules, so it never
 // reaches the native bundle.
@@ -24,10 +24,17 @@ import { useRouter, usePathname } from "expo-router";
 import { useUser } from "../../contexts/UserContext";
 import { useAuthGate } from "../../contexts/AuthGate";
 import { appHref } from "../../navigation/routes";
-import { WEB, RADIUS, FONT, WEB_CONTENT_MAX } from "./theme";
+import { WEB, RADIUS, FONT, cardFloat, WEB_CONTENT_MAX } from "./theme";
 
 export const WEB_HEADER_HEIGHT = 60;
 export const WEB_MAX_WIDTH = WEB_CONTENT_MAX;
+
+const APP_STORE_URL = "https://apps.apple.com/app/id6756426249";
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.carpoolitapp&hl=en_IN";
+
+const openExternal = (url: string) => {
+  if (typeof window !== "undefined") window.open(url, "_blank", "noopener,noreferrer");
+};
 
 type NavLink = { label: string; route: string };
 
@@ -50,8 +57,7 @@ type WebShellProps = {
 };
 
 const Wordmark: React.FC<{ onPress: () => void }> = ({ onPress }) => (
-  <Pressable onPress={onPress} style={styles.wordmarkWrap} accessibilityRole="link" accessibilityLabel="UniPool home">
-    <View style={styles.wordmarkDot} />
+  <Pressable onPress={onPress} accessibilityRole="link" accessibilityLabel="UniPool home">
     <Text style={styles.wordmark}>UniPool</Text>
   </Pressable>
 );
@@ -64,6 +70,47 @@ const Avatar: React.FC<{ name?: string; photo?: string | null; onPress: () => vo
       <Text style={styles.avatarInitial}>{(name || "U").trim().charAt(0).toUpperCase()}</Text>
     )}
   </Pressable>
+);
+
+const StoreButton: React.FC<{ label: string; sub: string; url: string }> = ({ label, sub, url }) => (
+  <Pressable
+    onPress={() => openExternal(url)}
+    style={({ hovered }: any) => [styles.storeBtn, hovered && styles.storeBtnHover]}
+    accessibilityRole="link"
+    accessibilityLabel={`${sub} ${label}`}
+  >
+    <Text style={styles.storeBtnSub}>{sub}</Text>
+    <Text style={styles.storeBtnLabel}>{label}</Text>
+  </Pressable>
+);
+
+const WebFooter: React.FC<{ maxWidth: number; onNav: (route: string) => void; compact: boolean }> = ({ maxWidth, onNav, compact }) => (
+  <View style={styles.footer}>
+    <View style={[styles.footerInner, { maxWidth }]}>
+      <View style={[styles.footerCta, compact && styles.footerCtaStacked]}>
+        <Image source={require("../../assets/unipool-hero.png")} style={styles.footerArt} resizeMode="contain" />
+        <View style={styles.footerCtaText}>
+          <Text style={styles.footerCtaTitle}>Ride with your campus.</Text>
+          <View style={styles.storeRow}>
+            <StoreButton sub="Download on the" label="App Store" url={APP_STORE_URL} />
+            <StoreButton sub="Get it on" label="Google Play" url={PLAY_STORE_URL} />
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.footerBottom}>
+        <Text style={styles.footerWordmark}>UniPool</Text>
+        <View style={styles.footerLinks}>
+          <Pressable onPress={() => onNav("PrivacyPolicyScreen")}><Text style={styles.footerLink}>Privacy</Text></Pressable>
+          <Text style={styles.footerDot}>·</Text>
+          <Pressable onPress={() => onNav("TermsOfServiceScreen")}><Text style={styles.footerLink}>Terms</Text></Pressable>
+          <Text style={styles.footerDot}>·</Text>
+          <Pressable onPress={() => openExternal("https://acmvit.in")}><Text style={styles.footerLink}>ACM-VIT</Text></Pressable>
+        </View>
+        <Text style={styles.footerCopy}>Made with love by ACM-VIT.</Text>
+      </View>
+    </View>
+  </View>
 );
 
 const WebShell: React.FC<WebShellProps> = ({
@@ -104,7 +151,7 @@ const WebShell: React.FC<WebShellProps> = ({
         </View>
 
         <View style={styles.headerRight}>
-          <Pressable onPress={() => go("CreateRide")} style={styles.postButton} accessibilityRole="button">
+          <Pressable onPress={() => go("CreateRide")} style={({ hovered }: any) => [styles.postButton, hovered && styles.postButtonHover]} accessibilityRole="button">
             <Text style={styles.postButtonText}>Post a ride</Text>
           </Pressable>
           {isGuest || !user ? (
@@ -132,11 +179,14 @@ const WebShell: React.FC<WebShellProps> = ({
     <View style={styles.rootScroll}>
       {header}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {contained ? (
-          <View style={[styles.contained, { maxWidth }]}>{children}</View>
-        ) : (
-          children
-        )}
+        <View style={styles.contentArea}>
+          {contained ? (
+            <View style={[styles.contained, { maxWidth }]}>{children}</View>
+          ) : (
+            children
+          )}
+        </View>
+        <WebFooter maxWidth={maxWidth} onNav={go} compact={compact} />
       </ScrollView>
     </View>
   );
@@ -151,52 +201,52 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   rootScroll: {
-    minHeight: "100vh" as unknown as number,
+    // Must be a BOUNDED height (flex:1 of the 100vh app root), not
+    // minHeight:100vh — otherwise the inner ScrollView grows to its
+    // content height and never scrolls (and document scroll is off
+    // because RNW sets body overflow:hidden). flex:1 → the ScrollView
+    // gets a real viewport-bounded height and scrolls internally.
+    flex: 1,
     backgroundColor: WEB.page,
   },
   scroll: { flex: 1 },
-  scrollContent: { alignItems: "center", paddingBottom: 0 },
+  scrollContent: { flexGrow: 1, alignItems: "stretch" },
+  contentArea: { flexGrow: 1, width: "100%", alignItems: "center" },
   contained: { width: "100%", paddingHorizontal: 24 },
   fullBleedContent: { flex: 1, minHeight: 0 },
 
+  // The header is a floating forest pill on the lime canvas — the same
+  // rounded forest chrome the mobile app paints on its floating nav bar.
   headerBar: {
     position: "sticky" as unknown as "absolute",
     top: 0,
     zIndex: 50,
-    height: WEB_HEADER_HEIGHT,
     width: "100%",
-    backgroundColor: WEB.forest,
-    borderBottomWidth: 1,
-    borderBottomColor: WEB.onForestLine,
+    backgroundColor: WEB.page,
+    paddingTop: 14,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
     alignItems: "center",
   },
   headerInner: {
-    flex: 1,
     width: "100%",
     alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
+    height: 60,
+    paddingLeft: 24,
+    paddingRight: 14,
+    backgroundColor: WEB.forest,
+    borderRadius: 20,
+    ...cardFloat,
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 36 },
-  wordmarkWrap: { flexDirection: "row", alignItems: "center", gap: 9 },
-  wordmarkDot: {
-    width: 13,
-    height: 13,
-    borderRadius: 7,
-    backgroundColor: WEB.lime,
-    borderWidth: 3,
-    borderColor: WEB.forest,
-    // A faint cream ring so the lime wheel reads cleanly on forest.
-    shadowColor: WEB.cream,
-    shadowOpacity: 0.0,
-  },
   wordmark: {
-    fontFamily: FONT.display,
+    fontFamily: FONT.black,
     fontSize: 22,
     color: WEB.cream,
-    letterSpacing: -0.3,
+    letterSpacing: -0.6,
   },
   navLinks: { flexDirection: "row", alignItems: "center", gap: 28 },
   navLink: { paddingVertical: 8, justifyContent: "center" },
@@ -222,6 +272,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: RADIUS.pill,
   },
+  postButtonHover: { backgroundColor: "#C2E15C" },
   postButtonText: {
     fontFamily: FONT.black,
     fontSize: 14.5,
@@ -256,6 +307,32 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: WEB.forest,
   },
+
+  // --- Footer (CTA + illustration) ---
+  footer: { width: "100%", backgroundColor: WEB.forest, paddingVertical: 44, paddingHorizontal: 24, marginTop: 56, alignItems: "center" },
+  footerInner: { width: "100%" },
+  footerCta: { flexDirection: "row", alignItems: "center", gap: 28, paddingBottom: 32, borderBottomWidth: 1, borderBottomColor: WEB.onForestLine },
+  footerCtaStacked: { flexDirection: "column", alignItems: "flex-start", gap: 18 },
+  footerArt: { width: 240, height: 150 },
+  footerCtaText: { flex: 1, gap: 16, minWidth: 240 },
+  footerCtaTitle: { fontFamily: FONT.displayBlack, fontSize: 30, color: WEB.cream, letterSpacing: -0.6 },
+  storeRow: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
+  footerBottom: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 14, paddingTop: 24 },
+  footerWordmark: { fontFamily: FONT.black, fontSize: 20, color: WEB.lime, letterSpacing: -0.6 },
+  footerLinks: { flexDirection: "row", alignItems: "center", gap: 10 },
+  footerLink: { fontFamily: FONT.bold, fontSize: 13.5, color: WEB.onForestMuted },
+  footerDot: { color: WEB.onForestFaint, fontSize: 13 },
+  footerCopy: { fontFamily: FONT.semibold, fontSize: 12.5, color: WEB.onForestFaint },
+  storeBtn: {
+    borderWidth: 1.5,
+    borderColor: WEB.onForestLine,
+    borderRadius: RADIUS.button,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  storeBtnHover: { borderColor: WEB.limeMuted, backgroundColor: WEB.onForestField },
+  storeBtnSub: { fontFamily: FONT.semibold, fontSize: 10.5, color: WEB.onForestFaint },
+  storeBtnLabel: { fontFamily: FONT.black, fontSize: 14.5, color: WEB.cream, marginTop: 1 },
 });
 
 export default WebShell;
