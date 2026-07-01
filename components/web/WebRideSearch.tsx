@@ -73,6 +73,11 @@ type ResultItem = {
   external?: boolean;
 };
 
+// External host names arrive with the VIT registration suffix appended
+// ("Ishan Awasthi 24BAI0207"); strip it so cards read like the app's
+// ExternalRideCard, which does the same.
+const stripRegNo = (name?: string) => (name ?? "").replace(/\s+\d{2}[A-Z]{3}\d{4,}$/, "").trim();
+
 const externalToItem = (e: ExternalRideData): ResultItem => ({
   id: e.id,
   start_location: e.pickup_point,
@@ -85,7 +90,7 @@ const externalToItem = (e: ExternalRideData): ResultItem => ({
   // Back into booked_seats so the card's "seats left" equals available_seats
   // rather than being one short (which mislabelled 1-seat rides as "Full").
   booked_seats: Math.max(0, e.total_seats - 1 - e.available_seats),
-  host_user_name: e.host_name,
+  host_user_name: stripRegNo(e.host_name) || undefined,
   external: true,
 });
 
