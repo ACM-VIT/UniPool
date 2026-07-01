@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>UniPool OG</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800;6..12,900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 1200px;
+        height: 630px;
+        font-family: 'Nunito Sans', system-ui, -apple-system, sans-serif;
+        background: #b5d750;
+        color: #263b33;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+        font-feature-settings: 'ss01', 'cv01';
+      }
+      .card {
+        position: relative;
+        width: 1200px;
+        height: 630px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 44px;
+        background: #b5d750;
+      }
+      .glow {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 1100px;
+        height: 1100px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle at center,
+          rgba(157, 192, 58, 0.55) 0%,
+          rgba(181, 215, 80, 0) 60%
+        );
+        pointer-events: none;
+      }
+      .wordmark-wrap {
+        position: relative;
+        z-index: 1;
+        line-height: 1;
+      }
+      .wordmark {
+        font-weight: 800;
+        font-size: 256px;
+        letter-spacing: -0.06em;
+        line-height: 1;
+        color: #263b33;
+        margin: 0;
+        white-space: nowrap;
+      }
+      .i-letter {
+        position: relative;
+        display: inline-block;
+      }
+      .i-dot {
+        position: absolute;
+        top: 0.08em;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0.18em;
+        height: 0.18em;
+        border-radius: 50%;
+        background: #fffdf4;
+      }
+      .route {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .route .dot-open {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        border: 3.5px solid #263b33;
+        background: transparent;
+      }
+      .route .dash {
+        width: 320px;
+        height: 3px;
+        background-image: linear-gradient(to right, #263b33 50%, transparent 50%);
+        background-size: 12px 3px;
+        background-repeat: repeat-x;
+      }
+      .route .dot-filled {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #263b33;
+      }
+      .watermark {
+        position: absolute;
+        bottom: 56px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-weight: 700;
+        font-size: 22px;
+        letter-spacing: 0.08em;
+        color: #263b33;
+        opacity: 0.55;
+        text-transform: lowercase;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="glow" aria-hidden="true"></div>
+      <div class="wordmark-wrap">
+        <h1 class="wordmark">Un<span class="i-letter">ı<span class="i-dot" aria-hidden="true"></span></span>Pool</h1>
+      </div>
+      <div class="route" aria-hidden="true">
+        <span class="dot-open"></span>
+        <span class="dash"></span>
+        <span class="dot-filled"></span>
+      </div>
+      <p class="watermark">unipool.acmvit.in</p>
+    </div>
+  </body>
+</html>
