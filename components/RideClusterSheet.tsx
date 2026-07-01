@@ -125,7 +125,9 @@ const DestinationGroupRow = React.memo(function DestinationGroupRow({
         </Text>
         <View style={styles.groupMeta}>
           <Text style={[styles.groupPrice, colors.mode === "dark" && { color: colors.textPrimary, opacity: 0.85 }]}>
-            ₹{group.cheapestPrice}
+            {group.priceMin === group.priceMax
+              ? `₹${group.priceMin}`
+              : `₹${group.priceMin}–₹${group.priceMax}`}
           </Text>
         </View>
       </View>
@@ -146,6 +148,7 @@ const DestinationGroupRow = React.memo(function DestinationGroupRow({
           >
             <Text style={[styles.chipDay, colors.mode === "dark" && { color: colors.textTertiary }]}>{ride.chipDay}</Text>
             <Text style={[styles.chipTime, { color: colors.textPrimary }]}>{ride.chipTime}</Text>
+            <Text style={[styles.chipPrice, { color: colors.textPrimary }]}>₹{ride.total_price}</Text>
             <View style={[styles.chipDivider, colors.mode === "dark" && { backgroundColor: colors.inkSubtle }]} />
             <Text
               style={[
