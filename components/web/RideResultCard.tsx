@@ -68,7 +68,14 @@ const RideResultCard: React.FC<Props> = ({ origin, destination, dateLabel, timeL
                 <Text style={styles.price}>{price}</Text>
                 <Text style={styles.per}>/seat</Text>
               </View>
-            ) : null}
+            ) : (
+              // External rides carry no set fare (you arrange it with the host),
+              // so fill the price slot with a muted chip rather than leaving the
+              // card's top-right empty and unbalanced.
+              <View style={styles.askPill}>
+                <Text style={styles.askText}>Ask host</Text>
+              </View>
+            )}
             <Text style={styles.seats}>{seatsLabel}</Text>
           </View>
         </View>
@@ -125,6 +132,9 @@ const styles = StyleSheet.create({
   priceCurrency: { fontFamily: FONT.black, fontSize: 13, color: WEB.forest, marginRight: 1 },
   price: { fontFamily: FONT.black, fontSize: 18, color: WEB.forest, letterSpacing: -0.3 },
   per: { fontFamily: FONT.bold, fontSize: 11.5, color: WEB.forest, opacity: 0.7, marginLeft: 2 },
+  // Muted counterpart to the lime price pill, for rides with no set fare.
+  askPill: { backgroundColor: WEB.inkSubtle, borderRadius: RADIUS.pill, paddingHorizontal: 13, paddingVertical: 7 },
+  askText: { fontFamily: FONT.bold, fontSize: 13, color: WEB.inkStrong, letterSpacing: -0.1 },
   seats: { fontFamily: FONT.bold, fontSize: 12.5, color: WEB.midOlive },
 
   route: { position: "relative" },
