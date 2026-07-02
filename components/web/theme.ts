@@ -21,7 +21,7 @@ export const WEB = {
   cream: AppColors.cardSurface, // #FFFDF4 — the card surface that floats on lime
   midOlive: AppColors.midOliveGreen,
   orange: AppColors.accentOrange, // semantic (errors, declined, hosting)
-  selected: light.cardSelected, // #1e4620 — selected ride card
+  selected: light.cardSelected, // #263B33 — selected ride card (brand forest)
   forestDeep: "#1E2F28",
 
   // --- Surfaces (mobile relationship: cream cards on a lime canvas) ---
