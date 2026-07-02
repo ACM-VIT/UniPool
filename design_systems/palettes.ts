@@ -99,7 +99,10 @@ const lightPalette: Palette = {
   surfaceInset: "#FFFDF4",
   surfaceTinted: "rgba(255,253,244,0.65)", // = AppColors.cardSurfaceTinted
 
-  cardSelected: "#1e4620",
+  // The selected ride card uses the brand forest (secondaryDarkGreen), so it
+  // matches every other forest surface. Was a legacy #1e4620 that read as an
+  // off, over-saturated green next to the real palette.
+  cardSelected: "#263B33",
   cardSelectedText: "#FFFFFF",
 
   textPrimary: "#263B33",

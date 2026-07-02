@@ -251,10 +251,10 @@ const RideCard: React.FC<RideCardProps> = ({
   // Background priority: selected (theme-defined highlight) >
   // same-gender female (blush) > pending (grey, via cardPending
   // below) > default (themed surface — cream in light, raised
-  // charcoal in dark). `cardSelected` resolves to the historical
-  // #1e4620 forest in light (unchanged from before the theme
-  // refactor) and to the lime accent in dark (where the lime IS
-  // the brand splash). `cardSelectedText` follows in lockstep.
+  // charcoal in dark). `cardSelected` resolves to the brand forest
+  // (#263B33 = secondaryDarkGreen) in light so a selected card matches
+  // every other forest surface, and to a raised charcoal in dark.
+  // `cardSelectedText` follows in lockstep.
   // In light mode the unselected card is white (#ffffff per the
   // historical unselectedCard style). `colors.surface` is cream
   // (#FFFDF4) which differs — use surface only in dark mode.
@@ -533,7 +533,7 @@ const styles = StyleSheet.create<Styles>({
     alignItems: "flex-start",
   },
   selectedCard: {
-    backgroundColor: "#1e4620",
+    backgroundColor: "#263B33",
   },
   unselectedCard: {
     backgroundColor: "#ffffff",
