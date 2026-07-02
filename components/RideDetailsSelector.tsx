@@ -17,7 +17,6 @@ import {
 } from "react-native";
 import DateTimePicker, {
   DateTimePickerAndroid,
-  type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { format } from "date-fns";
 import AppColors from "../design_systems/colors";
@@ -684,19 +683,23 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
   };
 
   const openAndroidTimePicker = (datePart: Date) => {
+    const resetPicker = () => {
+      setShowDateTimePicker(false);
+      setPickerMode("date");
+      pickerModeRef.current = "date";
+    };
     DateTimePickerAndroid.open({
       value: datePart,
       mode: "time",
       is24Hour: false,
-      onChange: (event: DateTimePickerEvent, pickedTime?: Date) => {
-        setShowDateTimePicker(false);
-        setPickerMode("date");
-        pickerModeRef.current = "date";
-        if (event.type !== "set" || !pickedTime) return;
+      // onValueChange fires only on selection; Cancel routes to onDismiss.
+      onValueChange: (_event, pickedTime) => {
+        resetPicker();
         const finalDate = new Date(datePart);
         finalDate.setHours(pickedTime.getHours(), pickedTime.getMinutes(), 0, 0);
         commitSelectedDateTime(finalDate < new Date() ? getInitialDate() : finalDate);
       },
+      onDismiss: resetPicker,
     });
   };
 
@@ -706,19 +709,19 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
       value: initialDate,
       mode: "date",
       minimumDate: new Date(),
-      onChange: (event: DateTimePickerEvent, pickedDate?: Date) => {
-        if (event.type !== "set" || !pickedDate) {
-          setShowDateTimePicker(false);
-          setPickerMode("date");
-          pickerModeRef.current = "date";
-          return;
-        }
+      // Date selected -> chain into the time dialog. Cancel -> onDismiss.
+      onValueChange: (_event, pickedDate) => {
         const dateWithCurrentTime = new Date(pickedDate);
         dateWithCurrentTime.setHours(initialDate.getHours(), initialDate.getMinutes(), 0, 0);
         setTempDate(dateWithCurrentTime);
         setPickerMode("time");
         pickerModeRef.current = "time";
         openAndroidTimePicker(dateWithCurrentTime);
+      },
+      onDismiss: () => {
+        setShowDateTimePicker(false);
+        setPickerMode("date");
+        pickerModeRef.current = "date";
       },
     });
   };
@@ -1217,9 +1220,7 @@ export const RideDetailsSelector: React.FC<RideDetailsSelectorProps> = ({
                   mode="datetime"
                   display="spinner"
                   minimumDate={new Date()}
-                  onChange={(_event, date) => {
-                    if (date) setTempDate(date);
-                  }}
+                  onValueChange={(_event, date) => setTempDate(date)}
                   themeVariant="dark"
                   accentColor={colors.primary}
                   style={styles.dateTimePicker}

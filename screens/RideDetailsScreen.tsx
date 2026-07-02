@@ -22,6 +22,7 @@ import LoadingComponent from "../components/LoadingComponent";
 import RideCard from "../components/RideCard";
 import BrandedAlert from "../components/BrandedAlert";
 import ShareRideSheet from "../components/ShareRideSheet";
+import EditRideSheet from "../components/EditRideSheet";
 import PassengerProfileSheet, { PassengerProfile } from "../components/PassengerProfileSheet";
 import RouteStack from "../components/RouteStack";
 import { appHref, useDecodedLocalSearchParams } from "../navigation/routes";
@@ -56,6 +57,21 @@ const EyeGlyph: React.FC = () => (
       strokeWidth={2.2}
       fill="none"
     />
+  </Svg>
+);
+
+const PencilIcon: React.FC<{ color: string }> = ({ color }) => (
+  <Svg width={19} height={19} viewBox="0 0 24 24" fill="none">
+    <SvgPath d="M4 20h4L18.5 9.5a2 2 0 0 0-2.8-2.8L5 17.2 4 20z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    <SvgPath d="M13.7 6.8l3.5 3.5" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+  </Svg>
+);
+
+const ShareGlyph: React.FC<{ color: string }> = ({ color }) => (
+  <Svg width={19} height={19} viewBox="0 0 24 24" fill="none">
+    <SvgPath d="M12 3v13" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    <SvgPath d="M8 7l4-4 4 4" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    <SvgPath d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
   </Svg>
 );
 
@@ -492,6 +508,7 @@ const RideDetailsScreen: React.FC = () => {
   const [isHost, setIsHost] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  const [showEditRide, setShowEditRide] = useState(false);
   // Booking actions update optimistically and dismiss their sheet immediately.
   // Passenger profile sheet — opens when the host taps any passenger
   // row in the management list. Holds the passenger payload as state
@@ -1357,31 +1374,44 @@ const RideDetailsScreen: React.FC = () => {
             </TouchableOpacity>
           )}
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Ride Management</Text>
-          {/* Share pill — opens the QR + native share sheet. Anchored
-              top-right of the management header so it reads as a
-              persistent action on the host's ride rather than buried
-              in a menu. */}
+          {/* Host edit + Share as compact icon buttons so the
+              "Ride Management" title has room. Edit reads as secondary
+              (outlined); Share is the filled primary action. */}
+          {isHost && (
+            <TouchableOpacity
+              onPress={() => setShowEditRide(true)}
+              style={{
+                marginLeft: "auto",
+                marginRight: 10,
+                width: 40,
+                height: 40,
+                borderRadius: 999,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1.5,
+                borderColor: AppColors.secondaryDarkGreen,
+              }}
+              activeOpacity={0.85}
+              accessibilityLabel="Edit ride details"
+            >
+              <PencilIcon color={AppColors.secondaryDarkGreen} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             onPress={() => setShareSheetOpen(true)}
             style={{
-              marginLeft: "auto",
-              paddingHorizontal: 16,
-              paddingVertical: 8,
+              marginLeft: isHost ? 0 : "auto",
+              width: 40,
+              height: 40,
               borderRadius: 999,
+              alignItems: "center",
+              justifyContent: "center",
               backgroundColor: AppColors.secondaryDarkGreen,
             }}
             activeOpacity={0.85}
+            accessibilityLabel="Share ride"
           >
-            <Text
-              style={{
-                color: colors.mode === "dark" ? colors.textOnDark : AppColors.primaryLightGreen,
-                fontFamily: "NunitoSans_800ExtraBold",
-                fontSize: 13,
-                letterSpacing: 0.3,
-              }}
-            >
-              Share
-            </Text>
+            <ShareGlyph color={colors.mode === "dark" ? colors.textOnDark : AppColors.primaryLightGreen} />
           </TouchableOpacity>
         </View>
 
@@ -1395,6 +1425,30 @@ const RideDetailsScreen: React.FC = () => {
           endLocation={rideData?.end_location || ""}
           startTime={rideData?.start_time || ""}
         />
+
+        {isHost && rideData ? (
+          <EditRideSheet
+            visible={showEditRide}
+            onDismiss={() => setShowEditRide(false)}
+            ride={{
+              id: rideData.id || rideId || "",
+              host_user_id: rideData.host_user_id,
+              start_location: rideData.start_location,
+              end_location: rideData.end_location,
+              start_time: rideData.start_time,
+              total_seats: rideData.total_seats,
+              booked_seats: rideData.booked_seats,
+              total_price: rideData.total_price,
+              is_same_gender: rideData.is_same_gender,
+              start_latitude: rideData.start_latitude,
+              start_longitude: rideData.start_longitude,
+              end_latitude: rideData.end_latitude,
+              end_longitude: rideData.end_longitude,
+              vehicle_type: rideData.vehicle_type,
+            }}
+            onSaved={() => setRefreshTick((tick) => tick + 1)}
+          />
+        ) : null}
 
         {/* Passenger profile sheet — opens when the host taps any
             passenger row. Forwards accept/reject/remove to the same
