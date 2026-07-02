@@ -88,6 +88,8 @@ const PassengerProfileSheet: React.FC<Props> = ({
 
   const firstName = firstNameOf(passenger.name);
   const initial = (passenger.name || "?").trim().charAt(0).toUpperCase();
+  // Full name with the VIT registration suffix stripped for display.
+  const displayName = (passenger.name || "").replace(/\s+\d{2}[A-Z]{3}\d{4,}$/, "").trim() || "Unknown";
 
   const handleCall = () => {
     if (!passenger.contact_number) return;
@@ -182,7 +184,7 @@ const PassengerProfileSheet: React.FC<Props> = ({
               <View style={styles.headerText}>
                 <View style={styles.nameRow}>
                   <Text style={[styles.name, { color: colors.textPrimary }]} numberOfLines={1}>
-                    {passenger.name || "Unknown"}
+                    {displayName}
                   </Text>
                   {passenger.is_verified ? (
                     <View style={[styles.verifiedDot, { backgroundColor: accentBg }]}>
