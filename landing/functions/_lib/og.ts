@@ -57,7 +57,7 @@ function destImageForLocation(loc: string): string | null {
   return hit ? `/og/dest-${hit.slug}.png` : null;
 }
 
-// Ride preview shape from GET /ride/preview/:id.
+// Ride preview shape from GET /ride/preview/:id (internal rides).
 type RidePreview = {
   id: string;
   start_location: string;
@@ -68,7 +68,36 @@ type RidePreview = {
   host_first_name: string;
 };
 
+// External-ride preview shape from GET /external/preview/:id. Off-platform
+// rides carry no set fare and a full "Name 24XYZ0000" host string.
+type ExternalPreview = {
+  id: string;
+  pickup_point: string;
+  destination: string;
+  departure_time: string;
+  available_seats: number;
+  host_name: string;
+};
+
+// What both preview shapes boil down to for a card.
+type RideFacts = {
+  from: string;
+  to: string;
+  when: string;
+  seats: number;
+  price: number | null;
+  host: string;
+};
+
 const RIDE_PREVIEW_TIMEOUT_MS = 1500;
+
+// External host names carry a VIT registration suffix ("Subhi Garg 24BCE0907").
+// Strip it and take the first name so the card reads like an internal ride
+// ("Hosted by Subhi"), matching the app's ExternalRideCard.
+function firstNameFromHost(name: string): string {
+  const stripped = (name || "").replace(/\s+\d{2}[A-Z]{3}\d{4,}$/, "").trim();
+  return (stripped.split(/\s+/)[0] || "").trim();
+}
 
 function formatWhen(iso: string): string {
   try {
@@ -88,35 +117,74 @@ function formatWhen(iso: string): string {
   }
 }
 
-async function rideOg(
-  origin: string,
-  id: string,
-  apiBase: string,
-): Promise<OgMeta> {
-  const canonical = `${origin}/r/${id}`;
+async function fetchJson<T>(url: string, signal: AbortSignal): Promise<T | null> {
+  const res = await fetch(url, {
+    cf: { cacheTtl: 120, cacheEverything: true },
+    signal,
+  } as RequestInit);
+  return res.ok ? ((await res.json()) as T) : null;
+}
+
+async function internalFacts(apiBase: string, id: string, signal: AbortSignal): Promise<RideFacts | null> {
+  const r = await fetchJson<RidePreview>(`${apiBase}/ride/preview/${encodeURIComponent(id)}`, signal);
+  if (!r) return null;
+  return {
+    from: shorten(r.start_location),
+    to: shorten(r.end_location),
+    when: formatWhen(r.start_time),
+    seats: Math.max(0, Math.floor(r.seats_available || 0)),
+    price: r.price_per_seat || null,
+    host: (r.host_first_name || "").trim(),
+  };
+}
+
+async function externalFacts(apiBase: string, id: string, signal: AbortSignal): Promise<RideFacts | null> {
+  const r = await fetchJson<ExternalPreview>(`${apiBase}/external/preview/${encodeURIComponent(id)}`, signal);
+  if (!r) return null;
+  return {
+    from: shorten(r.pickup_point),
+    to: shorten(r.destination),
+    when: formatWhen(r.departure_time),
+    seats: Math.max(0, Math.floor(r.available_seats || 0)),
+    price: null, // external rides have no set fare
+    host: firstNameFromHost(r.host_name),
+  };
+}
+
+// Internal ride ids are UUIDs (dashed); external ids are Firebase push ids
+// (no dashes). Try the likely endpoint first, fall back to the other so a
+// misclassified id still resolves.
+async function rideFacts(apiBase: string, id: string, signal: AbortSignal): Promise<RideFacts | null> {
+  const lookups = id.includes("-")
+    ? [internalFacts, externalFacts]
+    : [externalFacts, internalFacts];
+  for (const lookup of lookups) {
+    try {
+      const facts = await lookup(apiBase, id, signal);
+      if (facts) return facts;
+    } catch {
+      /* try the next source */
+    }
+  }
+  return null;
+}
+
+async function rideOg(id: string, apiBase: string, canonical: string): Promise<OgMeta> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), RIDE_PREVIEW_TIMEOUT_MS);
   try {
-    const res = await fetch(`${apiBase}/ride/preview/${encodeURIComponent(id)}`, {
-      cf: { cacheTtl: 120, cacheEverything: true },
-      signal: controller.signal,
-    } as RequestInit);
-    if (res.ok) {
-      const r = (await res.json()) as RidePreview;
-      const from = shorten(r.start_location);
-      const to = shorten(r.end_location);
-      const when = formatWhen(r.start_time);
-      const seats = Math.max(0, Math.floor(r.seats_available || 0));
+    const facts = await rideFacts(apiBase, id, controller.signal);
+    if (facts) {
       const seatLabel =
-        seats <= 0 ? "Ride full" : `${seats} seat${seats === 1 ? "" : "s"} left`;
-      const priceBit = r.price_per_seat ? `₹${r.price_per_seat}/seat` : "";
-      const descParts = [when, priceBit, seatLabel].filter(Boolean);
+        facts.seats <= 0 ? "Ride full" : `${facts.seats} seat${facts.seats === 1 ? "" : "s"} left`;
+      const priceBit = facts.price ? `₹${facts.price}/seat` : "";
+      const descParts = [facts.when, priceBit, seatLabel].filter(Boolean);
       return {
-        title: `${from} → ${to} · UniPool`,
+        title: `${facts.from} → ${facts.to} · UniPool`,
         description: `${descParts.join(" · ")}. Hosted by ${
-          r.host_first_name || "a student"
+          facts.host || "a student"
         }. Book this campus carpool on UniPool.`,
-        image: destImageForLocation(to) || "/og/ride.png",
+        image: destImageForLocation(facts.to) || "/og/ride.png",
         canonical,
         type: "article",
       };
@@ -144,9 +212,13 @@ export async function resolveOg(
   const path = url.pathname.replace(/\/+$/, "") || "/";
   const seg = path.split("/").filter(Boolean); // ["r","abc"] etc.
 
-  // Rides work on any domain (share links live at /r/:id and /ride/:id).
+  // Rides work on any domain: short links at /r/:id and /ride/:id, and the
+  // same ride-detail page mounted under the /app expo build at /app/ride/:id.
   if ((seg[0] === "r" || seg[0] === "ride") && seg[1]) {
-    return rideOg(origin, seg[1], apiBase);
+    return rideOg(seg[1], apiBase, `${origin}/r/${seg[1]}`);
+  }
+  if (seg[0] === "app" && (seg[1] === "ride" || seg[1] === "r") && seg[2]) {
+    return rideOg(seg[2], apiBase, `${origin}/app/ride/${seg[2]}`);
   }
 
   const role = roleForHost(url.hostname);
