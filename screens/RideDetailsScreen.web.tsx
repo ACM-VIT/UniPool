@@ -422,8 +422,15 @@ const RideDetailsScreenWeb: React.FC = () => {
     try {
       await apiUtil.deleteSilent(`/ride/delete/${rideId}`);
       router.replace(appHref("TripsListScreen"));
-    } catch {
-      /* no-op */
+    } catch (err: any) {
+      // The backend blocks canceling a ride that still has accepted riders;
+      // surface its message instead of failing silently.
+      const data = err?.response?.data;
+      const msg =
+        data?.accepted_booking_count > 0
+          ? "You've already accepted riders on this trip. Remove them first, then cancel the ride."
+          : data?.error || "Couldn't cancel the ride. Please try again.";
+      window.alert(msg);
     }
   };
 
