@@ -57,6 +57,15 @@ export default class ApiUtil {
     return this.makeRequestWithErrorHandling<T>("GET", endpoint, undefined, headers, timeout, retryAction);
   }
 
+  /**
+   * GET variant for probes that are expected to fail (e.g. trying /ride/preview
+   * before falling back to /external/preview). Still throws, but attaches no
+   * global error/retry sheet, so a routine 404/400 doesn't flash a toast.
+   */
+  async getSilent<T>(endpoint: string, headers?: HeadersInit, timeout?: number): Promise<T> {
+    return this.makeRequestWithErrorHandling<T>("GET", endpoint, undefined, headers, timeout);
+  }
+
   async getUncached<T>(endpoint: string, headers?: HeadersInit, timeout?: number): Promise<T> {
     const retryAction = () => this.getUncached<T>(endpoint, headers, timeout);
     return this.makeRequestWithErrorHandling<T>(

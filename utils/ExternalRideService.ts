@@ -9,6 +9,10 @@ export interface ExternalRide {
   departure_time: string;
   host_name: string;
   host_phone: string;
+  /** Whether an invite email can be sent (the address stays server-side).
+   *  False for sources like Vigo that don't expose a host email, so the UI
+   *  leads with WhatsApp/phone instead of a dead-end invite. */
+  has_host_email?: boolean;
   vehicle_type: string;
   total_seats: number;
   available_seats: number;

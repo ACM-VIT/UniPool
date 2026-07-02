@@ -71,6 +71,9 @@ type ExternalPreview = {
   departure_time: string;
   host_name: string;
   host_phone: string;
+  /** Whether an invite email can be sent (address stays server-side). When
+   *  false we hide the invite CTA and lead with WhatsApp/phone. */
+  has_host_email?: boolean;
   vehicle_type: string;
   total_seats: number;
   available_seats: number;
@@ -108,6 +111,11 @@ const markInvited = (id: string) => {
 
 const externalFirstNameOf = (name: string) =>
   (name || "").replace(/\s+\d{2}[A-Z]{3}\d{4,}$/, "").trim().split(/\s+/)[0] || "the host";
+
+// Full display name with the VIT registration suffix stripped
+// ("Sree Raj Muthaiya A L 24BCE0250" → "Sree Raj Muthaiya A L").
+const externalDisplayNameOf = (name: string) =>
+  (name || "").replace(/\s+\d{2}[A-Z]{3}\d{4,}$/, "").trim() || "Off-platform host";
 
 // The gated /ride/details/:id response carries the server-computed
 // `viewer_state` — the single source of truth for what the viewer should
@@ -241,19 +249,22 @@ const RideDetailsScreenWeb: React.FC = () => {
       let previewRes: Preview | null = null;
       let externalRes: ExternalPreview | null = null;
       try {
-        previewRes = await apiUtil.get<Preview>(`/ride/preview/${rideId}`);
+        // Probe the UniPool preview first; a 400/404 here just means it's an
+        // external ride, so keep it silent (no global error toast).
+        previewRes = await apiUtil.getSilent<Preview>(`/ride/preview/${rideId}`);
         if (!cancelled) setPreview(previewRes);
       } catch {
         // A UniPool ride wasn't found under this id — it may be an external
         // (off-platform) ride shared through the same /ride/<id> link. Fall
         // back to the public external preview before giving up.
         try {
-          externalRes = await apiUtil.get<ExternalPreview>(`/external/preview/${rideId}`);
+          externalRes = await apiUtil.getSilent<ExternalPreview>(`/external/preview/${rideId}`);
           if (!cancelled) {
             setExternal(externalRes);
             setInviteState(invitedExternalRideIds.has(externalRes.id) ? "already" : "idle");
           }
         } catch {
+          // Neither preview resolved — the not-found UI handles this, so no toast.
           if (!cancelled) setNotFound(true);
         }
       } finally {
@@ -439,6 +450,11 @@ const RideDetailsScreenWeb: React.FC = () => {
         : "Fully booked";
       const hasWhatsApp = !!whatsappDigits(external.host_phone);
       const hasPhone = !!external.host_phone;
+      const hasContact = hasWhatsApp || hasPhone;
+      // Sources like Vigo don't expose a host email, so an invite can never
+      // send — hide that CTA and lead with WhatsApp/phone instead of a
+      // dead-end "no email on file".
+      const canInvite = external.has_host_email === true;
       const waMessage =
         `Hi ${first}, I found your ride from ${external.pickup_point} to ${external.destination} on UniPool ` +
         `and would love to ride with you. Is there room for one more?`;
@@ -526,7 +542,7 @@ const RideDetailsScreenWeb: React.FC = () => {
                     <Text style={styles.hostInitial}>{(external.host_name || "H").trim().charAt(0).toUpperCase()}</Text>
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.hostName} numberOfLines={1}>{external.host_name || "Off-platform host"}</Text>
+                    <Text style={styles.hostName} numberOfLines={1}>{externalDisplayNameOf(external.host_name)}</Text>
                     <Text style={styles.hostSub} numberOfLines={1}>Not on UniPool yet</Text>
                   </View>
                 </View>
@@ -538,22 +554,24 @@ const RideDetailsScreenWeb: React.FC = () => {
                   </View>
                 ) : null}
 
-                <Pressable
-                  style={[styles.requestBtn, invite.done && styles.inviteDone, invite.muted && styles.inviteMuted]}
-                  onPress={invite.disabled ? undefined : sendInvite}
-                  disabled={invite.disabled}
-                >
-                  {invite.spinner ? (
-                    <ActivityIndicator color={WEB.lime} />
-                  ) : (
-                    <View style={styles.inviteRow}>
-                      {invite.done ? <CheckIcon color={WEB.midOlive} /> : null}
-                      <Text style={[styles.requestBtnText, invite.done && styles.inviteDoneText, invite.muted && styles.inviteMutedText]} numberOfLines={1}>
-                        {invite.label}
-                      </Text>
-                    </View>
-                  )}
-                </Pressable>
+                {canInvite ? (
+                  <Pressable
+                    style={[styles.requestBtn, invite.done && styles.inviteDone, invite.muted && styles.inviteMuted]}
+                    onPress={invite.disabled ? undefined : sendInvite}
+                    disabled={invite.disabled}
+                  >
+                    {invite.spinner ? (
+                      <ActivityIndicator color={WEB.lime} />
+                    ) : (
+                      <View style={styles.inviteRow}>
+                        {invite.done ? <CheckIcon color={WEB.midOlive} /> : null}
+                        <Text style={[styles.requestBtnText, invite.done && styles.inviteDoneText, invite.muted && styles.inviteMutedText]} numberOfLines={1}>
+                          {invite.label}
+                        </Text>
+                      </View>
+                    )}
+                  </Pressable>
+                ) : null}
 
                 {seatsOpen && (hasWhatsApp || hasPhone) ? (
                   <View style={styles.contactRow}>
@@ -573,9 +591,13 @@ const RideDetailsScreenWeb: React.FC = () => {
                 ) : null}
 
                 <Text style={styles.fareNote}>
-                  {seatsOpen
+                  {!seatsOpen
+                    ? "This ride is already full. Find another ride on this route instead."
+                    : canInvite
                     ? `${first} posted this ride elsewhere. Reach out directly, or let them know you found them on UniPool.`
-                    : "This ride is already full. Find another ride on this route instead."}
+                    : hasContact
+                    ? `${first} posted this ride elsewhere on ${external.source_label || "another app"}. Reach out on WhatsApp or by phone.`
+                    : `${first} posted this ride elsewhere on ${external.source_label || "another app"}.`}
                 </Text>
               </View>
             </View>
