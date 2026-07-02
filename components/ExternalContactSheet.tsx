@@ -53,6 +53,10 @@ const ExternalContactSheet: React.FC<Props> = ({ visible, onDismiss, ride, authR
   const first = useMemo(() => firstNameOf(ride.host_name), [ride.host_name]);
   const hasWhatsApp = !!whatsappDigits(ride.host_phone);
   const hasPhone = !!ride.host_phone;
+  const hasContact = hasWhatsApp || hasPhone;
+  // Sources like Vigo expose no host email, so the invite can never send —
+  // hide it and lead with WhatsApp/phone instead of a dead-end.
+  const canInvite = ride.has_host_email === true;
 
   const waMessage =
     `Hi ${first}, I found your ride from ${ride.pickup_point} to ${ride.destination} on UniPool ` +
@@ -150,7 +154,11 @@ const ExternalContactSheet: React.FC<Props> = ({ visible, onDismiss, ride, authR
         Ride with {first}
       </Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        {first} posted this ride elsewhere. Reach out, or let them know you want in.
+        {canInvite
+          ? `${first} posted this ride elsewhere. Reach out, or let them know you want in.`
+          : hasContact
+          ? `${first} posted this ride elsewhere. Reach out on WhatsApp or by phone.`
+          : `${first} posted this ride elsewhere.`}
       </Text>
 
       <View style={[styles.routeCard, { backgroundColor: colors.inkSubtle }]}>
@@ -158,20 +166,23 @@ const ExternalContactSheet: React.FC<Props> = ({ visible, onDismiss, ride, authR
       </View>
 
       <View style={styles.actions}>
-        {/* Primary: notify the host through UniPool. */}
-        <PressableScale
-          style={[styles.primaryBtn, { backgroundColor: emailBtn.bg }]}
-          onPress={emailBtn.disabled ? undefined : sendInvite}
-          disabled={emailBtn.disabled}
-          haptic={null}
-        >
-          {emailBtn.icon}
-          <Text style={[styles.primaryBtnText, { color: emailBtn.fg }]} numberOfLines={1}>
-            {emailBtn.title}
-          </Text>
-        </PressableScale>
+        {/* Primary: notify the host through UniPool — only when an invite
+            email can actually be sent (some sources expose no host email). */}
+        {canInvite ? (
+          <PressableScale
+            style={[styles.primaryBtn, { backgroundColor: emailBtn.bg }]}
+            onPress={emailBtn.disabled ? undefined : sendInvite}
+            disabled={emailBtn.disabled}
+            haptic={null}
+          >
+            {emailBtn.icon}
+            <Text style={[styles.primaryBtnText, { color: emailBtn.fg }]} numberOfLines={1}>
+              {emailBtn.title}
+            </Text>
+          </PressableScale>
+        ) : null}
 
-        {/* Secondary: reach out directly. */}
+        {/* Reach out directly. */}
         {hasWhatsApp || hasPhone ? (
           <View style={styles.secondaryRow}>
             {hasWhatsApp ? (
