@@ -192,11 +192,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  appInfoIconPressable: {
+    marginRight: width * 0.035,
+    borderRadius: width * 0.032,
+  },
   appInfoIconTile: {
     width: width * 0.155,
     height: width * 0.155,
     borderRadius: width * 0.032,
-    marginRight: width * 0.035,
     overflow: "hidden",
     backgroundColor: AppColors.primaryLightGreen,
     alignItems: "center",
