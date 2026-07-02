@@ -390,6 +390,11 @@ interface RideData {
   vehicle_type?: "scooter" | "van" | "car" | "suv";
 }
 
+// VIT registration suffix on names ("Anshul Patil 24BVD0135") — stripped for
+// display, matching the ride cards and external contact sheet elsewhere.
+const stripRegNo = (name?: string): string =>
+  (name || "").replace(/\s+\d{2}[A-Z]{3}\d{4,}$/, "").trim();
+
 interface RideDetailsScreenProps {
   route: {
     params: {
@@ -1322,7 +1327,7 @@ const RideDetailsScreen: React.FC = () => {
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: colors.textPrimary }]}>{error || "Ride not found"}</Text>
           <TouchableOpacity
-            style={[styles.retryButton, { backgroundColor: colors.navFill }]}
+            style={[styles.retryButton, { backgroundColor: AppColors.secondaryDarkGreen }]}
             onPress={() => back()}
           >
             <Text style={[styles.retryButtonText, colors.mode === "dark" && { color: colors.textOnDark }]}>Go Back</Text>
@@ -1363,7 +1368,7 @@ const RideDetailsScreen: React.FC = () => {
               paddingHorizontal: 16,
               paddingVertical: 8,
               borderRadius: 999,
-              backgroundColor: colors.navFill,
+              backgroundColor: AppColors.secondaryDarkGreen,
             }}
             activeOpacity={0.85}
           >
@@ -1551,7 +1556,7 @@ const RideDetailsScreen: React.FC = () => {
             // Rejected passenger rows are not actionable in host management.
             requests.flatMap((req) => {
               if (req.request_status === "rejected") return [];
-              const passengerName = req.passenger?.name || "Unknown User";
+              const passengerName = stripRegNo(req.passenger?.name) || "Unknown User";
               const isCurrentUser = req.passenger_id === currentUserId;
               const isHostPassenger = rideData?.host_user_id === req.passenger_id;
               const isHostBooking = req.id === "host-booking";
@@ -1648,7 +1653,7 @@ const RideDetailsScreen: React.FC = () => {
 
               if (req.request_status === "pending") {
                 return (
-                  <View key={requestKey} style={[styles.pendingRequestCard, { backgroundColor: colors.navFill }]}>
+                  <View key={requestKey} style={[styles.pendingRequestCard, { backgroundColor: AppColors.secondaryDarkGreen }]}>
                     {/* Name takes the flex space; right cluster carries
                         the actions: View opens the profile sheet,
                         Reject/Accept drop the row into the slider
@@ -1725,7 +1730,7 @@ const RideDetailsScreen: React.FC = () => {
               return (
                 <View
                   key={requestKey}
-                  style={[styles.confirmedPassengerCard, { backgroundColor: colors.navFill }]}
+                  style={[styles.confirmedPassengerCard, { backgroundColor: AppColors.secondaryDarkGreen }]}
                 >
                   <Text style={styles.passengerName} numberOfLines={1}>
                     {displayName}
@@ -1773,7 +1778,7 @@ const RideDetailsScreen: React.FC = () => {
             <TouchableOpacity
               onPress={openRideChat}
               activeOpacity={0.85}
-              style={[styles.tripChatPill, { backgroundColor: colors.navFill }]}
+              style={[styles.tripChatPill, { backgroundColor: AppColors.secondaryDarkGreen }]}
               accessibilityLabel="Open trip chat"
             >
               <ChatBubbleGlyph />
@@ -1800,7 +1805,7 @@ const RideDetailsScreen: React.FC = () => {
               textColor={colors.destructive}
             />
           ) : (
-            <View style={[styles.rideOverBanner, { backgroundColor: colors.navFill }]}>
+            <View style={[styles.rideOverBanner, { backgroundColor: AppColors.secondaryDarkGreen }]}>
               <Text style={[styles.rideOverText, { color: colors.navIconInactive }]}>This ride is over</Text>
             </View>
           )}
@@ -1839,7 +1844,7 @@ const RideDetailsScreen: React.FC = () => {
             paddingHorizontal: 16,
             paddingVertical: 8,
             borderRadius: 999,
-            backgroundColor: colors.navFill,
+            backgroundColor: AppColors.secondaryDarkGreen,
           }}
           activeOpacity={0.85}
         >
@@ -1911,7 +1916,7 @@ const RideDetailsScreen: React.FC = () => {
               activeOpacity={0.88}
               style={{
                 alignSelf: "stretch",
-                backgroundColor: colors.navFill,
+                backgroundColor: AppColors.secondaryDarkGreen,
                 paddingVertical: 16,
                 borderRadius: 16,
                 alignItems: "center",
@@ -2028,10 +2033,10 @@ const RideDetailsScreen: React.FC = () => {
           <View style={styles.mainContent}>
             <View style={[
               styles.combinedContainer,
-              { backgroundColor: colors.navFill },
+              { backgroundColor: AppColors.secondaryDarkGreen },
               colors.mode === "dark" && { borderWidth: 1, borderColor: "rgba(237,236,231,0.08)" },
             ]}>
-              <View style={[styles.rideCard, { backgroundColor: colors.navFill }]}>
+              <View style={[styles.rideCard, { backgroundColor: AppColors.secondaryDarkGreen }]}>
                 <View style={styles.routeSection}>
                   <View style={styles.routeDetails}>
                     <View style={styles.locationContainer}>
@@ -2060,7 +2065,7 @@ const RideDetailsScreen: React.FC = () => {
                 </View>
                 
                 <Text style={styles.creatorText}>
-                  Ride Created by {rideData.host_user_name || 'Host'} on {formatDate(rideData.start_time)}
+                  Ride Created by {stripRegNo(rideData.host_user_name) || 'Host'} on {formatDate(rideData.start_time)}
                 </Text>
                 <Text style={styles.yobText}>{getAgeText(rideData.host_user_yob)}</Text>
                 
@@ -2123,7 +2128,7 @@ const RideDetailsScreen: React.FC = () => {
                   <TouchableOpacity
                     onPress={openRideChat}
                     activeOpacity={0.85}
-                    style={[styles.tripChatPill, { backgroundColor: colors.navFill }]}
+                    style={[styles.tripChatPill, { backgroundColor: AppColors.secondaryDarkGreen }]}
                     accessibilityLabel="Open trip chat"
                   >
                     <ChatBubbleGlyph />
@@ -2170,7 +2175,7 @@ const RideDetailsScreen: React.FC = () => {
 
               </>
             ) : (
-              <View style={[styles.rideOverBanner, { backgroundColor: colors.navFill }]}>
+              <View style={[styles.rideOverBanner, { backgroundColor: AppColors.secondaryDarkGreen }]}>
                 <Text style={[styles.rideOverText, { color: colors.navIconInactive }]}>This ride is over</Text>
               </View>
             )}

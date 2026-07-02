@@ -653,8 +653,8 @@ const AvailableRideScreenSelected: React.FC = () => {
       </View>
 
       <View style={styles.mainContent}>
-        <View style={[styles.combinedContainer, { backgroundColor: colors.navFill }]}>
-          <View style={[styles.rideCard, { backgroundColor: colors.navFill }]}>
+        <View style={[styles.combinedContainer, { backgroundColor: AppColors.secondaryDarkGreen }]}>
+          <View style={[styles.rideCard, { backgroundColor: AppColors.secondaryDarkGreen }]}>
             <View style={styles.routeSection}>
               <View style={styles.routeDetails}>
                 <View style={styles.locationContainer}>
@@ -763,7 +763,7 @@ const AvailableRideScreenSelected: React.FC = () => {
 
           if (state === "host") {
             return (
-              <View style={[styles.viewerNoticeWrap, { backgroundColor: colors.navFill }]}>
+              <View style={[styles.viewerNoticeWrap, { backgroundColor: AppColors.secondaryDarkGreen }]}>
                 <Text style={[styles.viewerNoticeTitle, { color: colors.navIconInactive }]}>You're hosting this ride</Text>
                 <TouchableOpacity
                   style={[styles.viewerNoticeBtn, { backgroundColor: colors.primary }]}
@@ -780,7 +780,7 @@ const AvailableRideScreenSelected: React.FC = () => {
           }
           if (state === "confirmed_passenger") {
             return (
-              <View style={[styles.viewerNoticeWrap, { backgroundColor: colors.navFill }]}>
+              <View style={[styles.viewerNoticeWrap, { backgroundColor: AppColors.secondaryDarkGreen }]}>
                 <Text style={[styles.viewerNoticeTitle, { color: colors.navIconInactive }]}>Your seat is confirmed</Text>
                 <TouchableOpacity
                   style={[styles.viewerNoticeBtn, { backgroundColor: colors.primary }]}
@@ -793,7 +793,7 @@ const AvailableRideScreenSelected: React.FC = () => {
           }
           if (state === "full") {
             return (
-              <View style={[styles.viewerNoticeWrap, { backgroundColor: colors.navFill }]}>
+              <View style={[styles.viewerNoticeWrap, { backgroundColor: AppColors.secondaryDarkGreen }]}>
                 <Text style={[styles.viewerNoticeTitle, { color: colors.navIconInactive }]}>This ride is full</Text>
                 <Text style={[styles.viewerNoticeSub, { color: colors.navIconActive }]}>All seats have been taken.</Text>
               </View>
@@ -801,7 +801,7 @@ const AvailableRideScreenSelected: React.FC = () => {
           }
           if (state === "past") {
             return (
-              <View style={[styles.viewerNoticeWrap, { backgroundColor: colors.navFill }]}>
+              <View style={[styles.viewerNoticeWrap, { backgroundColor: AppColors.secondaryDarkGreen }]}>
                 <Text style={[styles.viewerNoticeTitle, { color: colors.navIconInactive }]}>Trip completed</Text>
               </View>
             );
