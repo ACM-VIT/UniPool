@@ -1051,18 +1051,24 @@ const RideDetailsScreen: React.FC = () => {
                 }
               } catch (error: any) {
                 console.error("Delete ride error:", error);
-                
-                let errorMessage = "Couldn't delete the ride. Try again?";
-                if (error.message && error.message.includes("accepted bookings")) {
-                  errorMessage = "You've already accepted riders. Remove them first, then delete.";
+
+                // The backend blocks deleting a ride that still has accepted
+                // riders and returns a helpful message + accepted_booking_count.
+                // Surface that (and any other server message) instead of the
+                // raw "HTTP 400" from the thrown Error.
+                const data = error?.response?.data;
+                let errorMessage: string;
+                if (data?.accepted_booking_count > 0) {
+                  errorMessage =
+                    "You've already accepted riders on this trip. Tap Remove on each of them first, then delete the ride.";
                 } else if (error.status === 403) {
                   errorMessage = "Only the host can delete this ride.";
                 } else if (error.status === 404) {
                   errorMessage = "This ride is already gone.";
-                } else if (error.status === 400) {
-                  errorMessage = error.message || "Something's off with this request.";
                 } else if (error.status === 500) {
                   errorMessage = "Our server hiccupped. Give it a moment and try again.";
+                } else {
+                  errorMessage = data?.error || "Couldn't delete the ride. Try again?";
                 }
 
                 BrandedAlert.alert("Couldn't delete the ride", errorMessage);
