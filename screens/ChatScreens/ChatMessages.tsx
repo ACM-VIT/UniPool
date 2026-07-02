@@ -1585,7 +1585,10 @@ const ChatConversationScreen: React.FC<Pick<ChatMessagesScreenProps, "setNavBarV
       <SheetShell
         visible={showSettings}
         onDismiss={() => setShowSettings(false)}
-        surfaceColor={colors.surfaceElevated}
+        // The forest ride/settings cards belong on the lime canvas, not a
+        // flat white sheet — use the brand background (lime in light, dark in
+        // dark) so it reads like the rest of the app.
+        surfaceColor={colors.background}
       >
         {/* SheetShell provides the slide-up chrome (grab handle, X
             button, rounded top corners, dim backdrop). The pageSheet
