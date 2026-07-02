@@ -71,21 +71,31 @@ const runtimeVersionFromConfig = (
   return undefined;
 };
 
-const ProfileAppIcon = () => (
-  <View
-    style={styles.appInfoIconTile}
+const ProfileAppIcon: React.FC<{
+  onPress: () => void;
+  disabled: boolean;
+}> = ({ onPress, disabled }) => (
+  <TouchableOpacity
+    onPress={onPress}
+    disabled={disabled}
+    activeOpacity={0.78}
+    style={styles.appInfoIconPressable}
     accessible
-    accessibilityRole="image"
-    accessibilityLabel="UniPool app icon"
+    accessibilityRole="button"
+    accessibilityLabel="Check for UniPool update"
+    accessibilityHint="Checks for the latest OTA update and restarts the app if one is available"
+    accessibilityState={{ disabled, busy: disabled }}
   >
-    <Text style={styles.appInfoIconUni}>Uni</Text>
-    <View style={styles.appInfoIconPoolRow}>
-      <Text style={styles.appInfoIconPoolLetter}>P</Text>
-      <View style={styles.appInfoIconWheel} />
-      <View style={styles.appInfoIconWheel} />
-      <Text style={styles.appInfoIconPoolLetter}>l</Text>
+    <View style={styles.appInfoIconTile}>
+      <Text style={styles.appInfoIconUni}>Uni</Text>
+      <View style={styles.appInfoIconPoolRow}>
+        <Text style={styles.appInfoIconPoolLetter}>P</Text>
+        <View style={styles.appInfoIconWheel} />
+        <View style={styles.appInfoIconWheel} />
+        <Text style={styles.appInfoIconPoolLetter}>l</Text>
+      </View>
     </View>
-  </View>
+  </TouchableOpacity>
 );
 
 interface UserData {
@@ -190,6 +200,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [otaUpdateChecking, setOtaUpdateChecking] = useState(false);
   const { apiUtil } = useApi();
   // iPad-only: phone-shape centred column so the stat cards and
   // account/help/about sections sit in a readable width instead of
@@ -373,6 +384,41 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     [appInfo],
   );
 
+  const forceLatestOTAUpdate = useCallback(async () => {
+    if (otaUpdateChecking) return;
+
+    if (__DEV__ || !Updates.isEnabled) {
+      BrandedAlert.alert(
+        "OTA unavailable",
+        __DEV__
+          ? "Manual OTA checks are disabled in development builds."
+          : "OTA updates are not enabled in this build.",
+      );
+      return;
+    }
+
+    setOtaUpdateChecking(true);
+    try {
+      const check = await Updates.checkForUpdateAsync();
+      if (!check.isAvailable && !check.isRollBackToEmbedded) {
+        BrandedAlert.alert("Already up to date", "No newer OTA update is available for this runtime.");
+        return;
+      }
+
+      const fetch = await Updates.fetchUpdateAsync();
+      if (fetch.isNew || fetch.isRollBackToEmbedded) {
+        await Updates.reloadAsync();
+        return;
+      }
+
+      BrandedAlert.alert("Already up to date", "The latest OTA update is already installed.");
+    } catch (error) {
+      console.warn("[ProfileScreen] manual OTA update failed", error);
+      showProfileError("Unable to check for updates right now.");
+    } finally {
+      setOtaUpdateChecking(false);
+    }
+  }, [otaUpdateChecking, showProfileError]);
 
   // "Bookings" row was removed — the Trips tab in the main nav is the
   // canonical surface for booked / hosted / past rides, so a second
@@ -824,7 +870,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
             ]}
           >
             <View style={styles.appInfoBrandRow}>
-              <ProfileAppIcon />
+              <ProfileAppIcon onPress={forceLatestOTAUpdate} disabled={otaUpdateChecking} />
               <View style={styles.appInfoBrandText}>
                 <Text style={[styles.appInfoWordmark, { color: themeColors.textOnDark }]}>UniPool</Text>
                 <Text style={[styles.appInfoSubtitle, { color: themeColors.textOnDark }]}>ACM-VIT</Text>
