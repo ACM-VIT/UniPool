@@ -289,6 +289,14 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       ),
     [rides, strictMatchIds],
   );
+
+  const resetRideResults = useCallback(() => {
+    setSelectedRideId(null);
+    setRides([]);
+    setExternalRides([]);
+    setSearchMeta(null);
+    setStrictMatchIds(new Set());
+  }, []);
   
   const [fromLocation, setFromLocation] = useState("");
   const [toLocation, setToLocation] = useState("");
@@ -359,6 +367,14 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     if (DEBUG_RIDE_SEARCH) {
       console.log('Route params updated:', { newFromLocation, newToLocation, newFromCoordinates, newToCoordinates, newTargetTimeIso });
     }
+
+    // Route params are the identity of the search. Invalidate pending work and
+    // clear rendered results before the next fetch starts so the previous
+    // route can never appear under the new route's "Searching..." state.
+    fetchSeqRef.current += 1;
+    resetRideResults();
+    setLoading(Boolean(newFromLocation && newToLocation));
+    setRefreshing(false);
     
     setFromLocation(newFromLocation);
     setToLocation(newToLocation);
@@ -373,7 +389,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     setFilters((current) =>
       current.date === routeDate ? current : { ...current, date: routeDate },
     );
-  }, [routeParams]);
+  }, [routeParams, resetRideResults]);
 
   const searchQueryParams = useMemo(() => {
     let queryParams = `start_location=${encodeURIComponent(fromLocation)}&end_location=${encodeURIComponent(toLocation)}`;
@@ -432,10 +448,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
       if (DEBUG_RIDE_SEARCH) console.log("No locations provided, not fetching rides.");
       // Invalidate any in-flight request so its late response can't land.
       fetchSeqRef.current += 1;
-      setRides([]);
-      setExternalRides([]);
-      setSearchMeta(null);
-      setStrictMatchIds(new Set());
+      resetRideResults();
       setLoading(false);
       setRefreshing(false);
       return;
@@ -449,10 +462,7 @@ const AvailableRideScreen: React.FC<AvailableRideScreenProps> = ({
     if (refresh) {
       setRefreshing(true);
     } else {
-      setRides([]);
-      setExternalRides([]);
-      setSearchMeta(null);
-      setStrictMatchIds(new Set());
+      resetRideResults();
       setLoading(true);
     }
     if (DEBUG_RIDE_SEARCH) {
