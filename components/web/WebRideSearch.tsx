@@ -201,23 +201,29 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
       const searchToCoordinates = options.toCoordinates === undefined ? toCoordinates : options.toCoordinates;
       setLoading(true);
       setVisibleCount(PAGE_SIZE);
-      setRouted(Boolean(f.trim() && t.trim()));
+      const hasFrom = f.trim().length > 0;
+      const hasTo = t.trim().length > 0;
+      setRouted(hasFrom || hasTo);
       try {
-        if (f.trim() && t.trim()) {
+        if (hasFrom || hasTo) {
+          // A route search. Either endpoint alone is enough — filling only the
+          // destination (e.g. "rides to VIT" from a destination hub) filters by
+          // that end and leaves the origin open.
           setNear(false);
-          const qs = new URLSearchParams({
-            start_location: f.trim(),
-            end_location: t.trim(),
-            limit: String(NEARBY_LIMIT),
-            sort_by: "time",
-          });
-          if (searchFromCoordinates) {
-            qs.set("start_lat", searchFromCoordinates.latitude.toFixed(6));
-            qs.set("start_lon", searchFromCoordinates.longitude.toFixed(6));
+          const qs = new URLSearchParams({ limit: String(NEARBY_LIMIT), sort_by: "time" });
+          if (hasFrom) {
+            qs.set("start_location", f.trim());
+            if (searchFromCoordinates) {
+              qs.set("start_lat", searchFromCoordinates.latitude.toFixed(6));
+              qs.set("start_lon", searchFromCoordinates.longitude.toFixed(6));
+            }
           }
-          if (searchToCoordinates) {
-            qs.set("end_lat", searchToCoordinates.latitude.toFixed(6));
-            qs.set("end_lon", searchToCoordinates.longitude.toFixed(6));
+          if (hasTo) {
+            qs.set("end_location", t.trim());
+            if (searchToCoordinates) {
+              qs.set("end_lat", searchToCoordinates.latitude.toFixed(6));
+              qs.set("end_lon", searchToCoordinates.longitude.toFixed(6));
+            }
           }
           const res = await apiUtil.get<SearchResponse>(`/ride/search?${qs.toString()}`);
           setRides(res?.rides ?? []);
@@ -331,7 +337,8 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
     (id: string) => router.push(appHref("RideDetailsScreen", { rideId: id } as any)),
     [router],
   );
-  const canSearch = from.trim().length > 0 && to.trim().length > 0;
+  // Either endpoint is enough to search (destination-only is common).
+  const canSearch = from.trim().length > 0 || to.trim().length > 0;
 
   // External rides render as ordinary cards mixed in with UniPool rides,
   // ordered by departure so the soonest upcoming rides lead regardless of
@@ -343,10 +350,20 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
 
   const total = results.length;
   const rideWord = total === 1 ? "ride" : "rides";
+  // Describe the active filter: a full route, or just one endpoint (a
+  // destination-only search from a hub reads "to VIT Vellore").
+  const routeLabel = (() => {
+    const f = from.trim();
+    const t = to.trim();
+    if (f && t) return "on your route";
+    if (t) return `to ${t}`;
+    if (f) return `from ${f}`;
+    return "";
+  })();
   const resultsHeader = loading
     ? "Searching…"
     : routed
-    ? `${total} ${rideWord} on your route`
+    ? `${total} ${rideWord} ${routeLabel}`
     : near
     ? `${total} ${rideWord} near you`
     : `${total} upcoming ${rideWord}`;
@@ -379,7 +396,7 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
       {/* Brand hero — a single line, no marketing subcopy. */}
       <View style={styles.hero}>
         <Text style={styles.heroTitle}>
-          {routed ? "Rides on your route" : "Your campus, carpooled."}
+          {routed ? `Rides ${routeLabel}` : "Your campus, carpooled."}
         </Text>
       </View>
 
@@ -492,7 +509,7 @@ const WebRideSearch: React.FC<Props> = ({ initialFrom = "", initialTo = "" }) =>
       ) : total === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>
-            {routed ? "No rides on this route yet" : near ? "No rides near you yet" : "No upcoming rides yet"}
+            {routed ? `No rides ${routeLabel} yet` : near ? "No rides near you yet" : "No upcoming rides yet"}
           </Text>
           <Pressable
             style={({ hovered }: any) => [styles.emptyBtn, hovered && styles.emptyBtnHover]}

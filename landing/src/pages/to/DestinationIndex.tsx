@@ -9,12 +9,12 @@ export default function DestinationIndex() {
     "Pick a destination and see student carpools heading that way. Bangalore, Chennai airport, VIT, Katpadi and more.",
   );
   return (
-    <section className="min-h-[calc(100svh-4rem)] bg-cream px-6 py-10 sm:py-14">
+    <section className="min-h-[calc(100svh-4rem)] bg-lime px-6 py-10 sm:py-14">
       <div className="container-x max-w-xl">
         <h1 className="text-3xl font-extrabold tracking-tight text-forest sm:text-[34px]">
           Where to?
         </h1>
-        <p className="mt-2 text-[15px] text-forest/60">
+        <p className="mt-2 text-[15px] font-medium text-forest/60">
           Pick a destination. See who's heading that way.
         </p>
 
@@ -23,7 +23,7 @@ export default function DestinationIndex() {
             <Link
               key={dest.slug}
               to={`/${dest.slug}`}
-              className="flex items-center gap-3.5 rounded-[20px] bg-white px-4 py-4 shadow-card transition active:scale-[0.99]"
+              className="flex items-center gap-3.5 rounded-[20px] border border-forest/10 bg-cream px-4 py-4 shadow-card transition hover:-translate-y-0.5 hover:border-forest/20 active:scale-[0.99]"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-lime/25 text-[13px] font-extrabold text-forest">
                 {dest.code}

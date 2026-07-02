@@ -12,19 +12,46 @@ export type Ride = {
   created_at?: string;
 };
 
+// Off-platform ride, ride alongside first-party rides in the same
+// /ride/search response's `external_rides`. These carry no set fare (you
+// arrange it with the host) and a full "Name 24XYZ0000" host string.
+export type ExternalRide = {
+  id: string;
+  pickup_point: string;
+  destination: string;
+  departure_time: string;
+  host_name: string;
+  vehicle_type?: string;
+  total_seats: number;
+  available_seats: number;
+};
+
 // The backend `/ride/search` text filter is a naive substring match on
 // the stored location strings ("Bengaluru East City Corporation", not
 // "Bangalore"), so filtering server-side by a friendly name misses
 // most rides. Instead we pull a batch of upcoming rides once and match
-// them against alias terms on the client.
-export async function fetchUpcomingRides(limit = 50): Promise<Ride[]> {
+// them against alias terms on the client. One call returns both
+// first-party and external rides; we drop anything already departed.
+export async function fetchUpcoming(
+  limit = 50,
+): Promise<{ rides: Ride[]; external: ExternalRide[] }> {
   const params = new URLSearchParams({ limit: String(limit), sort_by: "time" });
   const res = await fetch(`${API_BASE}/ride/search?${params}`);
-  if (!res.ok) return [];
+  if (!res.ok) return { rides: [], external: [] };
   const data = await res.json();
-  const rides: Ride[] = Array.isArray(data) ? data : data.rides || [];
   const now = Date.now();
-  return rides.filter((r) => new Date(r.start_time).getTime() >= now);
+  const rides: Ride[] = (Array.isArray(data) ? data : data.rides || []).filter(
+    (r: Ride) => new Date(r.start_time).getTime() >= now,
+  );
+  const external: ExternalRide[] = (data.external_rides || []).filter(
+    (e: ExternalRide) => new Date(e.departure_time).getTime() >= now,
+  );
+  return { rides, external };
+}
+
+// First-party rides only — kept for the best-route + today boards.
+export async function fetchUpcomingRides(limit = 50): Promise<Ride[]> {
+  return (await fetchUpcoming(limit)).rides;
 }
 
 function normalize(s: string): string {
@@ -40,6 +67,14 @@ export function matchesTerms(location: string, terms: string[]): boolean {
 // destination's alias terms.
 export function ridesToDestination(rides: Ride[], endTerms: string[]): Ride[] {
   return rides.filter((r) => matchesTerms(r.end_location, endTerms));
+}
+
+// External rides matching a destination (by their off-platform destination).
+export function externalsToDestination(
+  external: ExternalRide[],
+  endTerms: string[],
+): ExternalRide[] {
+  return external.filter((e) => matchesTerms(e.destination, endTerms));
 }
 
 // A ride matches a route when the start hits the start terms AND the
@@ -121,4 +156,33 @@ export function dateAndTime(iso: string): string {
   } catch {
     return "";
   }
+}
+
+// App-style split labels for the ride card: "Sat, 4 Jul" + "8:00 am".
+export function dayLabel(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  } catch {
+    return "";
+  }
+}
+export function clockLabel(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  } catch {
+    return "";
+  }
+}
+
+// External host names carry a VIT registration suffix ("Subhi Garg 24BCE0907");
+// strip it so cards read like a first-party ride ("Hosted by Subhi").
+export function stripReg(name: string): string {
+  return (name || "").replace(/\s+\d{2}[A-Z]{3}\d{4,}$/, "").trim();
+}
+
+// External feeds give passenger seats-available directly (no host seat to back out).
+export function externalSeatsLabel(e: ExternalRide): string {
+  const left = Math.max(0, Math.floor(e.available_seats || 0));
+  if (left <= 0) return "Full";
+  return `${left} seat${left === 1 ? "" : "s"} left`;
 }
