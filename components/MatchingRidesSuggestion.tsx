@@ -9,7 +9,6 @@ import {
   ScrollView,
 } from "react-native";
 import AppColors from "../design_systems/colors";
-import { useThemeColors } from "../contexts/ThemeContext";
 import { useApi } from "../utils/ApiUtil";
 import { useRouter } from "expo-router";
 import { appHref } from "../navigation/routes";
@@ -69,7 +68,6 @@ type MatchView = {
  * opens its booking flow in RideDetailsScreen.
  */
 const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }) => {
-  const colors = useThemeColors();
   const { apiUtil } = useApi();
   const router = useRouter();
   const dateMs = date?.getTime() ?? null;
@@ -172,8 +170,10 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
   const matchViews = useMemo<MatchView[]>(
     () =>
       matches.map((m) => {
-        const start = displayRideLocation(m.start_location);
-        const end = displayRideLocation(m.end_location);
+        // First comma segment only — the compact row doesn't need the
+        // ", vellore" tail, matching the shortened routes on ride cards.
+        const start = shortLocation(displayRideLocation(m.start_location));
+        const end = shortLocation(displayRideLocation(m.end_location));
         return {
           match: m,
           routeLabel: `${start} → ${end}`,
@@ -189,8 +189,8 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
   const visible = expanded ? matchViews : matchViews.slice(0, 1);
   const headerTitle =
     matches.length === 1
-      ? `${top?.host_user_name || "Someone"} is heading your way`
-      : `${matches.length} hosts are heading your way`;
+      ? `${firstNameOf(top?.host_user_name) || "Someone"} is already heading your way`
+      : `${matches.length} hosts are already heading your way`;
   const animatedStyle = useMemo(
     () => [styles.wrap, { opacity, transform: [{ translateY }] }],
     [opacity, translateY],
@@ -224,31 +224,21 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
 
   return (
     <Animated.View style={animatedStyle}>
-      <View
-        style={[
-          styles.card,
-          // White card in light → elevated charcoal sheet in dark.
-          // Border softens against either canvas via inkSubtle.
-          { backgroundColor: colors.surfaceElevated, borderColor: colors.inkSubtle },
-        ]}
-      >
+      {/* Forest card on the lime canvas — same surface as the route and
+          fare cards below it on CreateRide, so the nudge reads as part
+          of the app instead of a foreign white toast. */}
+      <View style={styles.card}>
         <View style={styles.headerRow}>
-          <Text style={styles.headerEmoji}>💡</Text>
-          <View style={styles.headerText}>
-            <Text style={[styles.headerKicker, { color: colors.textTertiary }]}>
-              Already going there
-            </Text>
-            <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
-              {headerTitle}
-            </Text>
-          </View>
+          <Text style={styles.headerTitle} numberOfLines={2}>
+            {headerTitle}
+          </Text>
           <TouchableOpacity
             onPress={dismiss}
-            style={[styles.dismissBtn, { backgroundColor: colors.inkSubtle }]}
+            style={styles.dismissBtn}
             hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             accessibilityLabel="Dismiss suggestion"
           >
-            <Text style={[styles.dismissGlyph, { color: colors.textPrimary }]}>×</Text>
+            <Text style={styles.dismissGlyph}>×</Text>
           </TouchableOpacity>
         </View>
 
@@ -264,25 +254,22 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
             <TouchableOpacity
               key={item.match.id}
               activeOpacity={0.85}
-              style={[
-                idx > 0 ? styles.matchRowWithDivider : styles.matchRow,
-                idx > 0 ? { borderTopColor: colors.inkSubtle } : null,
-              ]}
+              style={idx > 0 ? styles.matchRowWithDivider : styles.matchRow}
               onPress={() => open(item.match)}
               accessibilityLabel={item.accessibilityLabel}
             >
               <View style={styles.matchTextColumn}>
-                <Text style={[styles.matchRoute, { color: colors.textPrimary }]} numberOfLines={1}>
+                <Text style={styles.matchRoute} numberOfLines={1}>
                   {item.routeLabel}
                 </Text>
-                <Text style={[styles.matchMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+                <Text style={styles.matchMeta} numberOfLines={1}>
                   {item.metaLabel}
                 </Text>
-                <Text style={[styles.matchDistance, { color: colors.textTertiary }]} numberOfLines={1}>
+                <Text style={styles.matchDistance} numberOfLines={1}>
                   {item.distanceLabel}
                 </Text>
               </View>
-              <Text style={[styles.matchChevron, { color: colors.textTertiary }]}>›</Text>
+              <Text style={styles.matchChevron}>›</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -293,13 +280,13 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
             style={styles.expandBtn}
             activeOpacity={0.7}
           >
-            <Text style={[styles.expandBtnText, { color: colors.textPrimary }]}>
+            <Text style={styles.expandBtnText}>
               {expanded ? "Show less" : `Show ${restCount} more`}
             </Text>
           </TouchableOpacity>
         ) : null}
 
-        <Text style={[styles.footnote, { color: colors.textTertiary }]}>
+        <Text style={styles.footnote}>
           Or post your own below if none of these fit.
         </Text>
       </View>
@@ -308,6 +295,18 @@ const MatchingRidesSuggestion: React.FC<Props> = ({ fromCoords, toCoords, date }
 };
 
 // --- helpers --------------------------------------------------------
+
+// First comma segment of a stored location ("Katpadi Junction, vellore"
+// → "Katpadi Junction"), the same shortening ride cards use.
+function shortLocation(s: string): string {
+  return (s.split(",")[0] || "").trim() || s;
+}
+
+// First name, with the VIT registration suffix stripped
+// ("Samay Mundra 24BCE0001" → "Samay"), matching names elsewhere.
+function firstNameOf(name?: string): string {
+  return (name || "").replace(/\s+\d{2}[A-Z]{3}\d{4,}$/, "").trim().split(/\s+/)[0] || "";
+}
 
 let matchTimeFormatter: Intl.DateTimeFormat | null = null;
   try {
@@ -368,19 +367,16 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   card: {
-    // Lime card with soft forest border — sits on the lime canvas
-    // distinctly but doesn't compete with the white form cards
-    // below. Big enough rounded radius that it reads as a "soft
-    // suggestion" rather than a hard alert.
-    backgroundColor: AppColors.basicWhite,
+    // Brand forest card on the lime canvas — the same surface as the
+    // route + fare cards below it on CreateRide (fixed palette; the
+    // screen's canvas is hardcoded lime in both themes).
+    backgroundColor: AppColors.secondaryDarkGreen,
     borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: "rgba(38,59,51,0.10)",
+    paddingVertical: 16,
+    paddingHorizontal: 18,
     shadowColor: AppColors.basicBlack,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 3,
   },
@@ -390,26 +386,11 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 4,
   },
-  headerText: {
-    flex: 1,
-  },
-  headerEmoji: {
-    fontSize: 22,
-    lineHeight: 26,
-  },
-  headerKicker: {
-    fontFamily: "NunitoSans_700Bold",
-    fontSize: 10.5,
-    letterSpacing: 0.4,
-    color: AppColors.secondaryDarkGreen,
-    opacity: 0.55,
-    textTransform: "uppercase",
-  },
   headerTitle: {
-    marginTop: 2,
+    flex: 1,
     fontFamily: "NunitoSans_800ExtraBold",
-    fontSize: 15,
-    color: AppColors.secondaryDarkGreen,
+    fontSize: 15.5,
+    color: AppColors.cardSurface,
     letterSpacing: -0.2,
   },
   dismissBtn: {
@@ -418,10 +399,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(38,59,51,0.06)",
+    backgroundColor: "rgba(255,253,244,0.12)",
   },
   dismissGlyph: {
-    color: AppColors.secondaryDarkGreen,
+    color: AppColors.cardSurface,
     fontSize: 18,
     lineHeight: 20,
     fontFamily: "NunitoSans_700Bold",
@@ -438,7 +419,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(38,59,51,0.10)",
+    borderTopColor: "rgba(255,253,244,0.14)",
   },
   matchListExpanded: {
     maxHeight: 320,
@@ -450,27 +431,25 @@ const styles = StyleSheet.create({
   matchRoute: {
     fontFamily: "NunitoSans_800ExtraBold",
     fontSize: 14,
-    color: AppColors.secondaryDarkGreen,
+    color: AppColors.cardSurface,
     letterSpacing: -0.15,
   },
   matchMeta: {
     marginTop: 3,
     fontFamily: "NunitoSans_700Bold",
     fontSize: 12.5,
-    color: AppColors.secondaryDarkGreen,
-    opacity: 0.75,
+    // Lime meta line — the ₹ + seats accent, like prices on forest cards.
+    color: AppColors.primaryLightGreen,
   },
   matchDistance: {
     marginTop: 2,
     fontFamily: "NunitoSans_600SemiBold",
     fontSize: 11,
-    color: AppColors.secondaryDarkGreen,
-    opacity: 0.55,
+    color: "rgba(255,253,244,0.6)",
   },
   matchChevron: {
     fontSize: 22,
-    color: AppColors.secondaryDarkGreen,
-    opacity: 0.55,
+    color: "rgba(255,253,244,0.55)",
     paddingLeft: 4,
   },
   expandBtn: {
@@ -482,15 +461,14 @@ const styles = StyleSheet.create({
   expandBtnText: {
     fontFamily: "NunitoSans_800ExtraBold",
     fontSize: 12.5,
-    color: AppColors.secondaryDarkGreen,
+    color: AppColors.primaryLightGreen,
     letterSpacing: 0.1,
   },
   footnote: {
     marginTop: 10,
     fontFamily: "NunitoSans_600SemiBold",
     fontSize: 11.5,
-    color: AppColors.secondaryDarkGreen,
-    opacity: 0.5,
+    color: "rgba(255,253,244,0.55)",
     textAlign: "center",
   },
 });
