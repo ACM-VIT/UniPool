@@ -1778,9 +1778,21 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           // manualSubmit waits for the footer CTA instead of auto-submitting.
           manualSubmit
           onSubmit={(details) => {
-            // Close before search-results navigation takes focus.
+            // The footer tap IS the search: close the sheet, sync home
+            // state (map pins + the nav CTA for re-running it later),
+            // and go straight to results — no second "Search Rides"
+            // tap on the nav bar.
             setSearchSheetOpen(false);
             handleRideSubmit(details);
+            router.navigate(
+              appHref("AvailableRidesScreen", {
+                fromLocation: details.from,
+                toLocation: details.to,
+                fromCoordinates: details.fromCoordinates,
+                toCoordinates: details.toCoordinates,
+                targetTime: details.date?.toISOString(),
+              }),
+            );
           }}
           onLocationSelectionChange={handleLocationSelectionChange}
           onCoordsChange={handleCoordsChange}

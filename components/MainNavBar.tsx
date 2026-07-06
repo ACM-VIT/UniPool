@@ -234,10 +234,20 @@ const MainNavBar: React.FC<MainNavBarProps> = ({
   showSwitchIcon = false,
   onClose,
 }) => {
-  const effectiveOnPress =
-    variant === 1 && typeof (window as any).mainNavBarOnPress === "function"
-      ? (window as any).mainNavBarOnPress
-      : onPress;
+  // Resolve the window-global handler at PRESS time, not render time.
+  // HomeScreen re-registers `mainNavBarOnPress` whenever the selected
+  // search changes, but this bar's props (variant/text/icon) stay
+  // identical across searches, so it doesn't re-render — capturing the
+  // global during render froze the FIRST search's closure and the CTA
+  // kept navigating with that stale route/time.
+  const effectiveOnPress = () => {
+    const globalHandler = (window as any).mainNavBarOnPress;
+    if (variant === 1 && typeof globalHandler === "function") {
+      globalHandler();
+      return;
+    }
+    onPress();
+  };
 
   switch (variant) {
     case 0:
