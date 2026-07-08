@@ -5,14 +5,26 @@
 // google-services.json / GoogleService-Info.plist automatically; the web
 // SDK has no such file, so we pass the config object explicitly here.
 //
-// The web apiKey + appId here are the Web-app credentials (distinct from the
-// Android/iOS keys) — required for the signInWithPopup / signInWithRedirect
-// OAuth flow to work in the browser.
+// Values come from EXPO_PUBLIC_* env vars (see .env.example) so the
+// apiKey is not committed to git. The web apiKey + appId are Web-app
+// credentials (distinct from the Android/iOS keys) — required for the
+// signInWithPopup / signInWithRedirect OAuth flow to work in the browser.
+
+function requiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(
+      `Missing ${name}. Copy .env.example to .env and set the Firebase web config values.`
+    );
+  }
+  return value;
+}
+
 export const firebaseConfig = {
-  apiKey: "__REMOVED_GOOGLE_API_KEY__",
-  authDomain: "acm-carpoolit.firebaseapp.com",
-  projectId: "acm-carpoolit",
-  storageBucket: "acm-carpoolit.firebasestorage.app",
-  messagingSenderId: "290309531485",
-  appId: "1:290309531485:web:a3c6f527b7c5bd5ffe6ab4",
+  apiKey: requiredEnv("EXPO_PUBLIC_FIREBASE_API_KEY"),
+  authDomain: requiredEnv("EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN"),
+  projectId: requiredEnv("EXPO_PUBLIC_FIREBASE_PROJECT_ID"),
+  storageBucket: requiredEnv("EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET"),
+  messagingSenderId: requiredEnv("EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"),
+  appId: requiredEnv("EXPO_PUBLIC_FIREBASE_APP_ID"),
 };
