@@ -794,7 +794,22 @@ const RideDetailsScreen: React.FC = () => {
                     institute_name: found.passenger_institute_name,
                   },
                 }
-              : null,
+              : {
+                  // The bookings array is host-oriented and may not carry the
+                  // viewer's own row (or a re-fetch is mid-flight). Since
+                  // viewer_booking_id came down reliably, hydrate straight from
+                  // it: the cancel/leave handler only needs the id, and this
+                  // stops those actions from silently no-oping ("Nothing to
+                  // cancel") when the array lookup happens to miss.
+                  id: vBookingId,
+                  passenger_id: userId,
+                  request_status:
+                    vs === 'confirmed_passenger'
+                      ? 'accepted'
+                      : vs === 'rejected_passenger'
+                      ? 'rejected'
+                      : 'pending',
+                },
           );
         } else {
           setUserBooking(null);
