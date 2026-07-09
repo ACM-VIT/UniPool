@@ -58,10 +58,10 @@ type Preview = {
 
 type Coords = { start_latitude: number; start_longitude: number; end_latitude: number; end_longitude: number };
 
-// An external (off-platform) ride. The /ride/preview/:id endpoint 404s for
-// these, so we fall back to /external/preview/:id — the same sanitized card the
-// nearby/search lists use (host email stays server-side). The page then renders
-// a "reach out / notify them" variant instead of the request-a-seat card.
+// An external (off-platform) ride. The /external/preview/:id endpoint returns
+// the same sanitized card the nearby/search lists use (host email stays
+// server-side). The page then renders a "reach out / notify them" variant
+// instead of the request-a-seat card.
 type ExternalPreview = {
   id: string;
   source: string;
@@ -116,6 +116,9 @@ const externalFirstNameOf = (name: string) =>
 // ("Sree Raj Muthaiya A L 24BCE0250" → "Sree Raj Muthaiya A L").
 const externalDisplayNameOf = (name: string) =>
   (name || "").replace(/\s+\d{2}[A-Z]{3}\d{4,}$/, "").trim() || "Off-platform host";
+
+const looksLikeInternalRideId = (id: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 // The gated /ride/details/:id response carries the server-computed
 // `viewer_state` — the single source of truth for what the viewer should
@@ -248,20 +251,31 @@ const RideDetailsScreenWeb: React.FC = () => {
     (async () => {
       let previewRes: Preview | null = null;
       let externalRes: ExternalPreview | null = null;
-      try {
-        // Probe the UniPool preview first; a 400/404 here just means it's an
-        // external ride, so keep it silent (no global error toast).
+      const loadInternalPreview = async () => {
         previewRes = await apiUtil.getSilent<Preview>(`/ride/preview/${rideId}`);
         if (!cancelled) setPreview(previewRes);
+      };
+      const loadExternalPreview = async () => {
+        externalRes = await apiUtil.getSilent<ExternalPreview>(`/external/preview/${rideId}`);
+        if (!cancelled) {
+          setExternal(externalRes);
+          setInviteState(invitedExternalRideIds.has(externalRes.id) ? "already" : "idle");
+        }
+      };
+      try {
+        if (looksLikeInternalRideId(rideId)) {
+          await loadInternalPreview();
+        } else {
+          await loadExternalPreview();
+        }
       } catch {
-        // A UniPool ride wasn't found under this id — it may be an external
-        // (off-platform) ride shared through the same /ride/<id> link. Fall
-        // back to the public external preview before giving up.
+        // If an id is misclassified or the backend changes id shape, keep the
+        // fallback so shared links continue to resolve instead of 404ing.
         try {
-          externalRes = await apiUtil.getSilent<ExternalPreview>(`/external/preview/${rideId}`);
-          if (!cancelled) {
-            setExternal(externalRes);
-            setInviteState(invitedExternalRideIds.has(externalRes.id) ? "already" : "idle");
+          if (looksLikeInternalRideId(rideId)) {
+            await loadExternalPreview();
+          } else {
+            await loadInternalPreview();
           }
         } catch {
           // Neither preview resolved — the not-found UI handles this, so no toast.
