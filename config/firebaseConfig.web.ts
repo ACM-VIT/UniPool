@@ -10,21 +10,35 @@
 // credentials (distinct from the Android/iOS keys) — required for the
 // signInWithPopup / signInWithRedirect OAuth flow to work in the browser.
 
-function requiredEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) {
+function requiredEnv(name: string, value: string | undefined): string {
+  const trimmed = value?.trim();
+  if (!trimmed) {
     throw new Error(
       `Missing ${name}. Copy .env.example to .env and set the Firebase web config values.`
     );
   }
-  return value;
+  return trimmed;
 }
 
 export const firebaseConfig = {
-  apiKey: requiredEnv("EXPO_PUBLIC_FIREBASE_API_KEY"),
-  authDomain: requiredEnv("EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN"),
-  projectId: requiredEnv("EXPO_PUBLIC_FIREBASE_PROJECT_ID"),
-  storageBucket: requiredEnv("EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET"),
-  messagingSenderId: requiredEnv("EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"),
-  appId: requiredEnv("EXPO_PUBLIC_FIREBASE_APP_ID"),
+  // Expo web only inlines EXPO_PUBLIC_* values when they are referenced
+  // with dot notation. Do not switch these back to dynamic process.env[name].
+  apiKey: requiredEnv("EXPO_PUBLIC_FIREBASE_API_KEY", process.env.EXPO_PUBLIC_FIREBASE_API_KEY),
+  authDomain: requiredEnv(
+    "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN",
+    process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
+  ),
+  projectId: requiredEnv(
+    "EXPO_PUBLIC_FIREBASE_PROJECT_ID",
+    process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID
+  ),
+  storageBucket: requiredEnv(
+    "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET",
+    process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET
+  ),
+  messagingSenderId: requiredEnv(
+    "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+    process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+  ),
+  appId: requiredEnv("EXPO_PUBLIC_FIREBASE_APP_ID", process.env.EXPO_PUBLIC_FIREBASE_APP_ID),
 };
