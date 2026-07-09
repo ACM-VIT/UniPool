@@ -6,6 +6,10 @@
   Content-Type: application/javascript; charset=utf-8
   Cache-Control: public, max-age=0, must-revalidate
 
+/app/_expo/static/js/web/*
+  Content-Type: application/javascript; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
+
 /app/_expo/static/css/*
   Content-Type: text/css; charset=utf-8
   Cache-Control: public, max-age=0, must-revalidate
