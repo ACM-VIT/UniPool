@@ -1,44 +1,59 @@
 /app/_index
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/_expo/static/js/*
   Content-Type: application/javascript; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/_expo/static/css/*
   Content-Type: text/css; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/ride/*
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/account-settings
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/bookings
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/chat
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/personal-information
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/post
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/profile
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/search
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/sign-in
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/trips
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
 
 /app/welcome
   Content-Type: text/html; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
