@@ -18,7 +18,7 @@ const FAQ: FaqGroup[] = [
     items: [
       {
         q: "Who can use UniPool?",
-        a: "Anyone can sign in with Google or Apple. Verifying your university email is optional and unlocks the verified checkmark next to your name, which other riders see on every ride card.",
+        a: "Anyone can sign in with Google or Apple account. Verifying your university email is optional and unlocks the verified checkmark next to your name, which other riders see on every ride card.",
       },
       {
         q: "Which platforms is the app on?",
@@ -55,8 +55,8 @@ const FAQ: FaqGroup[] = [
         a: "Passengers pay the host directly over UPI. Tap Pay on the passenger profile sheet and your UPI app opens with the host's VPA prefilled.",
       },
       {
-        q: "Does UniPool hold the money?",
-        a: "No. UniPool never touches the money. There is no card capture and no platform fee. The fare moves directly between the two of you.",
+        q: "Does UniPool handle payments?",
+        a: "No. Payments are made directly between passengers and hosts via UPI. UniPool does not collect, hold, or process your money.",      
       },
     ],
   },
